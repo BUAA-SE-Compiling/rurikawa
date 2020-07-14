@@ -1,0 +1,17 @@
+[package]
+name = "rurikawa-judger"
+version = "0.1.0"
+authors = ["Rynco Maekawa <lynzrand@outlook.com>"]
+edition = "2018"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+[dependencies]
+clap = "3.0.0-beta.1"
+serde = "1.0"
+serde_derive = "1.0"
+serde_json = "1.0"
+toml = "0.5.6"
+shiplift = "0.6"
+tokio = "0.2.21"
+tungstenite = "*"
+tokio-tungstenite = "0.10.1"
