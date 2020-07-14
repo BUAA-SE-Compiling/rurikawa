@@ -14,3 +14,9 @@ pub enum ImageConfig {
     Remote(String),
     Dockerfile(String),
 }
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct JobConfig {
+    pub time_limit: usize,
+    pub mem_limit: usize,
+}
