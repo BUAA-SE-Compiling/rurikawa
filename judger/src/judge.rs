@@ -19,4 +19,6 @@ pub enum ImageConfig {
 pub struct JobConfig {
     pub time_limit: usize,
     pub mem_limit: usize,
+    pub before_exec: Vec<Vec<String>>,
+    pub exec: Vec<String>,
 }
