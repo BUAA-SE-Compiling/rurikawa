@@ -1,28 +1,58 @@
 use super::util::{diff, strsignal};
 use super::{ExecError, ExecErrorKind, JobConfig, JobFailure, OutputMismatch, ProcessInfo};
+use std::io;
+use std::os::unix::process::ExitStatusExt;
+use std::process::Output;
 use std::time;
-use subprocess::{CaptureData, Communicator, Exec, Pipeline, Popen, PopenError, Redirection};
+use tokio::process::Command;
 
-type PopenResult<T> = Result<T, PopenError>;
+type PopenResult<T> = Result<T, io::Error>;
 
-#[derive(Debug)]
-pub enum Capturable {
-    Exec(Exec),
-    Pipeline(Pipeline),
+#[macro_export]
+macro_rules! command {
+    ( $prog:expr, $( $arg:expr ),* ) => {
+        {
+            let mut cmd = tokio::process::Command::new($prog);
+            $(
+                cmd.arg($arg);
+            )*
+            cmd
+        }
+    };
 }
 
+#[macro_export]
+macro_rules! shell {
+    ( $script:expr ) => {{
+        let mut cmd = tokio::process::Command::new("bash");
+        cmd.arg("-c");
+        cmd.arg($script);
+        cmd
+    }};
+}
+
+pub struct Capturable(Command);
+
 impl Capturable {
-    pub fn capture(self) -> PopenResult<(String, CaptureData)> {
-        match self {
-            Capturable::Exec(e) => {
-                let s = format!("{:?}", &e);
-                Ok((s, e.capture()?))
-            }
-            Capturable::Pipeline(e) => {
-                let s = format!("{:?}", &e);
-                Ok((s, e.capture()?))
-            }
-        }
+    async fn capture(self) -> PopenResult<ProcessInfo> {
+        let Self(mut cmd) = self;
+        let cmd_str = format!("{:?}", cmd);
+        let Output {
+            status,
+            stdout,
+            stderr,
+        } = cmd.output().await?;
+        let ret_code = match (status.code(), status.signal()) {
+            (Some(x), _) => x,
+            (None, Some(x)) => -x,
+            _ => unreachable!(),
+        };
+        Ok(ProcessInfo {
+            command: cmd_str,
+            stdout: String::from_utf8_lossy(&stdout).into_owned(),
+            stderr: String::from_utf8_lossy(&stderr).into_owned(),
+            ret_code,
+        })
     }
 }
 
@@ -41,11 +71,19 @@ impl Step {
         self
     }
 
-    pub fn capture(self) -> PopenResult<(String, CaptureData)> {
+    pub async fn capture(self) -> PopenResult<ProcessInfo> {
         if let Some(timeout) = self.timeout {
-            todo!()
+            let mres = tokio::time::timeout(timeout, self.cmd.capture()).await;
+            if let Ok(res) = mres {
+                res
+            } else {
+                Err(io::Error::new(
+                    io::ErrorKind::TimedOut,
+                    "Popen capture timed out",
+                ))
+            }
         } else {
-            self.cmd.capture()
+            self.cmd.capture().await
         }
     }
 }
@@ -78,16 +116,23 @@ impl Test {
         self
     }
 
-    pub fn run(self) -> Result<(), JobFailure> {
+    pub async fn run(self) -> Result<(), JobFailure> {
         let expected = self.expected.expect("Run Failed: Expected String not set");
         let mut output: Vec<ProcessInfo> = vec![];
         let steps_len = self.steps.len();
         for (i, step) in self.steps.into_iter().enumerate() {
-            let captured = step
-                .capture()
-                .expect("Run Failed: Cannot launch subprocess");
+            let info = match step.capture().await {
+                Ok(res) => res,
+                Err(e) if e.kind() == io::ErrorKind::TimedOut => {
+                    return Err(JobFailure::ExecError(ExecError {
+                        stage: i,
+                        kind: ExecErrorKind::TimedOut,
+                        output,
+                    }))
+                }
+                Err(_) => panic!("Run Failed: Cannot launch subprocess"),
+            };
 
-            let info: ProcessInfo = captured.into();
             output.push(info.clone());
             let code = info.ret_code;
 
@@ -104,7 +149,7 @@ impl Test {
                         stage: i,
                         kind: ExecErrorKind::RuntimeError(format!(
                             "Runtime Error: {}",
-                            strsignal(-code as i32)
+                            strsignal(-code)
                         )),
                         output,
                     }));
@@ -131,45 +176,48 @@ impl Test {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use tokio_test::block_on;
 
     #[test]
     fn ok() {
         let mut t = Test::new();
-        t.add_step(Step::new(Capturable::Exec(
-            Exec::cmd("echo").arg("This does nothing."),
-        )));
-        t.add_step(Step::new(Capturable::Pipeline(
-            Exec::cmd("echo").arg("Hello, world!") | Exec::cmd("awk").arg("{print $1}"),
-        )));
+        t.add_step(Step::new(Capturable(command!(
+            "echo",
+            "This does nothing."
+        ))));
+        t.add_step(Step::new(Capturable(shell!(
+            "echo 'Hello, world!' | awk '{print $1}'"
+        ))));
         t.expected("Hello,\n");
-        let res = t.run();
+        let res = block_on(t.run());
         assert!(matches!(dbg!(res), Ok(())));
     }
 
     #[test]
     fn error_code() {
         let mut t = Test::new();
-        t.add_step(Step::new(Capturable::Exec(
-            Exec::cmd("echo").arg("This does nothing."),
-        )));
-        t.add_step(Step::new(Capturable::Exec(Exec::shell(
-            "echo 'Hello, world!' && false",
+        t.add_step(Step::new(Capturable(command!(
+            "echo",
+            "This does nothing."
+        ))));
+        t.add_step(Step::new(Capturable(shell!(
+            "echo 'Hello, world!' && false"
         ))));
         t.expected("Hello,\nworld!\n");
-        let got = t.run();
+        let got = block_on(t.run());
         let expected: Result<(), _> = Err(JobFailure::ExecError(ExecError {
             stage: 1,
             kind: ExecErrorKind::ReturnCodeCheckFailed,
             output: vec![
                 ProcessInfo {
                     ret_code: 0,
-                    command: "Exec { echo \'This does nothing.\' }".into(),
+                    command: "Command { std: \"echo\" \"This does nothing.\", kill_on_drop: false }".into(),
                     stdout: "This does nothing.\n".into(),
                     stderr: "".into(),
                 },
                 ProcessInfo {
                     ret_code: 1,
-                    command: "Exec { sh -c \'echo \'\\\'\'Hello, world!\'\\\'\' && false\' }"
+                    command: "Command { std: \"bash\" \"-c\" \"echo \\\'Hello, world!\\\' && false\", kill_on_drop: false }"
                         .into(),
                     stdout: "Hello, world!\n".into(),
                     stderr: "".into(),
@@ -182,15 +230,16 @@ mod tests {
     #[test]
     fn signal() {
         let mut t = Test::new();
-        t.add_step(Step::new(Capturable::Exec(
-            Exec::cmd("echo").arg("This does nothing."),
-        )));
-        t.add_step(Step::new(Capturable::Exec(Exec::shell(
+        t.add_step(Step::new(Capturable(command!(
+            "echo",
+            "This does nothing."
+        ))));
+        t.add_step(Step::new(Capturable(shell!(
             // "ping www.bing.com & sleep 0.5; kill $!",
-            "{ sleep 0.1; kill $$; } & for (( i=0; i<4; i++ )) do echo $i; sleep 1; done",
+            "{ sleep 0.1; kill $$; } & for (( i=0; i<4; i++ )) do echo $i; sleep 1; done"
         ))));
         t.expected("Hello,\nworld!\n");
-        let got = t.run();
+        let got = block_on(t.run());
         let expected: Result<(), _> = Err(JobFailure::ExecError(ExecError {
             stage: 1,
             kind: ExecErrorKind::RuntimeError(
@@ -202,13 +251,13 @@ mod tests {
             output: vec![
                 ProcessInfo {
                     ret_code: 0,
-                    command: "Exec { echo \'This does nothing.\' }".into(),
+                    command: "Command { std: \"echo\" \"This does nothing.\", kill_on_drop: false }".into(),
                     stdout: "This does nothing.\n".into(),
                     stderr: "".into(),
                 },
                 ProcessInfo {
                     ret_code: -15,
-                    command: "Exec { sh -c \'{ sleep 0.1; kill $$; } & for (( i=0; i<4; i++ )) do echo $i; sleep 1; done\' }".into(),
+                    command: "Command { std: \"bash\" \"-c\" \"{ sleep 0.1; kill $$; } & for (( i=0; i<4; i++ )) do echo $i; sleep 1; done\", kill_on_drop: false }".into(),
                     stdout: "0\n".into(),
                     stderr: "".into(),
                 },
@@ -220,30 +269,58 @@ mod tests {
     #[test]
     fn output_mismatch() {
         let mut t = Test::new();
-        t.add_step(Step::new(Capturable::Exec(
-            Exec::cmd("echo").arg("This does nothing."),
-        )));
-        t.add_step(Step::new(Capturable::Pipeline(
-            Exec::cmd("echo").arg("Hello, world!") | Exec::cmd("awk").arg("{print $2}"),
-        )));
+        t.add_step(Step::new(Capturable(command!(
+            "echo",
+            "This does nothing."
+        ))));
+        t.add_step(Step::new(Capturable(shell!(
+            "echo 'Hello, world!' | awk '{print $2}'"
+        ))));
         t.expected("Hello,\nworld!\n");
-        let got = t.run();
+        let got = block_on(t.run());
         let expected: Result<(), _> = Err(JobFailure::OutputMismatch(OutputMismatch {
             diff: "+ Hello,\n  world!\n".into(),
             output: vec![
                 ProcessInfo {
                     ret_code: 0,
-                    command: "Exec { echo \'This does nothing.\' }".into(),
+                    command: "Command { std: \"echo\" \"This does nothing.\", kill_on_drop: false }".into(),
                     stdout: "This does nothing.\n".into(),
                     stderr: "".into(),
                 },
                 ProcessInfo {
                     ret_code: 0,
-                    command: "Pipeline { echo \'Hello, world!\' | awk \'{print $2}\' }".into(),
+                    command: "Command { std: \"bash\" \"-c\" \"echo \\\'Hello, world!\\\' | awk \\\'{print $2}\\\'\", kill_on_drop: false }".into(),
                     stdout: "world!\n".into(),
                     stderr: "".into(),
                 },
             ],
+        }));
+        assert_eq!(dbg!(got), expected);
+    }
+
+    #[test]
+    fn output_timed_out() {
+        let mut t = Test::new();
+        t.add_step(Step::new(Capturable(command!(
+            "echo",
+            "This does nothing."
+        ))));
+        t.add_step(
+            Step::new(Capturable(shell!("echo 0; sleep 3; echo 1")))
+                .timeout(time::Duration::from_millis(100)),
+        );
+        t.expected("Hello,\nworld!\n");
+        let got = block_on(t.run());
+        let expected: Result<(), _> = Err(JobFailure::ExecError(ExecError {
+            stage: 1,
+            kind: ExecErrorKind::TimedOut,
+            output: vec![ProcessInfo {
+                ret_code: 0,
+                command: "Command { std: \"echo\" \"This does nothing.\", kill_on_drop: false }"
+                    .into(),
+                stdout: "This does nothing.\n".into(),
+                stderr: "".into(),
+            }],
         }));
         assert_eq!(dbg!(got), expected);
     }
