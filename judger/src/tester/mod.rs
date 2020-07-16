@@ -3,9 +3,6 @@ pub mod util;
 
 use super::judge::JobConfig;
 use serde::{Deserialize, Serialize};
-use subprocess::{CaptureData, ExitStatus};
-
-pub use subprocess;
 
 #[derive(Debug, Clone, Serialize, Deserialize, Eq, PartialEq)]
 pub enum ExecErrorKind {

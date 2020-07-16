@@ -4,7 +4,7 @@ use std::io;
 use std::os::unix::process::ExitStatusExt;
 use std::process::Output;
 use std::time;
-use tokio::process::{self, Command};
+use tokio::process::Command;
 
 type PopenResult<T> = Result<T, io::Error>;
 

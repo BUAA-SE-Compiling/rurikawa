@@ -1117,7 +1117,6 @@ dependencies = [
  "serde_derive",
  "serde_json",
  "shiplift",
- "subprocess",
  "tokio 0.2.21",
  "tokio-test",
  "tokio-tungstenite",
@@ -1316,16 +1315,6 @@ name = "strsim"
 version = "0.10.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "73473c0e59e6d5812c5dfe2a064a6444949f089e20eec9a2e5506596494e4623"
-
-[[package]]
-name = "subprocess"
-version = "0.2.4"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5109e3c3215ce5339ca9766a6db7f39144ccc7d9bad53b96d65cfb14ae6c2985"
-dependencies = [
- "libc",
- "winapi 0.3.9",
-]
 
 [[package]]
 name = "syn"

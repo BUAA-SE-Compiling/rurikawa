@@ -1,11 +1,7 @@
 use difference::{Changeset, Difference};
 use libc::{c_char, c_int};
 use std::ffi::CStr;
-use std::future::Future;
 use std::str;
-use std::time::Duration;
-use tokio::runtime;
-use tokio::time;
 
 pub fn diff<'a>(got: &'a str, expected: &'a str) -> String {
     let Changeset { diffs, .. } = Changeset::new(got, expected, "\n");
