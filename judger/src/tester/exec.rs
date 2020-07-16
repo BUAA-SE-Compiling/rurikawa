@@ -1,4 +1,4 @@
-use super::diff::diff;
+use super::util::{diff, strsignal};
 use super::{ExecError, ExecErrorKind, JobConfig, JobFailure, OutputMismatch, ProcessInfo};
 use subprocess::{CaptureData, Exec, Pipeline, PopenError};
 
@@ -77,8 +77,8 @@ impl Test {
                         stage: i,
                         // TODO: Fix Error String
                         kind: ExecErrorKind::RuntimeError(format!(
-                            "Runtime Error: Exit Code {}",
-                            code
+                            "Runtime Error: {}",
+                            strsignal(-code as i32)
                         )),
                         output,
                     }));
@@ -107,7 +107,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_echo() {
+    fn ok() {
         let mut t = Test::new();
         t.add_step(Capturable::Exec(
             Exec::cmd("echo").arg("This does nothing."),
@@ -117,6 +117,105 @@ mod tests {
         ));
         t.expected("Hello,\n");
         let res = t.run();
-        assert!(res.is_ok());
+        assert!(matches!(dbg!(res), Ok(())));
+    }
+
+    #[test]
+    fn error_code() {
+        let mut t = Test::new();
+        t.add_step(Capturable::Exec(
+            Exec::cmd("echo").arg("This does nothing."),
+        ));
+        t.add_step(Capturable::Exec(Exec::shell(
+            "echo 'Hello, world!' && false",
+        )));
+        t.expected("Hello,\nworld!\n");
+        let got = t.run();
+        let expected: Result<(), _> = Err(JobFailure::ExecError(ExecError {
+            stage: 1,
+            kind: ExecErrorKind::ReturnCodeCheckFailed,
+            output: vec![
+                ProcessInfo {
+                    ret_code: 0,
+                    command: "Exec { echo \'This does nothing.\' }".into(),
+                    stdout: "This does nothing.\n".into(),
+                    stderr: "".into(),
+                },
+                ProcessInfo {
+                    ret_code: 1,
+                    command: "Exec { sh -c \'echo \'\\\'\'Hello, world!\'\\\'\' && false\' }"
+                        .into(),
+                    stdout: "Hello, world!\n".into(),
+                    stderr: "".into(),
+                },
+            ],
+        }));
+        assert_eq!(dbg!(got), expected);
+    }
+
+    #[test]
+    fn signal() {
+        let mut t = Test::new();
+        t.add_step(Capturable::Exec(
+            Exec::cmd("echo").arg("This does nothing."),
+        ));
+        t.add_step(Capturable::Exec(Exec::shell(
+            // "ping www.bing.com & sleep 0.5; kill $!",
+            "{ sleep 0.1; kill $$; } & for (( i=0; i<4; i++ )) do echo $i; sleep 1; done",
+        )));
+        t.expected("Hello,\nworld!\n");
+        let got = t.run();
+        let expected: Result<(), _> = Err(JobFailure::ExecError(ExecError {
+            stage: 1,
+            kind: ExecErrorKind::RuntimeError(
+                "Runtime Error: Terminated: 15".into(),
+            ),
+            output: vec![
+                ProcessInfo {
+                    ret_code: 0,
+                    command: "Exec { echo \'This does nothing.\' }".into(),
+                    stdout: "This does nothing.\n".into(),
+                    stderr: "".into(),
+                },
+                ProcessInfo {
+                    ret_code: -15,
+                    command: "Exec { sh -c \'{ sleep 0.1; kill $$; } & for (( i=0; i<4; i++ )) do echo $i; sleep 1; done\' }".into(),
+                    stdout: "0\n".into(),
+                    stderr: "".into(),
+                },
+            ],
+        }));
+        assert_eq!(dbg!(got), expected);
+    }
+
+    #[test]
+    fn output_mismatch() {
+        let mut t = Test::new();
+        t.add_step(Capturable::Exec(
+            Exec::cmd("echo").arg("This does nothing."),
+        ));
+        t.add_step(Capturable::Pipeline(
+            Exec::cmd("echo").arg("Hello, world!") | Exec::cmd("awk").arg("{print $2}"),
+        ));
+        t.expected("Hello,\nworld!\n");
+        let got = t.run();
+        let expected: Result<(), _> = Err(JobFailure::OutputMismatch(OutputMismatch {
+            diff: "+ Hello,\n  world!\n".into(),
+            output: vec![
+                ProcessInfo {
+                    ret_code: 0,
+                    command: "Exec { echo \'This does nothing.\' }".into(),
+                    stdout: "This does nothing.\n".into(),
+                    stderr: "".into(),
+                },
+                ProcessInfo {
+                    ret_code: 0,
+                    command: "Pipeline { echo \'Hello, world!\' | awk \'{print $2}\' }".into(),
+                    stdout: "world!\n".into(),
+                    stderr: "".into(),
+                },
+            ],
+        }));
+        assert_eq!(dbg!(got), expected);
     }
 }

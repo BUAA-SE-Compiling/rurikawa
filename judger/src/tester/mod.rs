@@ -1,5 +1,5 @@
-pub mod diff;
 pub mod exec;
+pub mod util;
 
 use super::judge::JobConfig;
 use serde::{Deserialize, Serialize};
@@ -7,13 +7,13 @@ use subprocess::{CaptureData, ExitStatus};
 
 pub use subprocess;
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Eq, PartialEq)]
 pub enum ExecErrorKind {
     RuntimeError(String),
     ReturnCodeCheckFailed,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Eq, PartialEq)]
 pub struct ProcessInfo {
     pub ret_code: i64,
     pub command: String,
@@ -47,20 +47,20 @@ impl From<(String, CaptureData)> for ProcessInfo {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Eq, PartialEq)]
 pub struct OutputMismatch {
     diff: String,
     output: Vec<ProcessInfo>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Eq, PartialEq)]
 pub struct ExecError {
     stage: usize,
     kind: ExecErrorKind,
     output: Vec<ProcessInfo>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Eq, PartialEq)]
 pub enum JobFailure {
     OutputMismatch(OutputMismatch),
     ExecError(ExecError),
