@@ -42,7 +42,7 @@ impl Step {
     }
 
     pub fn capture(self) -> PopenResult<(String, CaptureData)> {
-        if let Some(t) = self.timeout {
+        if let Some(timeout) = self.timeout {
             todo!()
         } else {
             self.cmd.capture()
@@ -102,7 +102,6 @@ impl Test {
                 _ if code < 0 => {
                     return Err(JobFailure::ExecError(ExecError {
                         stage: i,
-                        // TODO: Fix Error String
                         kind: ExecErrorKind::RuntimeError(format!(
                             "Runtime Error: {}",
                             strsignal(-code as i32)
