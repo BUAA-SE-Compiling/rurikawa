@@ -1396,6 +1396,7 @@ dependencies = [
  "mio",
  "mio-uds",
  "pin-project-lite",
+ "slab",
 ]
 
 [[package]]

@@ -11,7 +11,7 @@ pub use subprocess;
 pub enum ExecErrorKind {
     RuntimeError(String),
     ReturnCodeCheckFailed,
-    Timeout,
+    TimedOut,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Eq, PartialEq)]

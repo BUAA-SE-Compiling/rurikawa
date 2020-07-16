@@ -1,5 +1,6 @@
-use super::util::{diff, strsignal};
+use super::util::{diff, strsignal, with_timeout};
 use super::{ExecError, ExecErrorKind, JobConfig, JobFailure, OutputMismatch, ProcessInfo};
+use std::io;
 use std::time;
 use subprocess::{CaptureData, Communicator, Exec, Pipeline, Popen, PopenError, Redirection};
 
@@ -43,7 +44,15 @@ impl Step {
 
     pub fn capture(self) -> PopenResult<(String, CaptureData)> {
         if let Some(timeout) = self.timeout {
-            todo!()
+            let mres = with_timeout(timeout, async { self.cmd.capture() });
+            if let Ok(res) = mres {
+                res
+            } else {
+                Err(PopenError::IoError(io::Error::new(
+                    io::ErrorKind::TimedOut,
+                    "Popen capture timed out",
+                )))
+            }
         } else {
             self.cmd.capture()
         }
@@ -83,9 +92,17 @@ impl Test {
         let mut output: Vec<ProcessInfo> = vec![];
         let steps_len = self.steps.len();
         for (i, step) in self.steps.into_iter().enumerate() {
-            let captured = step
-                .capture()
-                .expect("Run Failed: Cannot launch subprocess");
+            let captured = match step.capture() {
+                Ok(res) => res,
+                Err(PopenError::IoError(e)) if e.kind() == io::ErrorKind::TimedOut => {
+                    return Err(JobFailure::ExecError(ExecError {
+                        stage: i,
+                        kind: ExecErrorKind::TimedOut,
+                        output,
+                    }))
+                }
+                Err(_) => panic!("Run Failed: Cannot launch subprocess"),
+            };
 
             let info: ProcessInfo = captured.into();
             output.push(info.clone());
@@ -223,6 +240,38 @@ mod tests {
         t.add_step(Step::new(Capturable::Pipeline(
             Exec::cmd("echo").arg("Hello, world!") | Exec::cmd("awk").arg("{print $2}"),
         )));
+        t.expected("Hello,\nworld!\n");
+        let got = t.run();
+        let expected: Result<(), _> = Err(JobFailure::OutputMismatch(OutputMismatch {
+            diff: "+ Hello,\n  world!\n".into(),
+            output: vec![
+                ProcessInfo {
+                    ret_code: 0,
+                    command: "Exec { echo \'This does nothing.\' }".into(),
+                    stdout: "This does nothing.\n".into(),
+                    stderr: "".into(),
+                },
+                ProcessInfo {
+                    ret_code: 0,
+                    command: "Pipeline { echo \'Hello, world!\' | awk \'{print $2}\' }".into(),
+                    stdout: "world!\n".into(),
+                    stderr: "".into(),
+                },
+            ],
+        }));
+        assert_eq!(dbg!(got), expected);
+    }
+
+    #[test]
+    fn output_timed_out() {
+        let mut t = Test::new();
+        t.add_step(Step::new(Capturable::Exec(
+            Exec::cmd("echo").arg("This does nothing."),
+        )));
+        t.add_step(
+            Step::new(Capturable::Exec(Exec::shell("echo 0; sleep 3; echo 1")))
+                .timeout(time::Duration::from_millis(100)),
+        );
         t.expected("Hello,\nworld!\n");
         let got = t.run();
         let expected: Result<(), _> = Err(JobFailure::OutputMismatch(OutputMismatch {
