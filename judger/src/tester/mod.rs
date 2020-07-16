@@ -16,36 +16,10 @@ pub enum ExecErrorKind {
 
 #[derive(Debug, Clone, Serialize, Deserialize, Eq, PartialEq)]
 pub struct ProcessInfo {
-    pub ret_code: i64,
+    pub ret_code: i32,
     pub command: String,
     pub stdout: String,
     pub stderr: String,
-}
-
-impl From<(String, CaptureData)> for ProcessInfo {
-    fn from(pair: (String, CaptureData)) -> Self {
-        let (
-            command,
-            CaptureData {
-                stdout,
-                stderr,
-                exit_status,
-            },
-        ) = pair;
-        let stdout = String::from_utf8(stdout).unwrap();
-        let stderr = String::from_utf8(stderr).unwrap();
-        ProcessInfo {
-            command,
-            stdout,
-            stderr,
-            ret_code: match exit_status {
-                ExitStatus::Exited(x) => x as i64,
-                ExitStatus::Signaled(x) => -(x as i64),
-                ExitStatus::Other(x) => x as i64,
-                ExitStatus::Undetermined => 1,
-            },
-        }
-    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Eq, PartialEq)]

@@ -31,15 +31,6 @@ pub fn strsignal(signal: i32) -> String {
     c_str.to_str().unwrap().to_owned()
 }
 
-pub fn with_timeout<F, O>(timeout: Duration, future: F) -> Result<O, tokio::time::Elapsed>
-where
-    F: Future<Output = O>,
-{
-    let res = async { time::timeout(timeout, future).await };
-    let mut rt = runtime::Runtime::new().unwrap();
-    rt.block_on(res)
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -63,21 +54,5 @@ mod tests {
     fn test_strsignal() {
         let e = strsignal(1);
         assert_eq!(dbg!(e), "Hangup: 1");
-    }
-
-    #[test]
-    fn test_with_timeout() {
-        let timeout = |t: u64| {
-            with_timeout(Duration::from_millis(t), async {
-                tokio::time::delay_for(Duration::from_millis(100)).await;
-                println!("100 ms have elapsed");
-                "Hi".to_owned()
-            })
-        };
-        let res1 = timeout(50);
-        let res2 = timeout(150);
-
-        assert!(res1.is_err());
-        assert_eq!(res2, Ok("Hi".to_owned()));
     }
 }
