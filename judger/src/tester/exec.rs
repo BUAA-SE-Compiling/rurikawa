@@ -194,7 +194,10 @@ mod tests {
         let expected: Result<(), _> = Err(JobFailure::ExecError(ExecError {
             stage: 1,
             kind: ExecErrorKind::RuntimeError(
-                "Runtime Error: Terminated: 15".into(),
+                format!(
+
+                    "Runtime Error: {}",      strsignal(15)
+                )
             ),
             output: vec![
                 ProcessInfo {

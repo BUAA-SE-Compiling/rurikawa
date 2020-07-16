@@ -46,7 +46,9 @@ mod tests {
         );
     }
 
+    // * Commented out because `strsignal` is implementation-dependant
     #[test]
+    #[cfg(macos)]
     fn test_strsignal() {
         let e = strsignal(1);
         assert_eq!(dbg!(e), "Hangup: 1");
