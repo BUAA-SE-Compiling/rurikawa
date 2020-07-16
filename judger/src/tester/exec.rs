@@ -1,6 +1,9 @@
 use super::util::{diff, strsignal};
 use super::{ExecError, ExecErrorKind, JobConfig, JobFailure, OutputMismatch, ProcessInfo};
-use subprocess::{CaptureData, Exec, Pipeline, PopenError};
+use std::time;
+use subprocess::{CaptureData, Communicator, Exec, Pipeline, Popen, PopenError, Redirection};
+
+type PopenResult<T> = Result<T, PopenError>;
 
 #[derive(Debug)]
 pub enum Capturable {
@@ -9,7 +12,7 @@ pub enum Capturable {
 }
 
 impl Capturable {
-    pub fn capture(self) -> Result<(String, CaptureData), PopenError> {
+    pub fn capture(self) -> PopenResult<(String, CaptureData)> {
         match self {
             Capturable::Exec(e) => {
                 let s = format!("{:?}", &e);
@@ -23,8 +26,32 @@ impl Capturable {
     }
 }
 
+pub struct Step {
+    pub cmd: Capturable,
+    pub timeout: Option<time::Duration>,
+}
+
+impl Step {
+    pub fn new(cmd: Capturable) -> Self {
+        Step { cmd, timeout: None }
+    }
+
+    pub fn timeout(mut self, timeout: time::Duration) -> Self {
+        self.timeout = Some(timeout);
+        self
+    }
+
+    pub fn capture(self) -> PopenResult<(String, CaptureData)> {
+        if let Some(t) = self.timeout {
+            todo!()
+        } else {
+            self.cmd.capture()
+        }
+    }
+}
+
 pub struct Test {
-    steps: Vec<Capturable>,
+    steps: Vec<Step>,
     expected: Option<String>,
 }
 
@@ -36,12 +63,12 @@ impl Test {
         }
     }
 
-    pub fn add_step(&mut self, step: Capturable) -> &mut Self {
+    pub fn add_step(&mut self, step: Step) -> &mut Self {
         self.steps.push(step);
         self
     }
 
-    pub fn set_steps(&mut self, steps: Vec<Capturable>) -> &mut Self {
+    pub fn set_steps(&mut self, steps: Vec<Step>) -> &mut Self {
         self.steps = steps;
         self
     }
@@ -109,12 +136,12 @@ mod tests {
     #[test]
     fn ok() {
         let mut t = Test::new();
-        t.add_step(Capturable::Exec(
+        t.add_step(Step::new(Capturable::Exec(
             Exec::cmd("echo").arg("This does nothing."),
-        ));
-        t.add_step(Capturable::Pipeline(
+        )));
+        t.add_step(Step::new(Capturable::Pipeline(
             Exec::cmd("echo").arg("Hello, world!") | Exec::cmd("awk").arg("{print $1}"),
-        ));
+        )));
         t.expected("Hello,\n");
         let res = t.run();
         assert!(matches!(dbg!(res), Ok(())));
@@ -123,12 +150,12 @@ mod tests {
     #[test]
     fn error_code() {
         let mut t = Test::new();
-        t.add_step(Capturable::Exec(
+        t.add_step(Step::new(Capturable::Exec(
             Exec::cmd("echo").arg("This does nothing."),
-        ));
-        t.add_step(Capturable::Exec(Exec::shell(
-            "echo 'Hello, world!' && false",
         )));
+        t.add_step(Step::new(Capturable::Exec(Exec::shell(
+            "echo 'Hello, world!' && false",
+        ))));
         t.expected("Hello,\nworld!\n");
         let got = t.run();
         let expected: Result<(), _> = Err(JobFailure::ExecError(ExecError {
@@ -156,13 +183,13 @@ mod tests {
     #[test]
     fn signal() {
         let mut t = Test::new();
-        t.add_step(Capturable::Exec(
+        t.add_step(Step::new(Capturable::Exec(
             Exec::cmd("echo").arg("This does nothing."),
-        ));
-        t.add_step(Capturable::Exec(Exec::shell(
+        )));
+        t.add_step(Step::new(Capturable::Exec(Exec::shell(
             // "ping www.bing.com & sleep 0.5; kill $!",
             "{ sleep 0.1; kill $$; } & for (( i=0; i<4; i++ )) do echo $i; sleep 1; done",
-        )));
+        ))));
         t.expected("Hello,\nworld!\n");
         let got = t.run();
         let expected: Result<(), _> = Err(JobFailure::ExecError(ExecError {
@@ -191,12 +218,12 @@ mod tests {
     #[test]
     fn output_mismatch() {
         let mut t = Test::new();
-        t.add_step(Capturable::Exec(
+        t.add_step(Step::new(Capturable::Exec(
             Exec::cmd("echo").arg("This does nothing."),
-        ));
-        t.add_step(Capturable::Pipeline(
+        )));
+        t.add_step(Step::new(Capturable::Pipeline(
             Exec::cmd("echo").arg("Hello, world!") | Exec::cmd("awk").arg("{print $2}"),
-        ));
+        )));
         t.expected("Hello,\nworld!\n");
         let got = t.run();
         let expected: Result<(), _> = Err(JobFailure::OutputMismatch(OutputMismatch {
