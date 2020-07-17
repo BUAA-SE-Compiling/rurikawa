@@ -46,11 +46,18 @@ mod tests {
         );
     }
 
-    // * Commented out because `strsignal` is implementation-dependant
+    // * `strsignal` is implementation-dependant
+    #[cfg(target_os = "macos")]
     #[test]
-    #[cfg(macos)]
     fn test_strsignal() {
         let e = strsignal(1);
         assert_eq!(dbg!(e), "Hangup: 1");
+    }
+
+    #[cfg(target_os = "linux")]
+    #[test]
+    fn test_strsignal() {
+        let e = strsignal(1);
+        assert_eq!(dbg!(e), "Hangup");
     }
 }
