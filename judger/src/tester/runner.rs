@@ -17,10 +17,12 @@ pub struct TokioCommandRunner {}
 impl CommandRunner for TokioCommandRunner {
     async fn run(&mut self, cmd: &[String]) -> PopenResult<std::process::Output> {
         let mut cmd = cmd.iter();
-        let mut command = Command::new(cmd.next().ok_or(std::io::Error::new(
-            std::io::ErrorKind::InvalidInput,
-            "Command must contain at least one string",
-        ))?);
+        let mut command = Command::new(cmd.next().ok_or_else(|| {
+            std::io::Error::new(
+                std::io::ErrorKind::InvalidInput,
+                "Command must contain at least one string",
+            )
+        })?);
         command.args(cmd);
         command.output().await
     }
