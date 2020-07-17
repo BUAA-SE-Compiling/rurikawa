@@ -8,15 +8,14 @@ use std::io;
 use std::os::unix::process::ExitStatusExt;
 use std::process::Output;
 use std::time;
-use tokio::process::Command;
 
 #[macro_export]
 macro_rules! command {
     ( $prog:expr, $( $arg:expr ),* ) => {
         {
-            let mut cmd = tokio::process::Command::new($prog);
+            let mut cmd = vec![$prog.to_string()];
             $(
-                cmd.arg($arg);
+                cmd.push($arg.to_string());
             )*
             cmd
         }
@@ -26,24 +25,23 @@ macro_rules! command {
 #[macro_export]
 macro_rules! shell {
     ( $script:expr ) => {{
-        let mut cmd = tokio::process::Command::new("bash");
-        cmd.arg("-c");
-        cmd.arg($script);
+        let mut cmd = vec!["bash".to_owned(), "-c".to_owned()];
+        cmd.push($script.to_string());
         cmd
     }};
 }
 
-pub struct Capturable(Command);
+pub struct Capturable(Vec<String>);
 
 impl Capturable {
     async fn capture<R: CommandRunner + Send>(self, runner: &mut R) -> PopenResult<ProcessInfo> {
-        let Self(mut cmd) = self;
+        let Self(cmd) = self;
         let cmd_str = format!("{:?}", cmd);
         let Output {
             status,
             stdout,
             stderr,
-        } = runner.run(&mut cmd).await?;
+        } = runner.run(&cmd).await?;
         let ret_code = match (status.code(), status.signal()) {
             (Some(x), _) => x,
             (None, Some(x)) => -x,
@@ -220,14 +218,13 @@ mod tests {
             output: vec![
                 ProcessInfo {
                     ret_code: 0,
-                    command: "Command { std: \"echo\" \"This does nothing.\", kill_on_drop: false }".into(),
+                    command: "[\"echo\", \"This does nothing.\"]".into(),
                     stdout: "This does nothing.\n".into(),
                     stderr: "".into(),
                 },
                 ProcessInfo {
                     ret_code: 1,
-                    command: "Command { std: \"bash\" \"-c\" \"echo \\\'Hello, world!\\\' && false\", kill_on_drop: false }"
-                        .into(),
+                    command: "[\"bash\", \"-c\", \"echo \\\'Hello, world!\\\' && false\"]".into(),
                     stdout: "Hello, world!\n".into(),
                     stderr: "".into(),
                 },
@@ -260,13 +257,13 @@ mod tests {
             output: vec![
                 ProcessInfo {
                     ret_code: 0,
-                    command: "Command { std: \"echo\" \"This does nothing.\", kill_on_drop: false }".into(),
+                    command: "[\"echo\", \"This does nothing.\"]".into(),
                     stdout: "This does nothing.\n".into(),
                     stderr: "".into(),
                 },
                 ProcessInfo {
                     ret_code: -15,
-                    command: "Command { std: \"bash\" \"-c\" \"{ sleep 0.1; kill $$; } & for (( i=0; i<4; i++ )) do echo $i; sleep 1; done\", kill_on_drop: false }".into(),
+                    command: "[\"bash\", \"-c\", \"{ sleep 0.1; kill $$; } & for (( i=0; i<4; i++ )) do echo $i; sleep 1; done\"]".into(),
                     stdout: "0\n".into(),
                     stderr: "".into(),
                 },
@@ -292,13 +289,13 @@ mod tests {
             output: vec![
                 ProcessInfo {
                     ret_code: 0,
-                    command: "Command { std: \"echo\" \"This does nothing.\", kill_on_drop: false }".into(),
+                    command: "[\"echo\", \"This does nothing.\"]".into(),
                     stdout: "This does nothing.\n".into(),
                     stderr: "".into(),
                 },
                 ProcessInfo {
                     ret_code: 0,
-                    command: "Command { std: \"bash\" \"-c\" \"echo \\\'Hello, world!\\\' | awk \\\'{print $2}\\\'\", kill_on_drop: false }".into(),
+                    command: "[\"bash\", \"-c\", \"echo \\\'Hello, world!\\\' | awk \\\'{print $2}\\\'\"]".into(),
                     stdout: "world!\n".into(),
                     stderr: "".into(),
                 },
@@ -325,8 +322,7 @@ mod tests {
             kind: ExecErrorKind::TimedOut,
             output: vec![ProcessInfo {
                 ret_code: 0,
-                command: "Command { std: \"echo\" \"This does nothing.\", kill_on_drop: false }"
-                    .into(),
+                command: "[\"echo\", \"This does nothing.\"]".into(),
                 stdout: "This does nothing.\n".into(),
                 stderr: "".into(),
             }],
