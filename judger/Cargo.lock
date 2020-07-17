@@ -1124,6 +1124,7 @@ dependencies = [
  "async-trait",
  "clap",
  "difference",
+ "futures 0.1.29",
  "libc",
  "serde",
  "serde_derive",

@@ -17,8 +17,14 @@ tokio-tungstenite = "0.10.1"
 difference = "2.0.0"
 # subprocess = "0.2.4"
 libc = "0.2.72"
-tokio = { version = "0.2.21", features = ["time", "io-util", "process"] }
+tokio = { version = "0.2.21", features = [
+    "time",
+    "io-util",
+    "process",
+    "stream"
+] }
 async-trait = "0.1.36"
+futures = "*"
 
 [dev-dependencies]
 tokio-test = "0.2.1"
