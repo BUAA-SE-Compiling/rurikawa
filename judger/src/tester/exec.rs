@@ -1,12 +1,14 @@
 use super::util::{diff, strsignal};
-use super::{ExecError, ExecErrorKind, JobConfig, JobFailure, OutputMismatch, ProcessInfo};
+use super::{
+    runner::CommandRunner, ExecError, ExecErrorKind, JobConfig, JobFailure, OutputMismatch,
+    ProcessInfo,
+};
+use crate::prelude::*;
 use std::io;
 use std::os::unix::process::ExitStatusExt;
 use std::process::Output;
 use std::time;
 use tokio::process::Command;
-
-type PopenResult<T> = Result<T, io::Error>;
 
 #[macro_export]
 macro_rules! command {
@@ -34,14 +36,14 @@ macro_rules! shell {
 pub struct Capturable(Command);
 
 impl Capturable {
-    async fn capture(self) -> PopenResult<ProcessInfo> {
+    async fn capture<R: CommandRunner + Send>(self, runner: &mut R) -> PopenResult<ProcessInfo> {
         let Self(mut cmd) = self;
         let cmd_str = format!("{:?}", cmd);
         let Output {
             status,
             stdout,
             stderr,
-        } = cmd.output().await?;
+        } = runner.run(&mut cmd).await?;
         let ret_code = match (status.code(), status.signal()) {
             (Some(x), _) => x,
             (None, Some(x)) => -x,
@@ -71,9 +73,12 @@ impl Step {
         self
     }
 
-    pub async fn capture(self) -> PopenResult<ProcessInfo> {
+    pub async fn capture<R>(self, runner: &mut R) -> PopenResult<ProcessInfo>
+    where
+        R: CommandRunner + Send,
+    {
         if let Some(timeout) = self.timeout {
-            let mres = tokio::time::timeout(timeout, self.cmd.capture()).await;
+            let mres = tokio::time::timeout(timeout, self.cmd.capture(runner)).await;
             if let Ok(res) = mres {
                 res
             } else {
@@ -83,7 +88,7 @@ impl Step {
                 ))
             }
         } else {
-            self.cmd.capture().await
+            self.cmd.capture(runner).await
         }
     }
 }
@@ -116,12 +121,15 @@ impl Test {
         self
     }
 
-    pub async fn run(self) -> Result<(), JobFailure> {
+    pub async fn run<R>(self, runner: &mut R) -> Result<(), JobFailure>
+    where
+        R: CommandRunner + Send,
+    {
         let expected = self.expected.expect("Run Failed: Expected String not set");
         let mut output: Vec<ProcessInfo> = vec![];
         let steps_len = self.steps.len();
         for (i, step) in self.steps.into_iter().enumerate() {
-            let info = match step.capture().await {
+            let info = match step.capture(runner).await {
                 Ok(res) => res,
                 Err(e) if e.kind() == io::ErrorKind::TimedOut => {
                     return Err(JobFailure::ExecError(ExecError {
@@ -176,6 +184,7 @@ impl Test {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::tester::runner::TokioCommandRunner;
     use tokio_test::block_on;
 
     #[test]
@@ -189,7 +198,7 @@ mod tests {
             "echo 'Hello, world!' | awk '{print $1}'"
         ))));
         t.expected("Hello,\n");
-        let res = block_on(t.run());
+        let res = block_on(t.run(&mut TokioCommandRunner {}));
         assert!(matches!(dbg!(res), Ok(())));
     }
 
@@ -204,7 +213,7 @@ mod tests {
             "echo 'Hello, world!' && false"
         ))));
         t.expected("Hello,\nworld!\n");
-        let got = block_on(t.run());
+        let got = block_on(t.run(&mut TokioCommandRunner {}));
         let expected: Result<(), _> = Err(JobFailure::ExecError(ExecError {
             stage: 1,
             kind: ExecErrorKind::ReturnCodeCheckFailed,
@@ -239,7 +248,7 @@ mod tests {
             "{ sleep 0.1; kill $$; } & for (( i=0; i<4; i++ )) do echo $i; sleep 1; done"
         ))));
         t.expected("Hello,\nworld!\n");
-        let got = block_on(t.run());
+        let got = block_on(t.run(&mut TokioCommandRunner {}));
         let expected: Result<(), _> = Err(JobFailure::ExecError(ExecError {
             stage: 1,
             kind: ExecErrorKind::RuntimeError(
@@ -277,7 +286,7 @@ mod tests {
             "echo 'Hello, world!' | awk '{print $2}'"
         ))));
         t.expected("Hello,\nworld!\n");
-        let got = block_on(t.run());
+        let got = block_on(t.run(&mut TokioCommandRunner {}));
         let expected: Result<(), _> = Err(JobFailure::OutputMismatch(OutputMismatch {
             diff: "+ Hello,\n  world!\n".into(),
             output: vec![
@@ -310,7 +319,7 @@ mod tests {
                 .timeout(time::Duration::from_millis(100)),
         );
         t.expected("Hello,\nworld!\n");
-        let got = block_on(t.run());
+        let got = block_on(t.run(&mut TokioCommandRunner {}));
         let expected: Result<(), _> = Err(JobFailure::ExecError(ExecError {
             stage: 1,
             kind: ExecErrorKind::TimedOut,
