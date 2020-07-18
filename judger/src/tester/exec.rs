@@ -36,23 +36,7 @@ pub struct Capturable(Vec<String>);
 impl Capturable {
     async fn capture<R: CommandRunner + Send>(self, runner: &mut R) -> PopenResult<ProcessInfo> {
         let Self(cmd) = self;
-        let cmd_str = format!("{:?}", cmd);
-        let Output {
-            status,
-            stdout,
-            stderr,
-        } = runner.run(&cmd).await?;
-        let ret_code = match (status.code(), status.signal()) {
-            (Some(x), _) => x,
-            (None, Some(x)) => -x,
-            _ => unreachable!(),
-        };
-        Ok(ProcessInfo {
-            command: cmd_str,
-            stdout: String::from_utf8_lossy(&stdout).into_owned(),
-            stderr: String::from_utf8_lossy(&stderr).into_owned(),
-            ret_code,
-        })
+        runner.run(&cmd).await
     }
 }
 

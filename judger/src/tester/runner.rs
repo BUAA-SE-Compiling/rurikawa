@@ -1,58 +1,156 @@
 use super::ProcessInfo;
 use crate::prelude::*;
 use async_trait::async_trait;
-use futures::stream::Stream;
-use shiplift::tty::StreamType;
-use shiplift::{Container, ExecContainerOptions};
+use bollard::exec::CreateExecOptions;
+use bollard::Docker;
+use futures::stream::StreamExt;
+use std::default::Default;
+use std::os::unix::process::ExitStatusExt;
 use tokio::process::Command;
 
 #[async_trait]
 pub trait CommandRunner {
-    async fn run(&mut self, cmd: &[String]) -> PopenResult<std::process::Output>;
+    async fn run(&mut self, cmd: &[String]) -> PopenResult<ProcessInfo>;
 }
 
 pub struct TokioCommandRunner {}
 
 #[async_trait]
 impl CommandRunner for TokioCommandRunner {
-    async fn run(&mut self, cmd: &[String]) -> PopenResult<std::process::Output> {
-        let mut cmd = cmd.iter();
-        let mut command = Command::new(cmd.next().ok_or_else(|| {
+    async fn run(&mut self, cmd: &[String]) -> PopenResult<ProcessInfo> {
+        let cmd_str = format!("{:?}", cmd.to_vec());
+        let mut cmd_iter = cmd.iter();
+        let mut command = Command::new(cmd_iter.next().ok_or_else(|| {
             std::io::Error::new(
                 std::io::ErrorKind::InvalidInput,
                 "Command must contain at least one string",
             )
         })?);
-        command.args(cmd);
-        command.output().await
+        command.args(cmd_iter);
+        let std::process::Output {
+            status,
+            stdout,
+            stderr,
+        } = command.output().await?;
+        let ret_code = match (status.code(), status.signal()) {
+            (Some(x), _) => x,
+            (None, Some(x)) => -x,
+            _ => unreachable!(),
+        };
+        Ok(ProcessInfo {
+            command: cmd_str,
+            stdout: String::from_utf8_lossy(&stdout).into_owned(),
+            stderr: String::from_utf8_lossy(&stderr).into_owned(),
+            ret_code,
+        })
     }
 }
 
-pub struct DockerCommandRunner<'a, 'b> {
-    container: Container<'a, 'b>,
+pub struct DockerCommandRunner {
+    container: Docker,
+    // TODO: What is the container name?
+    container_name: String,
 }
 
 #[async_trait]
-impl<'a, 'b> CommandRunner for DockerCommandRunner<'a, 'b> {
-    async fn run(&mut self, cmd: &[String]) -> PopenResult<std::process::Output> {
-        let options = ExecContainerOptions::builder()
-            .cmd(cmd.iter().map(|x| x as &str).collect())
-            .attach_stdout(true)
-            .attach_stderr(true)
-            .build();
-        let running = self.container.exec(&options);
-        let mut stdout = Vec::new();
-        let mut stderr = Vec::new();
-        let f = running.for_each(|mut chunk| {
-            match chunk.stream_type {
-                StreamType::StdOut => stdout.append(&mut chunk.data),
-                StreamType::StdErr => stderr.append(&mut chunk.data),
-                _ => {}
-            }
-            futures::finished(())
-        });
-        // TODO: the following line cannot compile
-        // f.await;
-        todo!("Finish docker command runner")
+impl CommandRunner for DockerCommandRunner {
+    async fn run(&mut self, cmd: &[String]) -> PopenResult<ProcessInfo> {
+        let cmd_str = format!("{:?}", cmd.to_vec());
+        let config = CreateExecOptions {
+            cmd: Some(cmd.to_vec()),
+            attach_stdout: Some(true),
+            attach_stderr: Some(true),
+            ..Default::default()
+        };
+        self.container
+            .create_exec(&self.container_name, config)
+            .await
+            .map_err(|e| {
+                std::io::Error::new(
+                    std::io::ErrorKind::Other,
+                    format!("Failed to create Docker Exec: {:?}", e),
+                )
+            })?;
+
+        // Use start_exec to get stdout/stderr.
+        let start_res = self.container.start_exec(&self.container_name, None);
+
+        let messages: Vec<MessageKind> = start_res
+            .filter_map(|mres| async {
+                match mres {
+                    Ok(bollard::exec::StartExecResults::Attached { log }) => match log {
+                        bollard::container::LogOutput::StdOut { message } => {
+                            Some(MessageKind::StdOut(message))
+                        }
+                        bollard::container::LogOutput::StdErr { message } => {
+                            Some(MessageKind::StdErr(message))
+                        }
+                        _ => None,
+                    },
+                    _ => None,
+                }
+            })
+            .collect()
+            .await;
+
+        let (stdout, stderr): (Vec<&MessageKind>, Vec<&MessageKind>) = messages
+            .iter()
+            .partition(|&i| matches!(i, &MessageKind::StdOut(_)));
+
+        let stdout = stdout
+            .iter()
+            .map(|&i| i.unwrap())
+            .collect::<Vec<String>>()
+            .join("");
+        let stderr = stderr
+            .iter()
+            .map(|&i| i.unwrap())
+            .collect::<Vec<String>>()
+            .join("");
+
+        // Use inspect_exec to get exit code.
+        let inspect_res = self
+            .container
+            .inspect_exec(&self.container_name)
+            .await
+            .map_err(|e| {
+                std::io::Error::new(
+                    std::io::ErrorKind::Other,
+                    format!("Failed to inspect Docker Exec: {:?}", e),
+                )
+            })?;
+
+        let bollard::exec::ExecInspect {
+            exit_code: ret_code,
+            ..
+        } = inspect_res;
+        let ret_code = ret_code.ok_or_else(|| {
+            std::io::Error::new(
+                std::io::ErrorKind::Other,
+                "Failed to fetch Docker Exec exit code",
+            )
+        })?;
+
+        Ok(ProcessInfo {
+            command: cmd_str,
+            stdout,
+            stderr,
+            ret_code: ret_code as i32,
+        })
+    }
+}
+
+/// Helper enum for DockerCommandRunner
+enum MessageKind {
+    StdOut(String),
+    StdErr(String),
+}
+
+impl MessageKind {
+    fn unwrap(&self) -> String {
+        match self {
+            MessageKind::StdOut(s) => s.to_owned(),
+            MessageKind::StdErr(s) => s.to_owned(),
+        }
     }
 }
