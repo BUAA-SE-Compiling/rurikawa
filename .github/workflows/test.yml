@@ -1,0 +1,19 @@
+name: test
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  ubuntu-test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v2
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Build judger
+        run: cargo build --verbose
+        working-directory: ./judger/
+      - name: Run unit tests for judger
+        run: cargo test --verbose
+        working-directory: ./judger/
