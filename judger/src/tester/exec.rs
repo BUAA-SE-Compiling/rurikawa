@@ -5,8 +5,6 @@ use super::{
 };
 use crate::prelude::*;
 use std::io;
-use std::os::unix::process::ExitStatusExt;
-use std::process::Output;
 use std::time;
 
 #[macro_export]
@@ -166,71 +164,76 @@ impl Test {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::tester::runner::TokioCommandRunner;
     use tokio_test::block_on;
 
-    #[test]
-    fn ok() {
-        let mut t = Test::new();
-        t.add_step(Step::new(Capturable(command!(
-            "echo",
-            "This does nothing."
-        ))));
-        t.add_step(Step::new(Capturable(shell!(
-            "echo 'Hello, world!' | awk '{print $1}'"
-        ))));
-        t.expected("Hello,\n");
-        let res = block_on(t.run(&mut TokioCommandRunner {}));
-        assert!(matches!(dbg!(res), Ok(())));
-    }
+    #[cfg(test)]
+    mod tokio_runner {
+        use super::*;
+        use crate::tester::runner::TokioCommandRunner;
 
-    #[test]
-    fn error_code() {
-        let mut t = Test::new();
-        t.add_step(Step::new(Capturable(command!(
-            "echo",
-            "This does nothing."
-        ))));
-        t.add_step(Step::new(Capturable(shell!(
-            "echo 'Hello, world!' && false"
-        ))));
-        t.expected("Hello,\nworld!\n");
-        let got = block_on(t.run(&mut TokioCommandRunner {}));
-        let expected: Result<(), _> = Err(JobFailure::ExecError(ExecError {
-            stage: 1,
-            kind: ExecErrorKind::ReturnCodeCheckFailed,
-            output: vec![
-                ProcessInfo {
-                    ret_code: 0,
-                    command: "[\"echo\", \"This does nothing.\"]".into(),
-                    stdout: "This does nothing.\n".into(),
-                    stderr: "".into(),
-                },
-                ProcessInfo {
-                    ret_code: 1,
-                    command: "[\"bash\", \"-c\", \"echo \\\'Hello, world!\\\' && false\"]".into(),
-                    stdout: "Hello, world!\n".into(),
-                    stderr: "".into(),
-                },
-            ],
-        }));
-        assert_eq!(dbg!(got), expected);
-    }
+        #[test]
+        fn ok() {
+            let mut t = Test::new();
+            t.add_step(Step::new(Capturable(command!(
+                "echo",
+                "This does nothing."
+            ))));
+            t.add_step(Step::new(Capturable(shell!(
+                "echo 'Hello, world!' | awk '{print $1}'"
+            ))));
+            t.expected("Hello,\n");
+            let res = block_on(t.run(&mut TokioCommandRunner {}));
+            assert!(matches!(dbg!(res), Ok(())));
+        }
 
-    #[test]
-    fn signal() {
-        let mut t = Test::new();
-        t.add_step(Step::new(Capturable(command!(
-            "echo",
-            "This does nothing."
-        ))));
-        t.add_step(Step::new(Capturable(shell!(
-            // "ping www.bing.com & sleep 0.5; kill $!",
-            "{ sleep 0.1; kill $$; } & for (( i=0; i<4; i++ )) do echo $i; sleep 1; done"
-        ))));
-        t.expected("Hello,\nworld!\n");
-        let got = block_on(t.run(&mut TokioCommandRunner {}));
-        let expected: Result<(), _> = Err(JobFailure::ExecError(ExecError {
+        #[test]
+        fn error_code() {
+            let mut t = Test::new();
+            t.add_step(Step::new(Capturable(command!(
+                "echo",
+                "This does nothing."
+            ))));
+            t.add_step(Step::new(Capturable(shell!(
+                "echo 'Hello, world!' && false"
+            ))));
+            t.expected("Hello,\nworld!\n");
+            let got = block_on(t.run(&mut TokioCommandRunner {}));
+            let expected: Result<(), _> = Err(JobFailure::ExecError(ExecError {
+                stage: 1,
+                kind: ExecErrorKind::ReturnCodeCheckFailed,
+                output: vec![
+                    ProcessInfo {
+                        ret_code: 0,
+                        command: "[\"echo\", \"This does nothing.\"]".into(),
+                        stdout: "This does nothing.\n".into(),
+                        stderr: "".into(),
+                    },
+                    ProcessInfo {
+                        ret_code: 1,
+                        command: "[\"bash\", \"-c\", \"echo \\\'Hello, world!\\\' && false\"]"
+                            .into(),
+                        stdout: "Hello, world!\n".into(),
+                        stderr: "".into(),
+                    },
+                ],
+            }));
+            assert_eq!(dbg!(got), expected);
+        }
+
+        #[test]
+        fn signal() {
+            let mut t = Test::new();
+            t.add_step(Step::new(Capturable(command!(
+                "echo",
+                "This does nothing."
+            ))));
+            t.add_step(Step::new(Capturable(shell!(
+                // "ping www.bing.com & sleep 0.5; kill $!",
+                "{ sleep 0.1; kill $$; } & for (( i=0; i<4; i++ )) do echo $i; sleep 1; done"
+            ))));
+            t.expected("Hello,\nworld!\n");
+            let got = block_on(t.run(&mut TokioCommandRunner {}));
+            let expected: Result<(), _> = Err(JobFailure::ExecError(ExecError {
             stage: 1,
             kind: ExecErrorKind::RuntimeError(
                 format!(
@@ -253,22 +256,22 @@ mod tests {
                 },
             ],
         }));
-        assert_eq!(dbg!(got), expected);
-    }
+            assert_eq!(dbg!(got), expected);
+        }
 
-    #[test]
-    fn output_mismatch() {
-        let mut t = Test::new();
-        t.add_step(Step::new(Capturable(command!(
-            "echo",
-            "This does nothing."
-        ))));
-        t.add_step(Step::new(Capturable(shell!(
-            "echo 'Hello, world!' | awk '{print $2}'"
-        ))));
-        t.expected("Hello,\nworld!\n");
-        let got = block_on(t.run(&mut TokioCommandRunner {}));
-        let expected: Result<(), _> = Err(JobFailure::OutputMismatch(OutputMismatch {
+        #[test]
+        fn output_mismatch() {
+            let mut t = Test::new();
+            t.add_step(Step::new(Capturable(command!(
+                "echo",
+                "This does nothing."
+            ))));
+            t.add_step(Step::new(Capturable(shell!(
+                "echo 'Hello, world!' | awk '{print $2}'"
+            ))));
+            t.expected("Hello,\nworld!\n");
+            let got = block_on(t.run(&mut TokioCommandRunner {}));
+            let expected: Result<(), _> = Err(JobFailure::OutputMismatch(OutputMismatch {
             diff: "+ Hello,\n  world!\n".into(),
             output: vec![
                 ProcessInfo {
@@ -285,32 +288,61 @@ mod tests {
                 },
             ],
         }));
-        assert_eq!(dbg!(got), expected);
+            assert_eq!(dbg!(got), expected);
+        }
+
+        #[test]
+        fn output_timed_out() {
+            let mut t = Test::new();
+            t.add_step(Step::new(Capturable(command!(
+                "echo",
+                "This does nothing."
+            ))));
+            t.add_step(
+                Step::new(Capturable(shell!("echo 0; sleep 3; echo 1")))
+                    .timeout(time::Duration::from_millis(100)),
+            );
+            t.expected("Hello,\nworld!\n");
+            let got = block_on(t.run(&mut TokioCommandRunner {}));
+            let expected: Result<(), _> = Err(JobFailure::ExecError(ExecError {
+                stage: 1,
+                kind: ExecErrorKind::TimedOut,
+                output: vec![ProcessInfo {
+                    ret_code: 0,
+                    command: "[\"echo\", \"This does nothing.\"]".into(),
+                    stdout: "This does nothing.\n".into(),
+                    stderr: "".into(),
+                }],
+            }));
+            assert_eq!(dbg!(got), expected);
+        }
     }
 
-    #[test]
-    fn output_timed_out() {
-        let mut t = Test::new();
-        t.add_step(Step::new(Capturable(command!(
-            "echo",
-            "This does nothing."
-        ))));
-        t.add_step(
-            Step::new(Capturable(shell!("echo 0; sleep 3; echo 1")))
-                .timeout(time::Duration::from_millis(100)),
-        );
-        t.expected("Hello,\nworld!\n");
-        let got = block_on(t.run(&mut TokioCommandRunner {}));
-        let expected: Result<(), _> = Err(JobFailure::ExecError(ExecError {
-            stage: 1,
-            kind: ExecErrorKind::TimedOut,
-            output: vec![ProcessInfo {
-                ret_code: 0,
-                command: "[\"echo\", \"This does nothing.\"]".into(),
-                stdout: "This does nothing.\n".into(),
-                stderr: "".into(),
-            }],
-        }));
-        assert_eq!(dbg!(got), expected);
+    mod docker_runner {
+        use super::*;
+        use crate::tester::runner::DockerCommandRunner;
+
+        #[test]
+        fn ok() {
+            block_on(async {
+                let runner = DockerCommandRunner::new(
+                    bollard::Docker::connect_with_unix_defaults().unwrap(),
+                    "rurikawa_tester",
+                    "alpine:latest",
+                );
+                let mut runner = runner.await;
+                let mut t = Test::new();
+                t.add_step(Step::new(Capturable(command!(
+                    "echo",
+                    "This does nothing."
+                ))));
+                t.add_step(Step::new(Capturable(shell!(
+                    "echo 'Hello, world!' | awk '{print $1}'"
+                ))));
+                t.expected("Hello,\n");
+                let res = t.run(&mut runner).await;
+                assert!(matches!(dbg!(res), Ok(())));
+            });
+        }
     }
 }

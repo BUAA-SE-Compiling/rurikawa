@@ -20,7 +20,9 @@ tokio = { version = "0.2.21", features = [
     "time",
     "io-util",
     "process",
-    "stream"
+    "stream",
+    "rt-threaded",
+    "macros",
 ] }
 async-trait = "0.1.36"
 futures = "0.3.5"

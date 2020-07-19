@@ -47,9 +47,41 @@ impl CommandRunner for TokioCommandRunner {
 }
 
 pub struct DockerCommandRunner {
-    container: Docker,
+    instance: Docker,
     // TODO: What is the container name?
     container_name: String,
+}
+
+impl DockerCommandRunner {
+    pub async fn new(instance: bollard::Docker, container_name: &str, image_name: &str) -> Self {
+        let res = DockerCommandRunner {
+            instance,
+            container_name: container_name.to_owned(),
+        };
+        // TODO: If the image is not yet pulled, pull it before continuing.
+        // Create a container
+        res.instance
+            .create_container(
+                Some(bollard::container::CreateContainerOptions {
+                    name: container_name,
+                }),
+                bollard::container::Config {
+                    image: Some(image_name),
+                    cmd: Some(vec!["sh"]),
+                    ..Default::default()
+                },
+            )
+            .await
+            .expect("Failed to create Docker instance");
+        res.instance
+            .start_container(
+                container_name,
+                None::<bollard::container::StartContainerOptions<String>>,
+            )
+            .await
+            .unwrap_or_else(|_| panic!("Failed to start Docker container {}", container_name));
+        res
+    }
 }
 
 #[async_trait]
@@ -62,7 +94,7 @@ impl CommandRunner for DockerCommandRunner {
             attach_stderr: Some(true),
             ..Default::default()
         };
-        self.container
+        self.instance
             .create_exec(&self.container_name, config)
             .await
             .map_err(|e| {
@@ -73,7 +105,7 @@ impl CommandRunner for DockerCommandRunner {
             })?;
 
         // Use start_exec to get stdout/stderr.
-        let start_res = self.container.start_exec(&self.container_name, None);
+        let start_res = self.instance.start_exec(&self.container_name, None);
 
         let messages: Vec<MessageKind> = start_res
             .filter_map(|mres| async {
@@ -110,7 +142,7 @@ impl CommandRunner for DockerCommandRunner {
 
         // Use inspect_exec to get exit code.
         let inspect_res = self
-            .container
+            .instance
             .inspect_exec(&self.container_name)
             .await
             .map_err(|e| {
