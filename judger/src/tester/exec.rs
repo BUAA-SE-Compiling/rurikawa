@@ -21,9 +21,18 @@ macro_rules! command {
 }
 
 #[macro_export]
-macro_rules! shell {
+macro_rules! bash {
     ( $script:expr ) => {{
         let mut cmd = vec!["bash".to_owned(), "-c".to_owned()];
+        cmd.push($script.to_string());
+        cmd
+    }};
+}
+
+#[macro_export]
+macro_rules! sh {
+    ( $script:expr ) => {{
+        let mut cmd = vec!["sh".to_owned(), "-c".to_owned()];
         cmd.push($script.to_string());
         cmd
     }};
@@ -118,7 +127,7 @@ impl Test {
                         output,
                     }))
                 }
-                Err(_) => panic!("Run Failed: Cannot launch subprocess"),
+                Err(e) => panic!("Run Failed: Cannot launch subprocess, {}", e),
             };
 
             output.push(info.clone());
@@ -178,7 +187,7 @@ mod tests {
                 "echo",
                 "This does nothing."
             ))));
-            t.add_step(Step::new(Capturable(shell!(
+            t.add_step(Step::new(Capturable(bash!(
                 "echo 'Hello, world!' | awk '{print $1}'"
             ))));
             t.expected("Hello,\n");
@@ -193,7 +202,7 @@ mod tests {
                 "echo",
                 "This does nothing."
             ))));
-            t.add_step(Step::new(Capturable(shell!(
+            t.add_step(Step::new(Capturable(bash!(
                 "echo 'Hello, world!' && false"
             ))));
             t.expected("Hello,\nworld!\n");
@@ -227,7 +236,7 @@ mod tests {
                 "echo",
                 "This does nothing."
             ))));
-            t.add_step(Step::new(Capturable(shell!(
+            t.add_step(Step::new(Capturable(bash!(
                 // "ping www.bing.com & sleep 0.5; kill $!",
                 "{ sleep 0.1; kill $$; } & for (( i=0; i<4; i++ )) do echo $i; sleep 1; done"
             ))));
@@ -266,7 +275,7 @@ mod tests {
                 "echo",
                 "This does nothing."
             ))));
-            t.add_step(Step::new(Capturable(shell!(
+            t.add_step(Step::new(Capturable(bash!(
                 "echo 'Hello, world!' | awk '{print $2}'"
             ))));
             t.expected("Hello,\nworld!\n");
@@ -299,7 +308,7 @@ mod tests {
                 "This does nothing."
             ))));
             t.add_step(
-                Step::new(Capturable(shell!("echo 0; sleep 3; echo 1")))
+                Step::new(Capturable(bash!("echo 0; sleep 3; echo 1")))
                     .timeout(time::Duration::from_millis(100)),
             );
             t.expected("Hello,\nworld!\n");
@@ -325,18 +334,18 @@ mod tests {
         #[test]
         fn ok() {
             block_on(async {
-                let runner = DockerCommandRunner::new(
+                let mut runner = DockerCommandRunner::new(
                     bollard::Docker::connect_with_unix_defaults().unwrap(),
                     "rurikawa_tester",
                     "alpine:latest",
-                );
-                let mut runner = runner.await;
+                )
+                .await;
                 let mut t = Test::new();
                 t.add_step(Step::new(Capturable(command!(
                     "echo",
                     "This does nothing."
                 ))));
-                t.add_step(Step::new(Capturable(shell!(
+                t.add_step(Step::new(Capturable(sh!(
                     "echo 'Hello, world!' | awk '{print $1}'"
                 ))));
                 t.expected("Hello,\n");

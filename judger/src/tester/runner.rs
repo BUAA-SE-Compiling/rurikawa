@@ -1,7 +1,6 @@
 use super::ProcessInfo;
 use crate::prelude::*;
 use async_trait::async_trait;
-use bollard::exec::CreateExecOptions;
 use bollard::Docker;
 use futures::stream::StreamExt;
 use std::default::Default;
@@ -52,8 +51,8 @@ pub struct DockerCommandRunner {
     container_name: String,
 }
 
-impl DockerCommandRunner {
-    pub async fn new(instance: bollard::Docker, container_name: &str, image_name: &str) -> Self {
+impl<'d> DockerCommandRunner {
+    pub async fn new(instance: Docker, container_name: &str, image_name: &str) -> Self {
         let res = DockerCommandRunner {
             instance,
             container_name: container_name.to_owned(),
@@ -67,12 +66,15 @@ impl DockerCommandRunner {
                 }),
                 bollard::container::Config {
                     image: Some(image_name),
-                    cmd: Some(vec!["sh"]),
+                    attach_stdin: Some(true),
+                    attach_stdout: Some(true),
+                    attach_stderr: Some(true),
+                    tty: Some(true),
                     ..Default::default()
                 },
             )
             .await
-            .expect("Failed to create Docker instance");
+            .unwrap_or_else(|e| panic!("Failed to create Docker instance: {}", e));
         res.instance
             .start_container(
                 container_name,
@@ -88,24 +90,32 @@ impl DockerCommandRunner {
 impl CommandRunner for DockerCommandRunner {
     async fn run(&mut self, cmd: &[String]) -> PopenResult<ProcessInfo> {
         let cmd_str = format!("{:?}", cmd.to_vec());
-        let config = CreateExecOptions {
-            cmd: Some(cmd.to_vec()),
-            attach_stdout: Some(true),
-            attach_stderr: Some(true),
-            ..Default::default()
-        };
-        self.instance
-            .create_exec(&self.container_name, config)
+
+        // Create a Docker Exec
+        let message = self
+            .instance
+            .create_exec(
+                &self.container_name,
+                bollard::exec::CreateExecOptions {
+                    cmd: Some(cmd.to_vec()),
+                    attach_stdout: Some(true),
+                    attach_stderr: Some(true),
+                    ..Default::default()
+                },
+            )
             .await
             .map_err(|e| {
                 std::io::Error::new(
                     std::io::ErrorKind::Other,
-                    format!("Failed to create Docker Exec: {:?}", e),
+                    format!("Failed to create Docker Exec: {}", e),
                 )
             })?;
 
-        // Use start_exec to get stdout/stderr.
-        let start_res = self.instance.start_exec(&self.container_name, None);
+        // Start the Docker Exec
+        let start_res = self.instance.start_exec(
+            &message.id,
+            Some(bollard::exec::StartExecOptions { detach: false }),
+        );
 
         let messages: Vec<MessageKind> = start_res
             .filter_map(|mres| async {
@@ -129,34 +139,28 @@ impl CommandRunner for DockerCommandRunner {
             .iter()
             .partition(|&i| matches!(i, &MessageKind::StdOut(_)));
 
-        let stdout = stdout
+        let mut stdout = stdout
             .iter()
             .map(|&i| i.unwrap())
             .collect::<Vec<String>>()
             .join("");
-        let stderr = stderr
+        stdout.push_str("\n");
+        let mut stderr = stderr
             .iter()
             .map(|&i| i.unwrap())
             .collect::<Vec<String>>()
             .join("");
+        stderr.push_str("\n");
 
         // Use inspect_exec to get exit code.
-        let inspect_res = self
-            .instance
-            .inspect_exec(&self.container_name)
-            .await
-            .map_err(|e| {
-                std::io::Error::new(
-                    std::io::ErrorKind::Other,
-                    format!("Failed to inspect Docker Exec: {:?}", e),
-                )
-            })?;
+        let inspect_res = self.instance.inspect_exec(&message.id).await.map_err(|e| {
+            std::io::Error::new(
+                std::io::ErrorKind::Other,
+                format!("Failed to inspect Docker Exec: {:?}", e),
+            )
+        })?;
 
-        let bollard::exec::ExecInspect {
-            exit_code: ret_code,
-            ..
-        } = inspect_res;
-        let ret_code = ret_code.ok_or_else(|| {
+        let ret_code = inspect_res.exit_code.ok_or_else(|| {
             std::io::Error::new(
                 std::io::ErrorKind::Other,
                 "Failed to fetch Docker Exec exit code",
