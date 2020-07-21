@@ -1,5 +1,5 @@
 use serde::{Deserialize, Serialize};
-use serde_derive::*;
+// use serde_derive::*;
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct JudgeToml {
