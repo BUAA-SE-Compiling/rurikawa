@@ -1,3 +1,4 @@
+use super::utils::convert_code;
 use super::ProcessInfo;
 use crate::prelude::*;
 use async_trait::async_trait;
@@ -36,6 +37,7 @@ impl CommandRunner for TokioCommandRunner {
             (None, Some(x)) => -x,
             _ => unreachable!(),
         };
+        let ret_code = convert_code(ret_code);
         Ok(ProcessInfo {
             command: cmd_str,
             stdout: String::from_utf8_lossy(&stdout).into_owned(),
@@ -166,9 +168,11 @@ impl CommandRunner for DockerCommandRunner {
                 match mres {
                     Ok(bollard::exec::StartExecResults::Attached { log }) => match log {
                         bollard::container::LogOutput::StdOut { message } => {
+                            let message = String::from_utf8((*message).to_vec()).unwrap();
                             Some(MessageKind::StdOut(message))
                         }
                         bollard::container::LogOutput::StdErr { message } => {
+                            let message = String::from_utf8((*message).to_vec()).unwrap();
                             Some(MessageKind::StdErr(message))
                         }
                         _ => None,
@@ -183,18 +187,16 @@ impl CommandRunner for DockerCommandRunner {
             .iter()
             .partition(|&i| matches!(i, &MessageKind::StdOut(_)));
 
-        let mut stdout = stdout
+        let stdout = stdout
             .iter()
             .map(|&i| i.unwrap())
             .collect::<Vec<String>>()
             .join("");
-        stdout.push_str("\n");
-        let mut stderr = stderr
+        let stderr = stderr
             .iter()
             .map(|&i| i.unwrap())
             .collect::<Vec<String>>()
             .join("");
-        stderr.push_str("\n");
 
         // Use inspect_exec to get exit code.
         let inspect_res = self.instance.inspect_exec(&message.id).await.map_err(|e| {
@@ -204,18 +206,21 @@ impl CommandRunner for DockerCommandRunner {
             )
         })?;
 
-        let ret_code = inspect_res.exit_code.ok_or_else(|| {
-            std::io::Error::new(
-                std::io::ErrorKind::Other,
-                "Failed to fetch Docker Exec exit code",
-            )
-        })?;
+        let ret_code = inspect_res
+            .exit_code
+            .map(|x| convert_code(x as i32))
+            .ok_or_else(|| {
+                std::io::Error::new(
+                    std::io::ErrorKind::Other,
+                    "Failed to fetch Docker Exec exit code",
+                )
+            })?;
 
         Ok(ProcessInfo {
             command: cmd_str,
             stdout,
             stderr,
-            ret_code: ret_code as i32,
+            ret_code,
         })
     }
 }

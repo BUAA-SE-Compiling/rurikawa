@@ -1,6 +1,6 @@
 pub mod exec;
 pub mod runner;
-pub mod util;
+pub mod utils;
 
 use super::judge::JobConfig;
 use serde::{Deserialize, Serialize};

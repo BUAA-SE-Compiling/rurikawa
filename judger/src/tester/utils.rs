@@ -3,6 +3,7 @@ use libc::{c_char, c_int};
 use std::ffi::CStr;
 use std::str;
 
+/// Generate a diff String of two Strings.
 pub fn diff<'a>(got: &'a str, expected: &'a str) -> String {
     let Changeset { diffs, .. } = Changeset::new(got, expected, "\n");
 
@@ -21,10 +22,20 @@ pub fn diff<'a>(got: &'a str, expected: &'a str) -> String {
         .join("\n")
 }
 
+/// Describe a signal code (>=0).
 pub fn strsignal(signal: i32) -> String {
     let c_buf: *const c_char = unsafe { libc::strsignal(signal as c_int) };
     let c_str: &CStr = unsafe { CStr::from_ptr(c_buf) };
     c_str.to_str().unwrap().to_owned()
+}
+
+/// Convert a signal (128-254) to minus error codes.
+pub fn convert_code(code: i32) -> i32 {
+    if 128 <= code && code <= 254 {
+        128 - code
+    } else {
+        code
+    }
 }
 
 #[cfg(test)]
