@@ -51,13 +51,31 @@ pub struct DockerCommandRunner {
     container_name: String,
 }
 
-impl<'d> DockerCommandRunner {
+impl DockerCommandRunner {
     pub async fn new(instance: Docker, container_name: &str, image_name: &str) -> Self {
         let res = DockerCommandRunner {
             instance,
             container_name: container_name.to_owned(),
         };
-        // TODO: If the image is not yet pulled, pull it before continuing.
+
+        // Pull the image
+        res.instance
+            .create_image(
+                Some(bollard::image::CreateImageOptions {
+                    from_image: image_name,
+                    ..Default::default()
+                }),
+                None,
+                None,
+            )
+            .map(|mr| {
+                mr.unwrap_or_else(|e| {
+                    panic!("Failed to create Docker image `{}`: {}", image_name, e)
+                })
+            })
+            .collect::<Vec<_>>()
+            .await;
+
         // Create a container
         res.instance
             .create_container(
@@ -83,6 +101,32 @@ impl<'d> DockerCommandRunner {
             .await
             .unwrap_or_else(|_| panic!("Failed to start Docker container {}", container_name));
         res
+    }
+
+    pub async fn kill(self) {
+        self.instance
+            .kill_container(
+                &self.container_name,
+                None::<bollard::container::KillContainerOptions<String>>,
+            )
+            .await
+            .unwrap();
+
+        self.instance
+            .wait_container(
+                &self.container_name,
+                None::<bollard::container::WaitContainerOptions<String>>,
+            )
+            .collect::<Vec<_>>()
+            .await;
+
+        self.instance
+            .remove_container(
+                &self.container_name,
+                None::<bollard::container::RemoveContainerOptions>,
+            )
+            .await
+            .unwrap();
     }
 }
 

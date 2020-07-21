@@ -350,6 +350,7 @@ mod tests {
                 ))));
                 t.expected("Hello,\n");
                 let res = t.run(&mut runner).await;
+                runner.kill().await;
                 assert!(matches!(dbg!(res), Ok(())));
             });
         }
