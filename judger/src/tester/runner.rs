@@ -50,13 +50,20 @@ impl CommandRunner for TokioCommandRunner {
 pub struct DockerCommandRunner {
     instance: Docker,
     container_name: String,
+    mem_limit: Option<usize>,
 }
 
 impl DockerCommandRunner {
-    pub async fn new(instance: Docker, container_name: &str, image_name: &str) -> Self {
+    pub async fn new(
+        instance: Docker,
+        container_name: &str,
+        image_name: &str,
+        mem_limit: Option<usize>,
+    ) -> Self {
         let res = DockerCommandRunner {
             instance,
             container_name: container_name.to_owned(),
+            mem_limit,
         };
 
         // Pull the image
@@ -94,6 +101,20 @@ impl DockerCommandRunner {
             )
             .await
             .unwrap_or_else(|e| panic!("Failed to create Docker instance: {}", e));
+
+        // Set memory limit
+        res.instance
+            .update_container(
+                container_name,
+                bollard::container::UpdateContainerOptions::<String> {
+                    memory: mem_limit.map(|n| n as i64),
+                    ..Default::default()
+                },
+            )
+            .await
+            .unwrap_or_else(|e| panic!("Failed to set memory limit: {}", e));
+
+        // Start the container
         res.instance
             .start_container(
                 container_name,

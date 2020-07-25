@@ -48,8 +48,9 @@ impl JobConfig {
         let mut names = Generator::with_naming(Name::Numbered);
         let mut runner = DockerCommandRunner::new(
             bollard::Docker::connect_with_unix_defaults().unwrap(),
-            &dbg!(names.next().unwrap()),
+            &names.next().unwrap(),
             &self.image_name,
+            self.mem_limit,
         )
         .await;
         let mut t = Test::new();

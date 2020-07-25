@@ -359,6 +359,7 @@ mod tests {
                     bollard::Docker::connect_with_unix_defaults().unwrap(),
                     &dbg!(names.next().unwrap()),
                     "alpine:latest",
+                    None,
                 )
                 .await;
                 let mut t = Test::new();
@@ -384,6 +385,7 @@ mod tests {
                     bollard::Docker::connect_with_unix_defaults().unwrap(),
                     &dbg!(names.next().unwrap()),
                     "alpine:latest",
+                    None,
                 )
                 .await;
                 let mut t = Test::new();
@@ -428,6 +430,7 @@ mod tests {
                     bollard::Docker::connect_with_unix_defaults().unwrap(),
                     &dbg!(names.next().unwrap()),
                     "alpine:latest",
+                    None,
                 )
                 .await;
                 let mut t = Test::new();
@@ -477,6 +480,7 @@ mod tests {
                     bollard::Docker::connect_with_unix_defaults().unwrap(),
                     &dbg!(names.next().unwrap()),
                     "alpine:latest",
+                    None,
                 )
                 .await;
                 let mut t = Test::new();
@@ -519,6 +523,7 @@ mod tests {
                     bollard::Docker::connect_with_unix_defaults().unwrap(),
                     &dbg!(names.next().unwrap()),
                     "alpine:latest",
+                    None,
                 )
                 .await;
                 let mut t = Test::new();
