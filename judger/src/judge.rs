@@ -20,4 +20,6 @@ pub struct JobConfig {
     pub mem_limit: Option<usize>,
     pub before_exec: Vec<Vec<String>>,
     pub exec: Vec<String>,
+    pub expected_out: String,
+    pub image_name: String,
 }

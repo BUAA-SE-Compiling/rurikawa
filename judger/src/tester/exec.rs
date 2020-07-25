@@ -41,6 +41,10 @@ macro_rules! sh {
 pub struct Capturable(Vec<String>);
 
 impl Capturable {
+    pub fn new(cmd: Vec<String>) -> Self {
+        Capturable(cmd)
+    }
+
     async fn capture<R: CommandRunner + Send>(self, runner: &mut R) -> PopenResult<ProcessInfo> {
         let Self(cmd) = self;
         runner.run(&cmd).await
@@ -185,11 +189,11 @@ mod tests {
         fn ok() {
             block_on(async {
                 let mut t = Test::new();
-                t.add_step(Step::new(Capturable(command!(
+                t.add_step(Step::new(Capturable::new(command!(
                     "echo",
                     "This does nothing."
                 ))));
-                t.add_step(Step::new(Capturable(sh!(
+                t.add_step(Step::new(Capturable::new(sh!(
                     "echo 'Hello, world!' | awk '{print $1}'"
                 ))));
                 t.expected("Hello,\n");
@@ -202,11 +206,13 @@ mod tests {
         fn error_code() {
             block_on(async {
                 let mut t = Test::new();
-                t.add_step(Step::new(Capturable(command!(
+                t.add_step(Step::new(Capturable::new(command!(
                     "echo",
                     "This does nothing."
                 ))));
-                t.add_step(Step::new(Capturable(sh!("echo 'Hello, world!' && false"))));
+                t.add_step(Step::new(Capturable::new(sh!(
+                    "echo 'Hello, world!' && false"
+                ))));
                 t.expected("Goodbye, world!");
                 let got = t.run(&mut TokioCommandRunner {}).await;
                 let expected: Result<(), _> = Err(JobFailure::ExecError(ExecError {
@@ -236,11 +242,11 @@ mod tests {
         fn signal() {
             block_on(async {
                 let mut t = Test::new();
-                t.add_step(Step::new(Capturable(command!(
+                t.add_step(Step::new(Capturable::new(command!(
                     "echo",
                     "This does nothing."
                 ))));
-                t.add_step(Step::new(Capturable(sh!(
+                t.add_step(Step::new(Capturable::new(sh!(
                     // "ping www.bing.com & sleep 0.5; kill $!",
                     r#"{ sleep 0.1; kill $$; } & i=0; while [ "$i" -lt 4 ]; do echo $i; sleep 1; i=$(( i + 1 )); done"#
                 ))));
@@ -277,11 +283,11 @@ mod tests {
         fn output_mismatch() {
             block_on(async {
                 let mut t = Test::new();
-                t.add_step(Step::new(Capturable(command!(
+                t.add_step(Step::new(Capturable::new(command!(
                     "echo",
                     "This does nothing."
                 ))));
-                t.add_step(Step::new(Capturable(sh!(
+                t.add_step(Step::new(Capturable::new(sh!(
                     "echo 'Hello, world!' | awk '{print $2}'"
                 ))));
                 t.expected("Hello,\nworld!");
@@ -311,12 +317,12 @@ mod tests {
         fn output_timed_out() {
             block_on(async {
                 let mut t = Test::new();
-                t.add_step(Step::new(Capturable(command!(
+                t.add_step(Step::new(Capturable::new(command!(
                     "echo",
                     "This does nothing."
                 ))));
                 t.add_step(
-                    Step::new(Capturable(sh!("echo 0; sleep 3; echo 1")))
+                    Step::new(Capturable::new(sh!("echo 0; sleep 3; echo 1")))
                         .timeout(time::Duration::from_millis(100)),
                 );
                 t.expected("Hello,\nworld!\n");
@@ -352,11 +358,11 @@ mod tests {
                 )
                 .await;
                 let mut t = Test::new();
-                t.add_step(Step::new(Capturable(command!(
+                t.add_step(Step::new(Capturable::new(command!(
                     "echo",
                     "This does nothing."
                 ))));
-                t.add_step(Step::new(Capturable(sh!(
+                t.add_step(Step::new(Capturable::new(sh!(
                     "echo 'Hello, world!' | awk '{print $1}'"
                 ))));
                 t.expected("Hello,\n");
@@ -377,11 +383,13 @@ mod tests {
                 )
                 .await;
                 let mut t = Test::new();
-                t.add_step(Step::new(Capturable(command!(
+                t.add_step(Step::new(Capturable::new(command!(
                     "echo",
                     "This does nothing."
                 ))));
-                t.add_step(Step::new(Capturable(sh!("echo 'Hello, world!' && false"))));
+                t.add_step(Step::new(Capturable::new(sh!(
+                    "echo 'Hello, world!' && false"
+                ))));
                 t.expected("Hello,\nworld!\n");
                 let got = t.run(&mut runner).await;
                 let expected: Result<(), _> = Err(JobFailure::ExecError(ExecError {
@@ -419,11 +427,11 @@ mod tests {
                 )
                 .await;
                 let mut t = Test::new();
-                t.add_step(Step::new(Capturable(command!(
+                t.add_step(Step::new(Capturable::new(command!(
                     "echo",
                     "This does nothing."
                 ))));
-                t.add_step(Step::new(Capturable(sh!(
+                t.add_step(Step::new(Capturable::new(sh!(
                     // "ping www.bing.com & sleep 0.5; kill $!",
                     r#"{ sleep 0.1; kill $$; } & i=0; while [ "$i" -lt 4 ]; do echo $i; sleep 1; i=$(( i + 1 )); done"#
                 ))));
@@ -468,11 +476,11 @@ mod tests {
                 )
                 .await;
                 let mut t = Test::new();
-                t.add_step(Step::new(Capturable(command!(
+                t.add_step(Step::new(Capturable::new(command!(
                     "echo",
                     "This does nothing."
                 ))));
-                t.add_step(Step::new(Capturable(sh!(
+                t.add_step(Step::new(Capturable::new(sh!(
                     "echo 'Hello, world!' | awk '{print $2}'"
                 ))));
                 t.expected("Hello,\nworld!");
@@ -510,12 +518,12 @@ mod tests {
                 )
                 .await;
                 let mut t = Test::new();
-                t.add_step(Step::new(Capturable(command!(
+                t.add_step(Step::new(Capturable::new(command!(
                     "echo",
                     "This does nothing."
                 ))));
                 t.add_step(
-                    Step::new(Capturable(sh!("echo 0; sleep 3; echo 1")))
+                    Step::new(Capturable::new(sh!("echo 0; sleep 3; echo 1")))
                         .timeout(time::Duration::from_millis(100)),
                 );
                 t.expected("Hello,\nworld!\n");

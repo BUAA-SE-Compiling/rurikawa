@@ -49,7 +49,6 @@ impl CommandRunner for TokioCommandRunner {
 
 pub struct DockerCommandRunner {
     instance: Docker,
-    // TODO: What is the container name?
     container_name: String,
 }
 

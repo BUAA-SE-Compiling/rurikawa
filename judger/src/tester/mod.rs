@@ -3,6 +3,9 @@ pub mod runner;
 pub mod utils;
 
 use super::judge::JobConfig;
+use crate::tester::runner::DockerCommandRunner;
+use exec::{Capturable, Step, Test};
+use names::{Generator, Name};
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Serialize, Deserialize, Eq, PartialEq)]
@@ -41,6 +44,21 @@ pub enum JobFailure {
 
 impl JobConfig {
     pub async fn run(&self) -> Result<(), JobFailure> {
-        todo!()
+        // TODO: Use the mem_limit field
+        let mut names = Generator::with_naming(Name::Numbered);
+        let mut runner = DockerCommandRunner::new(
+            bollard::Docker::connect_with_unix_defaults().unwrap(),
+            &dbg!(names.next().unwrap()),
+            &self.image_name,
+        )
+        .await;
+        let mut t = Test::new();
+        for step in self.before_exec.clone() {
+            t.add_step(Step::new(Capturable::new(step)));
+        }
+        t.add_step(Step::new(Capturable::new(self.exec.clone())));
+        t.expected(&self.expected_out);
+        t.run(&mut runner).await?;
+        Ok(())
     }
 }
