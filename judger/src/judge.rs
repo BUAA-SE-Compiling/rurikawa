@@ -16,7 +16,9 @@ pub enum ImageConfig {
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct JobConfig {
+    /// Time limit of EACH step, in seconds.
     pub time_limit: Option<usize>,
+    /// Memory limit of the contrainer, in bytes.
     pub mem_limit: Option<usize>,
     pub before_exec: Vec<Vec<String>>,
     pub exec: Vec<String>,

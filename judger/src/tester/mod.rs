@@ -53,10 +53,18 @@ impl JobConfig {
         )
         .await;
         let mut t = Test::new();
-        for step in self.before_exec.clone() {
-            t.add_step(Step::new(Capturable::new(step)));
-        }
-        t.add_step(Step::new(Capturable::new(self.exec.clone())));
+
+        self.before_exec
+            .iter()
+            .chain([self.exec.clone()].iter())
+            .for_each(|step| {
+                t.add_step(Step::new_with_timeout(
+                    Capturable::new(step.to_vec()),
+                    self.time_limit
+                        .map(|n| std::time::Duration::from_secs(n as u64)),
+                ));
+            });
+
         t.expected(&self.expected_out);
         t.run(&mut runner).await?;
         Ok(())

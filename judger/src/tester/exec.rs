@@ -66,6 +66,10 @@ impl Step {
         self
     }
 
+    pub fn new_with_timeout(cmd: Capturable, timeout: Option<time::Duration>) -> Self {
+        Step { cmd, timeout }
+    }
+
     pub async fn capture<R>(self, runner: &mut R) -> PopenResult<ProcessInfo>
     where
         R: CommandRunner + Send,
