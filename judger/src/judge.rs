@@ -1,5 +1,4 @@
 use serde::{Deserialize, Serialize};
-// use serde_derive::*;
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct JudgeToml {
@@ -17,8 +16,8 @@ pub enum ImageConfig {
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct JobConfig {
-    pub time_limit: usize,
-    pub mem_limit: usize,
+    pub time_limit: Option<usize>,
+    pub mem_limit: Option<usize>,
     pub before_exec: Vec<Vec<String>>,
     pub exec: Vec<String>,
 }

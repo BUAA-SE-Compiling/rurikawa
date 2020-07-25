@@ -39,6 +39,8 @@ pub enum JobFailure {
     ExecError(ExecError),
 }
 
-pub fn run_job(job: &JobConfig) -> Result<(), JobFailure> {
-    Ok(())
+impl JobConfig {
+    pub async fn run(&self) -> Result<(), JobFailure> {
+        todo!()
+    }
 }
