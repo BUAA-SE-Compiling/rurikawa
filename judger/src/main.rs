@@ -4,5 +4,6 @@ mod opt;
 
 #[tokio::main]
 async fn main() {
+    let opt = opt::Opts::parse();
     println!("Hello world");
 }
