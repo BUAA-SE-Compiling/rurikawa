@@ -1,4 +1,4 @@
-mod judge;
+mod config;
 
 mod prelude;
 mod tester;

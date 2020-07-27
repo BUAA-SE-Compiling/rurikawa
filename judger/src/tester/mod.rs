@@ -2,7 +2,7 @@ pub mod exec;
 pub mod runner;
 pub mod utils;
 
-use super::judge::JobConfig;
+use super::config::JobConfig;
 use crate::tester::runner::DockerCommandRunner;
 use exec::{Capturable, Step, Test};
 use names::{Generator, Name};
