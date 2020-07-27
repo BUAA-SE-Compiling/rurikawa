@@ -29,7 +29,7 @@ pub fn strsignal(signal: i32) -> String {
     c_str.to_str().unwrap().to_owned()
 }
 
-/// Convert a signal (128-254) to minus error codes.
+/// Convert a signal (128-254) to a minus error code, retain the others.
 pub fn convert_code(code: i32) -> i32 {
     if 128 <= code && code <= 254 {
         128 - code

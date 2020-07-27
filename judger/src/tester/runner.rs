@@ -50,7 +50,6 @@ impl CommandRunner for TokioCommandRunner {
 pub struct DockerCommandRunner {
     instance: Docker,
     container_name: String,
-    mem_limit: Option<usize>,
 }
 
 impl DockerCommandRunner {
@@ -63,7 +62,6 @@ impl DockerCommandRunner {
         let res = DockerCommandRunner {
             instance,
             container_name: container_name.to_owned(),
-            mem_limit,
         };
 
         // Pull the image
@@ -122,6 +120,7 @@ impl DockerCommandRunner {
             )
             .await
             .unwrap_or_else(|_| panic!("Failed to start Docker container {}", container_name));
+
         res
     }
 
