@@ -23,7 +23,7 @@ impl Default for GitCloneOptions {
     }
 }
 
-async fn git_clone(options: &GitCloneOptions, dir: &Path) -> std::io::Result<()> {
+pub async fn git_clone(options: &GitCloneOptions, dir: &Path) -> std::io::Result<()> {
     let mut clone_cmd = Command::new("git");
     clone_cmd.args(&["clone", &options.url]);
     clone_cmd.arg("--recursive");
@@ -47,7 +47,7 @@ async fn git_clone(options: &GitCloneOptions, dir: &Path) -> std::io::Result<()>
     }
 }
 
-async fn download_unzip(
+pub async fn download_unzip(
     url: &str,
     dir: &Path,
     temp_file_path: &Path,

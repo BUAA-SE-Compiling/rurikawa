@@ -24,6 +24,10 @@ pub struct ServerSubCmd {
     #[clap(required = true)]
     host: String,
 
+    /// Path of temp folder, defaults to ~/.rurikawa/
+    #[clap(long = "temp-folder", name = "path")]
+    temp_folder_path: Option<PathBuf>,
+
     /// Access token
     #[clap(long, short)]
     token: Option<String>,
