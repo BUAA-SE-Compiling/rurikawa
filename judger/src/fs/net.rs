@@ -67,6 +67,7 @@ pub async fn download_unzip(
         ])
         .output()
         .await?;
+    tokio::fs::remove_file(temp_file_path)?;
     if unzip_res.status.success() {
         Ok(())
     } else {
