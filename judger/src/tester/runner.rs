@@ -8,11 +8,14 @@ use std::default::Default;
 use std::os::unix::process::ExitStatusExt;
 use tokio::process::Command;
 
+/// An evaluation environment for commands.
 #[async_trait]
 pub trait CommandRunner {
+    /// Evaluate a command.
     async fn run(&mut self, cmd: &[String]) -> PopenResult<ProcessInfo>;
 }
 
+/// A *local* command evaluation environment.
 pub struct TokioCommandRunner {}
 
 #[async_trait]
@@ -47,8 +50,11 @@ impl CommandRunner for TokioCommandRunner {
     }
 }
 
+/// Command evaluation environment in a Docker container.
 pub struct DockerCommandRunner {
+    /// A connection to the Docker daemon.
     instance: Docker,
+    /// Name of the container in which the command is evaluated.
     container_name: String,
 }
 
@@ -64,6 +70,7 @@ impl DockerCommandRunner {
             container_name: container_name.to_owned(),
         };
 
+        /*
         // Pull the image
         res.instance
             .create_image(
@@ -75,12 +82,11 @@ impl DockerCommandRunner {
                 None,
             )
             .map(|mr| {
-                mr.unwrap_or_else(|e| {
-                    panic!("Failed to create Docker image `{}`: {}", image_name, e)
-                })
+                mr.unwrap_or_else(|e| panic!("Failed to pull Docker image `{}`: {}", image_name, e))
             })
             .collect::<Vec<_>>()
             .await;
+        */
 
         // Create a container
         res.instance

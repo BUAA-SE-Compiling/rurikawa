@@ -1,7 +1,7 @@
 use super::utils::{diff, strsignal};
 use super::{
-    runner::CommandRunner, ExecError, ExecErrorKind, JobConfig, JobFailure, OutputMismatch,
-    ProcessInfo,
+    runner::CommandRunner, ExecError, ExecErrorKind, JobFailure, OutputMismatch, ProcessInfo,
+    TestJob,
 };
 use crate::prelude::*;
 use std::io;
@@ -51,25 +51,32 @@ impl Capturable {
     }
 }
 
+/// One step in a `Test`.
 pub struct Step {
+    /// The command to be executed.
     pub cmd: Capturable,
+    /// The timeout of the command.
     pub timeout: Option<time::Duration>,
 }
 
 impl Step {
+    /// Make a new `Step` with no timeout.
     pub fn new(cmd: Capturable) -> Self {
         Step { cmd, timeout: None }
     }
 
+    /// Set `timeout` for a `Step`.
     pub fn timeout(mut self, timeout: time::Duration) -> Self {
         self.timeout = Some(timeout);
         self
     }
 
+    /// Make a new `Step` with a `timeout`.
     pub fn new_with_timeout(cmd: Capturable, timeout: Option<time::Duration>) -> Self {
         Step { cmd, timeout }
     }
 
+    /// Run the `Step` and collect its info, considering the `timeout`.
     pub async fn capture<R>(self, runner: &mut R) -> PopenResult<ProcessInfo>
     where
         R: CommandRunner + Send,
@@ -90,8 +97,11 @@ impl Step {
     }
 }
 
+/// A particular multi-`Step` test.
+/// An I/O match test against `expected` is performed at the last `Step`.
 pub struct Test {
     steps: Vec<Step>,
+    /// The expected `stdout` content.
     expected: Option<String>,
 }
 
