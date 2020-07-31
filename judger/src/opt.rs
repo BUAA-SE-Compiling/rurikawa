@@ -10,8 +10,8 @@ pub struct Opts {
 #[derive(Clap, Debug, Clone)]
 pub enum SubCmd {
     /// Run as a long-running runner instance
-    #[clap(name = "server")]
-    Server(ServerSubCmd),
+    #[clap(name = "connect")]
+    Connect(ConnectSubCmd),
 
     /// Run a single test job in local environment
     #[clap(name = "run")]
@@ -19,7 +19,7 @@ pub enum SubCmd {
 }
 
 #[derive(Clap, Debug, Clone)]
-pub struct ServerSubCmd {
+pub struct ConnectSubCmd {
     /// The coordinator's uri (include port if needed)
     #[clap(required = true)]
     host: String,
