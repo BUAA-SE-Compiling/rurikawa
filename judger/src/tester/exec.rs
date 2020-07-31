@@ -1,5 +1,5 @@
 use super::utils::diff;
-#[cfg(any(target_os = "linux", target_os = "macos"))]
+#[cfg(unix)]
 use super::utils::strsignal;
 use super::{
     runner::CommandRunner, ExecError, ExecErrorKind, JobConfig, JobFailure, OutputMismatch,
@@ -9,7 +9,7 @@ use crate::prelude::*;
 use std::io;
 use std::time;
 
-#[cfg(not(any(target_os = "linux", target_os = "macos")))]
+#[cfg(not(unix))]
 fn strsignal(i: i32) -> String {
     return "".into();
 }
@@ -147,7 +147,7 @@ impl Test {
 
             output.push(info.clone());
             let code = info.ret_code;
-            let is_unix = cfg!(any(target_os = "linux", target_os = "macos"));
+            let is_unix = cfg!(unix);
             match () {
                 _ if code > 0 || (code < 0 && !is_unix) => {
                     return Err(JobFailure::ExecError(ExecError {
@@ -192,7 +192,7 @@ mod tests {
     use tokio_test::block_on;
 
     #[cfg(test)]
-    #[cfg(any(target_os = "linux", target_os = "macos"))]
+    #[cfg(unix)]
     mod tokio_runner {
         use super::*;
         use crate::tester::runner::TokioCommandRunner;

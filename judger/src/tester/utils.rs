@@ -22,7 +22,7 @@ pub fn diff<'a>(got: &'a str, expected: &'a str) -> String {
         .join("\n")
 }
 
-#[cfg(any(target_os = "linux", target_os = "macos"))]
+#[cfg(unix)]
 /// Describe a signal code (>=0).
 pub fn strsignal(signal: i32) -> String {
     let c_buf: *const c_char = unsafe { libc::strsignal(signal as c_int) };

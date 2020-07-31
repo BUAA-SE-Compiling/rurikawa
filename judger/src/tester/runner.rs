@@ -5,7 +5,7 @@ use async_trait::async_trait;
 use bollard::Docker;
 use futures::stream::StreamExt;
 use std::default::Default;
-#[cfg(any(target_os = "linux", target_os = "macos"))]
+#[cfg(unix)]
 use std::os::unix::process::ExitStatusExt;
 use std::process::ExitStatus;
 use tokio::process::Command;
@@ -45,12 +45,12 @@ impl CommandRunner for TokioCommandRunner {
     }
 }
 
-#[cfg(not(any(target_os = "linux", target_os = "macos")))]
+#[cfg(windows)]
 fn ret_code_from_exit_status(status: ExitStatus) -> i32 {
     status.code().unwrap_or(1)
 }
 
-#[cfg(any(target_os = "linux", target_os = "macos"))]
+#[cfg(unix)]
 fn ret_code_from_exit_status(status: ExitStatus) -> i32 {
     match (status.code(), status.signal()) {
         (Some(x), _) => x,
