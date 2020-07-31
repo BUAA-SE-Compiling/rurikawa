@@ -1297,6 +1297,7 @@ dependencies = [
  "difference",
  "fern",
  "futures",
+ "http",
  "libc",
  "log 0.4.11",
  "names",

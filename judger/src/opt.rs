@@ -4,8 +4,14 @@ use std::path::PathBuf;
 #[derive(Clap, Debug, Clone)]
 pub struct Opts {
     #[clap(subcommand)]
-    cmd: SubCmd,
+    pub cmd: SubCmd,
+
+    #[clap(flatten)]
+    pub opt: GlobalOpts,
 }
+
+#[derive(Clap, Debug, Clone)]
+pub struct GlobalOpts {}
 
 #[derive(Clap, Debug, Clone)]
 pub enum SubCmd {
@@ -22,15 +28,15 @@ pub enum SubCmd {
 pub struct ConnectSubCmd {
     /// The coordinator's uri (include port if needed)
     #[clap(required = true)]
-    host: String,
+    pub host: String,
 
     /// Path of temp folder, defaults to ~/.rurikawa/
     #[clap(long = "temp-folder", name = "path")]
-    temp_folder_path: Option<PathBuf>,
+    pub temp_folder_path: Option<PathBuf>,
 
     /// Access token
     #[clap(long, short)]
-    token: Option<String>,
+    pub token: Option<String>,
 }
 
 #[derive(Clap, Debug, Clone)]
@@ -39,9 +45,9 @@ pub struct RunSubCmd {
     /// in it or its subfolders, or specify a file to be used as `judge.toml`.
     /// Defaults to current folder.
     #[clap(name = "job-path")]
-    job: Option<PathBuf>,
+    pub job: Option<PathBuf>,
 
     /// Configuration file of tests.
     #[clap(long, short, name = "config-file-path")]
-    config: Option<PathBuf>,
+    pub config: Option<PathBuf>,
 }
