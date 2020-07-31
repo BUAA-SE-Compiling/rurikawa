@@ -4,6 +4,10 @@ version = "0.1.0"
 authors = ["Rynco Maekawa <lynzrand@outlook.com>"]
 edition = "2018"
 
+[[bin]]
+name = "rurikawa"
+path = "src/main.rs"
+
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 [dependencies]
 clap = "3.0.0-beta.1"
