@@ -33,6 +33,7 @@ fern = "0.6.0"
 anyhow = "*"
 http = "*"
 reqwest = "0.10.7"
+ctrlc = "3.1.6"
 
 [dev-dependencies]
 tokio-test = "0.2.1"
