@@ -6,6 +6,7 @@ use std::{
         atomic::{AtomicBool, Ordering},
         Arc,
     },
+    time::Duration,
 };
 use tokio::{prelude::*, sync::Mutex};
 
@@ -17,6 +18,19 @@ static CTRL_C_TWICE: AtomicBool = AtomicBool::new(false);
 #[tokio::main]
 async fn main() {
     let opt = opt::Opts::parse();
+    fern::Dispatch::new()
+        .format(|out, message, record| {
+            out.finish(format_args!(
+                "{} [{}] [{}] {}",
+                chrono::Utc::now().to_rfc3339_opts(chrono::SecondsFormat::Millis, true),
+                record.level(),
+                record.target(),
+                message
+            ))
+        })
+        .chain(std::io::stdout())
+        .apply()
+        .expect("Failed to set up logger");
     ctrlc::set_handler(handle_ctrl_c).expect("Failed to set termination handler!");
 
     match opt.cmd {
