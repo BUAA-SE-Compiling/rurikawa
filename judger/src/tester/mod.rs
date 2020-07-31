@@ -47,7 +47,7 @@ impl JobConfig {
         // TODO: Use the mem_limit field
         let mut names = Generator::with_naming(Name::Numbered);
         let mut runner = DockerCommandRunner::new(
-            bollard::Docker::connect_with_unix_defaults().unwrap(),
+            bollard::Docker::connect_with_local_defaults().unwrap(),
             &names.next().unwrap(),
             &self.image_name,
             self.mem_limit,

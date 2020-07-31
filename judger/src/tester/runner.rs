@@ -5,7 +5,9 @@ use async_trait::async_trait;
 use bollard::Docker;
 use futures::stream::StreamExt;
 use std::default::Default;
+#[cfg(any(target_os = "linux", target_os = "macos"))]
 use std::os::unix::process::ExitStatusExt;
+use std::process::ExitStatus;
 use tokio::process::Command;
 
 #[async_trait]
@@ -32,11 +34,7 @@ impl CommandRunner for TokioCommandRunner {
             stdout,
             stderr,
         } = command.output().await?;
-        let ret_code = match (status.code(), status.signal()) {
-            (Some(x), _) => x,
-            (None, Some(x)) => -x,
-            _ => unreachable!(),
-        };
+        let ret_code = ret_code_from_exit_status(status);
         let ret_code = convert_code(ret_code);
         Ok(ProcessInfo {
             command: cmd_str,
@@ -44,6 +42,20 @@ impl CommandRunner for TokioCommandRunner {
             stderr: String::from_utf8_lossy(&stderr).into_owned(),
             ret_code,
         })
+    }
+}
+
+#[cfg(not(any(target_os = "linux", target_os = "macos")))]
+fn ret_code_from_exit_status(status: ExitStatus) -> i32 {
+    status.code().unwrap_or(1)
+}
+
+#[cfg(any(target_os = "linux", target_os = "macos"))]
+fn ret_code_from_exit_status(status: ExitStatus) -> i32 {
+    match (status.code(), status.signal()) {
+        (Some(x), _) => x,
+        (None, Some(x)) => -x,
+        _ => unreachable!(),
     }
 }
 
