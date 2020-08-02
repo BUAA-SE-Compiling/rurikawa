@@ -1,6 +1,6 @@
 use crate::tester::exec::{Capturable, Step, Test};
 use crate::tester::{runner::DockerCommandRunner, JobFailure};
-use futures::stream::StreamExt;
+use futures::stream::{self, StreamExt};
 use names::{Generator, Name};
 use serde::{self, Deserialize, Serialize};
 use std::{collections::HashMap, path::PathBuf};
@@ -85,6 +85,7 @@ pub struct TestInfo {
     pub test_cases: PathBuf,
     /// The command needed to run the VM, so as to finally perform an I/O check
     pub run_vm: Vec<String>,
+    // TODO: Use this field.
     pub docker_config: TestDockerConfig,
     /// A Map between file placeholders and file paths.
     pub env_map: HashMap<String, String>,
@@ -95,27 +96,30 @@ pub struct TestDockerConfig {
     pub volume: HashMap<String, String>,
 }
 
-/// A collection of all the `TestJob`s.
 #[derive(Serialize, Deserialize, Debug, Clone)]
-pub struct TestSuite {
-    pub jobs: Vec<TestJob>,
-}
-
-#[derive(Serialize, Deserialize, Debug, Clone)]
-pub struct TestJob {
-    /// Time limit of a step, in seconds.
-    pub time_limit: Option<usize>,
-    /// Memory limit of the contrainer, in bytes.
-    pub mem_limit: Option<usize>,
+pub struct TestCase {
+    pub uid: u32,
     /// List of commands to be executed.
     pub exec: Vec<Vec<String>>,
     /// Expected `stdout` of the last command.
     pub expected_out: String,
+}
+
+/// A suite of `Test`s to be run.
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct TestSuite {
+    /// Time limit of a step, in seconds.
+    pub time_limit: Option<usize>,
+    /// Memory limit of the contrainer, in bytes.
+    pub mem_limit: Option<usize>,
+    /// The test contents.
+    pub test_cases: Vec<TestCase>,
+    /// The image which contains the compiler to be tested.
     pub image_name: String,
 }
 
-impl TestJob {
-    pub async fn run(&self, instance: bollard::Docker) -> Result<(), JobFailure> {
+impl TestSuite {
+    pub async fn run(&self, instance: bollard::Docker) -> Vec<Result<(), JobFailure>> {
         // TODO: Use the mem_limit field
         let mut names = Generator::with_naming(Name::Numbered);
         let mut runner = DockerCommandRunner::new(
@@ -125,18 +129,24 @@ impl TestJob {
             self.mem_limit,
         )
         .await;
-        let mut t = Test::new();
 
-        self.exec.iter().for_each(|step| {
-            t.add_step(Step::new_with_timeout(
-                Capturable::new(step.to_vec()),
-                self.time_limit
-                    .map(|n| std::time::Duration::from_secs(n as u64)),
-            ));
-        });
+        let mut res = vec![];
 
-        t.expected(&self.expected_out);
-        t.run(&mut runner).await?;
-        Ok(())
+        for case in &self.test_cases {
+            let mut t = Test::new();
+
+            case.exec.iter().for_each(|step| {
+                t.add_step(Step::new_with_timeout(
+                    Capturable::new(step.to_vec()),
+                    self.time_limit
+                        .map(|n| std::time::Duration::from_secs(n as u64)),
+                ));
+            });
+
+            t.expected(&case.expected_out);
+            res.push(t.run(&mut runner).await)
+        }
+
+        res
     }
 }

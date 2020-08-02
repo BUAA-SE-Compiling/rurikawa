@@ -2,7 +2,7 @@ pub mod exec;
 pub mod runner;
 pub mod utils;
 
-use super::config::TestJob;
+use super::config::TestSuite;
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Serialize, Deserialize, Eq, PartialEq)]

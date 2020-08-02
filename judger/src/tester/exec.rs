@@ -1,7 +1,7 @@
 use super::utils::{diff, strsignal};
 use super::{
     runner::CommandRunner, ExecError, ExecErrorKind, JobFailure, OutputMismatch, ProcessInfo,
-    TestJob,
+    TestSuite,
 };
 use crate::prelude::*;
 use std::io;
