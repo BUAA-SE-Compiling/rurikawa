@@ -73,6 +73,7 @@ impl Image {
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct ImageUsage {
     pub image: Image,
+    /// The sequence of commands to build
     pub build: Vec<Vec<String>>,
     pub run: Vec<Vec<String>>,
 }
@@ -81,7 +82,6 @@ pub struct ImageUsage {
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct TestInfo {
     pub name: String,
-    pub recursive: bool,
     pub test_cases: PathBuf,
     /// The command needed to run the VM, so as to finally perform an I/O check
     pub run_vm: Vec<String>,
