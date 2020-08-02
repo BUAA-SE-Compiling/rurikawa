@@ -12,7 +12,7 @@ use tokio::process::Command;
 #[async_trait]
 pub trait CommandRunner {
     /// Evaluate a command.
-    async fn run(&mut self, cmd: &[String]) -> PopenResult<ProcessInfo>;
+    async fn run(&self, cmd: &[String]) -> PopenResult<ProcessInfo>;
 }
 
 /// A *local* command evaluation environment.
@@ -20,7 +20,7 @@ pub struct TokioCommandRunner {}
 
 #[async_trait]
 impl CommandRunner for TokioCommandRunner {
-    async fn run(&mut self, cmd: &[String]) -> PopenResult<ProcessInfo> {
+    async fn run(&self, cmd: &[String]) -> PopenResult<ProcessInfo> {
         let cmd_str = format!("{:?}", cmd.to_vec());
         let mut cmd_iter = cmd.iter();
         let mut command = Command::new(cmd_iter.next().ok_or_else(|| {
@@ -159,7 +159,7 @@ impl DockerCommandRunner {
 
 #[async_trait]
 impl CommandRunner for DockerCommandRunner {
-    async fn run(&mut self, cmd: &[String]) -> PopenResult<ProcessInfo> {
+    async fn run(&self, cmd: &[String]) -> PopenResult<ProcessInfo> {
         let cmd_str = format!("{:?}", cmd.to_vec());
 
         // Create a Docker Exec

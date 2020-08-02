@@ -1,5 +1,6 @@
 use crate::tester::exec::{Capturable, Step, Test};
 use crate::tester::{runner::DockerCommandRunner, JobFailure};
+use futures::future::join_all;
 use futures::stream::{self, StreamExt};
 use names::{Generator, Name};
 use serde::{self, Deserialize, Serialize};
@@ -122,7 +123,7 @@ impl TestSuite {
     pub async fn run(&self, instance: bollard::Docker) -> Vec<Result<(), JobFailure>> {
         // TODO: Use the mem_limit field
         let mut names = Generator::with_naming(Name::Numbered);
-        let mut runner = DockerCommandRunner::new(
+        let runner = DockerCommandRunner::new(
             instance,
             &names.next().unwrap(),
             &self.image_name,
@@ -130,23 +131,25 @@ impl TestSuite {
         )
         .await;
 
-        let mut res = vec![];
+        let res: Vec<_> = self
+            .test_cases
+            .iter()
+            .map(|case| {
+                let mut t = Test::new();
 
-        for case in &self.test_cases {
-            let mut t = Test::new();
+                case.exec.iter().for_each(|step| {
+                    t.add_step(Step::new_with_timeout(
+                        Capturable::new(step.to_vec()),
+                        self.time_limit
+                            .map(|n| std::time::Duration::from_secs(n as u64)),
+                    ));
+                });
 
-            case.exec.iter().for_each(|step| {
-                t.add_step(Step::new_with_timeout(
-                    Capturable::new(step.to_vec()),
-                    self.time_limit
-                        .map(|n| std::time::Duration::from_secs(n as u64)),
-                ));
-            });
+                t.expected(&case.expected_out);
+                t.run(&runner)
+            })
+            .collect();
 
-            t.expected(&case.expected_out);
-            res.push(t.run(&mut runner).await)
-        }
-
-        res
+        join_all(res).await
     }
 }

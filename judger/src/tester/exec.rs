@@ -45,7 +45,7 @@ impl Capturable {
         Capturable(cmd)
     }
 
-    async fn capture<R: CommandRunner + Send>(self, runner: &mut R) -> PopenResult<ProcessInfo> {
+    async fn capture<R: CommandRunner + Send>(self, runner: &R) -> PopenResult<ProcessInfo> {
         let Self(cmd) = self;
         runner.run(&cmd).await
     }
@@ -77,7 +77,7 @@ impl Step {
     }
 
     /// Run the `Step` and collect its info, considering the `timeout`.
-    pub async fn capture<R>(self, runner: &mut R) -> PopenResult<ProcessInfo>
+    pub async fn capture<R>(self, runner: &R) -> PopenResult<ProcessInfo>
     where
         R: CommandRunner + Send,
     {
@@ -128,7 +128,8 @@ impl Test {
         self
     }
 
-    pub async fn run<R>(self, runner: &mut R) -> Result<(), JobFailure>
+    //? Should `runner` be mutable?
+    pub async fn run<R>(self, runner: &R) -> Result<(), JobFailure>
     where
         R: CommandRunner + Send,
     {
