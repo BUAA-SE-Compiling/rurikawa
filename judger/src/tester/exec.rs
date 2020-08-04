@@ -2,8 +2,7 @@ use super::utils::diff;
 #[cfg(unix)]
 use super::utils::strsignal;
 use super::{
-    runner::CommandRunner, ExecError, ExecErrorKind, JobConfig, JobFailure, OutputMismatch,
-    ProcessInfo,
+    runner::CommandRunner, ExecError, ExecErrorKind, JobFailure, OutputMismatch, ProcessInfo,
 };
 use crate::prelude::*;
 use std::io;
@@ -52,32 +51,39 @@ impl Capturable {
         Capturable(cmd)
     }
 
-    async fn capture<R: CommandRunner + Send>(self, runner: &mut R) -> PopenResult<ProcessInfo> {
+    async fn capture<R: CommandRunner + Send>(self, runner: &R) -> PopenResult<ProcessInfo> {
         let Self(cmd) = self;
         runner.run(&cmd).await
     }
 }
 
+/// One step in a `Test`.
 pub struct Step {
+    /// The command to be executed.
     pub cmd: Capturable,
+    /// The timeout of the command.
     pub timeout: Option<time::Duration>,
 }
 
 impl Step {
+    /// Make a new `Step` with no timeout.
     pub fn new(cmd: Capturable) -> Self {
         Step { cmd, timeout: None }
     }
 
+    /// Set `timeout` for a `Step`.
     pub fn timeout(mut self, timeout: time::Duration) -> Self {
         self.timeout = Some(timeout);
         self
     }
 
+    /// Make a new `Step` with a `timeout`.
     pub fn new_with_timeout(cmd: Capturable, timeout: Option<time::Duration>) -> Self {
         Step { cmd, timeout }
     }
 
-    pub async fn capture<R>(self, runner: &mut R) -> PopenResult<ProcessInfo>
+    /// Run the `Step` and collect its info, considering the `timeout`.
+    pub async fn capture<R>(self, runner: &R) -> PopenResult<ProcessInfo>
     where
         R: CommandRunner + Send,
     {
@@ -97,8 +103,11 @@ impl Step {
     }
 }
 
+/// A particular multi-`Step` test.
+/// An I/O match test against `expected` is performed at the last `Step`.
 pub struct Test {
     steps: Vec<Step>,
+    /// The expected `stdout` content.
     expected: Option<String>,
 }
 
@@ -125,7 +134,8 @@ impl Test {
         self
     }
 
-    pub async fn run<R>(self, runner: &mut R) -> Result<(), JobFailure>
+    //? Should `runner` be mutable?
+    pub async fn run<R>(self, runner: &R) -> Result<(), JobFailure>
     where
         R: CommandRunner + Send,
     {
@@ -209,7 +219,7 @@ mod tests {
                     "echo 'Hello, world!' | awk '{print $1}'"
                 ))));
                 t.expected("Hello,\n");
-                let res = t.run(&mut TokioCommandRunner {}).await;
+                let res = t.run(&TokioCommandRunner {}).await;
                 assert!(matches!(dbg!(res), Ok(())));
             })
         }
@@ -226,7 +236,7 @@ mod tests {
                     "echo 'Hello, world!' && false"
                 ))));
                 t.expected("Goodbye, world!");
-                let got = t.run(&mut TokioCommandRunner {}).await;
+                let got = t.run(&TokioCommandRunner {}).await;
                 let expected: Result<(), _> = Err(JobFailure::ExecError(ExecError {
                     stage: 1,
                     kind: ExecErrorKind::ReturnCodeCheckFailed,
@@ -263,7 +273,7 @@ mod tests {
                     r#"{ sleep 0.1; kill $$; } & i=0; while [ "$i" -lt 4 ]; do echo $i; sleep 1; i=$(( i + 1 )); done"#
                 ))));
                 t.expected("Hello,\nworld!\n");
-                let got = t.run(&mut TokioCommandRunner {}).await;
+                let got = t.run(&TokioCommandRunner {}).await;
                 let expected: Result<(), _> = Err(JobFailure::ExecError(ExecError {
                     stage: 1,
                     kind: ExecErrorKind::RuntimeError(
@@ -303,7 +313,7 @@ mod tests {
                     "echo 'Hello, world!' | awk '{print $2}'"
                 ))));
                 t.expected("Hello,\nworld!");
-                let got = t.run(&mut TokioCommandRunner {}).await;
+                let got = t.run(&TokioCommandRunner {}).await;
                 let expected: Result<(), _> = Err(JobFailure::OutputMismatch(OutputMismatch {
                     diff: "+ Hello,\n  world!\n- ".into(),
                     output: vec![
@@ -338,7 +348,7 @@ mod tests {
                         .timeout(time::Duration::from_millis(100)),
                 );
                 t.expected("Hello,\nworld!\n");
-                let got = t.run(&mut TokioCommandRunner {}).await;
+                let got = t.run(&TokioCommandRunner {}).await;
                 let expected: Result<(), _> = Err(JobFailure::ExecError(ExecError {
                     stage: 1,
                     kind: ExecErrorKind::TimedOut,
@@ -356,21 +366,34 @@ mod tests {
 
     mod docker_runner {
         use super::*;
-        use crate::tester::runner::DockerCommandRunner;
-        use names::{Generator, Name};
+        use crate::config::Image;
+        use crate::tester::runner::{DockerCommandRunner, DockerCommandRunnerOptions};
+
+        fn docker_run<F, O>(f: F)
+        where
+            F: FnOnce(DockerCommandRunner, Test) -> O,
+            O: futures::Future<Output = DockerCommandRunner>,
+        {
+            block_on(async {
+                let runner = DockerCommandRunner::new(
+                    bollard::Docker::connect_with_unix_defaults().unwrap(),
+                    Image::Image {
+                        tag: "alpine:latest".to_owned(),
+                    },
+                    DockerCommandRunnerOptions {
+                        build_image: true,
+                        ..Default::default()
+                    },
+                )
+                .await;
+                let t = Test::new();
+                f(runner, t).await.kill().await;
+            });
+        }
 
         #[test]
         fn ok() {
-            block_on(async {
-                let mut names = Generator::with_naming(Name::Numbered);
-                let mut runner = DockerCommandRunner::new(
-                    bollard::Docker::connect_with_unix_defaults().unwrap(),
-                    &dbg!(names.next().unwrap()),
-                    "alpine:latest",
-                    None,
-                )
-                .await;
-                let mut t = Test::new();
+            docker_run(|runner, mut t| async {
                 t.add_step(Step::new(Capturable::new(command!(
                     "echo",
                     "This does nothing."
@@ -379,24 +402,15 @@ mod tests {
                     "echo 'Hello, world!' | awk '{print $1}'"
                 ))));
                 t.expected("Hello,\n");
-                let res = t.run(&mut runner).await;
-                runner.kill().await;
+                let res = t.run(&runner).await;
                 assert!(matches!(dbg!(res), Ok(())));
+                runner
             });
         }
 
         #[test]
         fn error_code() {
-            block_on(async {
-                let mut names = Generator::with_naming(Name::Numbered);
-                let mut runner = DockerCommandRunner::new(
-                    bollard::Docker::connect_with_unix_defaults().unwrap(),
-                    &dbg!(names.next().unwrap()),
-                    "alpine:latest",
-                    None,
-                )
-                .await;
-                let mut t = Test::new();
+            docker_run(|runner, mut t| async {
                 t.add_step(Step::new(Capturable::new(command!(
                     "echo",
                     "This does nothing."
@@ -405,7 +419,7 @@ mod tests {
                     "echo 'Hello, world!' && false"
                 ))));
                 t.expected("Hello,\nworld!\n");
-                let got = t.run(&mut runner).await;
+                let got = t.run(&runner).await;
                 let expected: Result<(), _> = Err(JobFailure::ExecError(ExecError {
                     stage: 1,
                     kind: ExecErrorKind::ReturnCodeCheckFailed,
@@ -425,23 +439,14 @@ mod tests {
                         },
                     ],
                 }));
-                runner.kill().await;
                 pretty_eq!(got, expected);
+                runner
             })
         }
 
         #[test]
         fn signal() {
-            block_on(async {
-                let mut names = Generator::with_naming(Name::Numbered);
-                let mut runner = DockerCommandRunner::new(
-                    bollard::Docker::connect_with_unix_defaults().unwrap(),
-                    &dbg!(names.next().unwrap()),
-                    "alpine:latest",
-                    None,
-                )
-                .await;
-                let mut t = Test::new();
+            docker_run(|runner, mut t| async {
                 t.add_step(Step::new(Capturable::new(command!(
                     "echo",
                     "This does nothing."
@@ -451,12 +456,12 @@ mod tests {
                     r#"{ sleep 0.1; kill $$; } & i=0; while [ "$i" -lt 4 ]; do echo $i; sleep 1; i=$(( i + 1 )); done"#
                 ))));
                 t.expected("Hello,\nworld!\n");
-                let got = t.run(&mut runner).await;
+                let got = t.run(&runner).await;
                 let expected: Result<(), _> = Err(JobFailure::ExecError(ExecError {
                     stage: 1,
                     kind: ExecErrorKind::RuntimeError(
                         format!(
-                            "Runtime Error: {}",      
+                            "Runtime Error: {}",
                             strsignal(15)
                         )
                     ),
@@ -475,23 +480,14 @@ mod tests {
                         },
                     ],
                 }));
-                runner.kill().await;
                 pretty_eq!(got, expected);
+                runner
             })
         }
 
         #[test]
         fn output_mismatch() {
-            block_on(async {
-                let mut names = Generator::with_naming(Name::Numbered);
-                let mut runner = DockerCommandRunner::new(
-                    bollard::Docker::connect_with_unix_defaults().unwrap(),
-                    &dbg!(names.next().unwrap()),
-                    "alpine:latest",
-                    None,
-                )
-                .await;
-                let mut t = Test::new();
+            docker_run(|runner, mut t| async {
                 t.add_step(Step::new(Capturable::new(command!(
                     "echo",
                     "This does nothing."
@@ -500,7 +496,7 @@ mod tests {
                     "echo 'Hello, world!' | awk '{print $2}'"
                 ))));
                 t.expected("Hello,\nworld!");
-                let got = t.run(&mut runner).await;
+                let got = t.run(&runner).await;
                 let expected: Result<(), _> = Err(JobFailure::OutputMismatch(OutputMismatch {
                     diff: "+ Hello,\n  world!\n- ".into(),
                     output: vec![
@@ -518,23 +514,14 @@ mod tests {
                         },
                     ],
                 }));
-                runner.kill().await;
                 pretty_eq!(got, expected);
+                runner
             })
         }
 
         #[test]
         fn output_timed_out() {
-            block_on(async {
-                let mut names = Generator::with_naming(Name::Numbered);
-                let mut runner = DockerCommandRunner::new(
-                    bollard::Docker::connect_with_unix_defaults().unwrap(),
-                    &dbg!(names.next().unwrap()),
-                    "alpine:latest",
-                    None,
-                )
-                .await;
-                let mut t = Test::new();
+            docker_run(|runner, mut t| async {
                 t.add_step(Step::new(Capturable::new(command!(
                     "echo",
                     "This does nothing."
@@ -544,7 +531,7 @@ mod tests {
                         .timeout(time::Duration::from_millis(100)),
                 );
                 t.expected("Hello,\nworld!\n");
-                let got = t.run(&mut runner).await;
+                let got = t.run(&runner).await;
                 let expected: Result<(), _> = Err(JobFailure::ExecError(ExecError {
                     stage: 1,
                     kind: ExecErrorKind::TimedOut,
@@ -555,8 +542,8 @@ mod tests {
                         stderr: "".into(),
                     }],
                 }));
-                runner.kill().await;
                 pretty_eq!(got, expected);
+                runner
             })
         }
     }

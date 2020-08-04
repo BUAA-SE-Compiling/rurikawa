@@ -1,25 +1,30 @@
 use super::utils::convert_code;
 use super::ProcessInfo;
+use crate::config::Image;
 use crate::prelude::*;
 use async_trait::async_trait;
 use bollard::Docker;
 use futures::stream::StreamExt;
+use names::{Generator, Name};
 use std::default::Default;
 #[cfg(unix)]
 use std::os::unix::process::ExitStatusExt;
 use std::process::ExitStatus;
 use tokio::process::Command;
 
+/// An evaluation environment for commands.
 #[async_trait]
 pub trait CommandRunner {
-    async fn run(&mut self, cmd: &[String]) -> PopenResult<ProcessInfo>;
+    /// Evaluate a command.
+    async fn run(&self, cmd: &[String]) -> PopenResult<ProcessInfo>;
 }
 
+/// A *local* command evaluation environment.
 pub struct TokioCommandRunner {}
 
 #[async_trait]
 impl CommandRunner for TokioCommandRunner {
-    async fn run(&mut self, cmd: &[String]) -> PopenResult<ProcessInfo> {
+    async fn run(&self, cmd: &[String]) -> PopenResult<ProcessInfo> {
         let cmd_str = format!("{:?}", cmd.to_vec());
         let mut cmd_iter = cmd.iter();
         let mut command = Command::new(cmd_iter.next().ok_or_else(|| {
@@ -59,23 +64,45 @@ fn ret_code_from_exit_status(status: ExitStatus) -> i32 {
     }
 }
 
+/// Command evaluation environment in a Docker container.
 pub struct DockerCommandRunner {
+    /// A connection to the Docker daemon.
     instance: Docker,
+    /// Name of the container in which the command is evaluated.
     container_name: String,
 }
 
+pub struct DockerCommandRunnerOptions {
+    pub container_name: String,
+    pub mem_limit: Option<usize>,
+    /// If the image needs to be built before run.
+    pub build_image: bool,
+}
+
+impl Default for DockerCommandRunnerOptions {
+    fn default() -> Self {
+        let mut names = Generator::with_naming(Name::Numbered);
+        DockerCommandRunnerOptions {
+            container_name: names.next().unwrap(),
+            mem_limit: None,
+            build_image: false,
+        }
+    }
+}
+
 impl DockerCommandRunner {
-    pub async fn new(
-        instance: Docker,
-        container_name: &str,
-        image_name: &str,
-        mem_limit: Option<usize>,
-    ) -> Self {
+    pub async fn new(instance: Docker, image: Image, options: DockerCommandRunnerOptions) -> Self {
+        let DockerCommandRunnerOptions {
+            container_name,
+            mem_limit,
+            build_image,
+        } = options;
         let res = DockerCommandRunner {
             instance,
-            container_name: container_name.to_owned(),
+            container_name,
         };
 
+        /*
         // Pull the image
         res.instance
             .create_image(
@@ -87,18 +114,23 @@ impl DockerCommandRunner {
                 None,
             )
             .map(|mr| {
-                mr.unwrap_or_else(|e| {
-                    panic!("Failed to create Docker image `{}`: {}", image_name, e)
-                })
+                mr.unwrap_or_else(|e| panic!("Failed to pull Docker image `{}`: {}", image_name, e))
             })
             .collect::<Vec<_>>()
             .await;
+        */
+
+        // Build the image
+        if build_image {
+            image.build(res.instance.clone()).await
+        };
+        let image_name = image.tag();
 
         // Create a container
         res.instance
             .create_container(
                 Some(bollard::container::CreateContainerOptions {
-                    name: container_name,
+                    name: res.container_name.clone(),
                 }),
                 bollard::container::Config {
                     image: Some(image_name),
@@ -115,7 +147,7 @@ impl DockerCommandRunner {
         // Set memory limit
         res.instance
             .update_container(
-                container_name,
+                &res.container_name,
                 bollard::container::UpdateContainerOptions::<String> {
                     memory: mem_limit.map(|n| n as i64),
                     ..Default::default()
@@ -127,11 +159,11 @@ impl DockerCommandRunner {
         // Start the container
         res.instance
             .start_container(
-                container_name,
+                &res.container_name,
                 None::<bollard::container::StartContainerOptions<String>>,
             )
             .await
-            .unwrap_or_else(|_| panic!("Failed to start Docker container {}", container_name));
+            .unwrap_or_else(|_| panic!("Failed to start Docker container {}", &res.container_name));
 
         res
     }
@@ -165,7 +197,7 @@ impl DockerCommandRunner {
 
 #[async_trait]
 impl CommandRunner for DockerCommandRunner {
-    async fn run(&mut self, cmd: &[String]) -> PopenResult<ProcessInfo> {
+    async fn run(&self, cmd: &[String]) -> PopenResult<ProcessInfo> {
         let cmd_str = format!("{:?}", cmd.to_vec());
 
         // Create a Docker Exec
