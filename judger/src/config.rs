@@ -1,8 +1,10 @@
 use crate::tester::exec::{Capturable, Step, Test};
-use crate::tester::{runner::DockerCommandRunner, JobFailure};
+use crate::tester::{
+    runner::{DockerCommandRunner, DockerCommandRunnerOptions},
+    JobFailure,
+};
 use futures::future::join_all;
 use futures::stream::{self, StreamExt};
-use names::{Generator, Name};
 use serde::{self, Deserialize, Serialize};
 use std::{collections::HashMap, path::PathBuf};
 
@@ -22,8 +24,15 @@ pub enum Image {
 }
 
 impl Image {
-    /// Build (or pull) a image with the specified config, return the image name.
-    pub async fn build_image(&self, instance: bollard::Docker) -> String {
+    pub fn tag(&self) -> String {
+        match &self {
+            Image::Image { tag, .. } => tag.to_owned(),
+            Image::Dockerfile { tag, .. } => tag.to_owned(),
+        }
+    }
+
+    /// Build (or pull) a image with the specified config.
+    pub async fn build(&self, instance: bollard::Docker) {
         match &self {
             Image::Image { tag } => {
                 instance
@@ -42,7 +51,6 @@ impl Image {
                     })
                     .collect::<Vec<_>>()
                     .await;
-                tag.to_owned()
             }
             Image::Dockerfile { tag, path } => {
                 instance
@@ -63,7 +71,6 @@ impl Image {
                     })
                     .collect::<Vec<_>>()
                     .await;
-                tag.to_owned()
             }
         }
     }
@@ -111,6 +118,7 @@ pub struct TestCase {
 pub struct TestSuite {
     /// Time limit of a step, in seconds.
     pub time_limit: Option<usize>,
+    // TODO: Use this field.
     /// Memory limit of the contrainer, in bytes.
     pub mem_limit: Option<usize>,
     /// The test contents.
@@ -120,14 +128,21 @@ pub struct TestSuite {
 }
 
 impl TestSuite {
+    pub fn add_case(&mut self, case: TestCase) {
+        self.test_cases.push(case)
+    }
+
     pub async fn run(&self, instance: bollard::Docker) -> Vec<Result<(), JobFailure>> {
-        // TODO: Use the mem_limit field
-        let mut names = Generator::with_naming(Name::Numbered);
         let runner = DockerCommandRunner::new(
             instance,
-            &names.next().unwrap(),
-            &self.image_name,
-            self.mem_limit,
+            Image::Image {
+                tag: self.image_name.clone(),
+            },
+            DockerCommandRunnerOptions {
+                container_name: self.image_name.clone(),
+                mem_limit: self.mem_limit,
+                ..Default::default()
+            },
         )
         .await;
 
@@ -136,7 +151,6 @@ impl TestSuite {
             .iter()
             .map(|case| {
                 let mut t = Test::new();
-
                 case.exec.iter().for_each(|step| {
                     t.add_step(Step::new_with_timeout(
                         Capturable::new(step.to_vec()),
@@ -144,7 +158,6 @@ impl TestSuite {
                             .map(|n| std::time::Duration::from_secs(n as u64)),
                     ));
                 });
-
                 t.expected(&case.expected_out);
                 t.run(&runner)
             })
