@@ -1,10 +1,17 @@
-use super::utils::{diff, strsignal};
+use super::utils::diff;
+#[cfg(unix)]
+use super::utils::strsignal;
 use super::{
     runner::CommandRunner, ExecError, ExecErrorKind, JobFailure, OutputMismatch, ProcessInfo,
 };
 use crate::prelude::*;
 use std::io;
 use std::time;
+
+#[cfg(not(unix))]
+fn strsignal(i: i32) -> String {
+    return "".into();
+}
 
 #[macro_export]
 macro_rules! command {
@@ -150,16 +157,16 @@ impl Test {
 
             output.push(info.clone());
             let code = info.ret_code;
-
+            let is_unix = cfg!(unix);
             match () {
-                _ if code > 0 => {
+                _ if code > 0 || (code < 0 && !is_unix) => {
                     return Err(JobFailure::ExecError(ExecError {
                         stage: i,
                         kind: ExecErrorKind::ReturnCodeCheckFailed,
                         output,
                     }));
                 }
-                _ if code < 0 => {
+                _ if code < 0 && is_unix => {
                     return Err(JobFailure::ExecError(ExecError {
                         stage: i,
                         kind: ExecErrorKind::RuntimeError(format!(
@@ -195,6 +202,7 @@ mod tests {
     use tokio_test::block_on;
 
     #[cfg(test)]
+    #[cfg(unix)]
     mod tokio_runner {
         use super::*;
         use crate::tester::runner::TokioCommandRunner;
