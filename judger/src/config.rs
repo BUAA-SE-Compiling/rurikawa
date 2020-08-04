@@ -4,7 +4,7 @@ use crate::tester::{
     JobFailure,
 };
 use futures::future::join_all;
-use futures::stream::{self, StreamExt};
+use futures::stream::StreamExt;
 use serde::{self, Deserialize, Serialize};
 use std::{collections::HashMap, path::PathBuf};
 

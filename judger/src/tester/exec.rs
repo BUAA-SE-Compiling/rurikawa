@@ -1,7 +1,6 @@
 use super::utils::{diff, strsignal};
 use super::{
     runner::CommandRunner, ExecError, ExecErrorKind, JobFailure, OutputMismatch, ProcessInfo,
-    TestSuite,
 };
 use crate::prelude::*;
 use std::io;
@@ -212,7 +211,7 @@ mod tests {
                     "echo 'Hello, world!' | awk '{print $1}'"
                 ))));
                 t.expected("Hello,\n");
-                let res = t.run(&mut TokioCommandRunner {}).await;
+                let res = t.run(&TokioCommandRunner {}).await;
                 assert!(matches!(dbg!(res), Ok(())));
             })
         }
@@ -229,7 +228,7 @@ mod tests {
                     "echo 'Hello, world!' && false"
                 ))));
                 t.expected("Goodbye, world!");
-                let got = t.run(&mut TokioCommandRunner {}).await;
+                let got = t.run(&TokioCommandRunner {}).await;
                 let expected: Result<(), _> = Err(JobFailure::ExecError(ExecError {
                     stage: 1,
                     kind: ExecErrorKind::ReturnCodeCheckFailed,
@@ -266,7 +265,7 @@ mod tests {
                     r#"{ sleep 0.1; kill $$; } & i=0; while [ "$i" -lt 4 ]; do echo $i; sleep 1; i=$(( i + 1 )); done"#
                 ))));
                 t.expected("Hello,\nworld!\n");
-                let got = t.run(&mut TokioCommandRunner {}).await;
+                let got = t.run(&TokioCommandRunner {}).await;
                 let expected: Result<(), _> = Err(JobFailure::ExecError(ExecError {
                     stage: 1,
                     kind: ExecErrorKind::RuntimeError(
@@ -306,7 +305,7 @@ mod tests {
                     "echo 'Hello, world!' | awk '{print $2}'"
                 ))));
                 t.expected("Hello,\nworld!");
-                let got = t.run(&mut TokioCommandRunner {}).await;
+                let got = t.run(&TokioCommandRunner {}).await;
                 let expected: Result<(), _> = Err(JobFailure::OutputMismatch(OutputMismatch {
                     diff: "+ Hello,\n  world!\n- ".into(),
                     output: vec![
@@ -341,7 +340,7 @@ mod tests {
                         .timeout(time::Duration::from_millis(100)),
                 );
                 t.expected("Hello,\nworld!\n");
-                let got = t.run(&mut TokioCommandRunner {}).await;
+                let got = t.run(&TokioCommandRunner {}).await;
                 let expected: Result<(), _> = Err(JobFailure::ExecError(ExecError {
                     stage: 1,
                     kind: ExecErrorKind::TimedOut,
@@ -401,19 +400,9 @@ mod tests {
             });
         }
 
-        /*
         #[test]
         fn error_code() {
-            block_on(async {
-                let mut names = Generator::with_naming(Name::Numbered);
-                let mut runner = DockerCommandRunner::new(
-                    bollard::Docker::connect_with_unix_defaults().unwrap(),
-                    &dbg!(names.next().unwrap()),
-                    "alpine:latest",
-                    None,
-                )
-                .await;
-                let mut t = Test::new();
+            docker_run(|runner, mut t| async {
                 t.add_step(Step::new(Capturable::new(command!(
                     "echo",
                     "This does nothing."
@@ -422,7 +411,7 @@ mod tests {
                     "echo 'Hello, world!' && false"
                 ))));
                 t.expected("Hello,\nworld!\n");
-                let got = t.run(&mut runner).await;
+                let got = t.run(&runner).await;
                 let expected: Result<(), _> = Err(JobFailure::ExecError(ExecError {
                     stage: 1,
                     kind: ExecErrorKind::ReturnCodeCheckFailed,
@@ -442,23 +431,14 @@ mod tests {
                         },
                     ],
                 }));
-                runner.kill().await;
                 pretty_eq!(got, expected);
+                runner
             })
         }
 
         #[test]
         fn signal() {
-            block_on(async {
-                let mut names = Generator::with_naming(Name::Numbered);
-                let mut runner = DockerCommandRunner::new(
-                    bollard::Docker::connect_with_unix_defaults().unwrap(),
-                    &dbg!(names.next().unwrap()),
-                    "alpine:latest",
-                    None,
-                )
-                .await;
-                let mut t = Test::new();
+            docker_run(|runner, mut t| async {
                 t.add_step(Step::new(Capturable::new(command!(
                     "echo",
                     "This does nothing."
@@ -468,7 +448,7 @@ mod tests {
                     r#"{ sleep 0.1; kill $$; } & i=0; while [ "$i" -lt 4 ]; do echo $i; sleep 1; i=$(( i + 1 )); done"#
                 ))));
                 t.expected("Hello,\nworld!\n");
-                let got = t.run(&mut runner).await;
+                let got = t.run(&runner).await;
                 let expected: Result<(), _> = Err(JobFailure::ExecError(ExecError {
                     stage: 1,
                     kind: ExecErrorKind::RuntimeError(
@@ -492,23 +472,14 @@ mod tests {
                         },
                     ],
                 }));
-                runner.kill().await;
                 pretty_eq!(got, expected);
+                runner
             })
         }
 
         #[test]
         fn output_mismatch() {
-            block_on(async {
-                let mut names = Generator::with_naming(Name::Numbered);
-                let mut runner = DockerCommandRunner::new(
-                    bollard::Docker::connect_with_unix_defaults().unwrap(),
-                    &dbg!(names.next().unwrap()),
-                    "alpine:latest",
-                    None,
-                )
-                .await;
-                let mut t = Test::new();
+            docker_run(|runner, mut t| async {
                 t.add_step(Step::new(Capturable::new(command!(
                     "echo",
                     "This does nothing."
@@ -517,7 +488,7 @@ mod tests {
                     "echo 'Hello, world!' | awk '{print $2}'"
                 ))));
                 t.expected("Hello,\nworld!");
-                let got = t.run(&mut runner).await;
+                let got = t.run(&runner).await;
                 let expected: Result<(), _> = Err(JobFailure::OutputMismatch(OutputMismatch {
                     diff: "+ Hello,\n  world!\n- ".into(),
                     output: vec![
@@ -535,23 +506,14 @@ mod tests {
                         },
                     ],
                 }));
-                runner.kill().await;
                 pretty_eq!(got, expected);
+                runner
             })
         }
 
         #[test]
         fn output_timed_out() {
-            block_on(async {
-                let mut names = Generator::with_naming(Name::Numbered);
-                let mut runner = DockerCommandRunner::new(
-                    bollard::Docker::connect_with_unix_defaults().unwrap(),
-                    &dbg!(names.next().unwrap()),
-                    "alpine:latest",
-                    None,
-                )
-                .await;
-                let mut t = Test::new();
+            docker_run(|runner, mut t| async {
                 t.add_step(Step::new(Capturable::new(command!(
                     "echo",
                     "This does nothing."
@@ -561,7 +523,7 @@ mod tests {
                         .timeout(time::Duration::from_millis(100)),
                 );
                 t.expected("Hello,\nworld!\n");
-                let got = t.run(&mut runner).await;
+                let got = t.run(&runner).await;
                 let expected: Result<(), _> = Err(JobFailure::ExecError(ExecError {
                     stage: 1,
                     kind: ExecErrorKind::TimedOut,
@@ -572,10 +534,9 @@ mod tests {
                         stderr: "".into(),
                     }],
                 }));
-                runner.kill().await;
                 pretty_eq!(got, expected);
+                runner
             })
         }
-        */
     }
 }
