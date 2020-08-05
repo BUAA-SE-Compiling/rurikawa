@@ -91,8 +91,6 @@ pub struct ImageUsage {
 pub struct TestInfo {
     pub name: String,
     pub test_cases: PathBuf,
-    /// The command needed to run the VM, so as to finally perform an I/O check
-    pub run_vm: Vec<String>,
     // TODO: Use this field.
     pub docker_config: TestDockerConfig,
     /// A Map between file placeholders and file paths.
@@ -101,7 +99,7 @@ pub struct TestInfo {
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct TestDockerConfig {
-    pub volume: HashMap<String, String>,
+    pub volumes: HashMap<String, String>,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]

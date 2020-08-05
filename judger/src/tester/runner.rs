@@ -9,7 +9,7 @@ use names::{Generator, Name};
 use std::default::Default;
 #[cfg(unix)]
 use std::os::unix::process::ExitStatusExt;
-use std::process::ExitStatus;
+use std::{collections::HashMap, process::ExitStatus};
 use tokio::process::Command;
 
 /// An evaluation environment for commands.
@@ -77,6 +77,7 @@ pub struct DockerCommandRunnerOptions {
     pub mem_limit: Option<usize>,
     /// If the image needs to be built before run.
     pub build_image: bool,
+    pub volumes: HashMap<String, String>,
 }
 
 impl Default for DockerCommandRunnerOptions {
@@ -86,6 +87,7 @@ impl Default for DockerCommandRunnerOptions {
             container_name: names.next().unwrap(),
             mem_limit: None,
             build_image: false,
+            volumes: HashMap::new(),
         }
     }
 }
@@ -96,6 +98,7 @@ impl DockerCommandRunner {
             container_name,
             mem_limit,
             build_image,
+            volumes,
         } = options;
         let res = DockerCommandRunner {
             instance,

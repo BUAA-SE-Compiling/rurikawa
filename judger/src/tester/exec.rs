@@ -104,7 +104,8 @@ impl Step {
 }
 
 /// A particular multi-`Step` test.
-/// An I/O match test against `expected` is performed at the last `Step`.
+/// An I/O match test against `expected` is performed at the last `Step`
+#[derive(Default)]
 pub struct Test {
     steps: Vec<Step>,
     /// The expected `stdout` content.
