@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
+using Karenia.Rurikawa.Coordinator.Services;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.HttpsPolicy;
@@ -26,6 +27,7 @@ namespace Karenia.Rurikawa.Coordinator
         public void ConfigureServices(IServiceCollection services)
         {
             services.AddControllers();
+            services.AddSingleton<JudgerCoordinatorService>();
         }
 
         // This method gets called by the runtime. Use this method to configure the HTTP request pipeline.
@@ -41,6 +43,17 @@ namespace Karenia.Rurikawa.Coordinator
             app.UseRouting();
 
             app.UseAuthorization();
+
+            // Add websocket acceptor
+            app.Use(async (ctx, next) =>
+            {
+                if (ctx.WebSockets.IsWebSocketRequest)
+                {
+                    var svc = app.ApplicationServices.GetService<JudgerCoordinatorService>();
+                    await svc.TryUseConnection(ctx);
+                }
+                await next();
+            });
 
             app.UseEndpoints(endpoints =>
             {

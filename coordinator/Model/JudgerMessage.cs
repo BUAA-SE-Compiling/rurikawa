@@ -22,4 +22,11 @@ namespace Karenia.Rurikawa.Models.Judger
 
     [JsonDiscriminator("job_process")]
     public class JobProcessMsg : ClientMsg { }
+
+    [JsonDiscriminator("client_status")]
+    public class ClientStatusMsg : ClientMsg
+    {
+        public int ActiveTaskCount { get; set; }
+        public bool CanAcceptNewTask { get; set; }
+    }
 }
