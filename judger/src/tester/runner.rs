@@ -1,6 +1,6 @@
+use super::exec::Image;
 use super::utils::convert_code;
 use super::ProcessInfo;
-use crate::config::Image;
 use crate::prelude::*;
 use async_trait::async_trait;
 use bollard::Docker;
