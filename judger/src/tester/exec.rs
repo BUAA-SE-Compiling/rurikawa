@@ -6,6 +6,7 @@ use super::{
     ExecError, ExecErrorKind, JobFailure, OutputMismatch, ProcessInfo,
 };
 use crate::prelude::*;
+use anyhow::Result;
 use futures::future::join_all;
 use futures::stream::StreamExt;
 use serde::{self, Deserialize, Serialize};
@@ -327,59 +328,61 @@ pub struct TestSuite {
 }
 
 impl TestSuite {
-    pub fn new(info: JudgeInfo, usage: ImageUsage, opt: TestSuiteOptions) -> Self {
+    pub fn try_new(info: JudgeInfo, usage: ImageUsage, opt: TestSuiteOptions) -> Result<Self> {
         let TestSuiteOptions {
             time_limit,
             mem_limit,
             ..
         } = opt;
-        let test_cases =
-            info.tests
-                .iter()
-                .map(|test| {
-                    let mut test_path = info.dir.clone();
-                    test_path.push(test);
-                    let replacer: HashMap<String, _> = info
-                        .vars
-                        .iter()
-                        .map(|(var, ext)| {
-                            (var.to_owned(), {
-                                let mut p = test_path.clone();
-                                p.set_extension(ext);
-                                p
+        let test_cases = info
+            .tests
+            .iter()
+            .map(|test| -> Result<TestCase> {
+                let mut test_path = info.dir.clone();
+                test_path.push(test);
+                let replacer: HashMap<String, _> = info
+                    .vars
+                    .iter()
+                    .map(|(var, ext)| {
+                        (var.to_owned(), {
+                            let mut p = test_path.clone();
+                            p.set_extension(ext);
+                            p
+                        })
+                    })
+                    .collect();
+                let exec: Vec<Vec<String>> = usage
+                    .run
+                    .iter()
+                    .map(|cmd| {
+                        cmd.iter()
+                            .map(|word| {
+                                if let Some(replacement) = replacer.get(word) {
+                                    replacement.to_str().unwrap().to_owned()
+                                } else {
+                                    word.to_owned()
+                                }
                             })
-                        })
-                        .collect();
-                    let exec: Vec<Vec<String>> = usage
-                        .run
-                        .iter()
-                        .map(|cmd| {
-                            cmd.iter()
-                                .map(|word| {
-                                    if let Some(replacement) = replacer.get(word) {
-                                        replacement.to_str().unwrap().to_owned()
-                                    } else {
-                                        word.to_owned()
-                                    }
-                                })
-                                .collect()
-                        })
-                        .collect();
-                    let mut expected_out = "".to_owned();
-                    let mut file = fs::File::open(replacer.get("$stdout").expect(
-                        "TestSuite Output Verification Failed: No `$stdout` in dictionary",
-                    ))
-                    .unwrap_or_else(|e| panic!("TestSuite Output Verification Failed: {}", e));
-                    file.read_to_string(&mut expected_out).unwrap();
-                    TestCase { exec, expected_out }
-                })
-                .collect();
-        TestSuite {
+                            .collect()
+                    })
+                    .collect();
+                let mut expected_out = "".to_owned();
+                let mut file = fs::File::open(replacer.get("$stdout").ok_or_else(|| {
+                    io::Error::new(
+                        io::ErrorKind::NotFound,
+                        "Output verification failed, no `$stdout` in dictionary",
+                    )
+                })?)?;
+                file.read_to_string(&mut expected_out)?;
+                Ok(TestCase { exec, expected_out })
+            })
+            .collect::<Result<Vec<TestCase>>>()?;
+        Ok(TestSuite {
             time_limit,
             mem_limit,
             image_name: usage.image.tag(),
             test_cases,
-        }
+        })
     }
 
     pub fn add_case(&mut self, case: TestCase) {
