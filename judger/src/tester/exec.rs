@@ -9,7 +9,8 @@ use crate::prelude::*;
 use futures::future::join_all;
 use futures::stream::StreamExt;
 use serde::{self, Deserialize, Serialize};
-use std::io;
+use std::fs;
+use std::io::{self, prelude::*};
 use std::time;
 use std::{collections::HashMap, path::PathBuf};
 
@@ -268,37 +269,50 @@ impl Image {
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct ImageUsage {
     pub image: Image,
-    /// The sequence of commands to build
-    pub build: Vec<Vec<String>>,
+    // /// The sequence of commands to build
+    // pub build: Vec<Vec<String>>,
     pub run: Vec<Vec<String>>,
 }
 
 /// Extra info on how to turn `ImageUsage` into `docker` usage.
 #[derive(Serialize, Deserialize, Debug, Clone)]
-pub struct TestInfo {
-    pub name: String,
-    pub test_cases: PathBuf,
-    // TODO: Use this field.
-    pub docker_config: TestDockerConfig,
-    /// A Map between file placeholders and file paths.
-    pub env_map: HashMap<String, String>,
+pub struct JudgeInfo {
+    /// Directory of tests.
+    pub dir: PathBuf,
+    /// File names of tests.
+    pub tests: Vec<String>,
+    /// Variables and extensions of test files
+    /// (`$src`, `$bin`, `$stdin`, `$stdout`, etc...).
+    /// For example: `"$src" => ".go"`.
+    pub vars: HashMap<String, String>,
 }
 
+/*
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct TestDockerConfig {
     pub volumes: HashMap<String, String>,
 }
+*/
 
+/// The public representation of a test.
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct TestCase {
-    pub uid: u32,
     /// List of commands to be executed.
     pub exec: Vec<Vec<String>>,
     /// Expected `stdout` of the last command.
     pub expected_out: String,
 }
 
-/// A suite of `Test`s to be run.
+/// Initialization options for `Testsuite`.
+#[derive(Debug, Clone, Default)]
+pub struct TestSuiteOptions {
+    /// Time limit of a step, in seconds.
+    pub time_limit: Option<usize>,
+    /// Memory limit of the contrainer, in bytes.
+    pub mem_limit: Option<usize>,
+}
+
+/// A suite of `Testcase`s to be run.
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct TestSuite {
     /// Time limit of a step, in seconds.
@@ -313,6 +327,61 @@ pub struct TestSuite {
 }
 
 impl TestSuite {
+    pub fn new(info: JudgeInfo, usage: ImageUsage, opt: TestSuiteOptions) -> Self {
+        let TestSuiteOptions {
+            time_limit,
+            mem_limit,
+            ..
+        } = opt;
+        let test_cases =
+            info.tests
+                .iter()
+                .map(|test| {
+                    let mut test_path = info.dir.clone();
+                    test_path.push(test);
+                    let replacer: HashMap<String, _> = info
+                        .vars
+                        .iter()
+                        .map(|(var, ext)| {
+                            (var.to_owned(), {
+                                let mut p = test_path.clone();
+                                p.set_extension(ext);
+                                p
+                            })
+                        })
+                        .collect();
+                    let exec: Vec<Vec<String>> = usage
+                        .run
+                        .iter()
+                        .map(|cmd| {
+                            cmd.iter()
+                                .map(|word| {
+                                    if let Some(replacement) = replacer.get(word) {
+                                        replacement.to_str().unwrap().to_owned()
+                                    } else {
+                                        word.to_owned()
+                                    }
+                                })
+                                .collect()
+                        })
+                        .collect();
+                    let mut expected_out = "".to_owned();
+                    let mut file = fs::File::open(replacer.get("$stdout").expect(
+                        "TestSuite Output Verification Failed: No `$stdout` in dictionary",
+                    ))
+                    .unwrap_or_else(|e| panic!("TestSuite Output Verification Failed: {}", e));
+                    file.read_to_string(&mut expected_out).unwrap();
+                    TestCase { exec, expected_out }
+                })
+                .collect();
+        TestSuite {
+            time_limit,
+            mem_limit,
+            image_name: usage.image.tag(),
+            test_cases,
+        }
+    }
+
     pub fn add_case(&mut self, case: TestCase) {
         self.test_cases.push(case)
     }
@@ -702,5 +771,15 @@ mod tests {
                 runner
             })
         }
+    }
+}
+
+#[cfg(test)]
+mod test_suite {
+    use super::*;
+
+    #[test]
+    fn ok() {
+        todo!()
     }
 }
