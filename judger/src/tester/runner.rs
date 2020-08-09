@@ -1,6 +1,6 @@
 use super::exec::Image;
 use super::utils::convert_code;
-use super::ProcessInfo;
+use super::{JobFailure, ProcessInfo};
 use crate::prelude::*;
 use anyhow::Result;
 use async_trait::async_trait;
@@ -149,7 +149,13 @@ impl DockerCommandRunner {
                     ..Default::default()
                 },
             )
-            .await?;
+            .await
+            .map_err(|e| {
+                JobFailure::internal_err_from(format!(
+                    "Failed to create container `{}`: {}",
+                    &res.container_name, e
+                ))
+            })?;
 
         // Set memory limit
         res.instance
@@ -160,7 +166,13 @@ impl DockerCommandRunner {
                     ..Default::default()
                 },
             )
-            .await?;
+            .await
+            .map_err(|e| {
+                JobFailure::internal_err_from(format!(
+                    "Failed to update container `{}`: {}",
+                    &res.container_name, e
+                ))
+            })?;
 
         // Start the container
         res.instance
@@ -168,7 +180,13 @@ impl DockerCommandRunner {
                 &res.container_name,
                 None::<bollard::container::StartContainerOptions<String>>,
             )
-            .await?;
+            .await
+            .map_err(|e| {
+                JobFailure::internal_err_from(format!(
+                    "Failed to start container `{}`: {}",
+                    &res.container_name, e
+                ))
+            })?;
 
         Ok(res)
     }

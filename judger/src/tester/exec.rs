@@ -237,7 +237,9 @@ impl Image {
                     .await;
                 // ! FIXME: This is not efficient (for not being lazy),
                 // ! but it seems that directly collecting to Result is not possible.
-                ms.into_iter().collect::<Result<Vec<_>, _>>()?;
+                ms.into_iter().collect::<Result<Vec<_>, _>>().map_err(|e| {
+                    JobFailure::internal_err_from(format!("Failed to pull image `{}`: {}", tag, e))
+                })?;
                 Ok(())
             }
             Image::Dockerfile { tag, path } => {
@@ -245,7 +247,7 @@ impl Image {
                     let buffer: Vec<u8> = vec![];
                     let mut builder = tar::Builder::new(buffer);
                     // TODO: Write to the buffer.
-                    builder.append_dir_all(".", path);
+                    builder.append_dir_all(".", path)?;
                     let bytes = builder.into_inner();
                     hyper::Body::wrap_stream(futures::stream::iter(vec![bytes]))
                 };
@@ -263,7 +265,9 @@ impl Image {
                     )
                     .collect::<Vec<_>>()
                     .await;
-                ms.into_iter().collect::<Result<Vec<_>, _>>()?;
+                ms.into_iter().collect::<Result<Vec<_>, _>>().map_err(|e| {
+                    JobFailure::internal_err_from(format!("Failed to build image `{}`: {}", tag, e))
+                })?;
                 Ok(())
             }
         }
@@ -418,7 +422,12 @@ impl TestSuite {
             },
         )
         .await
-        .unwrap();
+        .unwrap_or_else(|e| {
+            panic!(
+                "Failed to create command runner `{}`: {}",
+                &self.image_name, e
+            )
+        });
 
         let res: Vec<_> = self
             .test_cases
@@ -801,7 +810,7 @@ mod test_suite {
     use tokio_test::block_on;
 
     #[test]
-    fn golem() {
+    fn golem() -> Result<()> {
         block_on(async {
             let image_name = "golem";
             // TODO: This won't work, because we need a dockfile to ADD test files.
@@ -841,11 +850,11 @@ mod test_suite {
                     mem_limit: None,
                     build_image: true,
                 },
-            )
-            .unwrap();
+            )?;
 
             let instance = bollard::Docker::connect_with_unix_defaults().unwrap();
             ts.run(instance).await;
+            Ok(())
         })
     }
 }

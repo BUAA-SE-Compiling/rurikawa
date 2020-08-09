@@ -36,4 +36,23 @@ pub struct ExecError {
 pub enum JobFailure {
     OutputMismatch(OutputMismatch),
     ExecError(ExecError),
+    InternalError(String),
+}
+
+impl std::fmt::Display for JobFailure {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{:?}", self)
+    }
+}
+
+impl std::error::Error for JobFailure {}
+
+impl JobFailure {
+    /// Make a new `InternalError`, the lazy way.
+    pub fn internal_err_from<D>(error: D) -> JobFailure
+    where
+        D: std::fmt::Display,
+    {
+        JobFailure::InternalError(format!("{}", error))
+    }
 }
