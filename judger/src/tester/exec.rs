@@ -24,11 +24,10 @@ fn strsignal(i: i32) -> String {
 macro_rules! command {
     ( $prog:expr, $( $arg:expr ),* ) => {
         {
-            let mut cmd = vec![$prog.to_string()];
-            $(
-                cmd.push($arg.to_string());
-            )*
-            cmd
+            vec![
+                $prog.to_string(),
+                $($arg.to_string(),)*
+            ]
         }
     };
 }
@@ -36,18 +35,14 @@ macro_rules! command {
 #[macro_export]
 macro_rules! bash {
     ( $script:expr ) => {{
-        let mut cmd = vec!["bash".to_owned(), "-c".to_owned()];
-        cmd.push($script.to_string());
-        cmd
+        vec!["bash".to_string(), "-c".to_string(), $script.to_string()]
     }};
 }
 
 #[macro_export]
 macro_rules! sh {
     ( $script:expr ) => {{
-        let mut cmd = vec!["sh".to_owned(), "-c".to_owned()];
-        cmd.push($script.to_string());
-        cmd
+        vec!["sh".to_string(), "-c".to_string(), $script.to_string()]
     }};
 }
 
