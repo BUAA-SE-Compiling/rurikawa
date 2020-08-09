@@ -221,10 +221,10 @@ impl Image {
     }
 
     /// Build (or pull) a image with the specified config.
-    pub async fn build(&self, instance: bollard::Docker) {
+    pub async fn build(&self, instance: bollard::Docker) -> Result<()> {
         match &self {
             Image::Image { tag } => {
-                instance
+                let ms = instance
                     .create_image(
                         Some(bollard::image::CreateImageOptions {
                             from_image: tag.to_owned(),
@@ -233,16 +233,23 @@ impl Image {
                         None,
                         None,
                     )
-                    .map(|mr| {
-                        mr.unwrap_or_else(|e| {
-                            panic!("Failed to pull Docker image `{}`: {}", tag, e)
-                        })
-                    })
                     .collect::<Vec<_>>()
                     .await;
+                // ! FIXME: This is not efficient (for not being lazy),
+                // ! but it seems that directly collecting to Result is not possible.
+                ms.into_iter().collect::<Result<Vec<_>, _>>()?;
+                Ok(())
             }
             Image::Dockerfile { tag, path } => {
-                instance
+                let tar = {
+                    let buffer: Vec<u8> = vec![];
+                    let mut builder = tar::Builder::new(buffer);
+                    // TODO: Write to the buffer.
+                    builder.append_dir_all(".", path);
+                    let bytes = builder.into_inner();
+                    hyper::Body::wrap_stream(futures::stream::iter(vec![bytes]))
+                };
+                let ms = instance
                     .build_image(
                         bollard::image::BuildImageOptions {
                             dockerfile: "Dockerfile",
@@ -252,15 +259,12 @@ impl Image {
                         },
                         None,
                         // TODO: We need to free `path` as a tar archive.
-                        Some(todo!("Freeze `path` as a tar archive")),
+                        Some(tar),
                     )
-                    .map(|mr| {
-                        mr.unwrap_or_else(|e| {
-                            panic!("Failed to build Docker image `{}`: {}", tag, e)
-                        })
-                    })
                     .collect::<Vec<_>>()
                     .await;
+                ms.into_iter().collect::<Result<Vec<_>, _>>()?;
+                Ok(())
             }
         }
     }
@@ -401,7 +405,7 @@ impl TestSuite {
     }
 
     pub async fn run(&self, instance: bollard::Docker) -> Vec<Result<(), JobFailure>> {
-        let runner = DockerCommandRunner::new(
+        let runner = DockerCommandRunner::try_new(
             instance,
             Image::Image {
                 tag: self.image_name.clone(),
@@ -413,7 +417,8 @@ impl TestSuite {
                 ..Default::default()
             },
         )
-        .await;
+        .await
+        .unwrap();
 
         let res: Vec<_> = self
             .test_cases
@@ -615,7 +620,7 @@ mod tests {
             O: futures::Future<Output = DockerCommandRunner>,
         {
             block_on(async {
-                let runner = DockerCommandRunner::new(
+                let runner = DockerCommandRunner::try_new(
                     bollard::Docker::connect_with_unix_defaults().unwrap(),
                     Image::Image {
                         tag: "alpine:latest".to_owned(),
@@ -625,7 +630,8 @@ mod tests {
                         ..Default::default()
                     },
                 )
-                .await;
+                .await
+                .unwrap();
                 let t = Test::new();
                 f(runner, t).await.kill().await;
             });
@@ -806,7 +812,7 @@ mod test_suite {
             let ts = TestSuite::from_config(
                 JudgeInfo {
                     dir: tests_dir,
-                    tests: vec!["succ".to_owned()],
+                    tests: ["succ"].iter().map(|s| s.to_string()).collect(),
                     vars: [
                         ("$src", ".py"),
                         ("$bin", ".pyc"),
@@ -820,7 +826,7 @@ mod test_suite {
                 ImageUsage {
                     image: Image::Dockerfile {
                         tag: image_name.to_owned(),
-                        path: PathBuf::from(r"../golem"),
+                        path: repo_dir,
                     },
                     run: [
                         "python ./golemc.py $src -o $bin",

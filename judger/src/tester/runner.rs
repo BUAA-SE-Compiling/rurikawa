@@ -2,6 +2,7 @@ use super::exec::Image;
 use super::utils::convert_code;
 use super::ProcessInfo;
 use crate::prelude::*;
+use anyhow::Result;
 use async_trait::async_trait;
 use bollard::Docker;
 use futures::stream::StreamExt;
@@ -93,7 +94,11 @@ impl Default for DockerCommandRunnerOptions {
 }
 
 impl DockerCommandRunner {
-    pub async fn new(instance: Docker, image: Image, options: DockerCommandRunnerOptions) -> Self {
+    pub async fn try_new(
+        instance: Docker,
+        image: Image,
+        options: DockerCommandRunnerOptions,
+    ) -> Result<Self> {
         let DockerCommandRunnerOptions {
             container_name,
             mem_limit,
@@ -125,7 +130,7 @@ impl DockerCommandRunner {
 
         // Build the image
         if build_image {
-            image.build(res.instance.clone()).await
+            image.build(res.instance.clone()).await?
         };
         let image_name = image.tag();
 
@@ -144,8 +149,7 @@ impl DockerCommandRunner {
                     ..Default::default()
                 },
             )
-            .await
-            .unwrap_or_else(|e| panic!("Failed to create Docker instance: {}", e));
+            .await?;
 
         // Set memory limit
         res.instance
@@ -156,8 +160,7 @@ impl DockerCommandRunner {
                     ..Default::default()
                 },
             )
-            .await
-            .unwrap_or_else(|e| panic!("Failed to set memory limit: {}", e));
+            .await?;
 
         // Start the container
         res.instance
@@ -165,10 +168,9 @@ impl DockerCommandRunner {
                 &res.container_name,
                 None::<bollard::container::StartContainerOptions<String>>,
             )
-            .await
-            .unwrap_or_else(|_| panic!("Failed to start Docker container {}", &res.container_name));
+            .await?;
 
-        res
+        Ok(res)
     }
 
     pub async fn kill(self) {
