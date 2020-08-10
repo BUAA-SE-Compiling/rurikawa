@@ -279,15 +279,14 @@ impl Image {
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct ImageUsage {
     pub image: Image,
-    // /// The sequence of commands to build
-    // pub build: Vec<Vec<String>>,
+    /// Sequence of commands necessary to perform an IO check.
     pub run: Vec<String>,
 }
 
 /// Extra info on how to turn `ImageUsage` into `docker` usage.
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct JudgeInfo {
-    /// Directory of tests.
+    /// Directory of test sources.
     pub dir: PathBuf,
     /// File names of tests.
     pub tests: Vec<String>,
@@ -307,6 +306,8 @@ pub struct TestDockerConfig {
 /// The public representation of a test.
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct TestCase {
+    /// File name of the
+    pub name: String,
     /// List of commands to be executed.
     pub exec: Vec<String>,
     /// Expected `stdout` of the last command.
@@ -389,12 +390,23 @@ impl TestSuite {
                     })
                     .collect();
                 let mut expected_out = "".to_owned();
-                let mut file = fs::File::open(replacer.get("$stdout").ok_or_else(|| {
+                let stdout_path = replacer.get("$stdout").ok_or_else(|| {
                     io::Error::new(
                         io::ErrorKind::NotFound,
                         "Output verification failed, no `$stdout` in dictionary",
                     )
-                })?)?;
+                })?;
+                // ? QUESTION: Now I'm reading `$stdout` in host, but the source file, etc. are handled in containers.
+                // ? Is this desirable?
+                let mut file = fs::File::open(stdout_path).map_err(|e| {
+                    io::Error::new(
+                        io::ErrorKind::NotFound,
+                        format!(
+                            "Output verification failed, failed to open `{:?}`: {}",
+                            stdout_path, e,
+                        ),
+                    )
+                })?;
                 file.read_to_string(&mut expected_out)?;
                 Ok(TestCase { exec, expected_out })
             })
@@ -814,7 +826,10 @@ mod test_suite {
         block_on(async {
             let image_name = "golem";
             // TODO: This won't work, because we need a dockfile to ADD test files.
-            let repo_dir = PathBuf::from(r"../golem");
+            // Repo directory in the host FS.
+            let host_repo_dir = PathBuf::from(r"../golem");
+            // Directories in the container FS.
+            let repo_dir = PathBuf::from(r"golem");
             let mut tests_dir = repo_dir.clone();
             tests_dir.push("tests");
 
@@ -835,7 +850,7 @@ mod test_suite {
                 ImageUsage {
                     image: Image::Dockerfile {
                         tag: image_name.to_owned(),
-                        path: repo_dir,
+                        path: host_repo_dir,
                     },
                     run: [
                         "python ./golemc.py $src -o $bin",
@@ -852,8 +867,10 @@ mod test_suite {
                 },
             )?;
 
+            /*
             let instance = bollard::Docker::connect_with_unix_defaults().unwrap();
             ts.run(instance).await;
+            */
             Ok(())
         })
     }
