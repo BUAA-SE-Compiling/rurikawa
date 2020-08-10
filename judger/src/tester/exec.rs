@@ -137,7 +137,7 @@ impl Test {
         self
     }
 
-    //? Should `runner` be mutable?
+    // ? Should `runner` be mutable?
     pub async fn run<R>(self, runner: &R) -> Result<(), JobFailure>
     where
         R: CommandRunner + Send,
@@ -246,7 +246,6 @@ impl Image {
                 let tar = {
                     let buffer: Vec<u8> = vec![];
                     let mut builder = tar::Builder::new(buffer);
-                    // TODO: Write to the buffer.
                     builder.append_dir_all(".", path)?;
                     let bytes = builder.into_inner();
                     hyper::Body::wrap_stream(futures::stream::iter(vec![bytes]))
@@ -260,7 +259,7 @@ impl Image {
                             ..Default::default()
                         },
                         None,
-                        // TODO: We need to free `path` as a tar archive.
+                        // Freeze `path` as a tar archive.
                         Some(tar),
                     )
                     .collect::<Vec<_>>()
@@ -284,15 +283,18 @@ pub struct ImageUsage {
 }
 
 /// Extra info on how to turn `ImageUsage` into `docker` usage.
+///
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct JudgeInfo {
     /// Directory of test sources.
-    pub dir: PathBuf,
+    pub src_dir: PathBuf,
+    /// Directory of test IO files.
+    pub io_dir: PathBuf,
     /// File names of tests.
     pub tests: Vec<String>,
     /// Variables and extensions of test files
     /// (`$src`, `$bin`, `$stdin`, `$stdout`, etc...).
-    /// For example: `"$src" => ".go"`.
+    /// For example: `"$src" => "go"`.
     pub vars: HashMap<String, String>,
 }
 
@@ -306,7 +308,7 @@ pub struct TestDockerConfig {
 /// The public representation of a test.
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct TestCase {
-    /// File name of the
+    /// File name of the test case.
     pub name: String,
     /// List of commands to be executed.
     pub exec: Vec<String>,
@@ -336,18 +338,18 @@ pub struct TestSuite {
     /// The test contents.
     pub test_cases: Vec<TestCase>,
     /// The image which contains the compiler to be tested.
-    pub image_name: String,
+    pub image: Image,
     /// If the image needs to be built before run.
     pub build_image: bool,
 }
 
 impl TestSuite {
-    pub fn new(image_name: &str, build_image: bool) -> Self {
+    pub fn new(image: Image, build_image: bool) -> Self {
         TestSuite {
             time_limit: None,
             mem_limit: None,
             test_cases: vec![],
-            image_name: image_name.to_owned(),
+            image,
             build_image,
         }
     }
@@ -366,15 +368,24 @@ impl TestSuite {
         let test_cases = info
             .tests
             .iter()
-            .map(|test| -> Result<TestCase> {
-                let mut test_path = info.dir.clone();
-                test_path.push(test);
+            .map(|name| -> Result<TestCase> {
+                let mut src_dir = info.src_dir.clone();
+                src_dir.push(name);
+                let mut io_dir = info.io_dir.clone();
+                io_dir.push(name);
                 let replacer: HashMap<String, _> = info
                     .vars
                     .iter()
                     .map(|(var, ext)| {
                         (var.to_owned(), {
-                            let mut p = test_path.clone();
+                            // ! FIXME: Shouldn't `$stdin` also be on the host? This special case should apply for `$stdin`.
+                            // Special case for `$stdout`:
+                            // These variables will point to files under `io_dir`,
+                            // while others to `src_dir`.
+                            let mut p = match var.as_ref() {
+                                "$stdout" => io_dir.clone(),
+                                _ => src_dir.clone(),
+                            };
                             p.set_extension(ext);
                             p
                         })
@@ -408,38 +419,35 @@ impl TestSuite {
                     )
                 })?;
                 file.read_to_string(&mut expected_out)?;
-                Ok(TestCase { exec, expected_out })
+                Ok(TestCase {
+                    name: name.to_owned(),
+                    exec,
+                    expected_out,
+                })
             })
             .collect::<Result<Vec<TestCase>>>()?;
         Ok(TestSuite {
             time_limit,
             mem_limit,
-            image_name: usage.image.tag(),
+            image: usage.image,
             test_cases,
             build_image,
         })
     }
 
     pub async fn run(&self, instance: bollard::Docker) -> Vec<Result<(), JobFailure>> {
+        let image_tag = self.image.tag();
         let runner = DockerCommandRunner::try_new(
             instance,
-            Image::Image {
-                tag: self.image_name.clone(),
-            },
+            self.image.clone(),
             DockerCommandRunnerOptions {
-                container_name: self.image_name.clone(),
                 mem_limit: self.mem_limit,
                 build_image: self.build_image,
                 ..Default::default()
             },
         )
         .await
-        .unwrap_or_else(|e| {
-            panic!(
-                "Failed to create command runner `{}`: {}",
-                &self.image_name, e
-            )
-        });
+        .unwrap_or_else(|e| panic!("Failed to create command runner `{}`: {}", &image_tag, e));
 
         let res: Vec<_> = self
             .test_cases
@@ -825,7 +833,6 @@ mod test_suite {
     fn golem() -> Result<()> {
         block_on(async {
             let image_name = "golem";
-            // TODO: This won't work, because we need a dockfile to ADD test files.
             // Repo directory in the host FS.
             let host_repo_dir = PathBuf::from(r"../golem");
             // Directories in the container FS.
@@ -835,13 +842,14 @@ mod test_suite {
 
             let ts = TestSuite::from_config(
                 JudgeInfo {
-                    dir: tests_dir,
+                    src_dir: PathBuf::from(r"golem/tests"),
+                    io_dir: PathBuf::from(r"../golem/tests"),
                     tests: ["succ"].iter().map(|s| s.to_string()).collect(),
                     vars: [
-                        ("$src", ".py"),
-                        ("$bin", ".pyc"),
-                        ("$stdin", ".in"),
-                        ("$stdout", ".out"),
+                        ("$src", "py"),
+                        ("$bin", "pyc"),
+                        ("$stdin", "in"),
+                        ("$stdout", "out"),
                     ]
                     .iter()
                     .map(|(k, v)| (k.to_string(), v.to_string()))
@@ -853,6 +861,7 @@ mod test_suite {
                         path: host_repo_dir,
                     },
                     run: [
+                        "cd golem",
                         "python ./golemc.py $src -o $bin",
                         "cat $stdin | python ./golem.py $bin",
                     ]
@@ -867,10 +876,8 @@ mod test_suite {
                 },
             )?;
 
-            /*
             let instance = bollard::Docker::connect_with_unix_defaults().unwrap();
             ts.run(instance).await;
-            */
             Ok(())
         })
     }
