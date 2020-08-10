@@ -1,0 +1,3 @@
+[submodule "golem"]
+	path = golem
+	url = git://github.com/rami3l/golem.git

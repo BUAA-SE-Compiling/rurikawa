@@ -1,7 +1,8 @@
 use super::exec::Image;
 use super::utils::convert_code;
-use super::ProcessInfo;
+use super::{JobFailure, ProcessInfo};
 use crate::prelude::*;
+use anyhow::Result;
 use async_trait::async_trait;
 use bollard::Docker;
 use futures::stream::StreamExt;
@@ -93,7 +94,11 @@ impl Default for DockerCommandRunnerOptions {
 }
 
 impl DockerCommandRunner {
-    pub async fn new(instance: Docker, image: Image, options: DockerCommandRunnerOptions) -> Self {
+    pub async fn try_new(
+        instance: Docker,
+        image: Image,
+        options: DockerCommandRunnerOptions,
+    ) -> Result<Self> {
         let DockerCommandRunnerOptions {
             container_name,
             mem_limit,
@@ -125,7 +130,7 @@ impl DockerCommandRunner {
 
         // Build the image
         if build_image {
-            image.build(res.instance.clone()).await
+            image.build(res.instance.clone()).await?
         };
         let image_name = image.tag();
 
@@ -145,7 +150,12 @@ impl DockerCommandRunner {
                 },
             )
             .await
-            .unwrap_or_else(|e| panic!("Failed to create Docker instance: {}", e));
+            .map_err(|e| {
+                JobFailure::internal_err_from(format!(
+                    "Failed to create container `{}`: {}",
+                    &res.container_name, e
+                ))
+            })?;
 
         // Set memory limit
         res.instance
@@ -157,7 +167,12 @@ impl DockerCommandRunner {
                 },
             )
             .await
-            .unwrap_or_else(|e| panic!("Failed to set memory limit: {}", e));
+            .map_err(|e| {
+                JobFailure::internal_err_from(format!(
+                    "Failed to update container `{}`: {}",
+                    &res.container_name, e
+                ))
+            })?;
 
         // Start the container
         res.instance
@@ -166,9 +181,14 @@ impl DockerCommandRunner {
                 None::<bollard::container::StartContainerOptions<String>>,
             )
             .await
-            .unwrap_or_else(|_| panic!("Failed to start Docker container {}", &res.container_name));
+            .map_err(|e| {
+                JobFailure::internal_err_from(format!(
+                    "Failed to start container `{}`: {}",
+                    &res.container_name, e
+                ))
+            })?;
 
-        res
+        Ok(res)
     }
 
     pub async fn kill(self) {

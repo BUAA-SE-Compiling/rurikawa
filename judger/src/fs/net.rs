@@ -8,7 +8,7 @@ use tokio::{
 
 #[derive(Debug)]
 pub struct GitCloneOptions {
-    url: String,
+    repo: String,
     branch: Option<String>,
     depth: usize,
 }
@@ -16,23 +16,26 @@ pub struct GitCloneOptions {
 impl Default for GitCloneOptions {
     fn default() -> Self {
         GitCloneOptions {
-            url: String::new(),
+            repo: String::new(),
             branch: Some(String::from("master")),
             depth: 5,
         }
     }
 }
 
-pub async fn git_clone(options: &GitCloneOptions, dir: &Path) -> std::io::Result<()> {
+pub async fn git_clone(dir: Option<&Path>, options: GitCloneOptions) -> std::io::Result<()> {
     let mut clone_cmd = Command::new("git");
-    clone_cmd.args(&["clone", &options.url]);
-    clone_cmd.arg("--recursive");
-    clone_cmd.arg("--single-branch");
-    clone_cmd.arg("--shallow-submodules");
+    clone_cmd
+        .args(&["clone", &options.repo])
+        .arg("--recursive")
+        .arg("--single-branch")
+        .arg("--shallow-submodules");
     if let Some(branch) = &options.branch {
         clone_cmd.args(&["--branch", &branch]);
     }
-    clone_cmd.arg(dir);
+    if let Some(dir) = dir {
+        clone_cmd.arg(dir);
+    }
     let ret_result = clone_cmd.output().await?;
     if ret_result.status.success() {
         Ok(())

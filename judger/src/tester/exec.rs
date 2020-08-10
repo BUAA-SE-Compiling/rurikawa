@@ -24,11 +24,10 @@ fn strsignal(i: i32) -> String {
 macro_rules! command {
     ( $prog:expr, $( $arg:expr ),* ) => {
         {
-            let mut cmd = vec![$prog.to_string()];
-            $(
-                cmd.push($arg.to_string());
-            )*
-            cmd
+            vec![
+                $prog.to_string(),
+                $($arg.to_string(),)*
+            ]
         }
     };
 }
@@ -36,18 +35,14 @@ macro_rules! command {
 #[macro_export]
 macro_rules! bash {
     ( $script:expr ) => {{
-        let mut cmd = vec!["bash".to_owned(), "-c".to_owned()];
-        cmd.push($script.to_string());
-        cmd
+        vec!["bash".to_string(), "-c".to_string(), $script.to_string()]
     }};
 }
 
 #[macro_export]
 macro_rules! sh {
     ( $script:expr ) => {{
-        let mut cmd = vec!["sh".to_owned(), "-c".to_owned()];
-        cmd.push($script.to_string());
-        cmd
+        vec!["sh".to_string(), "-c".to_string(), $script.to_string()]
     }};
 }
 
@@ -142,7 +137,7 @@ impl Test {
         self
     }
 
-    //? Should `runner` be mutable?
+    // ? Should `runner` be mutable?
     pub async fn run<R>(self, runner: &R) -> Result<(), JobFailure>
     where
         R: CommandRunner + Send,
@@ -209,7 +204,12 @@ pub enum Image {
     /// An existing image.
     Image { tag: String },
     /// An image to be built with a Dockerfile.
-    Dockerfile { tag: String, path: String },
+    Dockerfile {
+        /// Name to be assigned to the image.
+        tag: String,
+        /// Path of the context directory.
+        path: PathBuf,
+    },
 }
 
 impl Image {
@@ -221,10 +221,10 @@ impl Image {
     }
 
     /// Build (or pull) a image with the specified config.
-    pub async fn build(&self, instance: bollard::Docker) {
+    pub async fn build(&self, instance: bollard::Docker) -> Result<()> {
         match &self {
             Image::Image { tag } => {
-                instance
+                let ms = instance
                     .create_image(
                         Some(bollard::image::CreateImageOptions {
                             from_image: tag.to_owned(),
@@ -233,33 +233,41 @@ impl Image {
                         None,
                         None,
                     )
-                    .map(|mr| {
-                        mr.unwrap_or_else(|e| {
-                            panic!("Failed to pull Docker image `{}`: {}", tag, e)
-                        })
-                    })
                     .collect::<Vec<_>>()
                     .await;
+                // ! FIXME: This is not efficient (for not being lazy),
+                // ! but it seems that directly collecting to Result is not possible.
+                ms.into_iter().collect::<Result<Vec<_>, _>>().map_err(|e| {
+                    JobFailure::internal_err_from(format!("Failed to pull image `{}`: {}", tag, e))
+                })?;
+                Ok(())
             }
             Image::Dockerfile { tag, path } => {
-                instance
+                let tar = {
+                    let buffer: Vec<u8> = vec![];
+                    let mut builder = tar::Builder::new(buffer);
+                    builder.append_dir_all(".", path)?;
+                    let bytes = builder.into_inner();
+                    hyper::Body::wrap_stream(futures::stream::iter(vec![bytes]))
+                };
+                let ms = instance
                     .build_image(
                         bollard::image::BuildImageOptions {
-                            dockerfile: path.to_owned(),
-                            t: tag.to_owned(),
+                            dockerfile: "Dockerfile",
+                            t: tag,
                             rm: true,
                             ..Default::default()
                         },
                         None,
-                        None,
+                        // Freeze `path` as a tar archive.
+                        Some(tar),
                     )
-                    .map(|mr| {
-                        mr.unwrap_or_else(|e| {
-                            panic!("Failed to build Docker image `{}`: {}", tag, e)
-                        })
-                    })
                     .collect::<Vec<_>>()
                     .await;
+                ms.into_iter().collect::<Result<Vec<_>, _>>().map_err(|e| {
+                    JobFailure::internal_err_from(format!("Failed to build image `{}`: {}", tag, e))
+                })?;
+                Ok(())
             }
         }
     }
@@ -270,21 +278,22 @@ impl Image {
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct ImageUsage {
     pub image: Image,
-    // /// The sequence of commands to build
-    // pub build: Vec<Vec<String>>,
-    pub run: Vec<Vec<String>>,
+    /// Sequence of commands necessary to perform an IO check.
+    pub run: Vec<String>,
 }
 
 /// Extra info on how to turn `ImageUsage` into `docker` usage.
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct JudgeInfo {
-    /// Directory of tests.
-    pub dir: PathBuf,
+    /// Directory of test sources in the container.
+    pub src_dir: PathBuf,
+    /// Directory of test IO files on the host machine.
+    pub io_dir: PathBuf,
     /// File names of tests.
     pub tests: Vec<String>,
     /// Variables and extensions of test files
     /// (`$src`, `$bin`, `$stdin`, `$stdout`, etc...).
-    /// For example: `"$src" => ".go"`.
+    /// For example: `"$src" => "go"`.
     pub vars: HashMap<String, String>,
 }
 
@@ -298,8 +307,10 @@ pub struct TestDockerConfig {
 /// The public representation of a test.
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct TestCase {
+    /// File name of the test case.
+    pub name: String,
     /// List of commands to be executed.
-    pub exec: Vec<Vec<String>>,
+    pub exec: Vec<String>,
     /// Expected `stdout` of the last command.
     pub expected_out: String,
 }
@@ -311,6 +322,8 @@ pub struct TestSuiteOptions {
     pub time_limit: Option<usize>,
     /// Memory limit of the contrainer, in bytes.
     pub mem_limit: Option<usize>,
+    /// If the image needs to be built before run.
+    pub build_image: bool,
 }
 
 /// A suite of `Testcase`s to be run.
@@ -324,84 +337,115 @@ pub struct TestSuite {
     /// The test contents.
     pub test_cases: Vec<TestCase>,
     /// The image which contains the compiler to be tested.
-    pub image_name: String,
+    pub image: Image,
+    /// If the image needs to be built before run.
+    pub build_image: bool,
 }
 
 impl TestSuite {
-    pub fn try_new(info: JudgeInfo, usage: ImageUsage, opt: TestSuiteOptions) -> Result<Self> {
-        let TestSuiteOptions {
-            time_limit,
-            mem_limit,
-            ..
-        } = opt;
-        let test_cases = info
-            .tests
-            .iter()
-            .map(|test| -> Result<TestCase> {
-                let mut test_path = info.dir.clone();
-                test_path.push(test);
-                let replacer: HashMap<String, _> = info
-                    .vars
-                    .iter()
-                    .map(|(var, ext)| {
-                        (var.to_owned(), {
-                            let mut p = test_path.clone();
-                            p.set_extension(ext);
-                            p
-                        })
-                    })
-                    .collect();
-                let exec: Vec<Vec<String>> = usage
-                    .run
-                    .iter()
-                    .map(|cmd| {
-                        cmd.iter()
-                            .map(|word| {
-                                if let Some(replacement) = replacer.get(word) {
-                                    replacement.to_str().unwrap().to_owned()
-                                } else {
-                                    word.to_owned()
-                                }
-                            })
-                            .collect()
-                    })
-                    .collect();
-                let mut expected_out = "".to_owned();
-                let mut file = fs::File::open(replacer.get("$stdout").ok_or_else(|| {
-                    io::Error::new(
-                        io::ErrorKind::NotFound,
-                        "Output verification failed, no `$stdout` in dictionary",
-                    )
-                })?)?;
-                file.read_to_string(&mut expected_out)?;
-                Ok(TestCase { exec, expected_out })
-            })
-            .collect::<Result<Vec<TestCase>>>()?;
-        Ok(TestSuite {
-            time_limit,
-            mem_limit,
-            image_name: usage.image.tag(),
-            test_cases,
-        })
+    pub fn new(image: Image, build_image: bool) -> Self {
+        TestSuite {
+            time_limit: None,
+            mem_limit: None,
+            test_cases: vec![],
+            image,
+            build_image,
+        }
     }
 
     pub fn add_case(&mut self, case: TestCase) {
         self.test_cases.push(case)
     }
 
+    pub fn from_config(info: JudgeInfo, usage: ImageUsage, opt: TestSuiteOptions) -> Result<Self> {
+        let TestSuiteOptions {
+            time_limit,
+            mem_limit,
+            build_image,
+            ..
+        } = opt;
+        let test_cases = info
+            .tests
+            .iter()
+            .map(|name| -> Result<TestCase> {
+                let mut src_dir = info.src_dir.clone();
+                src_dir.push(name);
+                let mut io_dir = info.io_dir.clone();
+                io_dir.push(name);
+                let replacer: HashMap<String, _> = info
+                    .vars
+                    .iter()
+                    .map(|(var, ext)| {
+                        (var.to_owned(), {
+                            // Special case for `$stdout`:
+                            // These variables will point to files under `io_dir`,
+                            // while others to `src_dir`.
+                            let mut p = match var.as_ref() {
+                                "$stdout" => io_dir.clone(),
+                                _ => src_dir.clone(),
+                            };
+                            p.set_extension(ext);
+                            p
+                        })
+                    })
+                    .collect();
+                let exec: Vec<String> = usage
+                    .run
+                    .iter()
+                    .map(|line| {
+                        replacer.iter().fold(line.to_owned(), |seed, (pat, rep)| {
+                            seed.replace(pat, &format!(r#""{}""#, rep.to_str().unwrap()))
+                        })
+                    })
+                    .collect();
+                let mut expected_out = "".to_owned();
+                let stdout_path = replacer.get("$stdout").ok_or_else(|| {
+                    io::Error::new(
+                        io::ErrorKind::NotFound,
+                        "Output verification failed, no `$stdout` in dictionary",
+                    )
+                })?;
+                // ? QUESTION: Now I'm reading `$stdout` in host, but the source file, etc. are handled in containers.
+                // ? Is this desirable?
+                let mut file = fs::File::open(stdout_path).map_err(|e| {
+                    io::Error::new(
+                        io::ErrorKind::NotFound,
+                        format!(
+                            "Output verification failed, failed to open `{:?}`: {}",
+                            stdout_path, e,
+                        ),
+                    )
+                })?;
+                file.read_to_string(&mut expected_out)?;
+                Ok(TestCase {
+                    name: name.to_owned(),
+                    exec,
+                    expected_out,
+                })
+            })
+            .collect::<Result<Vec<TestCase>>>()?;
+        Ok(TestSuite {
+            time_limit,
+            mem_limit,
+            image: usage.image,
+            test_cases,
+            build_image,
+        })
+    }
+
     pub async fn run(&self, instance: bollard::Docker) -> Vec<Result<(), JobFailure>> {
-        let runner = DockerCommandRunner::new(
+        let image_tag = self.image.tag();
+        let runner = DockerCommandRunner::try_new(
             instance,
-            Image::Image {
-                tag: self.image_name.clone(),
-            },
+            self.image.clone(),
             DockerCommandRunnerOptions {
-                container_name: self.image_name.clone(),
                 mem_limit: self.mem_limit,
+                build_image: self.build_image,
                 ..Default::default()
             },
         )
-        .await;
+        .await
+        .unwrap_or_else(|e| panic!("Failed to create command runner `{}`: {}", &image_tag, e));
 
         let res: Vec<_> = self
             .test_cases
@@ -410,7 +454,7 @@ impl TestSuite {
                 let mut t = Test::new();
                 case.exec.iter().for_each(|step| {
                     t.add_step(Step::new_with_timeout(
-                        Capturable::new(step.to_vec()),
+                        Capturable::new(sh![step]),
                         self.time_limit
                             .map(|n| std::time::Duration::from_secs(n as u64)),
                     ));
@@ -420,7 +464,9 @@ impl TestSuite {
             })
             .collect();
 
-        join_all(res).await
+        let res = join_all(res).await;
+        runner.kill().await;
+        res
     }
 }
 
@@ -603,7 +649,7 @@ mod tests {
             O: futures::Future<Output = DockerCommandRunner>,
         {
             block_on(async {
-                let runner = DockerCommandRunner::new(
+                let runner = DockerCommandRunner::try_new(
                     bollard::Docker::connect_with_unix_defaults().unwrap(),
                     Image::Image {
                         tag: "alpine:latest".to_owned(),
@@ -613,7 +659,8 @@ mod tests {
                         ..Default::default()
                     },
                 )
-                .await;
+                .await
+                .unwrap();
                 let t = Test::new();
                 f(runner, t).await.kill().await;
             });
@@ -780,9 +827,58 @@ mod tests {
 #[cfg(test)]
 mod test_suite {
     use super::*;
+    use tokio_test::block_on;
 
     #[test]
-    fn ok() {
-        todo!()
+    fn golem() -> Result<()> {
+        block_on(async {
+            let image_name = "golem";
+            // Repo directory in the host FS.
+            let host_repo_dir = PathBuf::from(r"../golem");
+            // Directories in the container FS.
+            let repo_dir = PathBuf::from(r"golem");
+            let mut tests_dir = repo_dir.clone();
+            tests_dir.push("tests");
+
+            let ts = TestSuite::from_config(
+                JudgeInfo {
+                    src_dir: PathBuf::from(r"golem/tests"),
+                    io_dir: PathBuf::from(r"../golem/tests"),
+                    tests: ["succ"].iter().map(|s| s.to_string()).collect(),
+                    vars: [
+                        ("$src", "py"),
+                        ("$bin", "pyc"),
+                        ("$stdin", "in"),
+                        ("$stdout", "out"),
+                    ]
+                    .iter()
+                    .map(|(k, v)| (k.to_string(), v.to_string()))
+                    .collect(),
+                },
+                ImageUsage {
+                    image: Image::Dockerfile {
+                        tag: image_name.to_owned(),
+                        path: host_repo_dir,
+                    },
+                    run: [
+                        "cd golem",
+                        "python ./golemc.py $src -o $bin",
+                        "cat $stdin | python ./golem.py $bin",
+                    ]
+                    .iter()
+                    .map(|s| s.to_string())
+                    .collect(),
+                },
+                TestSuiteOptions {
+                    time_limit: None,
+                    mem_limit: None,
+                    build_image: true,
+                },
+            )?;
+
+            let instance = bollard::Docker::connect_with_unix_defaults().unwrap();
+            ts.run(instance).await;
+            Ok(())
+        })
     }
 }
