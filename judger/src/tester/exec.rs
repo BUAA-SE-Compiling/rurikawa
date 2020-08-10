@@ -464,7 +464,9 @@ impl TestSuite {
             })
             .collect();
 
-        join_all(res).await
+        let res = join_all(res).await;
+        runner.kill().await;
+        res
     }
 }
 
