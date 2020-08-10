@@ -283,12 +283,11 @@ pub struct ImageUsage {
 }
 
 /// Extra info on how to turn `ImageUsage` into `docker` usage.
-///
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct JudgeInfo {
-    /// Directory of test sources.
+    /// Directory of test sources in the container.
     pub src_dir: PathBuf,
-    /// Directory of test IO files.
+    /// Directory of test IO files on the host machine.
     pub io_dir: PathBuf,
     /// File names of tests.
     pub tests: Vec<String>,
@@ -378,7 +377,6 @@ impl TestSuite {
                     .iter()
                     .map(|(var, ext)| {
                         (var.to_owned(), {
-                            // ! FIXME: Shouldn't `$stdin` also be on the host? This special case should apply for `$stdin`.
                             // Special case for `$stdout`:
                             // These variables will point to files under `io_dir`,
                             // while others to `src_dir`.
