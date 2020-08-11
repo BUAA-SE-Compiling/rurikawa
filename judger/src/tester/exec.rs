@@ -277,9 +277,13 @@ impl Image {
 /// which contains the compiler to be examined.
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct ImageUsage {
+    /// The image to be used.
     pub image: Image,
     /// Sequence of commands necessary to perform an IO check.
     pub run: Vec<String>,
+    /// `host-src:container-dest` volume bindings for the container.
+    /// For details see [here](https://docs.rs/bollard/0.7.2/bollard/service/struct.HostConfig.html#structfield.binds).
+    pub binds: Option<Vec<String>>,
 }
 
 /// Extra info on how to turn `ImageUsage` into `docker` usage.
@@ -338,8 +342,11 @@ pub struct TestSuite {
     pub test_cases: Vec<TestCase>,
     /// The image which contains the compiler to be tested.
     pub image: Image,
-    /// If the image needs to be built before run.
+    /// If the image needs to be pulled/built before run.
     pub build_image: bool,
+    /// `host-src:container-dest` volume bindings for the container.
+    /// For details see [here](https://docs.rs/bollard/0.7.2/bollard/service/struct.HostConfig.html#structfield.binds).
+    pub binds: Option<Vec<String>>,
 }
 
 impl TestSuite {
@@ -350,6 +357,7 @@ impl TestSuite {
             test_cases: vec![],
             image,
             build_image,
+            binds: None,
         }
     }
 
@@ -430,6 +438,7 @@ impl TestSuite {
             image: usage.image,
             test_cases,
             build_image,
+            binds: usage.binds,
         })
     }
 
@@ -441,6 +450,7 @@ impl TestSuite {
             DockerCommandRunnerOptions {
                 mem_limit: self.mem_limit,
                 build_image: self.build_image,
+                binds: self.binds.clone(),
                 ..Default::default()
             },
         )
@@ -868,6 +878,7 @@ mod test_suite {
                     .iter()
                     .map(|s| s.to_string())
                     .collect(),
+                    binds: None,
                 },
                 TestSuiteOptions {
                     time_limit: None,

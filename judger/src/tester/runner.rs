@@ -74,21 +74,25 @@ pub struct DockerCommandRunner {
 }
 
 pub struct DockerCommandRunnerOptions {
+    /// Name assigned to the container.
     pub container_name: String,
+    /// Memory limit of the container.
     pub mem_limit: Option<usize>,
-    /// If the image needs to be built before run.
+    /// If the image needs to be pulled/built before run.
     pub build_image: bool,
-    pub volumes: HashMap<String, String>,
+    /// `host-src:container-dest` volume bindings for the container.
+    /// For details see [here](https://docs.rs/bollard/0.7.2/bollard/service/struct.HostConfig.html#structfield.binds).
+    pub binds: Option<Vec<String>>,
 }
 
 impl Default for DockerCommandRunnerOptions {
     fn default() -> Self {
         let mut names = Generator::with_naming(Name::Numbered);
         DockerCommandRunnerOptions {
-            container_name: names.next().unwrap(),
+            container_name: format!("rurikawa_{}", names.next().unwrap()),
             mem_limit: None,
             build_image: false,
-            volumes: HashMap::new(),
+            binds: None,
         }
     }
 }
@@ -103,7 +107,7 @@ impl DockerCommandRunner {
             container_name,
             mem_limit,
             build_image,
-            volumes,
+            binds,
         } = options;
         let res = DockerCommandRunner {
             instance,
@@ -146,6 +150,10 @@ impl DockerCommandRunner {
                     attach_stdout: Some(true),
                     attach_stderr: Some(true),
                     tty: Some(true),
+                    host_config: Some(bollard::service::HostConfig {
+                        binds,
+                        ..Default::default()
+                    }),
                     ..Default::default()
                 },
             )
