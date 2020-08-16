@@ -878,13 +878,11 @@ mod test_suite {
             let image_name = "golem";
             // Repo directory in the host FS.
             let host_repo_dir = PathBuf::from(r"../golem");
-            // Directories in the container FS.
-            let repo_dir = PathBuf::from(r"golem");
 
             let ts = TestSuite::from_config(
                 JudgeInfo {
-                    src_dir: PathBuf::from(r"golem/tests"),
-                    out_dir: PathBuf::from(r"../golem/tests"),
+                    src_dir: PathBuf::from(r"golem/src"),
+                    out_dir: PathBuf::from(r"../golem/out"),
                     tests: ["succ"].iter().map(|s| s.to_string()).collect(),
                     vars: [
                         ("$src", "py"),
@@ -930,13 +928,11 @@ mod test_suite {
             let image_name = "golem";
             // Repo directory in the host FS.
             let host_repo_dir = PathBuf::from(r"../golem");
-            // Directories in the container FS.
-            let repo_dir = PathBuf::from(r"golem");
 
             let ts = TestSuite::from_config(
                 JudgeInfo {
                     src_dir: PathBuf::from(r"/src"),
-                    out_dir: PathBuf::from(r"../golem/tests"),
+                    out_dir: PathBuf::from(r"../golem/out"),
                     tests: ["succ"].iter().map(|s| s.to_string()).collect(),
                     vars: [
                         ("$src", "py"),
@@ -963,7 +959,7 @@ mod test_suite {
                     .collect(),
                     binds: Some(
                         [Bind {
-                            from: PathBuf::from(r"../golem/tests"),
+                            from: PathBuf::from(r"../golem/src"),
                             to: PathBuf::from(r"/src"),
                             options: "ro".to_owned(),
                         }]
