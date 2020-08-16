@@ -273,6 +273,39 @@ impl Image {
     }
 }
 
+/// A Host-to-container volume binding for the container.
+#[derive(Serialize, Deserialize, Debug, Clone, Default)]
+pub struct Bind {
+    /// Absolute/Relative `from` path (in the host machine).
+    from: PathBuf,
+    /// Absolute `to` path (in the container).
+    to: PathBuf,
+    /// Extra options for this bind. Leave a new `String` for empty.
+    /// For details see [here](https://docs.rs/bollard/0.7.2/bollard/service/struct.HostConfig.html#structfield.binds).
+    options: String,
+}
+
+impl Bind {
+    /// Generate a `host-src:container-dest[:options]` string for the binding.
+    /// For details see [here](https://docs.rs/bollard/0.7.2/bollard/service/struct.HostConfig.html#structfield.binds).
+    pub fn stringify(&self) -> String {
+        fn strip_quote(s: &str) -> Option<&str> {
+            s.strip_prefix("\"")?.strip_suffix("\"")
+        }
+        let Bind { from, to, options } = self;
+        let from = format!("{:?}", std::fs::canonicalize(from).unwrap());
+        let from = strip_quote(&from).unwrap();
+        let to = format!("{:?}", to);
+        let to = strip_quote(&to).unwrap();
+        let mut res = format!("{}:{}", from, to);
+        dbg!(&res);
+        if !options.is_empty() {
+            res.push_str(&format!(":{}", options));
+        }
+        res
+    }
+}
+
 /// Info on the building process and the usage of a "ready-to-use" image,
 /// which contains the compiler to be examined.
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -289,10 +322,10 @@ pub struct ImageUsage {
 /// Extra info on how to turn `ImageUsage` into `docker` usage.
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct JudgeInfo {
-    /// Directory of test sources in the container.
+    /// Directory of test sources and `stdin` files in the container.
     pub src_dir: PathBuf,
-    /// Directory of test IO files on the host machine.
-    pub io_dir: PathBuf,
+    /// Directory of test `stdout` files on the host machine.
+    pub out_dir: PathBuf,
     /// File names of tests.
     pub tests: Vec<String>,
     /// Variables and extensions of test files
@@ -378,7 +411,7 @@ impl TestSuite {
             .map(|name| -> Result<TestCase> {
                 let mut src_dir = info.src_dir.clone();
                 src_dir.push(name);
-                let mut io_dir = info.io_dir.clone();
+                let mut io_dir = info.out_dir.clone();
                 io_dir.push(name);
                 let replacer: HashMap<String, _> = info
                     .vars
@@ -840,20 +873,16 @@ mod test_suite {
     use tokio_test::block_on;
 
     #[test]
-    fn golem() -> Result<()> {
+    fn golem_no_volume() -> Result<()> {
         block_on(async {
             let image_name = "golem";
             // Repo directory in the host FS.
             let host_repo_dir = PathBuf::from(r"../golem");
-            // Directories in the container FS.
-            let repo_dir = PathBuf::from(r"golem");
-            let mut tests_dir = repo_dir.clone();
-            tests_dir.push("tests");
 
             let ts = TestSuite::from_config(
                 JudgeInfo {
-                    src_dir: PathBuf::from(r"golem/tests"),
-                    io_dir: PathBuf::from(r"../golem/tests"),
+                    src_dir: PathBuf::from(r"golem/src"),
+                    out_dir: PathBuf::from(r"../golem/out"),
                     tests: ["succ"].iter().map(|s| s.to_string()).collect(),
                     vars: [
                         ("$src", "py"),
@@ -879,6 +908,65 @@ mod test_suite {
                     .map(|s| s.to_string())
                     .collect(),
                     binds: None,
+                },
+                TestSuiteOptions {
+                    time_limit: None,
+                    mem_limit: None,
+                    build_image: true,
+                },
+            )?;
+
+            let instance = bollard::Docker::connect_with_unix_defaults().unwrap();
+            ts.run(instance).await;
+            Ok(())
+        })
+    }
+
+    #[test]
+    fn golem_with_volume() -> Result<()> {
+        block_on(async {
+            let image_name = "golem";
+            // Repo directory in the host FS.
+            let host_repo_dir = PathBuf::from(r"../golem");
+
+            let ts = TestSuite::from_config(
+                JudgeInfo {
+                    src_dir: PathBuf::from(r"/src"),
+                    out_dir: PathBuf::from(r"../golem/out"),
+                    tests: ["succ"].iter().map(|s| s.to_string()).collect(),
+                    vars: [
+                        ("$src", "py"),
+                        ("$bin", "pyc"),
+                        ("$stdin", "in"),
+                        ("$stdout", "out"),
+                    ]
+                    .iter()
+                    .map(|(k, v)| (k.to_string(), v.to_string()))
+                    .collect(),
+                },
+                ImageUsage {
+                    image: Image::Dockerfile {
+                        tag: image_name.to_owned(),
+                        path: host_repo_dir,
+                    },
+                    run: [
+                        "cd golem",
+                        "python ./golemc.py $src -o $bin",
+                        "cat $stdin | python ./golem.py $bin",
+                    ]
+                    .iter()
+                    .map(|s| s.to_string())
+                    .collect(),
+                    binds: Some(
+                        [Bind {
+                            from: PathBuf::from(r"../golem/src"),
+                            to: PathBuf::from(r"/src"),
+                            options: "ro".to_owned(),
+                        }]
+                        .iter()
+                        .map(|i| i.stringify())
+                        .collect(),
+                    ),
                 },
                 TestSuiteOptions {
                     time_limit: None,
