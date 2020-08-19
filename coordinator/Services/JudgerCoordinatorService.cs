@@ -36,12 +36,11 @@ namespace Karenia.Rurikawa.Coordinator.Services {
                     var judger = new Judger(auth, wrapper, this.FinishedJudgers);
                     // Mark the judger as available.
                     await judger.Finish();
+
                     using (await connectionLock.OpenWriter()) {
                         connections.Add(auth, judger);
                     }
-
                     await wrapper.WaitUntilClose();
-
                     using (await connectionLock.OpenWriter()) {
                         connections.Remove(auth);
                     }
