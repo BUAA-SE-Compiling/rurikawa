@@ -927,19 +927,19 @@ mod test_suite {
         block_on(async {
             let image_name = "golem";
             // Repo directory in the host FS.
-            let host_repo_dir = PathBuf::from(r"../golem");
+            let host_repo_dir = PathBuf::from(r"../golem"); // c# gives repo remote, rust clone and unzip
 
             let ts = TestSuite::from_config(
                 JudgeInfo {
-                    src_dir: PathBuf::from(r"/src"),
-                    out_dir: PathBuf::from(r"../golem/out"),
-                    tests: ["succ"].iter().map(|s| s.to_string()).collect(),
+                    src_dir: PathBuf::from(r"/src"),                         // c#
+                    out_dir: PathBuf::from(r"../golem/out"),                 // c#
+                    tests: ["succ"].iter().map(|s| s.to_string()).collect(), // c#
                     vars: [
                         ("$src", "py"),
                         ("$bin", "pyc"),
                         ("$stdin", "in"),
                         ("$stdout", "out"),
-                    ]
+                    ] // rust, read from toml
                     .iter()
                     .map(|(k, v)| (k.to_string(), v.to_string()))
                     .collect(),
@@ -953,14 +953,14 @@ mod test_suite {
                         "cd golem",
                         "python ./golemc.py $src -o $bin",
                         "cat $stdin | python ./golem.py $bin",
-                    ]
+                    ] // rust, read from toml
                     .iter()
                     .map(|s| s.to_string())
                     .collect(),
                     binds: Some(
                         [Bind {
-                            from: PathBuf::from(r"../golem/src"),
-                            to: PathBuf::from(r"/src"),
+                            from: PathBuf::from(r"../golem/src"), // c#
+                            to: PathBuf::from(r"/src"),           // c#
                             options: "ro".to_owned(),
                         }]
                         .iter()
@@ -969,9 +969,9 @@ mod test_suite {
                     ),
                 },
                 TestSuiteOptions {
-                    time_limit: None,
-                    mem_limit: None,
-                    build_image: true,
+                    time_limit: None,  // c#
+                    mem_limit: None,   // c#
+                    build_image: true, // c#
                 },
             )?;
 
