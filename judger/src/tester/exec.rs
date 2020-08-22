@@ -330,8 +330,6 @@ pub struct JudgerPrivateConfig {
     /// `host-src:container-dest` volume bindings for the container.
     /// For details see [here](https://docs.rs/bollard/0.7.2/bollard/service/struct.HostConfig.html#structfield.binds).
     pub binds: Option<Vec<Bind>>,
-    /// Initialization options for `Testsuite`.
-    pub options: TestSuiteOptions,
 }
 
 /// The public representation of a test.
@@ -395,13 +393,14 @@ impl TestSuite {
         image: Image,
         private_cfg: JudgerPrivateConfig,
         public_cfg: JudgerPublicConfig,
+        options: TestSuiteOptions,
     ) -> Result<Self> {
         let TestSuiteOptions {
             time_limit,
             mem_limit,
             build_image,
             ..
-        } = private_cfg.options;
+        } = options;
         let test_cases = private_cfg
             .tests
             .iter()
@@ -888,11 +887,6 @@ mod test_suite {
                     out_dir: PathBuf::from(r"../golem/out"),
                     tests: ["succ"].iter().map(|s| s.to_string()).collect(),
                     binds: None,
-                    options: TestSuiteOptions {
-                        time_limit: None,
-                        mem_limit: None,
-                        build_image: true,
-                    },
                 },
                 JudgerPublicConfig {
                     run: [
@@ -903,7 +897,6 @@ mod test_suite {
                     .iter()
                     .map(|s| s.to_string())
                     .collect(),
-
                     vars: [
                         ("$src", "py"),
                         ("$bin", "pyc"),
@@ -913,6 +906,11 @@ mod test_suite {
                     .iter()
                     .map(|(k, v)| (k.to_string(), v.to_string()))
                     .collect(),
+                },
+                TestSuiteOptions {
+                    time_limit: None,
+                    mem_limit: None,
+                    build_image: true,
                 },
             )?;
 
@@ -943,11 +941,6 @@ mod test_suite {
                         to: PathBuf::from(r"/src"),           // private
                         options: "ro".to_owned(),
                     }]),
-                    options: TestSuiteOptions {
-                        time_limit: None,  // private
-                        mem_limit: None,   // private
-                        build_image: true, // private
-                    },
                 },
                 JudgerPublicConfig {
                     run: [
@@ -958,7 +951,6 @@ mod test_suite {
                     .iter()
                     .map(|s| s.to_string())
                     .collect(),
-
                     vars: [
                         ("$src", "py"),
                         ("$bin", "pyc"),
@@ -968,6 +960,11 @@ mod test_suite {
                     .iter()
                     .map(|(k, v)| (k.to_string(), v.to_string()))
                     .collect(),
+                },
+                TestSuiteOptions {
+                    time_limit: None,  // private
+                    mem_limit: None,   // private
+                    build_image: true, // private
                 },
             )?;
 
