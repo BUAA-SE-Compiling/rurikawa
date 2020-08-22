@@ -1,6 +1,7 @@
 using System.Text.Json.Serialization;
 using Dahomey.Json.Attributes;
 
+#nullable disable
 namespace Karenia.Rurikawa.Models.Judger {
     /// <summary>
     /// Base class of all messages that are sent from the server (coordinator).
@@ -77,3 +78,4 @@ namespace Karenia.Rurikawa.Models.Judger {
         public bool CanAcceptNewTask { get; set; }
     }
 }
+#nullable restore
