@@ -25,7 +25,17 @@ namespace Karenia.Rurikawa.Coordinator.Services {
 
         // readonly HashSet<string> vacantJudgers = new HashSet<string>();
 
-        public async Task TryUseConnection(Microsoft.AspNetCore.Http.HttpContext ctx) {
+        /// <summary>
+        /// Try to use the provided HTTP connection to create a WebSocket connection
+        /// between coordinator and judger. 
+        /// </summary>
+        /// <param name="ctx">
+        ///     The provided connection. Must be upgradable into websocket.
+        /// </param>
+        /// <returns>
+        ///     True if the websocket connection was made.
+        /// </returns>
+        public async ValueTask<bool> TryUseConnection(Microsoft.AspNetCore.Http.HttpContext ctx) {
             if (ctx.Request.Headers.TryGetValue("Authorization", out var auth)) {
                 if (await CheckAuth(auth)) {
                     var ws = await ctx.WebSockets.AcceptWebSocketAsync();
@@ -41,19 +51,29 @@ namespace Karenia.Rurikawa.Coordinator.Services {
                     using (await connectionLock.OpenWriter()) {
                         connections.Remove(auth);
                     }
+                    return true;
                 } else {
                     ctx.Response.StatusCode = 401; // unauthorized
                 }
             } else {
                 ctx.Response.StatusCode = 401; // unauthorized
             }
+            return false;
         }
 
+        /// <summary>
+        /// Check if the authorization header is valid. 
+        /// </summary>
         ValueTask<bool> CheckAuth(string authHeader) {
             return new ValueTask<bool>(true);
         }
 
-        public async Task<int> HandleJob() {
+        /// <summary>
+        /// Handle a single job
+        /// </summary>
+        /// <param name="job"></param>
+        /// <returns></returns>
+        public async Task<int> HandleJob(Job job) {
             try {
                 using (await connectionLock.OpenWriter()) {
                     // Get an Id for a judger that is finished AND available.
