@@ -1,27 +1,50 @@
 using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
+using System.Threading;
 using System.Threading.Channels;
 using System.Threading.Tasks;
 using AsyncPrimitives;
 using Karenia.Rurikawa.Helpers;
+using Karenia.Rurikawa.Models;
 using Karenia.Rurikawa.Models.Judger;
+using Microsoft.Extensions.Logging;
 
 namespace Karenia.Rurikawa.Coordinator.Services {
+    using JudgerWebsocketWrapperTy = JsonWebsocketWrapper<ClientMsg, ServerMsg>;
+
     /// <summary>
     /// A single-point coordinator for judgers.
     /// </summary>
     public class JudgerCoordinatorService {
+        public JudgerCoordinatorService(
+            RurikawaDb db,
+            Logger<JudgerCoordinatorService> logger
+        ) {
+            this.db = db;
+            this.logger = logger;
+        }
+
+
         /// <summary>
         /// The collection of runners, with token as keys.
         /// </summary>
         readonly Dictionary<string, Judger> connections = new Dictionary<string, Judger>();
-        readonly AsyncReaderWriterLock connectionLock = new AsyncReaderWriterLock();
+        /// <summary>
+        /// A mutex lock on connections and the status of connections inside it.
+        /// Any changes on `Judger.ActiveTaskCount` and `Judger.CanAcceptNewTask`
+        /// requires this lock to be acquired.
+        /// </summary>
+        readonly SemaphoreSlim connectionLock = new SemaphoreSlim(1);
+
+        private readonly RurikawaDb db;
+        private readonly Logger<JudgerCoordinatorService> logger;
+
 
         /// <summary>
         /// A channel indicating finished judgers' Id.
         /// </summary>
-        private Channel<string> FinishedMsg { get; } = Channel.CreateUnbounded<string>();
-
+        private Channel<string> JudgerQueue { get; } = Channel.CreateUnbounded<string>();
 
         // readonly HashSet<string> vacantJudgers = new HashSet<string>();
 
@@ -39,17 +62,22 @@ namespace Karenia.Rurikawa.Coordinator.Services {
             if (ctx.Request.Headers.TryGetValue("Authorization", out var auth)) {
                 if (await CheckAuth(auth)) {
                     var ws = await ctx.WebSockets.AcceptWebSocketAsync();
-                    var wrapper = new JsonWebsocketWrapper<ClientMsg, ServerMsg>(ws);
-                    var judger = new Judger(auth, wrapper, this.FinishedMsg);
+                    var wrapper = new JudgerWebsocketWrapperTy(ws);
+                    var judger = new Judger(auth, wrapper);
                     // Mark the judger as available.
                     await judger.Finish();
-
-                    using (await connectionLock.OpenWriter()) {
+                    {
+                        await connectionLock.WaitAsync();
                         connections.Add(auth, judger);
+                        connectionLock.Release();
                     }
+
                     await wrapper.WaitUntilClose();
-                    using (await connectionLock.OpenWriter()) {
+
+                    {
+                        await connectionLock.WaitAsync();
                         connections.Remove(auth);
+                        connectionLock.Release();
                     }
                     return true;
                 } else {
@@ -61,6 +89,14 @@ namespace Karenia.Rurikawa.Coordinator.Services {
             return false;
         }
 
+        async Task AssignObservables(string clientId, JudgerWebsocketWrapperTy client) {
+
+        }
+
+        async void OnJudgerStatusUpdateMessage(string clientId, ClientStatusMsg msg) {
+
+        }
+
         /// <summary>
         /// Check if the authorization header is valid. 
         /// </summary>
@@ -68,27 +104,35 @@ namespace Karenia.Rurikawa.Coordinator.Services {
             return new ValueTask<bool>(true);
         }
 
+        private async Task<Judger?> TryGetNextUsableJudger(bool blockNewTasks) {
+            await connectionLock.WaitAsync();
+            while (JudgerQueue.Reader.TryRead(out var nextJudger)) {
+                if (connections.TryGetValue(nextJudger, out var conn)) {
+                    if (conn.CanAcceptNewTask) {
+                        // Change the status to false, until the judger reports
+                        // it can accept new tasks again
+                        conn.CanAcceptNewTask &= !blockNewTasks;
+                        return conn;
+                    }
+                }
+            }
+            connectionLock.Release();
+            return null;
+        }
+
         /// <summary>
-        /// Handle a single job
+        /// Handle a single job 
         /// </summary>
         /// <param name="job"></param>
         /// <returns></returns>
-        public async Task<int> HandleJob(Job job) {
+        public async Task ScheduleJob(Job job) {
             try {
-                using (await connectionLock.OpenWriter()) {
-                    // Get an Id for a judger that is finished AND available.
-                    string judgerId;
-                    do {
-                        judgerId = await this.FinishedMsg.Reader.ReadAsync();
-                    } while (!connections.ContainsKey(judgerId));
-
-                    using (await connectionLock.OpenReader()) {
-                        var judger = connections[judgerId];
-                        // TODO: Send task to judger
-                        var res = await judger.Run();
-                        return res;
-                    }
+                var judger = await TryGetNextUsableJudger(true);
+                if (judger != null) {
+                    // TODO: schedule job to judger & change job status
+                    await judger.Socket.SendMessage(new NewJobServerMsg());
                 }
+                // TODO: put job into database
             } catch {
                 // TODO: Other cases
                 throw new NotImplementedException();

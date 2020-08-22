@@ -1,12 +1,14 @@
 using System;
-using System.Net.WebSockets;
-using System.Runtime.CompilerServices;
-using System.Threading.Tasks;
-using System.Reactive;
 using System.Collections.Generic;
-using System.Threading;
+using System.Net.WebSockets;
+using System.Reactive;
+using System.Reactive.Concurrency;
+using System.Reactive.Linq;
 using System.Reactive.Subjects;
+using System.Runtime.CompilerServices;
 using System.Text.Json;
+using System.Threading;
+using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
 
 namespace Karenia.Rurikawa.Helpers {
@@ -21,6 +23,8 @@ namespace Karenia.Rurikawa.Helpers {
             this.serializerOptions = serializerOptions;
             this.recvBuffer = new byte[defaultBufferSize];
             this.logger = logger;
+            this.Messages = messages.ObserveOn(Scheduler.Default).Publish();
+            this.Errors = errors.ObserveOn(Scheduler.Default).Publish();
         }
 
         readonly WebSocket socket;
@@ -30,8 +34,10 @@ namespace Karenia.Rurikawa.Helpers {
 
         byte[] recvBuffer;
 
-        public Subject<TRecvMessage> Messages { get; } = new Subject<TRecvMessage>();
-        public Subject<Exception> Errors { get; } = new Subject<Exception>();
+        private readonly Subject<TRecvMessage> messages = new Subject<TRecvMessage>();
+        public IConnectableObservable<TRecvMessage> Messages { get; }
+        private readonly Subject<Exception> errors = new Subject<Exception>();
+        public IConnectableObservable<Exception> Errors { get; }
 
         protected void DoubleRecvCapacity() {
             var newBuffer = new byte[this.recvBuffer.Length * 2];
@@ -43,8 +49,8 @@ namespace Karenia.Rurikawa.Helpers {
             while (true) {
                 try {
                     if (this.socket.State == WebSocketState.Closed) {
-                        this.Messages.OnCompleted();
-                        this.Errors.OnCompleted();
+                        this.messages.OnCompleted();
+                        this.errors.OnCompleted();
                         return;
                     }
                     var result = await this.socket.ReceiveAsync(new ArraySegment<byte>(recvBuffer), this.closeToken);
@@ -67,17 +73,17 @@ namespace Karenia.Rurikawa.Helpers {
                                 new ArraySegment<byte>(this.recvBuffer, 0, writtenBytes),
                                 serializerOptions
                             );
-                            this.Messages.OnNext(message);
+                            this.messages.OnNext(message);
                             break;
                         case WebSocketMessageType.Binary:
-                            this.Errors.OnNext(new UnexpectedBinaryMessageException());
+                            this.errors.OnNext(new UnexpectedBinaryMessageException());
                             break;
                         case WebSocketMessageType.Close:
-                            this.Messages.OnCompleted();
+                            this.messages.OnCompleted();
                             return;
                     }
                 } catch (Exception e) {
-                    this.Errors.OnNext(e);
+                    this.errors.OnNext(e);
                 }
             }
         }

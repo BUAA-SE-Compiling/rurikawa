@@ -11,26 +11,29 @@ namespace Karenia.Rurikawa.Models.Judger {
     /// </summary>
     public class Judger {
 
-        // public int ActiveTaskCount { get; set; } = 0;
-        // public bool CanAcceptNewTask { get; set; } = true;
         public JsonWebsocketWrapper<ClientMsg, ServerMsg> Socket { get; }
+        public string Id { get; }
 
         /// <summary>
-        /// A channel to communicate with `JudgerState`,
-        /// and to indicate if this judger is finished.
+        /// Number of tasks (jobs) currently running on this judger.
+        /// <br/>
+        /// This value currently has no real usage.
         /// </summary>
-        public Channel<string> Chan { get; }
+        public int ActiveTaskCount { get; set; } = 0;
 
-        public string Id { get; }
+        /// <summary>
+        /// Whether this judger can accept new tasks.
+        /// </summary>
+        public bool CanAcceptNewTask { get; set; } = false;
 
         public Judger(
             string id,
-            JsonWebsocketWrapper<ClientMsg, ServerMsg> socket,
-            Channel<string> chan
+            JsonWebsocketWrapper<ClientMsg, ServerMsg> socket
+        // Channel<string> chan
         ) {
             Id = id;
             Socket = socket;
-            Chan = chan;
+            // Chan = chan;
         }
 
         /// <summary>
@@ -52,7 +55,7 @@ namespace Karenia.Rurikawa.Models.Judger {
         /// Tell the channel that the job is done.
         /// </summary>
         public async Task Finish() {
-            await Chan.Writer.WriteAsync(Id);
+            // await Chan.Writer.WriteAsync(Id);
         }
     }
 
