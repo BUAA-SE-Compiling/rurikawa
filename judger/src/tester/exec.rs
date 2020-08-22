@@ -306,40 +306,33 @@ impl Bind {
     }
 }
 
-/// Info on the building process and the usage of a "ready-to-use" image,
-/// which contains the compiler to be examined.
+/// Judger's public config, specific to a paticular repository,
+/// Maintained by the owner of the project to be tested.
 #[derive(Serialize, Deserialize, Debug, Clone)]
-pub struct ImageUsage {
-    /// The image to be used.
-    pub image: Image,
+pub struct JudgerPublicConfig {
+    /// Variables and extensions of test files
+    /// (`$src`, `$bin`, `$stdin`, `$stdout`, etc...).
+    /// For example: `"$src" => "go"`.
+    pub vars: HashMap<String, String>,
     /// Sequence of commands necessary to perform an IO check.
     pub run: Vec<String>,
-    /// `host-src:container-dest` volume bindings for the container.
-    /// For details see [here](https://docs.rs/bollard/0.7.2/bollard/service/struct.HostConfig.html#structfield.binds).
-    pub binds: Option<Vec<String>>,
 }
 
-/// Extra info on how to turn `ImageUsage` into `docker` usage.
+/// Judger's private config, specific to a host machine.
 #[derive(Serialize, Deserialize, Debug, Clone)]
-pub struct JudgeInfo {
+pub struct JudgerPrivateConfig {
     /// Directory of test sources and `stdin` files in the container.
     pub src_dir: PathBuf,
     /// Directory of test `stdout` files on the host machine.
     pub out_dir: PathBuf,
     /// File names of tests.
     pub tests: Vec<String>,
-    /// Variables and extensions of test files
-    /// (`$src`, `$bin`, `$stdin`, `$stdout`, etc...).
-    /// For example: `"$src" => "go"`.
-    pub vars: HashMap<String, String>,
+    /// `host-src:container-dest` volume bindings for the container.
+    /// For details see [here](https://docs.rs/bollard/0.7.2/bollard/service/struct.HostConfig.html#structfield.binds).
+    pub binds: Option<Vec<Bind>>,
+    /// Initialization options for `Testsuite`.
+    pub options: TestSuiteOptions,
 }
-
-/*
-#[derive(Serialize, Deserialize, Debug, Clone)]
-pub struct TestDockerConfig {
-    pub volumes: HashMap<String, String>,
-}
-*/
 
 /// The public representation of a test.
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -353,7 +346,7 @@ pub struct TestCase {
 }
 
 /// Initialization options for `Testsuite`.
-#[derive(Debug, Clone, Default)]
+#[derive(Serialize, Deserialize, Debug, Clone, Default)]
 pub struct TestSuiteOptions {
     /// Time limit of a step, in seconds.
     pub time_limit: Option<usize>,
@@ -398,22 +391,26 @@ impl TestSuite {
         self.test_cases.push(case)
     }
 
-    pub fn from_config(info: JudgeInfo, usage: ImageUsage, opt: TestSuiteOptions) -> Result<Self> {
+    pub fn from_config(
+        image: Image,
+        private_cfg: JudgerPrivateConfig,
+        public_cfg: JudgerPublicConfig,
+    ) -> Result<Self> {
         let TestSuiteOptions {
             time_limit,
             mem_limit,
             build_image,
             ..
-        } = opt;
-        let test_cases = info
+        } = private_cfg.options;
+        let test_cases = private_cfg
             .tests
             .iter()
             .map(|name| -> Result<TestCase> {
-                let mut src_dir = info.src_dir.clone();
+                let mut src_dir = private_cfg.src_dir.clone();
                 src_dir.push(name);
-                let mut io_dir = info.out_dir.clone();
+                let mut io_dir = private_cfg.out_dir.clone();
                 io_dir.push(name);
-                let replacer: HashMap<String, _> = info
+                let replacer: HashMap<String, _> = public_cfg
                     .vars
                     .iter()
                     .map(|(var, ext)| {
@@ -430,7 +427,7 @@ impl TestSuite {
                         })
                     })
                     .collect();
-                let exec: Vec<String> = usage
+                let exec: Vec<String> = public_cfg
                     .run
                     .iter()
                     .map(|line| {
@@ -468,10 +465,12 @@ impl TestSuite {
         Ok(TestSuite {
             time_limit,
             mem_limit,
-            image: usage.image,
+            image,
             test_cases,
             build_image,
-            binds: usage.binds,
+            binds: private_cfg
+                .binds
+                .map(|bs| bs.iter().map(|b| b.stringify()).collect()),
         })
     }
 
@@ -880,10 +879,31 @@ mod test_suite {
             let host_repo_dir = PathBuf::from(r"../golem");
 
             let ts = TestSuite::from_config(
-                JudgeInfo {
+                Image::Dockerfile {
+                    tag: image_name.to_owned(),
+                    path: host_repo_dir,
+                },
+                JudgerPrivateConfig {
                     src_dir: PathBuf::from(r"golem/src"),
                     out_dir: PathBuf::from(r"../golem/out"),
                     tests: ["succ"].iter().map(|s| s.to_string()).collect(),
+                    binds: None,
+                    options: TestSuiteOptions {
+                        time_limit: None,
+                        mem_limit: None,
+                        build_image: true,
+                    },
+                },
+                JudgerPublicConfig {
+                    run: [
+                        "cd golem",
+                        "python ./golemc.py $src -o $bin",
+                        "cat $stdin | python ./golem.py $bin",
+                    ]
+                    .iter()
+                    .map(|s| s.to_string())
+                    .collect(),
+
                     vars: [
                         ("$src", "py"),
                         ("$bin", "pyc"),
@@ -893,26 +913,6 @@ mod test_suite {
                     .iter()
                     .map(|(k, v)| (k.to_string(), v.to_string()))
                     .collect(),
-                },
-                ImageUsage {
-                    image: Image::Dockerfile {
-                        tag: image_name.to_owned(),
-                        path: host_repo_dir,
-                    },
-                    run: [
-                        "cd golem",
-                        "python ./golemc.py $src -o $bin",
-                        "cat $stdin | python ./golem.py $bin",
-                    ]
-                    .iter()
-                    .map(|s| s.to_string())
-                    .collect(),
-                    binds: None,
-                },
-                TestSuiteOptions {
-                    time_limit: None,
-                    mem_limit: None,
-                    build_image: true,
                 },
             )?;
 
@@ -927,51 +927,47 @@ mod test_suite {
         block_on(async {
             let image_name = "golem";
             // Repo directory in the host FS.
-            let host_repo_dir = PathBuf::from(r"../golem"); // c# gives repo remote, rust clone and unzip
+            let host_repo_dir = PathBuf::from(r"../golem");
 
             let ts = TestSuite::from_config(
-                JudgeInfo {
-                    src_dir: PathBuf::from(r"/src"),                         // c#
-                    out_dir: PathBuf::from(r"../golem/out"),                 // c#
-                    tests: ["succ"].iter().map(|s| s.to_string()).collect(), // c#
+                Image::Dockerfile {
+                    tag: image_name.to_owned(),
+                    path: host_repo_dir, // public: c# gives repo remote, rust clone and unzip
+                },
+                JudgerPrivateConfig {
+                    src_dir: PathBuf::from(r"/src"),                         // private
+                    out_dir: PathBuf::from(r"../golem/out"),                 // private
+                    tests: ["succ"].iter().map(|s| s.to_string()).collect(), // private
+                    binds: Some(vec![Bind {
+                        from: PathBuf::from(r"../golem/src"), // private
+                        to: PathBuf::from(r"/src"),           // private
+                        options: "ro".to_owned(),
+                    }]),
+                    options: TestSuiteOptions {
+                        time_limit: None,  // private
+                        mem_limit: None,   // private
+                        build_image: true, // private
+                    },
+                },
+                JudgerPublicConfig {
+                    run: [
+                        "cd golem",
+                        "python ./golemc.py $src -o $bin",
+                        "cat $stdin | python ./golem.py $bin",
+                    ] // public
+                    .iter()
+                    .map(|s| s.to_string())
+                    .collect(),
+
                     vars: [
                         ("$src", "py"),
                         ("$bin", "pyc"),
                         ("$stdin", "in"),
                         ("$stdout", "out"),
-                    ] // rust, read from toml
+                    ] // public
                     .iter()
                     .map(|(k, v)| (k.to_string(), v.to_string()))
                     .collect(),
-                },
-                ImageUsage {
-                    image: Image::Dockerfile {
-                        tag: image_name.to_owned(),
-                        path: host_repo_dir,
-                    },
-                    run: [
-                        "cd golem",
-                        "python ./golemc.py $src -o $bin",
-                        "cat $stdin | python ./golem.py $bin",
-                    ] // rust, read from toml
-                    .iter()
-                    .map(|s| s.to_string())
-                    .collect(),
-                    binds: Some(
-                        [Bind {
-                            from: PathBuf::from(r"../golem/src"), // c#
-                            to: PathBuf::from(r"/src"),           // c#
-                            options: "ro".to_owned(),
-                        }]
-                        .iter()
-                        .map(|i| i.stringify())
-                        .collect(),
-                    ),
-                },
-                TestSuiteOptions {
-                    time_limit: None,  // c#
-                    mem_limit: None,   // c#
-                    build_image: true, // c#
                 },
             )?;
 

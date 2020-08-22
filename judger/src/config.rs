@@ -1,9 +1,9 @@
-pub use crate::tester::exec::{Image, ImageUsage, JudgeInfo};
+pub use crate::tester::exec::{Image, JudgerPrivateConfig, JudgerPublicConfig};
 use serde::{self, Deserialize, Serialize};
 use std::collections::HashMap;
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct JudgeToml {
     pub id: String,
-    pub jobs: HashMap<String, ImageUsage>,
+    pub jobs: HashMap<String, JudgerPublicConfig>,
 }
