@@ -271,6 +271,22 @@ impl Image {
             }
         }
     }
+
+    /// Remove the Image when finished.
+    /// Attention: this action must be done AFTER removing related containers.
+    pub async fn remove(self, instance: bollard::Docker) -> Result<()> {
+        let tag = self.tag();
+        instance
+            .remove_image(
+                &tag,
+                Some(bollard::image::RemoveImageOptions {
+                    ..Default::default()
+                }),
+                None,
+            )
+            .await?;
+        Ok(())
+    }
 }
 
 /// A Host-to-container volume binding for the container.
@@ -344,47 +360,47 @@ pub struct TestCase {
 }
 
 /// Initialization options for `Testsuite`.
-#[derive(Serialize, Deserialize, Debug, Clone, Default)]
-pub struct TestSuiteOptions {
-    /// Time limit of a step, in seconds.
-    pub time_limit: Option<usize>,
-    /// Memory limit of the contrainer, in bytes.
-    pub mem_limit: Option<usize>,
-    /// If the image needs to be built before run.
-    pub build_image: bool,
-}
-
-/// A suite of `Testcase`s to be run.
 #[derive(Serialize, Deserialize, Debug, Clone)]
-pub struct TestSuite {
+pub struct TestSuiteOptions {
     /// Time limit of a step, in seconds.
     pub time_limit: Option<usize>,
     // TODO: Use this field.
     /// Memory limit of the contrainer, in bytes.
     pub mem_limit: Option<usize>,
+    /// If the image needs to be built before run.
+    pub build_image: bool,
+    /// If the image needs to be removed after run.
+    pub remove_image: bool,
+}
+
+impl Default for TestSuiteOptions {
+    fn default() -> Self {
+        TestSuiteOptions {
+            time_limit: None,
+            mem_limit: None,
+            build_image: false,
+            remove_image: false,
+        }
+    }
+}
+
+/// A suite of `TestCase`s to be run.
+/// Attention: a `TestSuite` instance should NOT be constructed manually.
+/// Please use `TestSuite::from_config`, for example.
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct TestSuite {
     /// The test contents.
     pub test_cases: Vec<TestCase>,
     /// The image which contains the compiler to be tested.
-    pub image: Image,
-    /// If the image needs to be pulled/built before run.
-    pub build_image: bool,
+    image: Option<Image>,
     /// `host-src:container-dest` volume bindings for the container.
     /// For details see [here](https://docs.rs/bollard/0.7.2/bollard/service/struct.HostConfig.html#structfield.binds).
     pub binds: Option<Vec<String>>,
+    /// Initialization options for `Testsuite`.
+    pub options: TestSuiteOptions,
 }
 
 impl TestSuite {
-    pub fn new(image: Image, build_image: bool) -> Self {
-        TestSuite {
-            time_limit: None,
-            mem_limit: None,
-            test_cases: vec![],
-            image,
-            build_image,
-            binds: None,
-        }
-    }
-
     pub fn add_case(&mut self, case: TestCase) {
         self.test_cases.push(case)
     }
@@ -399,8 +415,9 @@ impl TestSuite {
             time_limit,
             mem_limit,
             build_image,
+            remove_image,
             ..
-        } = options;
+        } = &options;
         let test_cases = private_cfg
             .tests
             .iter()
@@ -462,29 +479,36 @@ impl TestSuite {
             })
             .collect::<Result<Vec<TestCase>>>()?;
         Ok(TestSuite {
-            time_limit,
-            mem_limit,
-            image,
+            image: Some(image),
             test_cases,
-            build_image,
+            options,
             binds: private_cfg
                 .binds
                 .map(|bs| bs.iter().map(|b| b.stringify()).collect()),
         })
     }
 
-    pub async fn run(&self, instance: bollard::Docker) -> Vec<Result<(), JobFailure>> {
-        let image_tag = self.image.tag();
-        let runner = DockerCommandRunner::try_new(
-            instance,
-            self.image.clone(),
+    pub async fn run(&mut self, instance: bollard::Docker) -> Vec<Result<(), JobFailure>> {
+        let TestSuiteOptions {
+            time_limit,
+            mem_limit,
+            build_image,
+            remove_image,
+        } = self.options;
+
+        // Take ownership of the `Image` instance stored in `Self`
+        let image = std::mem::replace(&mut self.image, None)
+            .expect("TestSuite instance not fully constructed");
+        let image_tag = image.tag();
+        let runner = DockerCommandRunner::try_new(instance, image, {
             DockerCommandRunnerOptions {
-                mem_limit: self.mem_limit,
-                build_image: self.build_image,
+                mem_limit,
+                build_image,
+                remove_image,
                 binds: self.binds.clone(),
                 ..Default::default()
-            },
-        )
+            }
+        })
         .await
         .unwrap_or_else(|e| panic!("Failed to create command runner `{}`: {}", &image_tag, e));
 
@@ -496,8 +520,7 @@ impl TestSuite {
                 case.exec.iter().for_each(|step| {
                     t.add_step(Step::new_with_timeout(
                         Capturable::new(sh![step]),
-                        self.time_limit
-                            .map(|n| std::time::Duration::from_secs(n as u64)),
+                        time_limit.map(|n| std::time::Duration::from_secs(n as u64)),
                     ));
                 });
                 t.expected(&case.expected_out);
@@ -873,11 +896,11 @@ mod test_suite {
     #[test]
     fn golem_no_volume() -> Result<()> {
         block_on(async {
-            let image_name = "golem";
+            let image_name = "golem_no_volume";
             // Repo directory in the host FS.
             let host_repo_dir = PathBuf::from(r"../golem");
 
-            let ts = TestSuite::from_config(
+            let mut ts = TestSuite::from_config(
                 Image::Dockerfile {
                     tag: image_name.to_owned(),
                     path: host_repo_dir,
@@ -911,6 +934,7 @@ mod test_suite {
                     time_limit: None,
                     mem_limit: None,
                     build_image: true,
+                    remove_image: true,
                 },
             )?;
 
@@ -927,7 +951,7 @@ mod test_suite {
             // Repo directory in the host FS.
             let host_repo_dir = PathBuf::from(r"../golem");
 
-            let ts = TestSuite::from_config(
+            let mut ts = TestSuite::from_config(
                 Image::Dockerfile {
                     tag: image_name.to_owned(),
                     path: host_repo_dir, // public: c# gives repo remote, rust clone and unzip
@@ -962,9 +986,10 @@ mod test_suite {
                     .collect(),
                 },
                 TestSuiteOptions {
-                    time_limit: None,  // private
-                    mem_limit: None,   // private
-                    build_image: true, // private
+                    time_limit: None,   // private
+                    mem_limit: None,    // private
+                    build_image: true,  // private
+                    remove_image: true, // private
                 },
             )?;
 
