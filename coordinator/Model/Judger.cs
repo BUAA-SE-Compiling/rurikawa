@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.ComponentModel.DataAnnotations.Schema;
 using System.Threading.Channels;
 using System.Threading.Tasks;
 using Karenia.Rurikawa.Helpers;
@@ -67,6 +68,7 @@ namespace Karenia.Rurikawa.Models.Judger {
         /// </summary>
         public readonly string repo;
 
+        [Column(TypeName = "jsonb")]
         public readonly JobConfig config;
     }
 
