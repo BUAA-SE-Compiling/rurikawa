@@ -5,6 +5,7 @@ using System.Threading.Channels;
 using System.Threading.Tasks;
 using Karenia.Rurikawa.Helpers;
 
+#nullable disable
 namespace Karenia.Rurikawa.Models.Judger {
     /// <summary>
     /// A runner of a specific testing task.
@@ -122,3 +123,4 @@ namespace Karenia.Rurikawa.Models.Judger {
         }
     }
 }
+#nullable restore

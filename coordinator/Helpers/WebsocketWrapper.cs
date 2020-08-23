@@ -15,9 +15,9 @@ namespace Karenia.Rurikawa.Helpers {
     public class JsonWebsocketWrapper<TRecvMessage, TSendMessage> {
         public JsonWebsocketWrapper(
             WebSocket socket,
-            JsonSerializerOptions serializerOptions = null,
+            JsonSerializerOptions? serializerOptions = null,
             int defaultBufferSize = 8192,
-            ILogger<JsonWebsocketWrapper<TRecvMessage, TSendMessage>> logger = null
+            ILogger<JsonWebsocketWrapper<TRecvMessage, TSendMessage>>? logger = null
         ) {
             this.socket = socket;
             this.serializerOptions = serializerOptions;
@@ -29,8 +29,8 @@ namespace Karenia.Rurikawa.Helpers {
 
         readonly WebSocket socket;
         readonly CancellationToken closeToken = new CancellationToken();
-        readonly JsonSerializerOptions serializerOptions;
-        ILogger<JsonWebsocketWrapper<TRecvMessage, TSendMessage>> logger;
+        readonly JsonSerializerOptions? serializerOptions;
+        readonly ILogger<JsonWebsocketWrapper<TRecvMessage, TSendMessage>>? logger;
 
         byte[] recvBuffer;
 
