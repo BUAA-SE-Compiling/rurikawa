@@ -15,10 +15,7 @@ namespace Karenia.Rurikawa.Models.Judger {
     /// </summary>
     [JsonDiscriminator("new_job")]
     public class NewJobServerMsg : ServerMsg {
-        public string Id { get; set; }
-
-        [JsonPropertyName("pkg_uri")]
-        public string PackageUri { get; set; }
+        public Job Job { get; set; }
     }
 
     /// <summary>

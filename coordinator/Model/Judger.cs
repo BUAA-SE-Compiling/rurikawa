@@ -5,7 +5,6 @@ using System.Threading.Channels;
 using System.Threading.Tasks;
 using Karenia.Rurikawa.Helpers;
 
-#nullable disable
 namespace Karenia.Rurikawa.Models.Judger {
     /// <summary>
     /// A runner of a specific testing task.
@@ -64,63 +63,32 @@ namespace Karenia.Rurikawa.Models.Judger {
     /// A job to be run, which involves 1 test suite and 1 repo to be tested.
     /// </summary>
     public class Job {
-        public readonly string imageName;
+        public Job(ulong id, string repo, string? branch, string testName) {
+            Id = id;
+            Repo = repo;
+            Branch = branch;
+            TestName = testName;
+        }
+
+        /// <summary>
+        /// A globally unique identifier of this job.
+        /// </summary>
+        public ulong Id { get; private set; }
 
         /// <summary>
         /// Git remote address for the repo being tested,
         /// to be cloned and unzipped by the backend.
         /// </summary>
-        public readonly string repo;
-
-        [Column(TypeName = "jsonb")]
-        public readonly JobConfig config;
-    }
-
-    public class JobConfig {
-        /// <summary>
-        /// Directory containing the source files and stdin files of the test suite.
-        /// </summary>
-        public string sourceDir;
+        public string Repo { get; set; }
 
         /// <summary>
-        /// Directory containing the stdout files of the test suite.
+        /// The branch of that repo to be tested. Omit to use the default branch.
         /// </summary>
-        public string outDir;
+        public string? Branch { get; set; }
 
         /// <summary>
-        /// Names of the test files, without extensions.
+        /// The job suite to test.
         /// </summary>
-        public List<string> tests;
-
-        public uint? timeLimit;
-        public uint? memLimit;
-        public bool buildImage;
-
-        public readonly List<VolumeBind> binds;
-    }
-
-    public class VolumeBind {
-        /// <summary>
-        /// Absolute/Relative `from` path (in the host machine).
-        /// </summary>
-        public string from;
-
-        /// <summary>
-        /// Absolute to path (in the container).
-        /// </summary>
-        public string to;
-
-        /// <summary>
-        /// Extra options for this bind. Leave a new `String` for empty.
-        /// For details see [here](https://docs.rs/bollard/0.7.2/bollard/service/struct.HostConfig.html#structfield.binds).
-        /// </summary>
-        public string options;
-
-        public VolumeBind(string from, string to, string options) {
-            this.from = from;
-            this.to = to;
-            this.options = options;
-        }
+        public string TestName { get; set; }
     }
 }
-#nullable restore
