@@ -411,13 +411,6 @@ impl TestSuite {
         public_cfg: JudgerPublicConfig,
         options: TestSuiteOptions,
     ) -> Result<Self> {
-        let TestSuiteOptions {
-            time_limit,
-            mem_limit,
-            build_image,
-            remove_image,
-            ..
-        } = &options;
         let test_cases = private_cfg
             .tests
             .iter()

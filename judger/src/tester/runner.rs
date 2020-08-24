@@ -10,7 +10,7 @@ use names::{Generator, Name};
 use std::default::Default;
 #[cfg(unix)]
 use std::os::unix::process::ExitStatusExt;
-use std::{collections::HashMap, process::ExitStatus};
+use std::process::ExitStatus;
 use tokio::process::Command;
 
 /// An evaluation environment for commands.
