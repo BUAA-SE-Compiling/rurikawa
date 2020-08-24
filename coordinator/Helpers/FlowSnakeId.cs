@@ -1,4 +1,5 @@
 using System;
+using System.Diagnostics.CodeAnalysis;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
@@ -8,15 +9,21 @@ namespace Karenia.Rurikawa.Helpers {
     /// <summary>
     /// FlowSnake is a time-sortable unique ID generator based on Twitter Snowflake.
     /// </summary>
-    public struct FlowSnake : IEquatable<FlowSnake> {
-        const int TIMESTAMP_BITS = 42;
-        const int WORKER_ID_BITS = 12;
+    public struct FlowSnake : IEquatable<FlowSnake>, IComparable<FlowSnake>, IComparable<long> {
+        const int TIMESTAMP_BITS = 48;
+        const int WORKER_ID_BITS = 8;
         const int SEQUENCE_BITS = 10;
 
-        static readonly int WORKER_ID = System.Diagnostics.Process.GetCurrentProcess().Id;
-        static int sequenceNumber = 0;
         static readonly char[] alphabet = "0123456789abcdefghjkmnpqrstuwxyz".ToCharArray();
         static readonly byte[] charToBase32 = new byte[] { 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 255, 255, 255, 255, 255, 255, 255, 10, 11, 12, 13, 14, 15, 16, 17, 255, 18, 19, 255, 20, 21, 255, 22, 23, 24, 25, 26, 255, 27, 28, 29, 30, 31, 255, 255, 255, 255, 255, 255, 10, 11, 12, 13, 14, 15, 16, 17, 255, 18, 19, 255, 20, 21, 255, 22, 23, 24, 25, 26, 255, 27, 28, 29, 30, 31 };
+
+        static readonly ThreadLocal<int> workerId = new ThreadLocal<int>(() =>
+            // some kind of hash result of process and thread ids
+            System.Diagnostics.Process.GetCurrentProcess().Id * 19260817
+            + Thread.CurrentThread.ManagedThreadId
+        );
+        static readonly ThreadLocal<long> lastGeneration = new ThreadLocal<long>(() => 0);
+        static readonly ThreadLocal<int> sequenceNumber = new ThreadLocal<int>(() => 0);
 
         static readonly DateTimeOffset UnixEpoch = new DateTime(1970, 1, 1, 0, 0, 0, DateTimeKind.Utc);
 
@@ -34,8 +41,24 @@ namespace Karenia.Rurikawa.Helpers {
 
         public FlowSnake Generate() {
             var time = DateTimeOffset.Now.ToUnixTimeMilliseconds();
-            var seq = Interlocked.Increment(ref sequenceNumber);
-            return new FlowSnake(time, WORKER_ID, seq);
+
+            int seq;
+            if (time == lastGeneration.Value) {
+                // because this value is thread-local, we don't need to worry about
+                // race conditions
+                seq = sequenceNumber.Value;
+                sequenceNumber.Value = seq + 1;
+                if (seq >= (1 << SEQUENCE_BITS))
+                    throw new OverflowException("Sequence number overflow!");
+            } else {
+                seq = 0;
+                sequenceNumber.Value = 1;
+            }
+            lastGeneration.Value = time;
+
+            var worker = workerId.Value;
+
+            return new FlowSnake(time, worker, seq);
         }
 
         public FlowSnake(string val) {
@@ -59,10 +82,16 @@ namespace Karenia.Rurikawa.Helpers {
             return sb.ToString();
         }
 
+        public DateTimeOffset ExtractTime() {
+            return DateTimeOffset.FromUnixTimeMilliseconds(Num >> (SEQUENCE_BITS + WORKER_ID_BITS));
+        }
+
         public static implicit operator long(FlowSnake i) {
             return i.Num;
         }
 
+
+        #region Comparisons
         public override bool Equals(object? obj) {
             return obj is FlowSnake snake && Equals(snake);
         }
@@ -75,6 +104,14 @@ namespace Karenia.Rurikawa.Helpers {
             return HashCode.Combine(Num);
         }
 
+        public int CompareTo([AllowNull] long other) {
+            return this.Num.CompareTo(other);
+        }
+
+        public int CompareTo([AllowNull] FlowSnake other) {
+            return this.Num.CompareTo(other.Num);
+        }
+
         public static bool operator ==(FlowSnake left, FlowSnake right) {
             return left.Equals(right);
         }
@@ -82,6 +119,56 @@ namespace Karenia.Rurikawa.Helpers {
         public static bool operator !=(FlowSnake left, FlowSnake right) {
             return !(left == right);
         }
+
+        public static bool operator <(FlowSnake left, FlowSnake right) {
+            return left.CompareTo(right) < 0;
+        }
+
+        public static bool operator <=(FlowSnake left, FlowSnake right) {
+            return left.CompareTo(right) <= 0;
+        }
+
+        public static bool operator >(FlowSnake left, FlowSnake right) {
+            return left.CompareTo(right) > 0;
+        }
+
+        public static bool operator >=(FlowSnake left, FlowSnake right) {
+            return left.CompareTo(right) >= 0;
+        }
+
+        public static bool operator <(long left, FlowSnake right) {
+            return left.CompareTo(right) < 0;
+        }
+
+        public static bool operator <=(long left, FlowSnake right) {
+            return left.CompareTo(right) <= 0;
+        }
+
+        public static bool operator >(long left, FlowSnake right) {
+            return left.CompareTo(right) > 0;
+        }
+
+        public static bool operator >=(long left, FlowSnake right) {
+            return left.CompareTo(right) >= 0;
+        }
+
+        public static bool operator <(FlowSnake left, long right) {
+            return left.CompareTo(right) < 0;
+        }
+
+        public static bool operator <=(FlowSnake left, long right) {
+            return left.CompareTo(right) <= 0;
+        }
+
+        public static bool operator >(FlowSnake left, long right) {
+            return left.CompareTo(right) > 0;
+        }
+
+        public static bool operator >=(FlowSnake left, long right) {
+            return left.CompareTo(right) >= 0;
+        }
+        #endregion
+
     }
 
     public class FlowSnakeJsonConverter : JsonConverter<FlowSnake> {
