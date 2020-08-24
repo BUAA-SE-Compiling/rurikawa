@@ -9,7 +9,7 @@ namespace Karenia.Rurikawa.Models.Account {
         Root,
     }
 
-    public class Account {
+    public class UserAccount {
         public string Username { get; set; }
 
         public byte[] HashedPassword { get; set; }
@@ -23,7 +23,7 @@ namespace Karenia.Rurikawa.Models.Account {
     /// <summary>
     /// The class used for storing user profiles.
     /// </summary>
-    public class UserProfile {
+    public class Profile {
         public string Username { get; set; }
         public string? Email { get; set; }
         public string? StudentId { get; set; }
@@ -34,13 +34,16 @@ namespace Karenia.Rurikawa.Models.Account {
     /// Refresh Tokens for users
     /// </summary>
     public class TokenEntry {
-        public TokenEntry(string username, string accessToken) {
+        public TokenEntry(string username, string accessToken, string? tokenName, DateTimeOffset? expires) {
             Username = username;
             AccessToken = accessToken;
+            TokenName = tokenName;
+            Expires = expires;
         }
 
         public string Username { get; set; }
         public string AccessToken { get; set; }
+        public string? TokenName { get; set; }
         public DateTimeOffset? Expires { get; set; }
     }
 }
