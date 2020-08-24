@@ -10,8 +10,8 @@ namespace Karenia.Rurikawa.Helpers {
     /// FlowSnake is a time-sortable unique ID generator based on Twitter Snowflake.
     /// </summary>
     public struct FlowSnake : IEquatable<FlowSnake>, IComparable<FlowSnake>, IComparable<long> {
-        const int TIMESTAMP_BITS = 48;
-        const int WORKER_ID_BITS = 8;
+        const int TIMESTAMP_BITS = 46;
+        const int WORKER_ID_BITS = 10;
         const int SEQUENCE_BITS = 10;
 
         static readonly char[] alphabet = "0123456789abcdefghjkmnpqrstuwxyz".ToCharArray();
