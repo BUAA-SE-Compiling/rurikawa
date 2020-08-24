@@ -4,6 +4,7 @@ using System.ComponentModel.DataAnnotations.Schema;
 using System.Threading.Channels;
 using System.Threading.Tasks;
 using Karenia.Rurikawa.Helpers;
+using Karenia.Rurikawa.Models.Test;
 
 namespace Karenia.Rurikawa.Models.Judger {
     /// <summary>
@@ -63,17 +64,42 @@ namespace Karenia.Rurikawa.Models.Judger {
     /// A job to be run, which involves 1 test suite and 1 repo to be tested.
     /// </summary>
     public class Job {
-        public Job(ulong id, string repo, string? branch, string testName) {
+        public Job(
+            long id,
+            string repo,
+            string? branch,
+            string testName,
+            HashSet<string> tests
+        ) {
+            Id = new FlowSnake(id);
+            Repo = repo;
+            Branch = branch;
+            TestName = testName;
+            Tests = tests;
+        }
+
+        public Job(
+            FlowSnake id,
+            string repo,
+            string? branch,
+            string testName,
+            HashSet<string> tests) {
             Id = id;
             Repo = repo;
             Branch = branch;
             TestName = testName;
+            Tests = tests;
         }
 
         /// <summary>
         /// A globally unique identifier of this job.
         /// </summary>
-        public ulong Id { get; private set; }
+        public FlowSnake Id { get; private set; }
+
+        /// <summary>
+        /// The account that created this job
+        /// </summary>
+        public string Account { get; set; }
 
         /// <summary>
         /// Git remote address for the repo being tested,
@@ -90,5 +116,47 @@ namespace Karenia.Rurikawa.Models.Judger {
         /// The job suite to test.
         /// </summary>
         public string TestName { get; set; }
+
+        /// <summary>
+        /// The test cases selected for this job
+        /// </summary>
+        public HashSet<string> Tests { get; set; }
+
+        /// <summary>
+        /// The current (last seen) stage of this test
+        /// </summary>
+        public JobStage Stage { get; set; }
+
+        [Column(TypeName = "jsonb")]
+        public Dictionary<string, TestResult>? results { get; set; }
+    }
+
+    /// <summary>
+    /// Represents a single judger added to the system
+    /// </summary>
+    public class JudgerEntry {
+        public JudgerEntry(
+            string id,
+            string? alternateName,
+            HashSet<string>? tags = null) {
+            Id = id;
+            AlternateName = alternateName;
+            Tags = tags;
+        }
+
+        /// <summary>
+        /// The ID (and token) of this Judger
+        /// </summary>
+        public string Id { get; set; }
+
+        /// <summary>
+        /// The alternative name of this Judger
+        /// </summary>
+        public string? AlternateName { get; set; }
+
+        /// <summary>
+        /// The tags added to this Judger
+        /// </summary>
+        public HashSet<string>? Tags { get; set; }
     }
 }

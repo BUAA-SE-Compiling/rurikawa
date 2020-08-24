@@ -1,5 +1,6 @@
 using System.Text.Json.Serialization;
 using Dahomey.Json.Attributes;
+using Karenia.Rurikawa.Models.Test;
 
 #nullable disable
 namespace Karenia.Rurikawa.Models.Judger {
@@ -32,13 +33,7 @@ namespace Karenia.Rurikawa.Models.Judger {
     [JsonDiscriminator("job_result")]
     public class JobResultMsg : ClientMsg { }
 
-    public enum JobStage {
-        Created,
-        Cloning,
-        Compiling,
-        Testing,
-        Finished
-    }
+
 
     /// <summary>
     /// Message that reports the progress of a single job in judger.
