@@ -43,7 +43,7 @@ namespace Karenia.Rurikawa.Helpers {
             var time = DateTimeOffset.Now.ToUnixTimeMilliseconds();
 
             int seq;
-            if (time == lastGeneration.Value) {
+            if (time <= lastGeneration.Value) {
                 // because this value is thread-local, we don't need to worry about
                 // race conditions
                 seq = sequenceNumber.Value;
