@@ -9,7 +9,7 @@ using Microsoft.EntityFrameworkCore.ChangeTracking;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
 
-#nullable disable
+#pragma warning disable CS8618  
 namespace Karenia.Rurikawa.Models {
     public class RurikawaDb : DbContext {
         /// <summary>
@@ -24,7 +24,7 @@ namespace Karenia.Rurikawa.Models {
 
         public DbSet<TestSuite> TestSuites { get; set; }
 
-        public DbSet<TestSuite> Accounts { get; set; }
+        public DbSet<Account.Account> Accounts { get; set; }
 
 
         protected override void OnConfiguring(DbContextOptionsBuilder opt) {

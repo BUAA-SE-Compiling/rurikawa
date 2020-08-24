@@ -2,9 +2,18 @@ using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations.Schema;
 using Karenia.Rurikawa.Helpers;
 
+#pragma warning disable CS8618  
 namespace Karenia.Rurikawa.Models.Test {
     public class TestSuite {
+        /// <summary>
+        /// The name of this test suite
+        /// </summary>
         public string Name { get; set; }
+
+        /// <summary>
+        /// The description of this test suite, written in Markdown
+        /// </summary>
+        public string Description { get; set; }
 
     }
 

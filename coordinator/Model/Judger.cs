@@ -6,6 +6,7 @@ using System.Threading.Tasks;
 using Karenia.Rurikawa.Helpers;
 using Karenia.Rurikawa.Models.Test;
 
+#pragma warning disable CS8618  
 namespace Karenia.Rurikawa.Models.Judger {
     /// <summary>
     /// A runner of a specific testing task.
