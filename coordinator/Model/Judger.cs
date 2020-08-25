@@ -70,13 +70,16 @@ namespace Karenia.Rurikawa.Models.Judger {
             string repo,
             string? branch,
             string testName,
-            HashSet<string> tests
-        ) {
+            List<string> tests,
+            JobStage stage = default,
+            Dictionary<string, TestResult>? results = null) {
             Id = new FlowSnake(id);
             Repo = repo;
             Branch = branch;
             TestName = testName;
             Tests = tests;
+            Stage = stage;
+            Results = results;
         }
 
         public Job(
@@ -84,12 +87,16 @@ namespace Karenia.Rurikawa.Models.Judger {
             string repo,
             string? branch,
             string testName,
-            HashSet<string> tests) {
+            List<string> tests,
+            JobStage stage,
+            Dictionary<string, TestResult>? results) {
             Id = id;
             Repo = repo;
             Branch = branch;
             TestName = testName;
             Tests = tests;
+            Stage = stage;
+            Results = results;
         }
 
         /// <summary>
@@ -121,7 +128,7 @@ namespace Karenia.Rurikawa.Models.Judger {
         /// <summary>
         /// The test cases selected for this job
         /// </summary>
-        public HashSet<string> Tests { get; set; }
+        public List<string> Tests { get; set; }
 
         /// <summary>
         /// The current (last seen) stage of this test
@@ -129,7 +136,7 @@ namespace Karenia.Rurikawa.Models.Judger {
         public JobStage Stage { get; set; }
 
         [Column(TypeName = "jsonb")]
-        public Dictionary<string, TestResult>? results { get; set; }
+        public Dictionary<string, TestResult>? Results { get; set; }
     }
 
     /// <summary>
@@ -139,10 +146,12 @@ namespace Karenia.Rurikawa.Models.Judger {
         public JudgerEntry(
             string id,
             string? alternateName,
-            HashSet<string>? tags = null) {
+            List<string>? tags = null,
+             bool acceptUntaggedJobs = false) {
             Id = id;
             AlternateName = alternateName;
             Tags = tags;
+            AcceptUntaggedJobs = acceptUntaggedJobs;
         }
 
         /// <summary>
@@ -158,6 +167,8 @@ namespace Karenia.Rurikawa.Models.Judger {
         /// <summary>
         /// The tags added to this Judger
         /// </summary>
-        public HashSet<string>? Tags { get; set; }
+        public List<string>? Tags { get; set; }
+
+        public bool AcceptUntaggedJobs { get; set; }
     }
 }

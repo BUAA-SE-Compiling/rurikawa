@@ -7,6 +7,7 @@ using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.HttpsPolicy;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
@@ -29,7 +30,15 @@ namespace Karenia.Rurikawa.Coordinator {
                 .AddInMemoryClients(Config.GetClients())
                 .AddInMemoryApiResources(Config.GetApiResources());
 
-            services.AddDbContext<Models.RurikawaDb>();
+            var pgsqlLinkParams = Environment.GetEnvironmentVariable("rk_pgsql_link");
+
+            services.AddDbContext<Models.RurikawaDb>(options => {
+                options.UseNpgsql(
+                //    pgsqlLinkParams
+                "."
+                );
+            }
+);
             services.AddSingleton<JudgerCoordinatorService>();
             services.AddRouting(options => { options.LowercaseUrls = true; });
             services.AddControllers();

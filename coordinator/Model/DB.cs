@@ -15,6 +15,10 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 #pragma warning disable CS8618
 namespace Karenia.Rurikawa.Models {
     public class RurikawaDb : DbContext {
+        public RurikawaDb(DbContextOptions ctx) : base(ctx) {
+        }
+
+
         /// <summary>
         /// All jobs added to this judging system
         /// </summary>
@@ -51,6 +55,7 @@ namespace Karenia.Rurikawa.Models {
             modelBuilder.Entity<UserAccount>().HasKey(x => x.Username);
             modelBuilder.Entity<Profile>().HasKey(x => x.Username);
             modelBuilder.Entity<TokenEntry>().HasKey(x => x.AccessToken);
+            modelBuilder.Entity<TestSuite>().HasKey(x => x.Name);
 
             modelBuilder.Entity<Job>().HasIndex(x => x.Id);
             modelBuilder.Entity<Job>().HasIndex(x => x.Account);
@@ -65,9 +70,10 @@ namespace Karenia.Rurikawa.Models {
             modelBuilder.Entity<TokenEntry>().HasIndex(x => x.Expires);
             modelBuilder.Entity<TokenEntry>().HasIndex(x => x.Username);
             modelBuilder.Entity<TokenEntry>().HasIndex(x => x.TokenName);
+            modelBuilder.Entity<TestSuite>().HasIndex(x => x.Name);
 
             modelBuilder.Entity<Job>().Property(x => x.Id).HasConversion(flowSnakeConverter);
-            modelBuilder.Entity<JudgerEntry>().Property(x => x.Id).HasConversion(flowSnakeConverter);
+            // modelBuilder.Entity>().Property(x => x.Id).HasConversion(flowSnakeConverter);
         }
     }
 }
