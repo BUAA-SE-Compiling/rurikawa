@@ -341,8 +341,6 @@ pub struct JudgerPrivateConfig {
     pub src_dir: PathBuf,
     /// Directory of test `stdout` files on the host machine.
     pub out_dir: PathBuf,
-    /// File names of tests.
-    pub tests: Vec<String>,
     /// `host-src:container-dest` volume bindings for the container.
     /// For details see [here](https://docs.rs/bollard/0.7.2/bollard/service/struct.HostConfig.html#structfield.binds).
     pub binds: Option<Vec<Bind>>,
@@ -362,6 +360,8 @@ pub struct TestCase {
 /// Initialization options for `Testsuite`.
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct TestSuiteOptions {
+    /// File names of tests.
+    pub tests: Vec<String>,
     /// Time limit of a step, in seconds.
     pub time_limit: Option<usize>,
     // TODO: Use this field.
@@ -376,6 +376,7 @@ pub struct TestSuiteOptions {
 impl Default for TestSuiteOptions {
     fn default() -> Self {
         TestSuiteOptions {
+            tests: vec![],
             time_limit: None,
             mem_limit: None,
             build_image: false,
@@ -411,7 +412,7 @@ impl TestSuite {
         public_cfg: JudgerPublicConfig,
         options: TestSuiteOptions,
     ) -> Result<Self> {
-        let test_cases = private_cfg
+        let test_cases = options
             .tests
             .iter()
             .map(|name| -> Result<TestCase> {
@@ -487,6 +488,7 @@ impl TestSuite {
             mem_limit,
             build_image,
             remove_image,
+            ..
         } = self.options;
 
         // Take ownership of the `Image` instance stored in `Self`
@@ -901,7 +903,6 @@ mod test_suite {
                 JudgerPrivateConfig {
                     src_dir: PathBuf::from(r"golem/src"),
                     out_dir: PathBuf::from(r"../golem/out"),
-                    tests: ["succ"].iter().map(|s| s.to_string()).collect(),
                     binds: None,
                 },
                 JudgerPublicConfig {
@@ -924,6 +925,7 @@ mod test_suite {
                     .collect(),
                 },
                 TestSuiteOptions {
+                    tests: ["succ"].iter().map(|s| s.to_string()).collect(),
                     time_limit: None,
                     mem_limit: None,
                     build_image: true,
@@ -950,9 +952,8 @@ mod test_suite {
                     path: host_repo_dir, // public: c# gives repo remote, rust clone and unzip
                 },
                 JudgerPrivateConfig {
-                    src_dir: PathBuf::from(r"/src"),                         // private
-                    out_dir: PathBuf::from(r"../golem/out"),                 // private
-                    tests: ["succ"].iter().map(|s| s.to_string()).collect(), // private
+                    src_dir: PathBuf::from(r"/src"),         // private
+                    out_dir: PathBuf::from(r"../golem/out"), // private
                     binds: Some(vec![Bind {
                         from: PathBuf::from(r"../golem/src"), // private
                         to: PathBuf::from(r"/src"),           // private
@@ -979,10 +980,11 @@ mod test_suite {
                     .collect(),
                 },
                 TestSuiteOptions {
-                    time_limit: None,   // private
-                    mem_limit: None,    // private
-                    build_image: true,  // private
-                    remove_image: true, // private
+                    tests: ["succ"].iter().map(|s| s.to_string()).collect(), // private
+                    time_limit: None,                                        // private
+                    mem_limit: None,                                         // private
+                    build_image: true,                                       // private
+                    remove_image: true,                                      // private
                 },
             )?;
 

@@ -1,8 +1,8 @@
 [package]
-name = "rurikawa-judger"
-version = "0.1.0"
 authors = ["Rynco Maekawa <lynzrand@outlook.com>"]
 edition = "2018"
+name = "rurikawa-judger"
+version = "0.1.0"
 
 [[bin]]
 name = "rurikawa"
@@ -10,38 +10,36 @@ path = "src/main.rs"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 [dependencies]
-clap = "3.0.0-beta.1"
-serde = { version = "1.0.115", features = ["derive"] }
-serde_json = "1.0.57"
-toml = "0.5.6"
-# shiplift = "0.6"
-tungstenite = "0.11.1"
-tokio-tungstenite = "0.11.0"
-difference = "2.0.0"
-# subprocess = "0.2.4"
-libc = "0.2.76"
-tokio = { version = "0.2.22", features = [
-    "time",
-    "io-util",
-    "process",
-    "stream",
-    "rt-threaded",
-    "macros",
-] }
-async-trait = "0.1.38"
-futures = "0.3.5"
-bollard = "0.8.0"
-names = "0.11.0"
-log = "*"
-fern = "0.6.0"
 anyhow = "*"
-http = "*"
-reqwest = "0.10.7"
-ctrlc = "3.1.6"
+async-trait = "0.1.38"
+bollard = "0.8.0"
 chrono = "0.4.15"
-hyper = { version = "0.13.7", features = ["stream"] }
+clap = "3.0.0-beta.1"
+ctrlc = "3.1.6"
+difference = "2.0.0"
+fern = "0.6.0"
+futures = "0.3.5"
+http = "*"
+hyper = {version = "0.13.7", features = ["stream"]}
+libc = "0.2.76"
+log = "*"
+names = "0.11.0"
+reqwest = "0.10.7"
+serde = {version = "1.0.115", features = ["derive"]}
+serde_json = "1.0.57"
 tar = "0.4.29"
+tokio = {version = "0.2.22", features = [
+  "time",
+  "io-util",
+  "process",
+  "stream",
+  "rt-threaded",
+  "macros",
+]}
+tokio-tungstenite = "0.11.0"
+toml = "0.5.6"
+tungstenite = "0.11.1"
 
 [dev-dependencies]
-tokio-test = "0.2.1"
 pretty_assertions = "0.6.1"
+tokio-test = "0.2.1"
