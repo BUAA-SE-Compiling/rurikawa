@@ -33,8 +33,6 @@ namespace Karenia.Rurikawa.Models.Judger {
     [JsonDiscriminator("job_result")]
     public class JobResultMsg : ClientMsg { }
 
-
-
     /// <summary>
     /// Message that reports the progress of a single job in judger.
     /// </summary>

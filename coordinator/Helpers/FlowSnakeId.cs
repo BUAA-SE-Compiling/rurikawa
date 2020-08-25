@@ -15,26 +15,34 @@ namespace Karenia.Rurikawa.Helpers {
         const int SEQUENCE_BITS = 18;
 
         static readonly char[] alphabet = "0123456789abcdefghjkmnpqrstuwxyz".ToCharArray();
-        static readonly byte[] charToBase32 = new byte[] { 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 255, 255, 255, 255, 255, 255, 255, 10, 11, 12, 13, 14, 15, 16, 17, 255, 18, 19, 255, 20, 21, 255, 22, 23, 24, 25, 26, 255, 27, 28, 29, 30, 31, 255, 255, 255, 255, 255, 255, 10, 11, 12, 13, 14, 15, 16, 17, 255, 18, 19, 255, 20, 21, 255, 22, 23, 24, 25, 26, 255, 27, 28, 29, 30, 31 };
+        static readonly byte[] charToBase32 = new byte[] {
+            255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255,
+            255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255,
+            255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9,
+            255, 255, 255, 255, 255, 255, 255, 10, 11, 12, 13, 14, 15, 16, 17, 255, 18, 19, 255, 20,
+            21, 255, 22, 23, 24, 25, 26, 255, 27, 28, 29, 30, 31, 255, 255, 255, 255, 255, 255, 10, 11,
+            12, 13, 14, 15, 16, 17, 255, 18, 19, 255, 20, 21, 255, 22, 23, 24, 25, 26, 255, 27, 28, 29,
+            30, 31
+        };
 
         static readonly ThreadLocal<int> workerId = new ThreadLocal<int>(() =>
             // some kind of hash result of process and thread ids
-            System.Diagnostics.Process.GetCurrentProcess().Id * 19260817
+            (System.Diagnostics.Process.GetCurrentProcess().Id * 19260817)
             + Thread.CurrentThread.ManagedThreadId
         );
+
         static readonly ThreadLocal<long> lastGeneration = new ThreadLocal<long>(() => 0);
         static readonly ThreadLocal<int> sequenceNumber = new ThreadLocal<int>(() => 0);
         static Random prng = new Random();
-        static readonly DateTimeOffset UnixEpoch = new DateTime(1970, 1, 1, 0, 0, 0, DateTimeKind.Utc);
+        static readonly DateTimeOffset UnixEpoch =
+            new DateTime(1970, 1, 1, 0, 0, 0, DateTimeKind.Utc);
 
-        public FlowSnake(long num) {
-            Num = num;
-        }
+        public FlowSnake(long num) => Num = num;
 
         public FlowSnake(long time, int worker, int seq) {
             Num = ((time) << (WORKER_ID_BITS + SEQUENCE_BITS))
-            | (((long)worker & ((1 << WORKER_ID_BITS) - 1)) << SEQUENCE_BITS)
-            | ((long)seq & ((1 << SEQUENCE_BITS) - 1));
+                | (((long)worker & ((1 << WORKER_ID_BITS) - 1)) << SEQUENCE_BITS)
+                | ((long)seq & ((1 << SEQUENCE_BITS) - 1));
         }
 
         public long Num { get; }
@@ -48,8 +56,9 @@ namespace Karenia.Rurikawa.Helpers {
                 // race conditions
                 seq = sequenceNumber.Value;
                 sequenceNumber.Value = seq + 1;
-                if (seq >= (1 << SEQUENCE_BITS))
+                if (seq >= (1 << SEQUENCE_BITS)) {
                     throw new OverflowException("Sequence number overflow!");
+                }
             } else {
                 seq = prng.Next((1 << SEQUENCE_BITS) - (1 << (SEQUENCE_BITS - 2)));
                 sequenceNumber.Value = seq + 1;
@@ -62,8 +71,11 @@ namespace Karenia.Rurikawa.Helpers {
         }
 
         public FlowSnake(string val) {
-            if (val.Length != 13)
-                throw new ArgumentException($"Expected string length: 13, got: {val.Length}");
+            if (val.Length != 13) {
+                throw new ArgumentException(
+                    $"Expected string length: 13, got: {val.Length}"
+                );
+            }
             long num = 0;
             for (int i = 0; i < 13; i++) {
                 num <<= 5;
@@ -82,107 +94,85 @@ namespace Karenia.Rurikawa.Helpers {
             return sb.ToString();
         }
 
-        public DateTimeOffset ExtractTime() {
-            return DateTimeOffset.FromUnixTimeSeconds(Num >> (SEQUENCE_BITS + WORKER_ID_BITS));
-        }
+        public DateTimeOffset ExtractTime() =>
+            DateTimeOffset.FromUnixTimeSeconds(
+                Num >> (SEQUENCE_BITS + WORKER_ID_BITS)
+            );
 
-        public static implicit operator long(FlowSnake i) {
-            return i.Num;
-        }
+        public static implicit operator long(FlowSnake i) => i.Num;
 
 
         #region Comparisons
-        public override bool Equals(object? obj) {
-            return obj is FlowSnake snake && Equals(snake);
-        }
+        public override bool Equals(object? obj) =>
+            obj is FlowSnake snake && Equals(snake);
 
-        public bool Equals(FlowSnake other) {
-            return Num == other.Num;
-        }
+        public bool Equals(FlowSnake other) => Num == other.Num;
 
-        public override int GetHashCode() {
-            return HashCode.Combine(Num);
-        }
+        public override int GetHashCode() => HashCode.Combine(Num);
 
-        public int CompareTo([AllowNull] long other) {
-            return this.Num.CompareTo(other);
-        }
+        public int CompareTo([AllowNull] long other) => Num.CompareTo(other);
 
-        public int CompareTo([AllowNull] FlowSnake other) {
-            return this.Num.CompareTo(other.Num);
-        }
+        public int CompareTo([AllowNull] FlowSnake other) => Num.CompareTo(other.Num);
 
-        public static bool operator ==(FlowSnake left, FlowSnake right) {
-            return left.Equals(right);
-        }
+        public static bool operator ==(FlowSnake left, FlowSnake right) =>
+            left.Equals(right);
 
-        public static bool operator !=(FlowSnake left, FlowSnake right) {
-            return !(left == right);
-        }
+        public static bool operator !=(FlowSnake left, FlowSnake right) =>
+            !(left == right);
 
-        public static bool operator <(FlowSnake left, FlowSnake right) {
-            return left.CompareTo(right) < 0;
-        }
+        public static bool operator <(FlowSnake left, FlowSnake right) =>
+            left.CompareTo(right) < 0;
 
-        public static bool operator <=(FlowSnake left, FlowSnake right) {
-            return left.CompareTo(right) <= 0;
-        }
+        public static bool operator <=(FlowSnake left, FlowSnake right) =>
+            left.CompareTo(right) <= 0;
 
-        public static bool operator >(FlowSnake left, FlowSnake right) {
-            return left.CompareTo(right) > 0;
-        }
+        public static bool operator >(FlowSnake left, FlowSnake right) =>
+            left.CompareTo(right) > 0;
 
-        public static bool operator >=(FlowSnake left, FlowSnake right) {
-            return left.CompareTo(right) >= 0;
-        }
+        public static bool operator >=(FlowSnake left, FlowSnake right) =>
+            left.CompareTo(right) >= 0;
 
-        public static bool operator <(long left, FlowSnake right) {
-            return left.CompareTo(right) < 0;
-        }
+        public static bool operator <(long left, FlowSnake right) =>
+            left.CompareTo(right) < 0;
 
-        public static bool operator <=(long left, FlowSnake right) {
-            return left.CompareTo(right) <= 0;
-        }
+        public static bool operator <=(long left, FlowSnake right) =>
+            left.CompareTo(right) <= 0;
 
-        public static bool operator >(long left, FlowSnake right) {
-            return left.CompareTo(right) > 0;
-        }
+        public static bool operator >(long left, FlowSnake right) =>
+            left.CompareTo(right) > 0;
 
-        public static bool operator >=(long left, FlowSnake right) {
-            return left.CompareTo(right) >= 0;
-        }
+        public static bool operator >=(long left, FlowSnake right) =>
+            left.CompareTo(right) >= 0;
 
-        public static bool operator <(FlowSnake left, long right) {
-            return left.CompareTo(right) < 0;
-        }
+        public static bool operator <(FlowSnake left, long right) =>
+            left.CompareTo(right) < 0;
 
-        public static bool operator <=(FlowSnake left, long right) {
-            return left.CompareTo(right) <= 0;
-        }
+        public static bool operator <=(FlowSnake left, long right) =>
+            left.CompareTo(right) <= 0;
 
-        public static bool operator >(FlowSnake left, long right) {
-            return left.CompareTo(right) > 0;
-        }
+        public static bool operator >(FlowSnake left, long right) =>
+            left.CompareTo(right) > 0;
 
-        public static bool operator >=(FlowSnake left, long right) {
-            return left.CompareTo(right) >= 0;
-        }
+        public static bool operator >=(FlowSnake left, long right) =>
+            left.CompareTo(right) >= 0;
+
         #endregion
-
     }
 
     public class FlowSnakeJsonConverter : JsonConverter<FlowSnake> {
         private readonly bool writeAsString;
 
-        public FlowSnakeJsonConverter(bool writeAsString = true) {
+        public FlowSnakeJsonConverter(bool writeAsString = true) =>
             this.writeAsString = writeAsString;
-        }
 
-        public override bool CanConvert(Type typeToConvert) {
-            return typeToConvert == typeof(FlowSnake);
-        }
+        public override bool CanConvert(Type typeToConvert) =>
+            typeToConvert == typeof(FlowSnake);
 
-        public override FlowSnake Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options) {
+        public override FlowSnake Read(
+            ref Utf8JsonReader reader,
+            Type typeToConvert,
+            JsonSerializerOptions options
+        ) {
             if (reader.TryGetInt64(out var ul)) {
                 return new FlowSnake(ul);
             } else {
@@ -191,7 +181,11 @@ namespace Karenia.Rurikawa.Helpers {
             }
         }
 
-        public override void Write(Utf8JsonWriter writer, FlowSnake value, JsonSerializerOptions options) {
+        public override void Write(
+            Utf8JsonWriter writer,
+            FlowSnake value,
+            JsonSerializerOptions options
+        ) {
             if (writeAsString) {
                 writer.WriteStringValue(value.ToString());
             } else {
