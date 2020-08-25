@@ -8,6 +8,7 @@ using AsyncPrimitives;
 using Karenia.Rurikawa.Helpers;
 using Karenia.Rurikawa.Models;
 using Karenia.Rurikawa.Models.Judger;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 
 namespace Karenia.Rurikawa.Coordinator.Services {
@@ -18,10 +19,10 @@ namespace Karenia.Rurikawa.Coordinator.Services {
     /// </summary>
     public class JudgerCoordinatorService {
         public JudgerCoordinatorService(
-            RurikawaDb db,
-            Logger<JudgerCoordinatorService> logger
+            IServiceScopeFactory serviceProvider,
+            ILogger<JudgerCoordinatorService> logger
         ) {
-            this.db = db;
+            this.serviceProvider = serviceProvider;
             this.logger = logger;
         }
 
@@ -37,9 +38,15 @@ namespace Karenia.Rurikawa.Coordinator.Services {
         /// </summary>
         readonly SemaphoreSlim connectionLock = new SemaphoreSlim(1);
 
-        private readonly RurikawaDb db;
-        private readonly Logger<JudgerCoordinatorService> logger;
+        private readonly IServiceScopeFactory serviceProvider;
+        private readonly ILogger<JudgerCoordinatorService> logger;
 
+        /// <summary>
+        /// Get database inside a scoped connection.
+        /// </summary>
+        /// <param name="scope">The scope requested</param>
+        private RurikawaDb GetDb(IServiceScope scope) =>
+            scope.ServiceProvider.GetRequiredService<RurikawaDb>();
 
         /// <summary>
         /// A channel indicating finished judgers' Id.

@@ -22,8 +22,16 @@ namespace Karenia.Rurikawa.Coordinator {
 
         // This method gets called by the runtime. Use this method to add services to the container.
         public void ConfigureServices(IServiceCollection services) {
+            services.AddLogging();
+
+            // TODO: Change to real identity stuff
+            services.AddIdentityServer()
+                .AddInMemoryClients(Config.GetClients())
+                .AddInMemoryApiResources(Config.GetApiResources());
+
             services.AddDbContext<Models.RurikawaDb>();
             services.AddSingleton<JudgerCoordinatorService>();
+            services.AddRouting(options => { options.LowercaseUrls = true; });
             services.AddControllers();
         }
 
@@ -33,10 +41,11 @@ namespace Karenia.Rurikawa.Coordinator {
                 app.UseDeveloperExceptionPage();
             }
 
-            app.UseHttpsRedirection();
+            if (!env.IsDevelopment()) { app.UseHttpsRedirection(); }
 
             app.UseRouting();
-
+            // TODO: Add websocket options
+            app.UseWebSockets();
             app.UseAuthorization();
 
             // Add websocket acceptor
