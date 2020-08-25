@@ -10,9 +10,9 @@ namespace Karenia.Rurikawa.Helpers {
     /// FlowSnake is a time-sortable unique ID generator based on Twitter Snowflake.
     /// </summary>
     public struct FlowSnake : IEquatable<FlowSnake>, IComparable<FlowSnake>, IComparable<long> {
-        const int TIMESTAMP_BITS = 46;
-        const int WORKER_ID_BITS = 10;
-        const int SEQUENCE_BITS = 10;
+        const int TIMESTAMP_BITS = 34;
+        const int WORKER_ID_BITS = 12;
+        const int SEQUENCE_BITS = 18;
 
         static readonly char[] alphabet = "0123456789abcdefghjkmnpqrstuwxyz".ToCharArray();
         static readonly byte[] charToBase32 = new byte[] { 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 255, 255, 255, 255, 255, 255, 255, 10, 11, 12, 13, 14, 15, 16, 17, 255, 18, 19, 255, 20, 21, 255, 22, 23, 24, 25, 26, 255, 27, 28, 29, 30, 31, 255, 255, 255, 255, 255, 255, 10, 11, 12, 13, 14, 15, 16, 17, 255, 18, 19, 255, 20, 21, 255, 22, 23, 24, 25, 26, 255, 27, 28, 29, 30, 31 };
@@ -24,7 +24,7 @@ namespace Karenia.Rurikawa.Helpers {
         );
         static readonly ThreadLocal<long> lastGeneration = new ThreadLocal<long>(() => 0);
         static readonly ThreadLocal<int> sequenceNumber = new ThreadLocal<int>(() => 0);
-
+        static Random prng = new Random();
         static readonly DateTimeOffset UnixEpoch = new DateTime(1970, 1, 1, 0, 0, 0, DateTimeKind.Utc);
 
         public FlowSnake(long num) {
@@ -32,15 +32,15 @@ namespace Karenia.Rurikawa.Helpers {
         }
 
         public FlowSnake(long time, int worker, int seq) {
-            Num = (time & (1 << TIMESTAMP_BITS - 1)) << (WORKER_ID_BITS + SEQUENCE_BITS)
-            | ((long)worker & (1 << WORKER_ID_BITS - 1)) << SEQUENCE_BITS
-            | ((long)seq & (1 << SEQUENCE_BITS) - 1);
+            Num = ((time) << (WORKER_ID_BITS + SEQUENCE_BITS))
+            | (((long)worker & ((1 << WORKER_ID_BITS) - 1)) << SEQUENCE_BITS)
+            | ((long)seq & ((1 << SEQUENCE_BITS) - 1));
         }
 
         public long Num { get; }
 
-        public FlowSnake Generate() {
-            var time = DateTimeOffset.Now.ToUnixTimeMilliseconds();
+        public static FlowSnake Generate() {
+            var time = DateTimeOffset.Now.ToUnixTimeSeconds();
 
             int seq;
             if (time <= lastGeneration.Value) {
@@ -51,8 +51,8 @@ namespace Karenia.Rurikawa.Helpers {
                 if (seq >= (1 << SEQUENCE_BITS))
                     throw new OverflowException("Sequence number overflow!");
             } else {
-                seq = 0;
-                sequenceNumber.Value = 1;
+                seq = prng.Next((1 << SEQUENCE_BITS) - (1 << (SEQUENCE_BITS - 2)));
+                sequenceNumber.Value = seq + 1;
             }
             lastGeneration.Value = time;
 
@@ -74,16 +74,16 @@ namespace Karenia.Rurikawa.Helpers {
 
         public override string ToString() {
             var sb = new StringBuilder(13);
-            int bit0 = (int)Num >> 60;
+            int bit0 = (int)(Num >> 60) & 31;
             sb.Append(alphabet[bit0]);
             for (int i = 11; i >= 0; i--) {
-                sb.Append(alphabet[(int)(Num >> (5 * i) & 256)]);
+                sb.Append(alphabet[(int)((Num >> (5 * i)) & 31)]);
             }
             return sb.ToString();
         }
 
         public DateTimeOffset ExtractTime() {
-            return DateTimeOffset.FromUnixTimeMilliseconds(Num >> (SEQUENCE_BITS + WORKER_ID_BITS));
+            return DateTimeOffset.FromUnixTimeSeconds(Num >> (SEQUENCE_BITS + WORKER_ID_BITS));
         }
 
         public static implicit operator long(FlowSnake i) {
