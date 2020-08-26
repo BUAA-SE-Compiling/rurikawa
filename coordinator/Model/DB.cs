@@ -75,6 +75,8 @@ namespace Karenia.Rurikawa.Models {
 
             modelBuilder.Entity<Job>().Property(x => x.Id)
                 .HasConversion(flowSnakeConverter);
+            modelBuilder.Entity<Job>().Property(x => x.TestSuite)
+                .HasConversion(flowSnakeConverter);
             modelBuilder.Entity<TestSuite>().Property(x => x.Id)
                 .HasConversion(flowSnakeConverter);
         }
