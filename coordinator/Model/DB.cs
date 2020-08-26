@@ -51,15 +51,15 @@ namespace Karenia.Rurikawa.Models {
 
             base.OnModelCreating(modelBuilder);
             modelBuilder.Entity<Job>().HasKey(x => x.Id);
+            modelBuilder.Entity<TestSuite>().HasKey(x => x.Id);
             modelBuilder.Entity<JudgerEntry>().HasKey(x => x.Id);
             modelBuilder.Entity<UserAccount>().HasKey(x => x.Username);
             modelBuilder.Entity<Profile>().HasKey(x => x.Username);
             modelBuilder.Entity<TokenEntry>().HasKey(x => x.AccessToken);
-            modelBuilder.Entity<TestSuite>().HasKey(x => x.Name);
 
             modelBuilder.Entity<Job>().HasIndex(x => x.Id);
             modelBuilder.Entity<Job>().HasIndex(x => x.Account);
-            modelBuilder.Entity<Job>().HasIndex(x => x.TestName);
+            modelBuilder.Entity<Job>().HasIndex(x => x.TestSuite);
             modelBuilder.Entity<JudgerEntry>().HasIndex(x => x.Id);
             modelBuilder.Entity<JudgerEntry>().HasIndex(x => x.Tags);
             modelBuilder.Entity<UserAccount>().HasIndex(x => x.Username);
@@ -71,9 +71,12 @@ namespace Karenia.Rurikawa.Models {
             modelBuilder.Entity<TokenEntry>().HasIndex(x => x.Username);
             modelBuilder.Entity<TokenEntry>().HasIndex(x => x.TokenName);
             modelBuilder.Entity<TestSuite>().HasIndex(x => x.Name);
+            modelBuilder.Entity<TestSuite>().HasIndex(x => x.Id);
 
-            modelBuilder.Entity<Job>().Property(x => x.Id).HasConversion(flowSnakeConverter);
-            // modelBuilder.Entity>().Property(x => x.Id).HasConversion(flowSnakeConverter);
+            modelBuilder.Entity<Job>().Property(x => x.Id)
+                .HasConversion(flowSnakeConverter);
+            modelBuilder.Entity<TestSuite>().Property(x => x.Id)
+                .HasConversion(flowSnakeConverter);
         }
     }
 }

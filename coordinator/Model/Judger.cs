@@ -69,14 +69,14 @@ namespace Karenia.Rurikawa.Models.Judger {
             long id,
             string repo,
             string? branch,
-            string testName,
+            FlowSnake testSuite,
             List<string> tests,
             JobStage stage = default,
             Dictionary<string, TestResult>? results = null) {
             Id = new FlowSnake(id);
             Repo = repo;
             Branch = branch;
-            TestName = testName;
+            TestSuite = testSuite;
             Tests = tests;
             Stage = stage;
             Results = results;
@@ -86,14 +86,14 @@ namespace Karenia.Rurikawa.Models.Judger {
             FlowSnake id,
             string repo,
             string? branch,
-            string testName,
+            FlowSnake testSuite,
             List<string> tests,
             JobStage stage,
             Dictionary<string, TestResult>? results) {
             Id = id;
             Repo = repo;
             Branch = branch;
-            TestName = testName;
+            TestSuite = testSuite;
             Tests = tests;
             Stage = stage;
             Results = results;
@@ -123,7 +123,7 @@ namespace Karenia.Rurikawa.Models.Judger {
         /// <summary>
         /// The job suite to test.
         /// </summary>
-        public string TestName { get; set; }
+        public FlowSnake TestSuite { get; set; }
 
         /// <summary>
         /// The test cases selected for this job

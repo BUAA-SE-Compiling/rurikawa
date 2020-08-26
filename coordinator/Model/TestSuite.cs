@@ -6,6 +6,11 @@ using Karenia.Rurikawa.Helpers;
 namespace Karenia.Rurikawa.Models.Test {
     public class TestSuite {
         /// <summary>
+        /// The unique identifier of this test suite
+        /// </summary>
+        public FlowSnake Id { get; set; }
+
+        /// <summary>
         /// The name of this test suite
         /// </summary>
         public string Name { get; set; }
@@ -15,7 +20,29 @@ namespace Karenia.Rurikawa.Models.Test {
         /// </summary>
         public string Description { get; set; }
 
+        /// <summary>
+        /// Tags of this test suite, e.g. which kind of judger should it run in.
+        /// </summary>
         public List<string>? Tags { get; set; }
+
+        public string PackageFileId { get; set; }
+
+        public int? TimeLimit { get; set; }
+
+        public int? MemoryLimit { get; set; }
+
+        /// <summary>
+        /// All tests inside test suite, grouped by user-defined keys.
+        /// <br/>
+        /// Tests that do not belong to any group should be put in a
+        /// "default" group.
+        /// </summary>
+        public Dictionary<string, List<string>> TestGroups { get; set; }
+
+        /// <summary>
+        /// Name of the default group in test groups
+        /// </summary>
+        public static readonly string DEFAULT_GROUP_NAME = "default";
     }
 
     public class TestJob {
