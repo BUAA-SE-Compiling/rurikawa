@@ -1,3 +1,6 @@
 [submodule "golem"]
 	path = golem
 	url = git://github.com/rami3l/golem.git
+[submodule "3rd_party/SplitStream"]
+	path = 3rd_party/SplitStream
+	url = https://github.com/01010101lzy/SplitStream.git
