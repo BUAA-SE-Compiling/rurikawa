@@ -15,5 +15,6 @@ namespace Karenia.Rurikawa.Coordinator.Controllers {
             _logger = logger;
         }
 
+
     }
 }

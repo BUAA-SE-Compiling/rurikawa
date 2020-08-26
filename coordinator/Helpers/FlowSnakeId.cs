@@ -70,7 +70,11 @@ namespace Karenia.Rurikawa.Helpers {
             return new FlowSnake(time, worker, seq);
         }
 
-        public FlowSnake(string val) {
+        public FlowSnake(string val, bool parseEmptyAsZero = false) {
+            if (parseEmptyAsZero && (val == null || val == "")) {
+                Num = 0;
+                return;
+            }
             if (val.Length != 13) {
                 throw new ArgumentException(
                     $"Expected string length: 13, got: {val.Length}"
@@ -177,7 +181,7 @@ namespace Karenia.Rurikawa.Helpers {
                 return new FlowSnake(ul);
             } else {
                 var s = reader.GetString();
-                return new FlowSnake(s);
+                return new FlowSnake(s, true);
             }
         }
 

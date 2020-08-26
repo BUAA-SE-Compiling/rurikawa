@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations.Schema;
+using System.Text.RegularExpressions;
 using Karenia.Rurikawa.Helpers;
 
 #pragma warning disable CS8618  
@@ -43,6 +44,43 @@ namespace Karenia.Rurikawa.Models.Test {
         /// Name of the default group in test groups
         /// </summary>
         public static readonly string DEFAULT_GROUP_NAME = "default";
+
+        static readonly Regex extRegex =
+            new Regex(@"^(?<filename>.+?\.)?(?<ext>(?:tar.)?[^.]+)$");
+
+        public TestSuite(FlowSnake id, string name, string description, List<string>? tags, string packageFileId, int? timeLimit, int? memoryLimit, Dictionary<string, List<string>> testGroups) {
+            Id = id;
+            Name = name;
+            Description = description;
+            Tags = tags;
+            PackageFileId = packageFileId;
+            TimeLimit = timeLimit;
+            MemoryLimit = memoryLimit;
+            TestGroups = testGroups;
+        }
+
+        // Constructor for suites with no id specified yet
+        public TestSuite(string name, string description, List<string>? tags, string packageFileId, int? timeLimit, int? memoryLimit, Dictionary<string, List<string>> testGroups) {
+            Id = new FlowSnake(0);
+            Name = name;
+            Description = description;
+            Tags = tags;
+            PackageFileId = packageFileId;
+            TimeLimit = timeLimit;
+            MemoryLimit = memoryLimit;
+            TestGroups = testGroups;
+        }
+
+        public static string FormatFileName(string orig, FlowSnake id) {
+            var match = extRegex.Match(orig);
+            if (match.Success) {
+                var filename = match.Groups["filename"].Value;
+                var extension = match.Groups["ext"].Value;
+                return $"{filename}-{id}.{extension}";
+            } else {
+                return $"{id}.{orig}";
+            }
+        }
     }
 
     public class TestJob {
