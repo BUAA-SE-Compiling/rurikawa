@@ -5,6 +5,7 @@ using System.Text.Json;
 using System.Threading.Tasks;
 using Dahomey.Json;
 using Karenia.Rurikawa.Coordinator.Services;
+using Karenia.Rurikawa.Helpers;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.HttpsPolicy;
@@ -45,13 +46,18 @@ namespace Karenia.Rurikawa.Coordinator {
                     svc.GetService<ILogger<SingleBucketFileStorageService>>())
             );
             services.AddSingleton<JudgerCoordinatorService>();
-            services.AddSingleton<JsonSerializerOptions>(_ => {
-                var opt = new JsonSerializerOptions();
-                opt.SetupExtensions();
-                return opt;
-            });
+            services.AddSingleton<JsonSerializerOptions>(_ =>
+                SetupJsonSerializerOptions(new JsonSerializerOptions())
+            );
             services.AddRouting(options => { options.LowercaseUrls = true; });
-            services.AddControllers();
+            services.AddControllers().AddJsonOptions(opt => SetupJsonSerializerOptions(opt.JsonSerializerOptions));
+        }
+
+        public JsonSerializerOptions SetupJsonSerializerOptions(JsonSerializerOptions opt) {
+            opt.PropertyNamingPolicy = JsonNamingPolicy.CamelCase;
+            opt.Converters.Add(new FlowSnakeJsonConverter());
+            opt.SetupExtensions();
+            return opt;
         }
 
         // This method gets called by the runtime. Use this method to configure the HTTP request pipeline.

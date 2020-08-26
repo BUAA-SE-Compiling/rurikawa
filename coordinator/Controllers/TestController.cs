@@ -141,7 +141,6 @@ namespace Karenia.Rurikawa.Coordinator.Controllers {
                         case "readme.md":
                             logger.LogInformation("readme!");
                             desc = await ParseTestSuiteDesc(file);
-                            Console.WriteLine(desc);
                             break;
                         default:
                             break;

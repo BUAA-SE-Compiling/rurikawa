@@ -166,8 +166,9 @@ namespace Karenia.Rurikawa.Helpers {
     public class FlowSnakeJsonConverter : JsonConverter<FlowSnake> {
         private readonly bool writeAsString;
 
-        public FlowSnakeJsonConverter(bool writeAsString = true) =>
+        public FlowSnakeJsonConverter(bool writeAsString = true) {
             this.writeAsString = writeAsString;
+        }
 
         public override bool CanConvert(Type typeToConvert) =>
             typeToConvert == typeof(FlowSnake);
