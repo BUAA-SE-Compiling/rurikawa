@@ -38,6 +38,7 @@ namespace Karenia.Rurikawa.Models.Test {
         /// Tests that do not belong to any group should be put in a
         /// "default" group.
         /// </summary>
+        [Column(TypeName = "jsonb")]
         public Dictionary<string, List<string>> TestGroups { get; set; }
 
         /// <summary>
@@ -46,7 +47,7 @@ namespace Karenia.Rurikawa.Models.Test {
         public static readonly string DEFAULT_GROUP_NAME = "default";
 
         static readonly Regex extRegex =
-            new Regex(@"^(?<filename>.+?\.)?(?<ext>(?:tar.)?[^.]+)$");
+            new Regex(@"^(?:(?<filename>.+?)\.)?(?<ext>(?:tar.)?[^.]+)$");
 
         public TestSuite(FlowSnake id, string name, string description, List<string>? tags, string packageFileId, int? timeLimit, int? memoryLimit, Dictionary<string, List<string>> testGroups) {
             Id = id;
@@ -76,7 +77,7 @@ namespace Karenia.Rurikawa.Models.Test {
             if (match.Success) {
                 var filename = match.Groups["filename"].Value;
                 var extension = match.Groups["ext"].Value;
-                return $"{filename}-{id}.{extension}";
+                return $"{filename}.{id}.{extension}";
             } else {
                 return $"{id}.{orig}";
             }

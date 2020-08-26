@@ -1,7 +1,9 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Text.Json;
 using System.Threading.Tasks;
+using Dahomey.Json;
 using Karenia.Rurikawa.Coordinator.Services;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
@@ -30,16 +32,24 @@ namespace Karenia.Rurikawa.Coordinator {
                 .AddInMemoryClients(Config.GetClients())
                 .AddInMemoryApiResources(Config.GetApiResources());
 
-            var pgsqlLinkParams = Environment.GetEnvironmentVariable("rk_pgsql_link");
+            var pgsqlLinkParams = Configuration.GetValue("pgsqlLink", ".");
+            var testStorageParams = new SingleBucketFileStorageService.Params();
+            Configuration.GetSection("testStorage").Bind(testStorageParams);
 
             services.AddDbContext<Models.RurikawaDb>(options => {
-                options.UseNpgsql(
-                //    pgsqlLinkParams
-                "."
-                );
-            }
-);
+                options.UseNpgsql(pgsqlLinkParams);
+            });
+            services.AddSingleton(
+                svc => new SingleBucketFileStorageService(
+                    testStorageParams,
+                    svc.GetService<ILogger<SingleBucketFileStorageService>>())
+            );
             services.AddSingleton<JudgerCoordinatorService>();
+            services.AddSingleton<JsonSerializerOptions>(_ => {
+                var opt = new JsonSerializerOptions();
+                opt.SetupExtensions();
+                return opt;
+            });
             services.AddRouting(options => { options.LowercaseUrls = true; });
             services.AddControllers();
         }

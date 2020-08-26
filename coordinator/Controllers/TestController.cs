@@ -4,6 +4,7 @@ using System.IO;
 using System.Linq;
 using System.Text.Json;
 using System.Text.Unicode;
+using System.Threading;
 using System.Threading.Tasks;
 using Karenia.Rurikawa.Coordinator.Services;
 using Karenia.Rurikawa.Helpers;
@@ -12,6 +13,7 @@ using Karenia.Rurikawa.Models.Test;
 using MicroKnights.IO.Streams;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.WebUtilities;
 using Microsoft.Extensions.Logging;
 using SharpCompress.Readers;
 
@@ -19,7 +21,7 @@ namespace Karenia.Rurikawa.Coordinator.Controllers {
     [ApiController]
     [Route("api/v1/tests/")]
     public class TestApiController : ControllerBase {
-        private readonly ILogger<JudgerApiController> _logger;
+        private readonly ILogger<JudgerApiController> logger;
         private readonly RurikawaDb db;
         private readonly SingleBucketFileStorageService fs;
         private readonly JsonSerializerOptions? jsonOptions;
@@ -30,7 +32,7 @@ namespace Karenia.Rurikawa.Coordinator.Controllers {
             RurikawaDb db,
             SingleBucketFileStorageService fs,
             JsonSerializerOptions? jsonOptions) {
-            _logger = logger;
+            this.logger = logger;
             this.db = db;
             this.fs = fs;
             this.jsonOptions = jsonOptions;
@@ -45,12 +47,18 @@ namespace Karenia.Rurikawa.Coordinator.Controllers {
         /// <returns>Test suite spec</returns>
         [HttpPost]
         public async Task<IActionResult> PostNewTestSuite(
-            [FromHeader] string filename,
-            [FromHeader] long contentLength
+            [FromHeader] string filename
             ) {
+            if (!Request.ContentLength.HasValue) {
+                return BadRequest("Content length must be present in header");
+            } else if (Request.ContentLength == 0) {
+                return BadRequest("The request has an empty body!");
+            }
+            long contentLength = Request.ContentLength.Value;
             var id = FlowSnake.Generate();
             var newFilename = TestSuite.FormatFileName(filename, id);
             TestSuite testSuite;
+            logger.LogInformation("Begin uploading");
             try {
                 testSuite = await UploadAndParseTestSuite(
                     Request.Body,
@@ -61,7 +69,9 @@ namespace Karenia.Rurikawa.Coordinator.Controllers {
             } catch (EndOfStreamException e) {
                 return BadRequest(e.Message);
             }
+            logger.LogInformation("End uploading");
             await db.TestSuites.AddAsync(testSuite);
+            logger.LogInformation("DB updated");
             return Ok(testSuite);
             // throw new NotImplementedException();
         }
@@ -76,19 +86,22 @@ namespace Karenia.Rurikawa.Coordinator.Controllers {
             Stream fileStream,
             long len,
             FlowSnake id, string filename) {
-            using var baseStream = new ReadableSplitStream(fileStream);
-            using var split1 = baseStream.GetForwardReadOnlyStream();
-            using var split2 = baseStream.GetForwardReadOnlyStream();
+            var baseStream = new ReadableSplitStream(fileStream);
+            using (var split1 = baseStream.GetForwardReadOnlyStream())
+            using (var split2 = baseStream.GetForwardReadOnlyStream()) {
+                logger.LogInformation("Splitting streams");
+                await baseStream.StartReadAhead();
+                var res = await Task.WhenAll(
+                    UploadTestSuiteWrapped(split1, filename, len),
+                    Task.Run(() => ParseTestSuiteWrapped(split2, id))
+                );
+                logger.LogInformation("Finished");
+                var addr = (string)res[0];
+                var suite = (TestSuite)res[1];
 
-            var res = await Task.WhenAll(
-                UploadTestSuiteWrapped(split1, filename, len),
-                Task.Run(() => ParseTestSuiteWrapped(split2, id))
-            );
-            var addr = (string)res[0];
-            var suite = (TestSuite)res[1];
-
-            suite.PackageFileId = addr;
-            return suite;
+                suite.PackageFileId = addr;
+                return suite;
+            }
         }
 
         async Task<object> UploadTestSuiteWrapped(
@@ -106,34 +119,41 @@ namespace Karenia.Rurikawa.Coordinator.Controllers {
             => await ParseTestSuite(fileStream, id);
 
         async Task<TestSuite> ParseTestSuite(Stream fileStream, FlowSnake id) {
+            logger.LogInformation("Parse started");
             var opt = new ReaderOptions
             {
-                LeaveStreamOpen = true
+                LeaveStreamOpen = true,
             };
-            var reader = ReaderFactory.Open(fileStream);
-
             string desc = "";
             TestSuite? suite = null;
-
-            while (reader.MoveToNextEntry()) {
-                var entry = reader.Entry;
-                if (entry.IsDirectory) continue;
-                switch (entry.Key.ToLower()) {
-                    case "test.json":
-                        suite = await ParseTestSuiteJson(reader.OpenEntryStream());
-                        break;
-                    case "readme.md":
-                        desc = await ParseTestSuiteDesc(reader.OpenEntryStream());
-                        break;
-                    default:
-                        break;
+            using (var reader = ReaderFactory.Open(fileStream, opt)) {
+                logger.LogInformation("Stream started");
+                while (reader.MoveToNextEntry()) {
+                    var entry = reader.Entry;
+                    logger.LogInformation("Entry: {0}", entry.Key);
+                    // if (entry.IsDirectory) continue;
+                    using var file = reader.OpenEntryStream();
+                    switch (entry.Key.ToLower()) {
+                        case "testconf.json":
+                            logger.LogInformation("testconf!");
+                            suite = await ParseTestSuiteJson(file);
+                            break;
+                        case "readme.md":
+                            logger.LogInformation("readme!");
+                            desc = await ParseTestSuiteDesc(file);
+                            Console.WriteLine(desc);
+                            break;
+                        default:
+                            break;
+                    }
                 }
             }
-            fileStream.Close();
             if (suite == null) {
+                logger.LogInformation("Parse failed");
                 throw new EndOfStreamException("No test suite were found after reading the whole package!");
             }
             suite.Description = desc;
+            logger.LogInformation("Parse succeeded");
             return suite;
         }
 
