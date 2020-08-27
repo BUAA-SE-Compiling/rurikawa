@@ -33,7 +33,7 @@ namespace Karenia.Rurikawa.Coordinator {
                 .AddInMemoryClients(Config.GetClients())
                 .AddInMemoryApiResources(Config.GetApiResources());
 
-            var pgsqlLinkParams = Configuration.GetValue("pgsqlLink", ".");
+            var pgsqlLinkParams = Configuration.GetValue<string>("pgsqlLink");
             var testStorageParams = new SingleBucketFileStorageService.Params();
             Configuration.GetSection("testStorage").Bind(testStorageParams);
 

@@ -12,9 +12,7 @@ namespace Karenia.Rurikawa.Models.Account {
     public class UserAccount {
         public string Username { get; set; }
 
-        public byte[] HashedPassword { get; set; }
-
-        public byte[] Salt { get; set; }
+        public string HashedPassword { get; set; }
 
         public AccountKind Kind { get; set; }
     }
