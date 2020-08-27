@@ -4,6 +4,7 @@ using System.Linq;
 using System.Text.Json;
 using System.Threading.Tasks;
 using Dahomey.Json;
+using IdentityServer4.Stores;
 using Karenia.Rurikawa.Coordinator.Services;
 using Karenia.Rurikawa.Helpers;
 using Microsoft.AspNetCore.Builder;
@@ -31,13 +32,15 @@ namespace Karenia.Rurikawa.Coordinator {
             // TODO: Change to real identity stuff
             services.AddIdentityServer()
                 .AddInMemoryClients(Config.GetClients())
-                .AddInMemoryApiResources(Config.GetApiResources());
+                .AddInMemoryApiResources(Config.GetApiResources())
+                .AddResourceOwnerValidator<IdentityService>();
+            services.AddTransient<IRefreshTokenStore, RefreshTokenStore>();
 
             var pgsqlLinkParams = Configuration.GetValue<string>("pgsqlLink");
             var testStorageParams = new SingleBucketFileStorageService.Params();
             Configuration.GetSection("testStorage").Bind(testStorageParams);
 
-            services.AddDbContext<Models.RurikawaDb>(options => {
+            services.AddDbContextPool<Models.RurikawaDb>(options => {
                 options.UseNpgsql(pgsqlLinkParams);
             });
             services.AddSingleton(
@@ -46,6 +49,8 @@ namespace Karenia.Rurikawa.Coordinator {
                     svc.GetService<ILogger<SingleBucketFileStorageService>>())
             );
             services.AddSingleton<JudgerCoordinatorService>();
+            services.AddScoped<AccountService>();
+            services.AddScoped<IdentityService>();
             services.AddSingleton<JsonSerializerOptions>(_ =>
                 SetupJsonSerializerOptions(new JsonSerializerOptions())
             );

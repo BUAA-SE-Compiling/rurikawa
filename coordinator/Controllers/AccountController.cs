@@ -6,6 +6,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Logging;
 
 namespace Karenia.Rurikawa.Coordinator.Controllers {
+    [ApiController]
     [Route("api/v1/account")]
     public class AccountController : ControllerBase {
         private readonly ILogger<JudgerApiController> logger;

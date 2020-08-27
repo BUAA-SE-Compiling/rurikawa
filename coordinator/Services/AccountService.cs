@@ -1,4 +1,6 @@
+using System;
 using System.Linq;
+using System.Text;
 using System.Threading.Tasks;
 using BCrypt.Net;
 using Karenia.Rurikawa.Coordinator.Services;
@@ -74,6 +76,57 @@ namespace Karenia.Rurikawa.Coordinator.Services {
             account.HashedPassword = newHashedPassword;
             await db.SaveChangesAsync();
             return EditPasswordResult.Success;
+        }
+
+        const int TOKEN_LENGTH = 32;
+        readonly char[] TOKEN_ALPHABET = "0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ_+-.".ToCharArray();
+        public string GenerateToken() {
+            var sb = new StringBuilder(TOKEN_LENGTH);
+            for (int i = 0; i < TOKEN_LENGTH; i++) {
+                sb.Append(TOKEN_ALPHABET[System.Security.Cryptography.RandomNumberGenerator.GetInt32(TOKEN_ALPHABET.Length)]);
+            }
+            return sb.ToString();
+        }
+
+        public async Task<string> CreateNewAccessToken(
+            string username,
+            string? alternativeName,
+            DateTimeOffset? expireTime) {
+            var accessToken = GenerateToken();
+            db.AccessTokens.Add(new TokenEntry(username, accessToken, alternativeName, expireTime));
+            await db.SaveChangesAsync();
+            return accessToken;
+        }
+
+        public async Task<string> CreateNewRefreshToken(
+            string username,
+            DateTimeOffset? expireTime) {
+            var refreshToken = GenerateToken();
+            db.RefreshTokens.Add(new TokenEntry(username, refreshToken, null, expireTime));
+            await db.SaveChangesAsync();
+            return refreshToken;
+        }
+
+        /// <summary>
+        /// Find the corresponding account of this access token
+        /// </summary>
+        /// <param name="token"></param>
+        /// <returns>Account username, null if not found</returns>
+        public async Task<string?> GetUserByAccessToken(string token) {
+            var result = await db.AccessTokens.Where(t => t.AccessToken == token)
+                .SingleOrDefaultAsync();
+            return result?.Username;
+        }
+
+        /// <summary>
+        /// Find the corresponding account of this refresh token
+        /// </summary>
+        /// <param name="token"></param>
+        /// <returns>Account username, null if not found</returns>
+        public async Task<string?> GetUserByRefreshToken(string token) {
+            var result = await db.RefreshTokens.Where(t => t.AccessToken == token)
+                .SingleOrDefaultAsync();
+            return result?.Username;
         }
 
         public string HashPasswordWithGeneratedSalt(string password) {
