@@ -72,7 +72,8 @@ namespace Karenia.Rurikawa.Models.Judger {
             FlowSnake testSuite,
             List<string> tests,
             JobStage stage = default,
-            Dictionary<string, TestResult>? results = null) {
+            Dictionary<string, TestResult>? results = null
+        ) {
             Id = new FlowSnake(id);
             Repo = repo;
             Branch = branch;
@@ -89,7 +90,8 @@ namespace Karenia.Rurikawa.Models.Judger {
             FlowSnake testSuite,
             List<string> tests,
             JobStage stage,
-            Dictionary<string, TestResult>? results) {
+            Dictionary<string, TestResult>? results
+        ) {
             Id = id;
             Repo = repo;
             Branch = branch;
@@ -147,7 +149,8 @@ namespace Karenia.Rurikawa.Models.Judger {
             string id,
             string? alternateName,
             List<string>? tags = null,
-             bool acceptUntaggedJobs = false) {
+             bool acceptUntaggedJobs = false
+        ) {
             Id = id;
             AlternateName = alternateName;
             Tags = tags;
