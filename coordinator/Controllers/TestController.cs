@@ -71,6 +71,7 @@ namespace Karenia.Rurikawa.Coordinator.Controllers {
             }
             logger.LogInformation("End uploading");
             await db.TestSuites.AddAsync(testSuite);
+            await db.SaveChangesAsync();
             logger.LogInformation("DB updated");
             return Ok(testSuite);
             // throw new NotImplementedException();

@@ -9,7 +9,9 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Logging;
 
 namespace Karenia.Rurikawa.Coordinator.Controllers {
+    [ApiController]
     [Route("api/v1/job/")]
+    [Authorize("user")]
     public class JobController : ControllerBase {
         public JobController(ILogger<JobController> logger, RurikawaDb db) {
             this.logger = logger;
