@@ -12,7 +12,7 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace Karenia.Rurikawa.Coordinator.Migrations
 {
     [DbContext(typeof(RurikawaDb))]
-    [Migration("20200826150844_init")]
+    [Migration("20200827074224_init")]
     partial class init
     {
         protected override void BuildTargetModel(ModelBuilder modelBuilder)
@@ -26,176 +26,229 @@ namespace Karenia.Rurikawa.Coordinator.Migrations
             modelBuilder.Entity("Karenia.Rurikawa.Models.Account.Profile", b =>
                 {
                     b.Property<string>("Username")
+                        .HasColumnName("username")
                         .HasColumnType("text");
 
                     b.Property<string>("Email")
+                        .HasColumnName("email")
                         .HasColumnType("text");
 
                     b.Property<string>("StudentId")
+                        .HasColumnName("student_id")
                         .HasColumnType("text");
 
-                    b.HasKey("Username");
+                    b.HasKey("Username")
+                        .HasName("pk_profiles");
 
-                    b.HasIndex("Email");
+                    b.HasIndex("Email")
+                        .HasName("ix_profiles_email");
 
-                    b.HasIndex("Username");
+                    b.HasIndex("Username")
+                        .IsUnique()
+                        .HasName("ix_profiles_username");
 
-                    b.ToTable("Profiles");
+                    b.ToTable("profiles");
                 });
 
             modelBuilder.Entity("Karenia.Rurikawa.Models.Account.TokenEntry", b =>
                 {
                     b.Property<string>("AccessToken")
+                        .HasColumnName("access_token")
                         .HasColumnType("text");
 
                     b.Property<DateTimeOffset?>("Expires")
+                        .HasColumnName("expires")
                         .HasColumnType("timestamp with time zone");
 
                     b.Property<string>("TokenName")
+                        .HasColumnName("token_name")
                         .HasColumnType("text");
 
                     b.Property<string>("Username")
                         .IsRequired()
+                        .HasColumnName("username")
                         .HasColumnType("text");
 
-                    b.HasKey("AccessToken");
+                    b.HasKey("AccessToken")
+                        .HasName("pk_token_entry");
 
-                    b.HasIndex("AccessToken");
+                    b.HasIndex("AccessToken")
+                        .IsUnique()
+                        .HasName("ix_token_entry_access_token");
 
-                    b.HasIndex("Expires");
+                    b.HasIndex("Expires")
+                        .HasName("ix_token_entry_expires");
 
-                    b.HasIndex("TokenName");
+                    b.HasIndex("TokenName")
+                        .HasName("ix_token_entry_token_name");
 
-                    b.HasIndex("Username");
+                    b.HasIndex("Username")
+                        .HasName("ix_token_entry_username");
 
-                    b.ToTable("TokenEntry");
+                    b.ToTable("token_entry");
                 });
 
             modelBuilder.Entity("Karenia.Rurikawa.Models.Account.UserAccount", b =>
                 {
                     b.Property<string>("Username")
+                        .HasColumnName("username")
                         .HasColumnType("text");
 
-                    b.Property<byte[]>("HashedPassword")
+                    b.Property<string>("HashedPassword")
                         .IsRequired()
-                        .HasColumnType("bytea");
+                        .HasColumnName("hashed_password")
+                        .HasColumnType("text");
 
                     b.Property<int>("Kind")
+                        .HasColumnName("kind")
                         .HasColumnType("integer");
 
-                    b.Property<byte[]>("Salt")
-                        .IsRequired()
-                        .HasColumnType("bytea");
+                    b.HasKey("Username")
+                        .HasName("pk_accounts");
 
-                    b.HasKey("Username");
+                    b.HasIndex("Kind")
+                        .HasName("ix_accounts_kind");
 
-                    b.HasIndex("Kind");
+                    b.HasIndex("Username")
+                        .IsUnique()
+                        .HasName("ix_accounts_username");
 
-                    b.HasIndex("Username");
-
-                    b.ToTable("Accounts");
+                    b.ToTable("accounts");
                 });
 
             modelBuilder.Entity("Karenia.Rurikawa.Models.Judger.Job", b =>
                 {
                     b.Property<long>("Id")
+                        .HasColumnName("id")
                         .HasColumnType("bigint");
 
                     b.Property<string>("Account")
                         .IsRequired()
+                        .HasColumnName("account")
                         .HasColumnType("text");
 
                     b.Property<string>("Branch")
+                        .HasColumnName("branch")
                         .HasColumnType("text");
 
                     b.Property<string>("Repo")
                         .IsRequired()
+                        .HasColumnName("repo")
                         .HasColumnType("text");
 
                     b.Property<Dictionary<string, TestResult>>("Results")
+                        .HasColumnName("results")
                         .HasColumnType("jsonb");
 
                     b.Property<int>("Stage")
+                        .HasColumnName("stage")
                         .HasColumnType("integer");
 
                     b.Property<long>("TestSuite")
+                        .HasColumnName("test_suite")
                         .HasColumnType("bigint");
 
                     b.Property<List<string>>("Tests")
                         .IsRequired()
+                        .HasColumnName("tests")
                         .HasColumnType("text[]");
 
-                    b.HasKey("Id");
+                    b.HasKey("Id")
+                        .HasName("pk_jobs");
 
-                    b.HasIndex("Account");
+                    b.HasIndex("Account")
+                        .HasName("ix_jobs_account");
 
-                    b.HasIndex("Id");
+                    b.HasIndex("Id")
+                        .IsUnique()
+                        .HasName("ix_jobs_id");
 
-                    b.HasIndex("TestSuite");
+                    b.HasIndex("TestSuite")
+                        .HasName("ix_jobs_test_suite");
 
-                    b.ToTable("Jobs");
+                    b.ToTable("jobs");
                 });
 
             modelBuilder.Entity("Karenia.Rurikawa.Models.Judger.JudgerEntry", b =>
                 {
                     b.Property<string>("Id")
+                        .HasColumnName("id")
                         .HasColumnType("text");
 
                     b.Property<bool>("AcceptUntaggedJobs")
+                        .HasColumnName("accept_untagged_jobs")
                         .HasColumnType("boolean");
 
                     b.Property<string>("AlternateName")
+                        .HasColumnName("alternate_name")
                         .HasColumnType("text");
 
                     b.Property<List<string>>("Tags")
+                        .HasColumnName("tags")
                         .HasColumnType("text[]");
 
-                    b.HasKey("Id");
+                    b.HasKey("Id")
+                        .HasName("pk_judgers");
 
-                    b.HasIndex("Id");
+                    b.HasIndex("Id")
+                        .IsUnique()
+                        .HasName("ix_judgers_id");
 
-                    b.HasIndex("Tags");
+                    b.HasIndex("Tags")
+                        .HasName("ix_judgers_tags");
 
-                    b.ToTable("Judgers");
+                    b.ToTable("judgers");
                 });
 
             modelBuilder.Entity("Karenia.Rurikawa.Models.Test.TestSuite", b =>
                 {
                     b.Property<long>("Id")
+                        .HasColumnName("id")
                         .HasColumnType("bigint");
 
                     b.Property<string>("Description")
                         .IsRequired()
+                        .HasColumnName("description")
                         .HasColumnType("text");
 
                     b.Property<int?>("MemoryLimit")
+                        .HasColumnName("memory_limit")
                         .HasColumnType("integer");
 
                     b.Property<string>("Name")
                         .IsRequired()
+                        .HasColumnName("name")
                         .HasColumnType("text");
 
                     b.Property<string>("PackageFileId")
                         .IsRequired()
+                        .HasColumnName("package_file_id")
                         .HasColumnType("text");
 
                     b.Property<List<string>>("Tags")
+                        .HasColumnName("tags")
                         .HasColumnType("text[]");
 
                     b.Property<Dictionary<string, List<string>>>("TestGroups")
                         .IsRequired()
+                        .HasColumnName("test_groups")
                         .HasColumnType("jsonb");
 
                     b.Property<int?>("TimeLimit")
+                        .HasColumnName("time_limit")
                         .HasColumnType("integer");
 
-                    b.HasKey("Id");
+                    b.HasKey("Id")
+                        .HasName("pk_test_suites");
 
-                    b.HasIndex("Id");
+                    b.HasIndex("Id")
+                        .HasName("ix_test_suites_id");
 
-                    b.HasIndex("Name");
+                    b.HasIndex("Name")
+                        .IsUnique()
+                        .HasName("ix_test_suites_name");
 
-                    b.ToTable("TestSuites");
+                    b.ToTable("test_suites");
                 });
 #pragma warning restore 612, 618
         }

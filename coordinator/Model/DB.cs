@@ -6,6 +6,7 @@ using Karenia.Rurikawa.Helpers;
 using Karenia.Rurikawa.Models.Account;
 using Karenia.Rurikawa.Models.Judger;
 using Karenia.Rurikawa.Models.Test;
+using Marques.EFCore.SnakeCase;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.ChangeTracking;
 using Microsoft.EntityFrameworkCore.Infrastructure;
@@ -79,6 +80,8 @@ namespace Karenia.Rurikawa.Models {
                 .HasConversion(flowSnakeConverter);
             modelBuilder.Entity<TestSuite>().Property(x => x.Id)
                 .HasConversion(flowSnakeConverter);
+
+            modelBuilder.ToSnakeCase();
         }
     }
 }
