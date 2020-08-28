@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.Text.Json;
 using System.Text.Json.Serialization;
 using Microsoft.IdentityModel.Tokens;
 
@@ -9,7 +10,7 @@ namespace Karenia.Rurikawa.Models.Auth {
         public string ClientId { get; set; }
         public string ClientSecret { get; set; }
         [JsonExtensionData]
-        public Dictionary<string, string> ExtraInfo { get; set; }
+        public Dictionary<string, JsonElement> ExtraInfo { get; set; }
     }
 
     public class OAuth2Response {

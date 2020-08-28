@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Text.Json;
 using System.Threading.Tasks;
 using Karenia.Rurikawa.Coordinator.Services;
 using Karenia.Rurikawa.Models;
@@ -86,6 +87,19 @@ namespace Karenia.Rurikawa.Coordinator.Controllers {
         static readonly TimeSpan JwtAccessTokenLifespan = TimeSpan.FromHours(1);
         static readonly TimeSpan RefreshTokenLifespan = TimeSpan.FromDays(30);
 
+        private async Task<OAuth2Response> LoginUsingPassword(OAuth2Request msg) {
+            var username = ((JsonElement?)msg.ExtraInfo.GetValueOrDefault("username"))?.GetString();
+            var password = ((JsonElement?)msg.ExtraInfo.GetValueOrDefault("password"))?.GetString();
+            if (username == null || password == null)
+                throw new NotEnoughInformationException("Please provide both username and password!");
+            var account = await accountService.GetAccount(username);
+            var result = accountService.VerifyPassword(password, account.HashedPassword);
+            if (!result)
+                throw new InvalidLoginInformationException("Username or password is wrong");
+
+            return await GenerateOAuth2Response(msg.Scope, account);
+        }
+
         private async Task<OAuth2Response> GenerateOAuth2Response(string strScope, Models.Account.UserAccount account) {
             var scope = ParseScope(strScope);
             DateTimeOffset accessTokenExpireTime = DateTimeOffset.Now.Add(JwtAccessTokenLifespan);
@@ -108,21 +122,8 @@ namespace Karenia.Rurikawa.Coordinator.Controllers {
             };
         }
 
-        private async Task<OAuth2Response> LoginUsingPassword(OAuth2Request msg) {
-            var username = msg.ExtraInfo.GetValueOrDefault("username");
-            var password = msg.ExtraInfo.GetValueOrDefault("password");
-            if (username == null || password == null)
-                throw new NotEnoughInformationException("Please provide both username and password!");
-            var account = await accountService.GetAccount(username);
-            var result = accountService.VerifyPassword(password, account.HashedPassword);
-            if (!result)
-                throw new InvalidLoginInformationException("Username or password is wrong");
-
-            return await GenerateOAuth2Response(msg.Scope, account);
-        }
-
         private async Task<OAuth2Response> LoginUsingRefreshToken(OAuth2Request msg) {
-            var refreshToken = msg.ExtraInfo.GetValueOrDefault("refresh_token");
+            var refreshToken = ((JsonElement?)msg.ExtraInfo.GetValueOrDefault("refresh_token"))?.GetString(); ;
             if (refreshToken == null)
                 throw new NotEnoughInformationException("Please provide refresh_token!");
             var tokenEntry = await accountService.GetUserByRefreshToken(refreshToken);

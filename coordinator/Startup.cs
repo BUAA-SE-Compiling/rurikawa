@@ -1,3 +1,4 @@
+using System.Security.Cryptography.X509Certificates;
 using System.Text.Json;
 using Dahomey.Json;
 using Karenia.Rurikawa.Coordinator.Services;
@@ -25,8 +26,9 @@ namespace Karenia.Rurikawa.Coordinator {
             services.AddLogging();
 
             // TODO: add real certificate
-            var certificate = new System.Security.Cryptography.X509Certificates.X509Certificate2();
-            var signingKey = new X509SecurityKey(certificate);
+            var certificate = new X509Certificate2("dev.pfx");
+            var certificateKey = new X509SecurityKey(certificate);
+            var securityKey = new ECDsaSecurityKey(ECDsaCertificateExtensions.GetECDsaPrivateKey(certificate));
 
             services.AddAuthentication(opt => {
                 opt.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
@@ -37,7 +39,7 @@ namespace Karenia.Rurikawa.Coordinator {
                 opt.TokenValidationParameters = new TokenValidationParameters
                 {
                     ValidateIssuerSigningKey = true,
-                    IssuerSigningKey = signingKey,
+                    IssuerSigningKey = securityKey,
                     ValidateIssuer = false,
                     ValidateAudience = false
                 };
@@ -45,7 +47,7 @@ namespace Karenia.Rurikawa.Coordinator {
 
             services.AddSingleton<Models.Auth.AuthInfo>(_ => new Models.Auth.AuthInfo
             {
-                SigningKey = signingKey
+                SigningKey = securityKey
             });
 
             var pgsqlLinkParams = Configuration.GetValue<string>("pgsqlLink");
