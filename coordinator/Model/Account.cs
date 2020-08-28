@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations.Schema;
 
 #pragma warning disable CS8618  
@@ -32,16 +33,30 @@ namespace Karenia.Rurikawa.Models.Account {
     /// Refresh Tokens for users
     /// </summary>
     public class TokenEntry {
-        public TokenEntry(string username, string accessToken, string? tokenName, DateTimeOffset? expires) {
+        public TokenEntry(
+            string username,
+            string token,
+            DateTimeOffset issuedTime,
+            List<string> scope,
+            string? tokenName = null,
+            string? relatedToken = null,
+            DateTimeOffset? expires = null
+            ) {
             Username = username;
-            AccessToken = accessToken;
             TokenName = tokenName;
             Expires = expires;
+            Token = token;
+            RelatedToken = relatedToken;
+            IssuedTime = issuedTime;
+            Scope = scope;
         }
 
         public string Username { get; set; }
-        public string AccessToken { get; set; }
         public string? TokenName { get; set; }
+        public string Token { get; set; }
+        public List<string> Scope { get; set; }
+        public string? RelatedToken { get; set; }
+        public DateTimeOffset IssuedTime { get; set; }
         public DateTimeOffset? Expires { get; set; }
     }
 }

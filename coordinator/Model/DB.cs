@@ -56,7 +56,7 @@ namespace Karenia.Rurikawa.Models {
             modelBuilder.Entity<JudgerEntry>().HasKey(x => x.Id);
             modelBuilder.Entity<UserAccount>().HasKey(x => x.Username);
             modelBuilder.Entity<Profile>().HasKey(x => x.Username);
-            modelBuilder.Entity<TokenEntry>().HasKey(x => x.AccessToken);
+            modelBuilder.Entity<TokenEntry>().HasKey(x => x.Token);
 
             modelBuilder.Entity<Job>().HasIndex(x => x.Id).IsUnique();
             modelBuilder.Entity<Job>().HasIndex(x => x.Account);
@@ -67,7 +67,7 @@ namespace Karenia.Rurikawa.Models {
             modelBuilder.Entity<UserAccount>().HasIndex(x => x.Kind);
             modelBuilder.Entity<Profile>().HasIndex(x => x.Username).IsUnique();
             modelBuilder.Entity<Profile>().HasIndex(x => x.Email);
-            modelBuilder.Entity<TokenEntry>().HasIndex(x => x.AccessToken).IsUnique();
+            modelBuilder.Entity<TokenEntry>().HasIndex(x => x.Token).IsUnique();
             modelBuilder.Entity<TokenEntry>().HasIndex(x => x.Expires);
             modelBuilder.Entity<TokenEntry>().HasIndex(x => x.Username);
             modelBuilder.Entity<TokenEntry>().HasIndex(x => x.TokenName);
