@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
+using System.Linq;
 using System.Threading;
 using System.Threading.Channels;
 using System.Threading.Tasks;
@@ -9,6 +10,7 @@ using Karenia.Rurikawa.Helpers;
 using Karenia.Rurikawa.Models;
 using Karenia.Rurikawa.Models.Judger;
 using Karenia.Rurikawa.Models.Test;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 
@@ -85,12 +87,19 @@ namespace Karenia.Rurikawa.Coordinator.Services {
                         connectionLock.Release();
                     }
 
-                    // Tell JudgerQueue that the judger is ready.
-                    judger.Ready();
-                    // Add judger to waiting queue.
-                    await JudgerQueue.Writer.WriteAsync(judger.Id);
+                    /*
+                     * Note:
+                     *
+                     * We do not add judger to judger queue upon creation,
+                     * although it should be available. On the contrary, we rely
+                     * on the judger to send a ClientStatusMessage to declare it
+                     * is ready, and add it to queue at that time.
+                     */
 
-                    await wrapper.WaitUntilClose();
+                    using (var subscription = AssignObservables(auth, judger.Socket)) {
+                        await wrapper.WaitUntilClose();
+                    }
+
                     {
                         await connectionLock.WaitAsync();
                         connections.Remove(auth);
@@ -106,11 +115,37 @@ namespace Karenia.Rurikawa.Coordinator.Services {
             return false;
         }
 
-        async Task AssignObservables(string clientId, JudgerWebsocketWrapperTy client) {
-
+        IDisposable AssignObservables(string clientId, JudgerWebsocketWrapperTy client) {
+            return client.Messages.Subscribe((msg) => {
+                switch (msg) {
+                    case JobResultMsg msg1:
+                        OnJobResultMessage(clientId, msg1); break;
+                    case JobProgressMsg msg1:
+                        OnJobProgressMessage(clientId, msg1); break;
+                    case ClientStatusMsg msg1:
+                        OnJudgerStatusUpdateMessage(clientId, msg1); break;
+                    default:
+                        logger.LogCritical("Unable to handle message type {0}", msg.GetType().Name);
+                        break;
+                }
+            });
         }
 
         async void OnJudgerStatusUpdateMessage(string clientId, ClientStatusMsg msg) {
+
+        }
+
+        async void OnJobProgressMessage(string clientId, JobProgressMsg msg) {
+            // TODO: Send job progress to web clients
+            using var scope = serviceProvider.CreateScope();
+            var db = GetDb(scope);
+            var jobId = new FlowSnake(msg.Id);
+
+            var job = await db.Jobs.Where(j => j.Id == jobId).SingleAsync();
+            job.Stage = JobStage.Running;
+        }
+
+        async void OnJobResultMessage(string clientId, JobResultMsg msg) {
 
         }
 
@@ -138,72 +173,54 @@ namespace Karenia.Rurikawa.Coordinator.Services {
         }
 
         /// <summary>
-        /// Handle a single job.
+        /// Dispatch a single job to the given judger
         /// </summary>
-        /// <param name="job"></param>
-        /// <returns></returns>
-        async Task<TestResult?> HandleJob(Judger? judger, Job job) {
-            try {
-                TestResult? res = null;
-                if (judger != null) {
-                    // TODO: schedule job to judger & change job status
-                    // Send job to the judger.
-                    var resFut = judger.Run();
-                    // TODO: What happens if the judger fails to accomplish the job?
-                    // Send judger to the waiting queue.
-                    // If it cannot accept new jobs for some reason,
-                    // it will be discarded when TryGetNextUsableJudger. 
-                    var judgerEnqueueFut = JudgerQueue.Writer.WriteAsync(judger.Id);
-
-                    await judgerEnqueueFut;
-                    res = await resFut;
-                }
-                // TODO: put job into database
-                using (var scope = serviceProvider.CreateScope()) {
-                    var db = GetDb(scope);
-                    await db.Jobs.AddAsync(job);
-                    await db.SaveChangesAsync();
-                }
-                return res;
-            } catch {
-                // TODO: Other cases
-                throw new NotImplementedException();
-            }
+        async Task DispatchJob(Judger judger, Job job) {
+            await judger.Socket.SendMessage(new NewJobServerMsg()
+            {
+                Job = job
+            });
+            job.Stage = JobStage.Dispatched;
         }
 
         public async Task JobScheduleLoop() {
             // Wait while channel is not closed.
             while (await JobQueue.Reader.WaitToReadAsync()) {
-                var jobFut = JobQueue.Reader.ReadAsync();
-                var judgerFut = TryGetNextUsableJudger(true);
+                var job = await JobQueue.Reader.ReadAsync();
+                job.Stage = JobStage.Queued;
+                bool success = false;
 
-                var job = await jobFut;
-                var judger = await judgerFut;
-                var resFut = HandleJob(judger, job);
-
+                while (!success) {
+                    // Get the first usable judger
+                    var judger = await TryGetNextUsableJudger(true);
+                    if (judger == null) break;
+                    try {
+                        await DispatchJob(judger, job);
+                        success = true;
+                    } catch {
+                        // If any exception occurs (including but not limited 
+                        // to connection closed, web error, etc.), this try is 
+                        // considered as unsuccessful.
+                        success = false;
+                    }
+                    // If this try is unsuccessful, try a next one until
+                    // no judger is usable
+                }
+                // Save this job to database
                 using (var scope = serviceProvider.CreateScope()) {
                     var db = GetDb(scope);
-                    var rs = (await db.Jobs.FindAsync(job)).Results;
-                    if (rs == null) {
-                        throw new NullReferenceException();
-                    }
-                    var res = await resFut;
-                    if (res != null) {
-                        rs.Add(key, res);
-                    }
+                    db.Jobs.Add(job);
                     await db.SaveChangesAsync();
                 }
             }
         }
 
         public void MainLoop() {
-            Task.Factory.StartNew(async () => {
-                await JobScheduleLoop();
-            }, TaskCreationOptions.LongRunning);
+            Task.Factory.StartNew(JobScheduleLoop, TaskCreationOptions.LongRunning);
         }
 
-        public void AddJob(Job job) {
-            JobQueue.Writer.WriteAsync(job).GetAwaiter().GetResult();
+        public async Task AddJob(Job job) {
+            await JobQueue.Writer.WriteAsync(job);
         }
 
         public void Stop() {

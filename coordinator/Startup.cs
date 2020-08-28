@@ -97,6 +97,7 @@ namespace Karenia.Rurikawa.Coordinator {
             app.UseAuthentication();
             app.UseAuthorization();
 
+
             // Add websocket acceptor
             app.Use(async (ctx, next) => {
                 if (ctx.WebSockets.IsWebSocketRequest) {
@@ -105,6 +106,9 @@ namespace Karenia.Rurikawa.Coordinator {
                 }
                 await next();
             });
+
+            // pre-initialize long-running services
+            app.ApplicationServices.GetService<JudgerCoordinatorService>();
 
             app.UseEndpoints(endpoints => {
                 endpoints.MapControllers();
