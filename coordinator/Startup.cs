@@ -1,21 +1,17 @@
-using System;
-using System.Collections.Generic;
-using System.Linq;
+using System.Security.Cryptography.X509Certificates;
 using System.Text.Json;
-using System.Threading.Tasks;
 using Dahomey.Json;
-using IdentityServer4.Stores;
 using Karenia.Rurikawa.Coordinator.Services;
 using Karenia.Rurikawa.Helpers;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
-using Microsoft.AspNetCore.HttpsPolicy;
-using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
+using Microsoft.IdentityModel.Tokens;
 
 namespace Karenia.Rurikawa.Coordinator {
     public class Startup {
@@ -29,12 +25,30 @@ namespace Karenia.Rurikawa.Coordinator {
         public void ConfigureServices(IServiceCollection services) {
             services.AddLogging();
 
-            // TODO: Change to real identity stuff
-            services.AddIdentityServer()
-                .AddInMemoryClients(Config.GetClients())
-                .AddInMemoryApiResources(Config.GetApiResources())
-                .AddResourceOwnerValidator<IdentityService>();
-            services.AddTransient<IRefreshTokenStore, RefreshTokenStore>();
+            // TODO: add real certificate
+            var certificate = new X509Certificate2("dev.pfx");
+            var certificateKey = new X509SecurityKey(certificate);
+            var securityKey = new ECDsaSecurityKey(ECDsaCertificateExtensions.GetECDsaPrivateKey(certificate));
+
+            services.AddAuthentication(opt => {
+                opt.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
+                opt.DefaultChallengeScheme = JwtBearerDefaults.AuthenticationScheme;
+            }).AddJwtBearer(opt => {
+                opt.RequireHttpsMetadata = false;
+                opt.SaveToken = true;
+                opt.TokenValidationParameters = new TokenValidationParameters
+                {
+                    ValidateIssuerSigningKey = true,
+                    IssuerSigningKey = securityKey,
+                    ValidateIssuer = false,
+                    ValidateAudience = false
+                };
+            });
+
+            services.AddSingleton<Models.Auth.AuthInfo>(_ => new Models.Auth.AuthInfo
+            {
+                SigningKey = securityKey
+            });
 
             var pgsqlLinkParams = Configuration.GetValue<string>("pgsqlLink");
             var testStorageParams = new SingleBucketFileStorageService.Params();
@@ -50,7 +64,6 @@ namespace Karenia.Rurikawa.Coordinator {
             );
             services.AddSingleton<JudgerCoordinatorService>();
             services.AddScoped<AccountService>();
-            services.AddScoped<IdentityService>();
             services.AddSingleton<JsonSerializerOptions>(_ =>
                 SetupJsonSerializerOptions(new JsonSerializerOptions())
             );
