@@ -8,6 +8,7 @@ using AsyncPrimitives;
 using Karenia.Rurikawa.Helpers;
 using Karenia.Rurikawa.Models;
 using Karenia.Rurikawa.Models.Judger;
+using Karenia.Rurikawa.Models.Test;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 
@@ -28,9 +29,10 @@ namespace Karenia.Rurikawa.Coordinator.Services {
 
 
         /// <summary>
-        /// The collection of runners, with token as keys.
+        /// The collection of runners, with tokens as keys.
         /// </summary>
         readonly Dictionary<string, Judger> connections = new Dictionary<string, Judger>();
+
         /// <summary>
         /// A mutex lock on connections and the status of connections inside it.
         /// Any changes on `Judger.ActiveTaskCount` and `Judger.CanAcceptNewTask`
@@ -53,6 +55,12 @@ namespace Karenia.Rurikawa.Coordinator.Services {
         /// </summary>
         private Channel<string> JudgerQueue { get; } = Channel.CreateUnbounded<string>();
 
+
+        /// <summary>
+        /// A channel indicating the incoming Jobs.
+        /// </summary>
+        private Channel<Job> JobQueue { get; } = Channel.CreateUnbounded<Job>();
+
         // readonly HashSet<string> vacantJudgers = new HashSet<string>();
 
         /// <summary>
@@ -71,16 +79,18 @@ namespace Karenia.Rurikawa.Coordinator.Services {
                     var ws = await ctx.WebSockets.AcceptWebSocketAsync();
                     var wrapper = new JudgerWebsocketWrapperTy(ws);
                     var judger = new Judger(auth, wrapper);
-                    // Mark the judger as available.
-                    await judger.Finish();
                     {
                         await connectionLock.WaitAsync();
                         connections.Add(auth, judger);
                         connectionLock.Release();
                     }
 
-                    await wrapper.WaitUntilClose();
+                    // Tell JudgerQueue that the judger is ready.
+                    judger.Ready();
+                    // Add judger to waiting queue.
+                    await JudgerQueue.Writer.WriteAsync(judger.Id);
 
+                    await wrapper.WaitUntilClose();
                     {
                         await connectionLock.WaitAsync();
                         connections.Remove(auth);
@@ -128,22 +138,76 @@ namespace Karenia.Rurikawa.Coordinator.Services {
         }
 
         /// <summary>
-        /// Handle a single job 
+        /// Handle a single job.
         /// </summary>
         /// <param name="job"></param>
         /// <returns></returns>
-        public async Task ScheduleJob(Job job) {
+        async Task<TestResult?> HandleJob(Judger? judger, Job job) {
             try {
-                var judger = await TryGetNextUsableJudger(true);
+                TestResult? res = null;
                 if (judger != null) {
                     // TODO: schedule job to judger & change job status
-                    await judger.Socket.SendMessage(new NewJobServerMsg());
+                    // Send job to the judger.
+                    var resFut = judger.Run();
+                    // TODO: What happens if the judger fails to accomplish the job?
+                    // Send judger to the waiting queue.
+                    // If it cannot accept new jobs for some reason,
+                    // it will be discarded when TryGetNextUsableJudger. 
+                    var judgerEnqueueFut = JudgerQueue.Writer.WriteAsync(judger.Id);
+
+                    await judgerEnqueueFut;
+                    res = await resFut;
                 }
                 // TODO: put job into database
+                using (var scope = serviceProvider.CreateScope()) {
+                    var db = GetDb(scope);
+                    await db.Jobs.AddAsync(job);
+                    await db.SaveChangesAsync();
+                }
+                return res;
             } catch {
                 // TODO: Other cases
                 throw new NotImplementedException();
             }
+        }
+
+        public async Task JobScheduleLoop() {
+            // Wait while channel is not closed.
+            while (await JobQueue.Reader.WaitToReadAsync()) {
+                var jobFut = JobQueue.Reader.ReadAsync();
+                var judgerFut = TryGetNextUsableJudger(true);
+
+                var job = await jobFut;
+                var judger = await judgerFut;
+                var resFut = HandleJob(judger, job);
+
+                using (var scope = serviceProvider.CreateScope()) {
+                    var db = GetDb(scope);
+                    var rs = (await db.Jobs.FindAsync(job)).Results;
+                    if (rs == null) {
+                        throw new NullReferenceException();
+                    }
+                    var res = await resFut;
+                    if (res != null) {
+                        rs.Add(key, res);
+                    }
+                    await db.SaveChangesAsync();
+                }
+            }
+        }
+
+        public void MainLoop() {
+            Task.Factory.StartNew(async () => {
+                await JobScheduleLoop();
+            }, TaskCreationOptions.LongRunning);
+        }
+
+        public void AddJob(Job job) {
+            JobQueue.Writer.WriteAsync(job).GetAwaiter().GetResult();
+        }
+
+        public void Stop() {
+            JobQueue.Writer.Complete();
         }
     }
 }

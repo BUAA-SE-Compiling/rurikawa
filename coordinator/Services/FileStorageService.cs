@@ -18,13 +18,15 @@ namespace Karenia.Rurikawa.Coordinator.Services {
 
         public SingleBucketFileStorageService(
             Params param,
-            ILogger<SingleBucketFileStorageService> logger) : this(
-                param.Bucket,
-                param.Endpoint,
-                param.AccessKey,
-                param.SecretKey,
-                param.Ssl,
-                logger) { }
+            ILogger<SingleBucketFileStorageService> logger
+        ) : this(
+            param.Bucket,
+            param.Endpoint,
+            param.AccessKey,
+            param.SecretKey,
+            param.Ssl,
+            logger
+        ) { }
 
         public SingleBucketFileStorageService(
             string bucket,
@@ -32,7 +34,8 @@ namespace Karenia.Rurikawa.Coordinator.Services {
             string accessKey,
             string secretKey,
             bool hasSsl,
-            ILogger<SingleBucketFileStorageService> logger) {
+            ILogger<SingleBucketFileStorageService> logger
+        ) {
             client = new Minio.MinioClient(endpoint, accessKey, secretKey);
             if (hasSsl) client = client.WithSSL();
             this.bucket = bucket;

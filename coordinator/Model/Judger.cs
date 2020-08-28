@@ -28,37 +28,38 @@ namespace Karenia.Rurikawa.Models.Judger {
         /// </summary>
         public bool CanAcceptNewTask { get; set; } = false;
 
+        /// <summary>
+        /// A channel indicating finished judgers' Id.
+        /// </summary>
+        public Channel<string> JudgerQueue { get; }
+
         public Judger(
             string id,
             JsonWebsocketWrapper<ClientMsg, ServerMsg> socket
-        // Channel<string> chan
         ) {
             Id = id;
             Socket = socket;
-            // Chan = chan;
         }
 
         /// <summary>
         /// Run a judger and get results.
         /// </summary>
-        public async Task<int> Run() {
+        public async Task<TestResult> Run() {
             // TODO: Actually run the judger.
+            await Socket.SendMessage(new NewJobServerMsg());
             var rand = new Random();
             var dur = rand.Next(2000);
             // Run an expensive job.
             await Task.Delay(dur);
-            // Send a signal to the channel when finished,
-            // indicating availability.
-            await Finish();
-            return 0;
+            return new TestResult(
+            // TODO: Specify the result.
+            );
         }
 
         /// <summary>
-        /// Tell the channel that the job is done.
+        /// Tell the channel that the judger is ready.
         /// </summary>
-        public async Task Finish() {
-            // await Chan.Writer.WriteAsync(Id);
-        }
+        public void Ready() => CanAcceptNewTask = true;
     }
 
     /// <summary>

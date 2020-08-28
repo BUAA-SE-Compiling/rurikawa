@@ -17,7 +17,8 @@ namespace Karenia.Rurikawa.Coordinator.Services {
 
         public IdentityService(
             AccountService accountService,
-            ILogger<IdentityService> logger) {
+            ILogger<IdentityService> logger
+        ) {
             this.accountService = accountService;
             this.logger = logger;
         }
