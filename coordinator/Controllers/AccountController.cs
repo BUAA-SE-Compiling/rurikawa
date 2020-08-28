@@ -1,9 +1,11 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Security.Claims;
 using System.Text.Json;
 using System.Threading.Tasks;
 using Karenia.Rurikawa.Coordinator.Services;
+using Karenia.Rurikawa.Helpers;
 using Karenia.Rurikawa.Models;
 using Karenia.Rurikawa.Models.Auth;
 using Microsoft.AspNetCore.Authorization;
@@ -111,7 +113,8 @@ namespace Karenia.Rurikawa.Coordinator.Controllers {
                 account.Username,
                 accessToken,
                 scope,
-                DateTimeOffset.Now.Add(RefreshTokenLifespan));
+                DateTimeOffset.Now.Add(RefreshTokenLifespan),
+                true);
 
             return new OAuth2Response
             {
@@ -134,12 +137,12 @@ namespace Karenia.Rurikawa.Coordinator.Controllers {
         }
 
         [Route("edit/password")]
-        [Authorize("user")]
+        [Authorize()]
         public async Task<IActionResult> EditPassword(
             [FromQuery] string originalPassword,
             [FromQuery] string newPassword) {
-
-            switch (await accountService.EditPassword("", originalPassword, newPassword)) {
+            var username = AuthHelper.ExtractUsername(User)!;
+            switch (await accountService.EditPassword(username, originalPassword, newPassword)) {
                 case AccountService.EditPasswordResult.Success:
                     return NoContent();
                 case AccountService.EditPasswordResult.Failure:
@@ -150,5 +153,15 @@ namespace Karenia.Rurikawa.Coordinator.Controllers {
             }
         }
 
+
+        [Route("test")]
+        [Authorize("admin")]
+        public async Task Test() {
+            foreach (var claim in User.Claims) {
+                Console.WriteLine($"{claim.Type},{claim.Value}");
+            }
+            Console.WriteLine(User.Identity.Name);
+
+        }
     }
 }

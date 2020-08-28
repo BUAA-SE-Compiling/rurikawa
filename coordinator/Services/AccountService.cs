@@ -46,12 +46,17 @@ namespace Karenia.Rurikawa.Coordinator.Services {
             try {
                 await db.Accounts.AddAsync(account);
                 await db.SaveChangesAsync();
-            } catch (PostgresException e) {
-                switch (e.SqlState) {
-                    case PostgresErrorCodes.UniqueViolation:
-                        throw new UsernameNotUniqueException(username, e);
-                    default:
-                        throw e;
+            } catch (DbUpdateException e) {
+                if (e.InnerException is PostgresException ex) {
+                    switch (ex.SqlState) {
+                        case PostgresErrorCodes.UniqueViolation:
+                        case PostgresErrorCodes.DuplicateObject:
+                            throw new UsernameNotUniqueException(username, e);
+                        default:
+                            throw e;
+                    }
+                } else {
+                    throw e;
                 }
             }
             return;
@@ -114,12 +119,11 @@ namespace Karenia.Rurikawa.Coordinator.Services {
             var key = authInfo.SigningKey;
             var tokenDescriptor = new SecurityTokenDescriptor()
             {
-                Subject = new ClaimsIdentity(new Claim[]{
-                    new Claim(ClaimTypes.Name, user.Username),
-                }),
                 Claims = new Dictionary<string, object>(){
+                    {"sub", user.Username},
+                    {"role", user.Kind.ToString()},
                     {"scope", scope}
-                },
+            },
                 IssuedAt = DateTime.UtcNow,
                 Expires = expireTime.UtcDateTime,
                 SigningCredentials = new SigningCredentials(key, SecurityAlgorithms.EcdsaSha256)
@@ -149,13 +153,15 @@ namespace Karenia.Rurikawa.Coordinator.Services {
             string username,
             string? relatedAccessToken,
             List<string> scope,
-            DateTimeOffset? expireTime) {
+            DateTimeOffset? expireTime,
+            bool isSingleUse) {
             var refreshToken = GenerateToken();
             db.RefreshTokens.Add(new TokenEntry(
                 username,
                 refreshToken,
                 DateTimeOffset.Now,
                 scope,
+                isSingleUse: isSingleUse,
                 relatedToken: relatedAccessToken,
                 expires: expireTime));
             await db.SaveChangesAsync();
@@ -170,6 +176,15 @@ namespace Karenia.Rurikawa.Coordinator.Services {
         public async Task<TokenEntry?> GetAccessToken(string token) {
             var result = await db.AccessTokens.Where(t => t.Token == token)
                 .SingleOrDefaultAsync();
+            if (result != null && result.IsExpired()) {
+                db.AccessTokens.Remove(result);
+                await db.SaveChangesAsync();
+                result = null;
+            }
+            if (result != null && result.IsSingleUse) {
+                result.LastUseTime = DateTimeOffset.Now;
+                await db.SaveChangesAsync();
+            }
             return result;
         }
 
@@ -181,6 +196,15 @@ namespace Karenia.Rurikawa.Coordinator.Services {
         public async Task<TokenEntry?> GetUserByRefreshToken(string token) {
             var result = await db.RefreshTokens.Where(t => t.Token == token)
                 .SingleOrDefaultAsync();
+            if (result != null && result.IsExpired()) {
+                db.AccessTokens.Remove(result);
+                await db.SaveChangesAsync();
+                result = null;
+            }
+            if (result != null && result.IsSingleUse) {
+                result.LastUseTime = DateTimeOffset.Now;
+                await db.SaveChangesAsync();
+            }
             return result;
         }
 

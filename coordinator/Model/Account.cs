@@ -40,8 +40,9 @@ namespace Karenia.Rurikawa.Models.Account {
             List<string> scope,
             string? tokenName = null,
             string? relatedToken = null,
-            DateTimeOffset? expires = null
-            ) {
+            DateTimeOffset? expires = null,
+            DateTimeOffset? lastUseTime = null,
+            bool isSingleUse = false) {
             Username = username;
             TokenName = tokenName;
             Expires = expires;
@@ -49,6 +50,8 @@ namespace Karenia.Rurikawa.Models.Account {
             RelatedToken = relatedToken;
             IssuedTime = issuedTime;
             Scope = scope;
+            LastUseTime = lastUseTime;
+            IsSingleUse = isSingleUse;
         }
 
         public string Username { get; set; }
@@ -58,5 +61,19 @@ namespace Karenia.Rurikawa.Models.Account {
         public string? RelatedToken { get; set; }
         public DateTimeOffset IssuedTime { get; set; }
         public DateTimeOffset? Expires { get; set; }
+        public bool IsSingleUse { get; set; }
+        public DateTimeOffset? LastUseTime { get; set; }
+
+        public bool IsExpired() {
+            DateTimeOffset now = DateTimeOffset.Now;
+            if (Expires <= now) return true;
+            if (IsSingleUse
+                && LastUseTime.HasValue
+                && LastUseTime.Value.Add(SingleUseTokenGracePeriod) <= now) return true;
+            return false;
+        }
+
+        public static readonly TimeSpan SingleUseTokenGracePeriod
+            = TimeSpan.FromMinutes(5);
     }
 }

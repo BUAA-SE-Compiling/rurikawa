@@ -26,7 +26,7 @@ namespace Karenia.Rurikawa.Coordinator {
             services.AddLogging();
 
             // TODO: add real certificate
-            var certificate = new X509Certificate2("dev.pfx");
+            var certificate = new X509Certificate2("certs/dev.pfx");
             var certificateKey = new X509SecurityKey(certificate);
             var securityKey = new ECDsaSecurityKey(ECDsaCertificateExtensions.GetECDsaPrivateKey(certificate));
 
@@ -43,6 +43,11 @@ namespace Karenia.Rurikawa.Coordinator {
                     ValidateIssuer = false,
                     ValidateAudience = false
                 };
+            });
+            services.AddAuthorization(opt => {
+                opt.AddPolicy("user", policy => policy.RequireRole("User", "Admin", "Root"));
+                opt.AddPolicy("admin", policy => policy.RequireRole("Admin", "Root"));
+                opt.AddPolicy("root", policy => policy.RequireRole("Root"));
             });
 
             services.AddSingleton<Models.Auth.AuthInfo>(_ => new Models.Auth.AuthInfo
@@ -89,6 +94,7 @@ namespace Karenia.Rurikawa.Coordinator {
             app.UseRouting();
             // TODO: Add websocket options
             app.UseWebSockets();
+            app.UseAuthentication();
             app.UseAuthorization();
 
             // Add websocket acceptor
