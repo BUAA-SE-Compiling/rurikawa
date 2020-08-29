@@ -26,10 +26,49 @@ pub struct NewJob {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "_t")]
 pub enum ClientMsg {
-    JobProcess,
-    JobResult,
+    #[serde(rename = "job_progress")]
+    JobProgress(JobProgressMsg),
+
+    #[serde(rename = "job_result")]
+    JobResult(JobResultMsg),
+
+    #[serde(rename = "client_status")]
+    ClientStatus(ClientStatusMsg),
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub enum TestResultKind {
+    Accepted = 0,
+    WrongAnswer = 1,
+    RuntimeError = 2,
+    PipelineFailed = 3,
+    TimeLimitExceeded = 4,
+    MemoryLimitExceeded = 5,
+    NotRunned = -1,
+    Waiting = -2,
+    Running = -3,
+    OtherError = -100,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TestResult {
+    pub kind: TestResultKind,
+    pub resultFileId: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct JobProgressMsg {}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct JobResultMsg {}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ClientStatusMsg {
+    pub active_task_count: i32,
+    pub can_accept_new_task: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ConnectConfig {
     pub host: String,
     pub token: Option<String>,

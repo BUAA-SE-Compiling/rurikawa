@@ -2,8 +2,11 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
+using Karenia.Rurikawa.Coordinator.Services;
+using Karenia.Rurikawa.Helpers;
 using Karenia.Rurikawa.Models;
 using Karenia.Rurikawa.Models.Judger;
+using Karenia.Rurikawa.Models.Test;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Logging;
@@ -13,13 +16,13 @@ namespace Karenia.Rurikawa.Coordinator.Controllers {
     [Route("api/v1/job/")]
     [Authorize()]
     public class JobController : ControllerBase {
-        public JobController(ILogger<JobController> logger, RurikawaDb db) {
+        public JobController(ILogger<JobController> logger, JudgerCoordinatorService coordinatorService) {
             this.logger = logger;
-            this.db = db;
+            this.coordinatorService = coordinatorService;
         }
 
         private readonly ILogger<JobController> logger;
-        private readonly RurikawaDb db;
+        private readonly JudgerCoordinatorService coordinatorService;
 
         /// <summary>
         /// GETs a job by its identifier (stringified version)
@@ -32,6 +35,15 @@ namespace Karenia.Rurikawa.Coordinator.Controllers {
             throw new NotImplementedException();
         }
 
+#pragma warning disable 
+        public class NewJobMessage {
+            public string Repo { get; set; }
+            public string? Branch { get; set; }
+            public FlowSnake TestSuite { get; set; }
+            public List<string> Tests { get; set; }
+        }
+#pragma warning restore
+
         /// <summary>
         /// PUTs a new job
         /// </summary>
@@ -39,8 +51,16 @@ namespace Karenia.Rurikawa.Coordinator.Controllers {
         /// <returns></returns>
         [HttpPost]
         [Authorize("user")]
-        public string NewJob(Job job) {
-            throw new NotImplementedException();
+        public async Task<string> NewJob(NewJobMessage msg) {
+            FlowSnake id = FlowSnake.Generate();
+            var job = new Job(
+                id,
+                msg.Repo,
+                msg.Branch,
+                msg.TestSuite,
+                msg.Tests);
+            await coordinatorService.ScheduleJob(job);
+            return id.ToString();
         }
     }
 }

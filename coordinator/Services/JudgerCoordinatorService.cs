@@ -101,8 +101,12 @@ namespace Karenia.Rurikawa.Coordinator.Services {
                      * is ready, and add it to queue at that time.
                      */
 
-                    using (var subscription = AssignObservables(auth, judger.Socket)) {
-                        await wrapper.WaitUntilClose();
+                    try {
+                        using (var subscription = AssignObservables(auth, judger.Socket)) {
+                            await wrapper.WaitUntilClose();
+                        }
+                    } catch (Exception e) {
+                        logger.LogError(e, $"Aborted connection to judger {auth}");
                     }
 
                     {
@@ -158,8 +162,8 @@ namespace Karenia.Rurikawa.Coordinator.Services {
             var db = GetDb(scope);
 
             var job = await db.Jobs.Where(j => j.Id == msg.JobId).SingleAsync();
-            if (job.Stage != JobStage.Running) {
-                job.Stage = JobStage.Running;
+            if (job.Stage != msg.Stage) {
+                job.Stage = msg.Stage;
                 await db.SaveChangesAsync();
             }
         }
@@ -167,10 +171,13 @@ namespace Karenia.Rurikawa.Coordinator.Services {
         async void OnJobResultMessage(string clientId, JobResultMsg msg) {
             using var scope = scopeProvider.CreateScope();
             var db = GetDb(scope);
-            var job = await db.Jobs.Where(job => job.Id == msg.JobId).SingleAsync();
-            job.Results = msg.Results;
-            job.Stage = JobStage.Finished;
-            await db.SaveChangesAsync();
+            using (var tx = await db.Database.BeginTransactionAsync()) {
+                var job = await db.Jobs.Where(job => job.Id == msg.JobId).SingleAsync();
+                job.Results = msg.Results;
+                job.Stage = JobStage.Finished;
+                await db.SaveChangesAsync();
+                await tx.CommitAsync();
+            }
         }
 
         /// <summary>
@@ -209,9 +216,7 @@ namespace Karenia.Rurikawa.Coordinator.Services {
             job.Stage = JobStage.Dispatched;
         }
 
-        protected async Task<Job?> GetLastUndispatchedJobFromDatabase() {
-            using var scope = scopeProvider.CreateScope();
-            var db = GetDb(scope);
+        protected async Task<Job?> GetLastUndispatchedJobFromDatabase(RurikawaDb db) {
             var res = await db.Jobs.Where(j => j.Stage == JobStage.Queued)
                 .OrderBy(j => j.Id)
                 .SingleOrDefaultAsync();
@@ -219,9 +224,14 @@ namespace Karenia.Rurikawa.Coordinator.Services {
         }
 
         protected async ValueTask<bool> TryDispatchJobFromDatabase(Judger judger) {
-            var job = await GetLastUndispatchedJobFromDatabase();
-            if (job == null) return false;
-            await DispatchJob(judger, job);
+            using var scope = scopeProvider.CreateScope();
+            var db = GetDb(scope);
+            using (var tx = await db.Database.BeginTransactionAsync()) {
+                var job = await GetLastUndispatchedJobFromDatabase(db);
+                if (job == null) return false;
+                await DispatchJob(judger, job);
+                await db.SaveChangesAsync();
+            }
             return true;
         }
 
@@ -250,11 +260,10 @@ namespace Karenia.Rurikawa.Coordinator.Services {
             queueLock.Release();
 
             // Save this job to database
-            using (var scope = scopeProvider.CreateScope()) {
-                var db = GetDb(scope);
-                db.Jobs.Add(job);
-                await db.SaveChangesAsync();
-            }
+            using var scope = scopeProvider.CreateScope();
+            var db = GetDb(scope);
+            db.Jobs.Add(job);
+            await db.SaveChangesAsync();
         }
 
         public void Stop() {
