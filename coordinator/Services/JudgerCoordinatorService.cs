@@ -25,7 +25,7 @@ namespace Karenia.Rurikawa.Coordinator.Services {
             IServiceScopeFactory serviceProvider,
             ILogger<JudgerCoordinatorService> logger
         ) {
-            this.serviceProvider = serviceProvider;
+            this.scopeProvider = serviceProvider;
             this.logger = logger;
         }
 
@@ -42,7 +42,7 @@ namespace Karenia.Rurikawa.Coordinator.Services {
         /// </summary>
         readonly SemaphoreSlim connectionLock = new SemaphoreSlim(1);
 
-        private readonly IServiceScopeFactory serviceProvider;
+        private readonly IServiceScopeFactory scopeProvider;
         private readonly ILogger<JudgerCoordinatorService> logger;
 
         /// <summary>
@@ -55,7 +55,12 @@ namespace Karenia.Rurikawa.Coordinator.Services {
         /// <summary>
         /// A channel indicating finished judgers' Id.
         /// </summary>
-        private Channel<string> JudgerQueue { get; } = Channel.CreateUnbounded<string>();
+        private Queue<string> JudgerQueue { get; } = new Queue<string>();
+        /// <summary>
+        /// A mutex lock on judger queue.
+        /// </summary>
+        /// <returns></returns>
+        readonly SemaphoreSlim queueLock = new SemaphoreSlim(1);
 
 
         /// <summary>
@@ -132,21 +137,40 @@ namespace Karenia.Rurikawa.Coordinator.Services {
         }
 
         async void OnJudgerStatusUpdateMessage(string clientId, ClientStatusMsg msg) {
+            await queueLock.WaitAsync();
+            await connectionLock.WaitAsync();
 
+            if (connections.TryGetValue(clientId, out var conn)) {
+                conn.CanAcceptNewTask = msg.CanAcceptNewTask;
+                conn.ActiveTaskCount = msg.ActiveTaskCount;
+
+                await TryDispatchJobFromDatabase(conn);
+            }
+
+            connectionLock.Release();
+            JudgerQueue.Append(clientId);
+            queueLock.Release();
         }
 
         async void OnJobProgressMessage(string clientId, JobProgressMsg msg) {
             // TODO: Send job progress to web clients
-            using var scope = serviceProvider.CreateScope();
+            using var scope = scopeProvider.CreateScope();
             var db = GetDb(scope);
-            var jobId = new FlowSnake(msg.Id);
 
-            var job = await db.Jobs.Where(j => j.Id == jobId).SingleAsync();
-            job.Stage = JobStage.Running;
+            var job = await db.Jobs.Where(j => j.Id == msg.JobId).SingleAsync();
+            if (job.Stage != JobStage.Running) {
+                job.Stage = JobStage.Running;
+                await db.SaveChangesAsync();
+            }
         }
 
         async void OnJobResultMessage(string clientId, JobResultMsg msg) {
-
+            using var scope = scopeProvider.CreateScope();
+            var db = GetDb(scope);
+            var job = await db.Jobs.Where(job => job.Id == msg.JobId).SingleAsync();
+            job.Results = msg.Results;
+            job.Stage = JobStage.Finished;
+            await db.SaveChangesAsync();
         }
 
         /// <summary>
@@ -158,7 +182,8 @@ namespace Karenia.Rurikawa.Coordinator.Services {
 
         private async Task<Judger?> TryGetNextUsableJudger(bool blockNewTasks) {
             await connectionLock.WaitAsync();
-            while (JudgerQueue.Reader.TryRead(out var nextJudger)) {
+
+            while (JudgerQueue.TryDequeue(out var nextJudger)) {
                 if (connections.TryGetValue(nextJudger, out var conn)) {
                     if (conn.CanAcceptNewTask) {
                         // Change the status to false, until the judger reports
@@ -168,6 +193,7 @@ namespace Karenia.Rurikawa.Coordinator.Services {
                     }
                 }
             }
+
             connectionLock.Release();
             return null;
         }
@@ -175,7 +201,7 @@ namespace Karenia.Rurikawa.Coordinator.Services {
         /// <summary>
         /// Dispatch a single job to the given judger
         /// </summary>
-        async Task DispatchJob(Judger judger, Job job) {
+        protected async Task DispatchJob(Judger judger, Job job) {
             await judger.Socket.SendMessage(new NewJobServerMsg()
             {
                 Job = job
@@ -183,44 +209,52 @@ namespace Karenia.Rurikawa.Coordinator.Services {
             job.Stage = JobStage.Dispatched;
         }
 
-        public async Task JobScheduleLoop() {
-            // Wait while channel is not closed.
-            while (await JobQueue.Reader.WaitToReadAsync()) {
-                var job = await JobQueue.Reader.ReadAsync();
-                job.Stage = JobStage.Queued;
-                bool success = false;
+        protected async Task<Job?> GetLastUndispatchedJobFromDatabase() {
+            using var scope = scopeProvider.CreateScope();
+            var db = GetDb(scope);
+            var res = await db.Jobs.Where(j => j.Stage == JobStage.Queued)
+                .OrderBy(j => j.Id)
+                .SingleOrDefaultAsync();
+            return res;
+        }
 
-                while (!success) {
-                    // Get the first usable judger
-                    var judger = await TryGetNextUsableJudger(true);
-                    if (judger == null) break;
-                    try {
-                        await DispatchJob(judger, job);
-                        success = true;
-                    } catch {
-                        // If any exception occurs (including but not limited 
-                        // to connection closed, web error, etc.), this try is 
-                        // considered as unsuccessful.
-                        success = false;
-                    }
-                    // If this try is unsuccessful, try a next one until
-                    // no judger is usable
+        protected async ValueTask<bool> TryDispatchJobFromDatabase(Judger judger) {
+            var job = await GetLastUndispatchedJobFromDatabase();
+            if (job == null) return false;
+            await DispatchJob(judger, job);
+            return true;
+        }
+
+        public async Task ScheduleJob(Job job) {
+            job.Stage = JobStage.Queued;
+            bool success = false;
+
+            // Lock queue so no one can write to it, leading to race conditions
+            await queueLock.WaitAsync();
+            while (!success) {
+                // Get the first usable judger
+                var judger = await TryGetNextUsableJudger(true);
+                if (judger == null) break;
+                try {
+                    await DispatchJob(judger, job);
+                    success = true;
+                } catch {
+                    // If any exception occurs (including but not limited 
+                    // to connection closed, web error, etc.), this try is 
+                    // considered as unsuccessful.
+                    success = false;
                 }
-                // Save this job to database
-                using (var scope = serviceProvider.CreateScope()) {
-                    var db = GetDb(scope);
-                    db.Jobs.Add(job);
-                    await db.SaveChangesAsync();
-                }
+                // If this try is unsuccessful, try a next one until
+                // no judger is usable
             }
-        }
+            queueLock.Release();
 
-        public void MainLoop() {
-            Task.Factory.StartNew(JobScheduleLoop, TaskCreationOptions.LongRunning);
-        }
-
-        public async Task AddJob(Job job) {
-            await JobQueue.Writer.WriteAsync(job);
+            // Save this job to database
+            using (var scope = scopeProvider.CreateScope()) {
+                var db = GetDb(scope);
+                db.Jobs.Add(job);
+                await db.SaveChangesAsync();
+            }
         }
 
         public void Stop() {

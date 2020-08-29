@@ -1,5 +1,7 @@
+using System.Collections.Generic;
 using System.Text.Json.Serialization;
 using Dahomey.Json.Attributes;
+using Karenia.Rurikawa.Helpers;
 using Karenia.Rurikawa.Models.Test;
 
 #pragma warning disable CS8618  
@@ -31,14 +33,18 @@ namespace Karenia.Rurikawa.Models.Judger {
     /// message is received.
     /// </summary>
     [JsonDiscriminator("job_result")]
-    public class JobResultMsg : ClientMsg { }
+    public class JobResultMsg : ClientMsg {
+        public FlowSnake JobId { get; set; }
+
+        public Dictionary<string, TestResult> Results { get; set; }
+    }
 
     /// <summary>
     /// Message that reports the progress of a single job in judger.
     /// </summary>
     [JsonDiscriminator("job_progress")]
     public class JobProgressMsg : ClientMsg {
-        public string Id { get; set; }
+        public FlowSnake JobId { get; set; }
 
         /// <summary>
         /// Current stage of the job.
