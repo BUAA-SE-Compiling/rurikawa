@@ -33,9 +33,9 @@ impl FlowSnake {
         let worker_id = loc_worker_id.with(|x| **x.borrow_mut());
         let seq = if last_generation_time.with(|x| time <= *x.borrow()) {
             seq_number.with(|s| {
-                let s = s.borrow_mut();
+                let mut s = s.borrow_mut();
                 let seq = *s;
-                *s = *s + 1;
+                *s += 1;
                 seq
             })
         } else {

@@ -709,7 +709,7 @@ mod tests {
         {
             block_on(async {
                 let runner = DockerCommandRunner::try_new(
-                    bollard::Docker::connect_with_unix_defaults().unwrap(),
+                    bollard::Docker::connect_with_local_defaults().unwrap(),
                     Image::Image {
                         tag: "alpine:latest".to_owned(),
                     },
@@ -933,7 +933,7 @@ mod test_suite {
                 },
             )?;
 
-            let instance = bollard::Docker::connect_with_unix_defaults().unwrap();
+            let instance = bollard::Docker::connect_with_local_defaults().unwrap();
             ts.run(instance).await;
             Ok(())
         })
@@ -988,7 +988,7 @@ mod test_suite {
                 },
             )?;
 
-            let instance = bollard::Docker::connect_with_unix_defaults().unwrap();
+            let instance = bollard::Docker::connect_with_local_defaults().unwrap();
             ts.run(instance).await;
             Ok(())
         })
