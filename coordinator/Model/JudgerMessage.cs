@@ -36,6 +36,15 @@ namespace Karenia.Rurikawa.Models.Judger {
     public class JobResultMsg : ClientMsg {
         public FlowSnake JobId { get; set; }
 
+        /// <summary>
+        /// Indicates whether this job has finished normally or is aborted due 
+        /// to client issues (e.g. client is killed).
+        /// <br/>
+        /// If this value is True, the job should be rescheduled immediately 
+        /// to other runners.
+        /// </summary>
+        public bool Aborted { get; set; }
+
         public Dictionary<string, TestResult> Results { get; set; }
     }
 
@@ -60,6 +69,8 @@ namespace Karenia.Rurikawa.Models.Judger {
         /// Finished progress points of this stage.
         /// </summary>
         public ulong? FinishedPoints { get; set; }
+
+        public Dictionary<string, TestResult> PartialResults { get; set; }
     }
 
     /// <summary>

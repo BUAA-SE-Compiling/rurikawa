@@ -1,4 +1,5 @@
 use clap::Clap;
+use futures::{FutureExt, SinkExt, StreamExt};
 use rurikawa_judger::client::{client_loop, connect_to_coordinator, ConnectConfig};
 use std::{
     process::exit,
@@ -9,6 +10,7 @@ use std::{
     time::Duration,
 };
 use tokio::{prelude::*, sync::Mutex};
+use tungstenite::Message;
 
 mod opt;
 
@@ -28,6 +30,7 @@ async fn main() {
                 message
             ))
         })
+        .level(log::LevelFilter::Info)
         .chain(std::io::stdout())
         .apply()
         .expect("Failed to set up logger");
@@ -45,11 +48,12 @@ async fn client(cmd: opt::ConnectSubCmd) {
         host: cmd.host,
         token: cmd.token,
     };
-    let conn = connect_to_coordinator(&cfg)
+    let (mut sink, mut stream) = connect_to_coordinator(&cfg)
         .await
         .expect("Failed to connect");
-    let conn = Arc::new(Mutex::new(conn));
-    client_loop(conn.clone()).await;
+    sink.send(Message::text("test!")).await.unwrap();
+    println!("{:?}", stream.next().await.unwrap());
+    client_loop(stream, futures::future::pending).await;
 }
 
 fn handle_ctrl_c() {
