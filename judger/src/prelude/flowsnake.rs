@@ -8,10 +8,11 @@ use std::{
 pub struct FlowSnake(pub u64);
 
 thread_local! {
-static last_generation_time: RefCell<u64> = RefCell::new(0);
-static seq_number: RefCell<u64> = RefCell::new(0);
-static loc_worker_id: RefCell<once_cell::unsync::Lazy<u64>> =
-    RefCell::new(once_cell::unsync::Lazy::new(get_worker_id));
+    static last_generation_time: RefCell<u64> = RefCell::new(0);
+    static seq_number: RefCell<u64> = RefCell::new(0);
+    static loc_worker_id: RefCell<once_cell::unsync::Lazy<u64>> = RefCell::new(
+        once_cell::unsync::Lazy::new(get_worker_id)
+    );
 }
 
 fn get_worker_id() -> u64 {

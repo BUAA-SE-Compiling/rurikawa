@@ -56,6 +56,7 @@ namespace Karenia.Rurikawa.Coordinator.Services {
         /// A channel indicating finished judgers' Id.
         /// </summary>
         private Queue<string> JudgerQueue { get; } = new Queue<string>();
+
         /// <summary>
         /// A mutex lock on judger queue.
         /// </summary>
