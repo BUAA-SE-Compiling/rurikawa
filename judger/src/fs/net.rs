@@ -8,9 +8,9 @@ use tokio::{
 
 #[derive(Debug)]
 pub struct GitCloneOptions {
-    repo: String,
-    branch: Option<String>,
-    depth: usize,
+    pub repo: String,
+    pub branch: Option<String>,
+    pub depth: usize,
 }
 
 impl Default for GitCloneOptions {

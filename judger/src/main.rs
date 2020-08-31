@@ -1,13 +1,14 @@
+use broadcaster::BroadcastChannel;
 use clap::Clap;
-use futures::{FutureExt, SinkExt, StreamExt};
-use rurikawa_judger::client::{client_loop, connect_to_coordinator, ConnectConfig};
+use futures::{Future, FutureExt, Sink, SinkExt, StreamExt};
+use once_cell::sync::Lazy;
+use rurikawa_judger::client::{client_loop, connect_to_coordinator, ClientConfig, ConnectConfig};
 use std::{
     process::exit,
     sync::{
         atomic::{AtomicBool, Ordering},
         Arc,
     },
-    time::Duration,
 };
 use tokio::{prelude::*, sync::Mutex};
 use tungstenite::Message;
@@ -34,6 +35,7 @@ async fn main() {
         .chain(std::io::stdout())
         .apply()
         .expect("Failed to set up logger");
+
     ctrlc::set_handler(handle_ctrl_c).expect("Failed to set termination handler!");
 
     match opt.cmd {
@@ -53,7 +55,10 @@ async fn client(cmd: opt::ConnectSubCmd) {
         .expect("Failed to connect");
     sink.send(Message::text("test!")).await.unwrap();
     println!("{:?}", stream.next().await.unwrap());
-    client_loop(stream, futures::future::pending).await;
+    let cfg = ClientConfig {
+        temp_folder: "/tmp/".into(),
+    };
+    client_loop(stream, sink, Arc::new(cfg)).await;
 }
 
 fn handle_ctrl_c() {

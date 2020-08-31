@@ -13,6 +13,7 @@ path = "src/main.rs"
 anyhow = "*"
 async-trait = "0.1.38"
 bollard = "0.8.0"
+broadcaster = {version = "1.0.0", features = ["default-channels"]}
 chrono = "0.4.15"
 clap = "3.0.0-beta.1"
 ctrlc = "3.1.6"
