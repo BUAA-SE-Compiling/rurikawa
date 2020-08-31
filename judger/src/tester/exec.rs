@@ -332,18 +332,19 @@ pub struct JudgerPublicConfig {
     pub vars: HashMap<String, String>,
     /// Sequence of commands necessary to perform an IO check.
     pub run: Vec<String>,
+    /// The path of test root directory to be mapped inside test container
+    pub mapped_dir: PathBuf,
+    /// `host-src:container-dest` volume bindings for the container.
+    /// For details see [here](https://docs.rs/bollard/0.7.2/bollard/service/struct.HostConfig.html#structfield.binds).
+    pub binds: Option<Vec<Bind>>,
 }
 
 /// Judger's private config, specific to a host machine.
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct JudgerPrivateConfig {
-    /// Directory of test sources and `stdin` files in the container.
-    pub src_dir: PathBuf,
-    /// Directory of test `stdout` files on the host machine.
-    pub out_dir: PathBuf,
-    /// `host-src:container-dest` volume bindings for the container.
-    /// For details see [here](https://docs.rs/bollard/0.7.2/bollard/service/struct.HostConfig.html#structfield.binds).
-    pub binds: Option<Vec<Bind>>,
+    /// Directory of test sources files (including `stdin` and `stdout` files)
+    /// in the container.
+    pub test_root_dir: PathBuf,
 }
 
 /// The public representation of a test.
@@ -386,6 +387,7 @@ impl Default for TestSuiteOptions {
 }
 
 /// A suite of `TestCase`s to be run.
+///
 /// Attention: a `TestSuite` instance should NOT be constructed manually.
 /// Please use `TestSuite::from_config`, for example.
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -416,9 +418,9 @@ impl TestSuite {
             .tests
             .iter()
             .map(|name| -> Result<TestCase> {
-                let mut src_dir = private_cfg.src_dir.clone();
+                let mut src_dir = private_cfg.test_root_dir.clone();
                 src_dir.push(name);
-                let mut out_dir = private_cfg.out_dir.clone();
+                let mut out_dir = public_cfg.mapped_dir.clone();
                 out_dir.push(name);
                 let replacer: HashMap<String, _> = public_cfg
                     .vars
@@ -476,7 +478,7 @@ impl TestSuite {
             image: Some(image),
             test_cases,
             options,
-            binds: private_cfg
+            binds: public_cfg
                 .binds
                 .map(|bs| bs.iter().map(|b| b.stringify()).collect()),
         })
@@ -901,11 +903,11 @@ mod test_suite {
                     path: host_repo_dir,
                 },
                 JudgerPrivateConfig {
-                    src_dir: PathBuf::from(r"golem/src"),
-                    out_dir: PathBuf::from(r"../golem/out"),
-                    binds: None,
+                    test_root_dir: PathBuf::from(r"../golem/src"),
                 },
                 JudgerPublicConfig {
+                    mapped_dir: PathBuf::from(r"golem/src"),
+                    binds: None,
                     run: [
                         "cd golem",
                         "python ./golemc.py $src -o $bin",
@@ -952,15 +954,15 @@ mod test_suite {
                     path: host_repo_dir, // public: c# gives repo remote, rust clone and unzip
                 },
                 JudgerPrivateConfig {
-                    src_dir: PathBuf::from(r"/src"),         // private
-                    out_dir: PathBuf::from(r"../golem/out"), // private
+                    test_root_dir: PathBuf::from(r"../golem/out"), // private
+                },
+                JudgerPublicConfig {
                     binds: Some(vec![Bind {
                         from: PathBuf::from(r"../golem/src"), // private
                         to: PathBuf::from(r"/src"),           // private
                         options: "ro".to_owned(),
                     }]),
-                },
-                JudgerPublicConfig {
+                    mapped_dir: PathBuf::from(r"/src"), // private
                     run: [
                         "cd golem",
                         "python ./golemc.py $src -o $bin",
