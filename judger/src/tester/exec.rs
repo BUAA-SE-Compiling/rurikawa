@@ -418,10 +418,10 @@ impl TestSuite {
             .tests
             .iter()
             .map(|name| -> Result<TestCase> {
-                let mut src_dir = private_cfg.test_root_dir.clone();
-                src_dir.push(name);
-                let mut out_dir = public_cfg.mapped_dir.clone();
-                out_dir.push(name);
+                let mut mapped_dir = public_cfg.mapped_dir.clone();
+                let mut test_root = private_cfg.test_root_dir.clone();
+                mapped_dir.push(name);
+                test_root.push(name);
                 let replacer: HashMap<String, _> = public_cfg
                     .vars
                     .iter()
@@ -431,8 +431,8 @@ impl TestSuite {
                             // These variables will point to files under `io_dir`,
                             // while others to `src_dir`.
                             let mut p = match var.as_ref() {
-                                "$stdout" => out_dir.clone(),
-                                _ => src_dir.clone(),
+                                "$stdout" => test_root.clone(),
+                                _ => mapped_dir.clone(),
                             };
                             p.set_extension(ext);
                             p
