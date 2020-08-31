@@ -954,7 +954,7 @@ mod test_suite {
                     path: host_repo_dir, // public: c# gives repo remote, rust clone and unzip
                 },
                 JudgerPrivateConfig {
-                    test_root_dir: PathBuf::from(r"../golem/out"), // private
+                    test_root_dir: PathBuf::from(r"../golem/src"), // private
                 },
                 JudgerPublicConfig {
                     binds: Some(vec![Bind {
