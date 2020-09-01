@@ -1,6 +1,9 @@
+using System;
+using System.Collections.Generic;
 using System.Security.Cryptography.X509Certificates;
 using System.Text.Json;
 using Dahomey.Json;
+using Dahomey.Json.Serialization.Conventions;
 using Karenia.Rurikawa.Coordinator.Services;
 using Karenia.Rurikawa.Helpers;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
@@ -80,11 +83,24 @@ namespace Karenia.Rurikawa.Coordinator {
             opt.PropertyNamingPolicy = JsonNamingPolicy.CamelCase;
             opt.Converters.Add(new FlowSnakeJsonConverter());
             opt.SetupExtensions();
+
+            var dis = opt.GetDiscriminatorConventionRegistry();
+            dis.ClearConventions();
+            dis.RegisterConvention(new DefaultDiscriminatorConvention<string>(opt, "_t"));
+            dis.RegisterType<Models.Judger.ClientStatusMsg>();
+            dis.RegisterType<Models.Judger.JobProgressMsg>();
+            dis.RegisterType<Models.Judger.JobResultMsg>();
+            dis.RegisterType<Models.Judger.NewJobServerMsg>();
+            dis.DiscriminatorPolicy = DiscriminatorPolicy.Always;
+
+            opt.IgnoreNullValues = true;
+            opt.AllowTrailingCommas = true;
+            opt.ReadCommentHandling = JsonCommentHandling.Skip;
             return opt;
         }
 
         // This method gets called by the runtime. Use this method to configure the HTTP request pipeline.
-        public void Configure(IApplicationBuilder app, IWebHostEnvironment env) {
+        public void Configure(IApplicationBuilder app, IWebHostEnvironment env, IServiceProvider svc) {
             if (env.IsDevelopment()) {
                 app.UseDeveloperExceptionPage();
             }
@@ -93,18 +109,24 @@ namespace Karenia.Rurikawa.Coordinator {
 
             app.UseRouting();
             // TODO: Add websocket options
-            app.UseWebSockets();
+            WebSocketOptions ws_opt = new WebSocketOptions();
+            ws_opt.AllowedOrigins.Add("*");
+            ws_opt.AllowedOrigins.Add("localhost");
+            ws_opt.KeepAliveInterval = new System.TimeSpan(0, 0, 60);
+            app.UseWebSockets(ws_opt);
             app.UseAuthentication();
             app.UseAuthorization();
 
-
+            var logger = svc.GetService<ILogger<Startup>>();
             // Add websocket acceptor
             app.Use(async (ctx, next) => {
+                logger.LogInformation("{0}，{1}", ctx.Request.Path, ctx.WebSockets.IsWebSocketRequest);
                 if (ctx.WebSockets.IsWebSocketRequest) {
                     var svc = app.ApplicationServices.GetService<JudgerCoordinatorService>();
                     await svc.TryUseConnection(ctx);
+                } else {
+                    await next();
                 }
-                await next();
             });
 
             // pre-initialize long-running services

@@ -9,6 +9,7 @@ using System.Runtime.CompilerServices;
 using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
+using Microsoft.AspNetCore.Connections;
 using Microsoft.Extensions.Logging;
 
 namespace Karenia.Rurikawa.Helpers {
@@ -65,7 +66,7 @@ namespace Karenia.Rurikawa.Helpers {
                     }
                     writtenBytes += result.Count;
 
-                    this.logger?.LogInformation($"Received message with {writtenBytes} bytes.");
+                    logger?.LogInformation($"Received message with {writtenBytes} bytes, type {result.MessageType}");
 
                     switch (result.MessageType) {
                         case WebSocketMessageType.Text:
@@ -73,6 +74,7 @@ namespace Karenia.Rurikawa.Helpers {
                                 new ArraySegment<byte>(this.recvBuffer, 0, writtenBytes),
                                 serializerOptions
                             );
+                            logger?.LogInformation("{0}", message);
                             this.messages.OnNext(message);
                             break;
                         case WebSocketMessageType.Binary:
@@ -82,7 +84,12 @@ namespace Karenia.Rurikawa.Helpers {
                             this.messages.OnCompleted();
                             return;
                     }
+                } catch (ConnectionAbortedException) {
+                    break;
+                } catch (OperationCanceledException) {
+                    break;
                 } catch (Exception e) {
+                    logger?.LogError(e, "Failed to receive message");
                     this.errors.OnNext(e);
                 }
             }

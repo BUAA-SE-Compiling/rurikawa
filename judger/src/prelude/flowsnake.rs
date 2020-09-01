@@ -4,7 +4,7 @@ use std::{
     fmt::{Debug, Formatter},
 };
 
-#[derive(Copy, Clone, Ord, PartialOrd, Eq, PartialEq)]
+#[derive(Copy, Clone, Ord, PartialOrd, Eq, PartialEq, Hash)]
 pub struct FlowSnake(pub u64);
 
 thread_local! {

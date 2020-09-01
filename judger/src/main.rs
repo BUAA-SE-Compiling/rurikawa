@@ -2,7 +2,9 @@ use broadcaster::BroadcastChannel;
 use clap::Clap;
 use futures::{Future, FutureExt, Sink, SinkExt, StreamExt};
 use once_cell::sync::Lazy;
-use rurikawa_judger::client::{client_loop, connect_to_coordinator, ClientConfig, ConnectConfig};
+use rurikawa_judger::client::{
+    client_loop, connect_to_coordinator, ClientConfig, SharedClientData,
+};
 use std::{
     process::exit,
     sync::{
@@ -46,18 +48,14 @@ async fn main() {
 }
 
 async fn client(cmd: opt::ConnectSubCmd) {
-    let cfg = ClientConfig {
+    let cfg = SharedClientData::new(ClientConfig {
         cache_folder: "/tmp/".into(),
-        host: ConnectConfig {
-            base: cmd.host,
-            token: cmd.token,
-        },
-    };
-    let (mut sink, mut stream) = connect_to_coordinator(&cfg.host)
+        host: cmd.host,
+        token: cmd.token,
+    });
+    let (sink, stream) = connect_to_coordinator(&cfg)
         .await
         .expect("Failed to connect");
-    sink.send(Message::text("test!")).await.unwrap();
-    println!("{:?}", stream.next().await.unwrap());
     client_loop(stream, sink, Arc::new(cfg)).await;
 }
 

@@ -2,6 +2,7 @@ using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
+using System.Text.Json;
 using System.Threading;
 using System.Threading.Channels;
 using System.Threading.Tasks;
@@ -22,11 +23,15 @@ namespace Karenia.Rurikawa.Coordinator.Services {
     /// </summary>
     public class JudgerCoordinatorService {
         public JudgerCoordinatorService(
+            JsonSerializerOptions jsonSerializerOptions,
             IServiceScopeFactory serviceProvider,
-            ILogger<JudgerCoordinatorService> logger
+            ILogger<JudgerCoordinatorService> logger,
+            ILogger<JudgerWebsocketWrapperTy> wsLogger
         ) {
+            this.jsonSerializerOptions = jsonSerializerOptions;
             this.scopeProvider = serviceProvider;
             this.logger = logger;
+            this.wsLogger = wsLogger;
         }
 
 
@@ -41,9 +46,10 @@ namespace Karenia.Rurikawa.Coordinator.Services {
         /// requires this lock to be acquired.
         /// </summary>
         readonly SemaphoreSlim connectionLock = new SemaphoreSlim(1);
-
+        private readonly JsonSerializerOptions jsonSerializerOptions;
         private readonly IServiceScopeFactory scopeProvider;
         private readonly ILogger<JudgerCoordinatorService> logger;
+        private readonly ILogger<JudgerWebsocketWrapperTy> wsLogger;
 
         /// <summary>
         /// Get database inside a scoped connection.
@@ -85,13 +91,18 @@ namespace Karenia.Rurikawa.Coordinator.Services {
             if (ctx.Request.Headers.TryGetValue("Authorization", out var auth)) {
                 if (await CheckAuth(auth)) {
                     var ws = await ctx.WebSockets.AcceptWebSocketAsync();
-                    var wrapper = new JudgerWebsocketWrapperTy(ws);
+                    var wrapper = new JudgerWebsocketWrapperTy(
+                        ws,
+                        jsonSerializerOptions,
+                        4096,
+                        wsLogger);
                     var judger = new Judger(auth, wrapper);
                     {
                         await connectionLock.WaitAsync();
                         connections.Add(auth, judger);
                         connectionLock.Release();
                     }
+                    logger.LogInformation($"Connected to judger {auth}");
 
                     /*
                      * Note:
@@ -103,12 +114,14 @@ namespace Karenia.Rurikawa.Coordinator.Services {
                      */
 
                     try {
+                        using (var conn = judger.Socket.Messages.Connect())
                         using (var subscription = AssignObservables(auth, judger.Socket)) {
                             await wrapper.WaitUntilClose();
                         }
                     } catch (Exception e) {
                         logger.LogError(e, $"Aborted connection to judger {auth}");
                     }
+                    logger.LogInformation($"Disconnected from judger {auth}");
 
                     {
                         await connectionLock.WaitAsync();
@@ -127,6 +140,7 @@ namespace Karenia.Rurikawa.Coordinator.Services {
 
         IDisposable AssignObservables(string clientId, JudgerWebsocketWrapperTy client) {
             return client.Messages.Subscribe((msg) => {
+                logger.LogInformation($"Judger {clientId} sent message of type {msg.GetType().Name}");
                 switch (msg) {
                     case JobResultMsg msg1:
                         OnJobResultMessage(clientId, msg1); break;

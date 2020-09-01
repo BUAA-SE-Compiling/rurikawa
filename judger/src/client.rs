@@ -1,9 +1,10 @@
 pub mod model;
 
-use crate::{fs, prelude::FlowSnake};
+use crate::{fs, prelude::*};
+use dashmap::DashMap;
 use futures::{
     stream::{SplitSink, SplitStream},
-    FutureExt, StreamExt,
+    FutureExt, SinkExt, StreamExt,
 };
 use http::Uri;
 use model::*;
@@ -19,34 +20,45 @@ pub type WsSink = SplitSink<WsDuplex, Message>;
 pub type WsStream = SplitStream<WsDuplex>;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ConnectConfig {
-    pub base: String,
-    pub token: Option<String>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ClientConfig {
-    pub host: ConnectConfig,
+    pub host: String,
+    pub token: Option<String>,
     pub cache_folder: PathBuf,
 }
 
-impl ClientConfig {
+#[derive(Debug)]
+pub struct SharedClientData {
+    pub cfg: ClientConfig,
+    /// All test suites whose folder is being edited.
+    ///
+    ///
+    pub locked_test_suite: DashMap<FlowSnake, Arc<Mutex<()>>>,
+}
+
+impl SharedClientData {
+    pub fn new(cfg: ClientConfig) -> SharedClientData {
+        SharedClientData {
+            cfg,
+            locked_test_suite: DashMap::new(),
+        }
+    }
+
     pub fn websocket_endpoint(&self) -> String {
-        format!("{}/api/v1/judger/ws", self.host.base)
+        format!("{}/api/v1/judger/ws", self.cfg.host)
     }
 
     pub fn test_suite_download_endpoint(&self, suite_id: FlowSnake) -> String {
-        format!("{}/api/v1/test_suite/{}", self.host.base, suite_id)
+        format!("{}/api/v1/test_suite/{}", self.cfg.host, suite_id)
     }
 
     pub fn job_folder_root(&self) -> PathBuf {
-        let mut job_temp_folder = self.cache_folder.clone();
+        let mut job_temp_folder = self.cfg.cache_folder.clone();
         job_temp_folder.push("jobs");
         job_temp_folder
     }
 
     pub fn test_suite_folder_root(&self) -> PathBuf {
-        let mut test_suite_temp_folder = self.cache_folder.clone();
+        let mut test_suite_temp_folder = self.cfg.cache_folder.clone();
         test_suite_temp_folder.push("suites");
         test_suite_temp_folder
     }
@@ -64,9 +76,23 @@ impl ClientConfig {
     }
 
     pub fn temp_file_folder_root(&self) -> PathBuf {
-        let mut test_suite_temp_folder = self.cache_folder.clone();
+        let mut test_suite_temp_folder = self.cfg.cache_folder.clone();
         test_suite_temp_folder.push("files");
         test_suite_temp_folder
+    }
+
+    pub async fn obtain_suite_lock<'a>(&self, suite_id: FlowSnake) -> Arc<Mutex<()>> {
+        let cur = self
+            .locked_test_suite
+            .get(&suite_id)
+            .map(|pair| pair.value().clone());
+        if let Some(cur) = cur {
+            cur
+        } else {
+            let arc = Arc::new(Mutex::new(()));
+            self.locked_test_suite.insert(suite_id, arc.clone());
+            arc
+        }
     }
 }
 
@@ -89,13 +115,16 @@ impl From<Box<dyn Error>> for ClientErr {
 }
 
 pub async fn connect_to_coordinator(
-    cfg: &ConnectConfig,
+    cfg: &SharedClientData,
 ) -> Result<(WsSink, WsStream), tungstenite::Error> {
-    let mut req = http::Request::builder().uri(&cfg.base);
-    if let Some(token) = cfg.token.as_ref() {
+    let endpoint = cfg.websocket_endpoint();
+    let mut req = http::Request::builder().uri(&endpoint);
+    if let Some(token) = cfg.cfg.token.as_ref() {
         req = req.header("Authorization", format!("Bearer {}", token));
+    } else {
+        req = req.header("Authorization", "");
     }
-    log::info!("Connecting to {}", cfg.base);
+    log::info!("Connecting to {}", endpoint);
     let (client, _) = connect_async(req.body(()).unwrap()).await?;
     let (cli_sink, cli_stream) = client.split();
     log::info!("Connection success");
@@ -105,32 +134,38 @@ pub async fn connect_to_coordinator(
 pub struct ActiveJob {}
 
 pub async fn check_and_download_test_suite(
-    test_suite: FlowSnake,
-    cfg: &ClientConfig,
+    suite_id: FlowSnake,
+    cfg: &SharedClientData,
 ) -> Result<(), ClientErr> {
-    let endpoint = cfg.test_suite_download_endpoint(test_suite);
+    let endpoint = cfg.test_suite_download_endpoint(suite_id);
 
     tokio::fs::create_dir_all(cfg.test_suite_folder_root()).await?;
+    {
+        // Lock this specific test suite and let all other concurrent tasks to wait
+        // until downloading completes
+        let lock = cfg.obtain_suite_lock(suite_id).await;
+        lock.lock().await;
 
-    let suite_folder = cfg.test_suite_folder(test_suite);
-    let dir_exists = {
-        let create_dir = tokio::fs::create_dir(&suite_folder).await;
-        match create_dir {
-            Ok(()) => false,
-            Err(e) => match e.kind() {
-                std::io::ErrorKind::AlreadyExists => true,
-                _ => return Err(e.into()),
-            },
+        let suite_folder = cfg.test_suite_folder(suite_id);
+        let dir_exists = {
+            let create_dir = tokio::fs::create_dir(&suite_folder).await;
+            match create_dir {
+                Ok(()) => false,
+                Err(e) => match e.kind() {
+                    std::io::ErrorKind::AlreadyExists => true,
+                    _ => return Err(e.into()),
+                },
+            }
+        };
+        if !dir_exists {
+            fs::net::download_unzip(&endpoint, &suite_folder, &cfg.temp_file_folder_root()).await?;
         }
-    };
-    if !dir_exists {
-        fs::net::download_unzip(&endpoint, &suite_folder, &cfg.temp_file_folder_root()).await?;
     }
 
     Ok(())
 }
 
-pub async fn handle_job_wrapper(job: NewJob, send: Arc<Mutex<WsSink>>, cfg: Arc<ClientConfig>) {
+pub async fn handle_job_wrapper(job: NewJob, send: Arc<Mutex<WsSink>>, cfg: Arc<SharedClientData>) {
     // TODO: Handle failed cases and report
     match handle_job(job, send, cfg).await {
         Ok(_) => {}
@@ -141,7 +176,7 @@ pub async fn handle_job_wrapper(job: NewJob, send: Arc<Mutex<WsSink>>, cfg: Arc<
 pub async fn handle_job(
     job: NewJob,
     send: Arc<Mutex<WsSink>>,
-    cfg: Arc<ClientConfig>,
+    cfg: Arc<SharedClientData>,
 ) -> Result<(), ClientErr> {
     let job = job.job;
 
@@ -163,7 +198,19 @@ pub async fn handle_job(
     Ok(())
 }
 
-pub async fn client_loop(mut ws_recv: WsStream, ws_send: WsSink, client_config: Arc<ClientConfig>) {
+pub async fn client_loop(
+    mut ws_recv: WsStream,
+    mut ws_send: WsSink,
+    client_config: Arc<SharedClientData>,
+) {
+    let ready_msg = ClientMsg::ClientStatus(ClientStatusMsg {
+        active_task_count: 0,
+        can_accept_new_task: true,
+    });
+    let ready_msg_ser = serde_json::to_string(&ready_msg).unwrap();
+    log::info!("{}", ready_msg_ser);
+    ws_send.send(Message::Text(ready_msg_ser)).await.unwrap();
+
     let ws_send = Arc::new(Mutex::new(ws_send));
     while let Some(Some(Ok(x))) = {
         let mut ws_lock = ws_recv.next().fuse();
@@ -189,5 +236,7 @@ pub async fn client_loop(mut ws_recv: WsStream, ws_send: WsSink, client_config: 
             }
         }
     }
+
+    ws_send.lock().await.close().await.unwrap();
     log::warn!("Disconnected!");
 }
