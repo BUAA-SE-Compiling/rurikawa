@@ -1,10 +1,11 @@
 pub mod model;
 
 use crate::{fs, prelude::*};
+use async_trait::async_trait;
 use dashmap::DashMap;
 use futures::{
     stream::{SplitSink, SplitStream},
-    FutureExt, SinkExt, StreamExt,
+    FutureExt, Sink, SinkExt, Stream, StreamExt,
 };
 use http::Uri;
 use model::*;
@@ -18,6 +19,28 @@ use tungstenite::Message;
 pub type WsDuplex = WebSocketStream<MaybeTlsStream<TcpStream>>;
 pub type WsSink = SplitSink<WsDuplex, Message>;
 pub type WsStream = SplitStream<WsDuplex>;
+
+#[async_trait]
+pub trait SendJsonMessage<M, T>
+where
+    T: Sink<Message> + Unpin + Send + Sync,
+    M: Serialize,
+{
+    async fn send_msg(&mut self, msg: &M) -> Result<(), T::Error>;
+}
+
+#[async_trait]
+impl<M, T> SendJsonMessage<M, T> for T
+where
+    T: Sink<Message> + Unpin + Send + Sync,
+    M: Serialize + Sync,
+{
+    async fn send_msg(&mut self, msg: &M) -> Result<(), T::Error> {
+        let serialized = serde_json::to_string(msg).unwrap();
+        let msg = Message::text(serialized);
+        self.send(msg).await
+    }
+}
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ClientConfig {
@@ -81,7 +104,7 @@ impl SharedClientData {
         test_suite_temp_folder
     }
 
-    pub async fn obtain_suite_lock<'a>(&self, suite_id: FlowSnake) -> Arc<Mutex<()>> {
+    pub fn obtain_suite_lock<'a>(&self, suite_id: FlowSnake) -> Arc<Mutex<()>> {
         let cur = self
             .locked_test_suite
             .get(&suite_id)
@@ -94,12 +117,16 @@ impl SharedClientData {
             arc
         }
     }
+
+    pub fn suite_unlock(&self, suite_id: FlowSnake) {
+        self.locked_test_suite.remove(&suite_id);
+    }
 }
 
 #[derive(Debug)]
 pub enum ClientErr {
     Io(std::io::Error),
-    Boxed(Box<dyn Error>),
+    Any(String),
 }
 
 impl From<std::io::Error> for ClientErr {
@@ -110,7 +137,7 @@ impl From<std::io::Error> for ClientErr {
 
 impl From<Box<dyn Error>> for ClientErr {
     fn from(e: Box<dyn Error>) -> Self {
-        ClientErr::Boxed(e)
+        ClientErr::Any(e.to_string())
     }
 }
 
@@ -143,8 +170,8 @@ pub async fn check_and_download_test_suite(
     {
         // Lock this specific test suite and let all other concurrent tasks to wait
         // until downloading completes
-        let lock = cfg.obtain_suite_lock(suite_id).await;
-        lock.lock().await;
+        let lock = cfg.obtain_suite_lock(suite_id);
+        let lock = lock.lock().await;
 
         let suite_folder = cfg.test_suite_folder(suite_id);
         let dir_exists = {
@@ -160,6 +187,8 @@ pub async fn check_and_download_test_suite(
         if !dir_exists {
             fs::net::download_unzip(&endpoint, &suite_folder, &cfg.temp_file_folder_root()).await?;
         }
+        drop(lock);
+        cfg.suite_unlock(suite_id);
     }
 
     Ok(())
@@ -167,9 +196,19 @@ pub async fn check_and_download_test_suite(
 
 pub async fn handle_job_wrapper(job: NewJob, send: Arc<Mutex<WsSink>>, cfg: Arc<SharedClientData>) {
     // TODO: Handle failed cases and report
-    match handle_job(job, send, cfg).await {
+    let job_id = job.job.id;
+    match handle_job(job, send.clone(), cfg).await {
         Ok(_) => {}
-        Err(_) => {}
+        Err(_) => {
+            let _ = send
+                .lock()
+                .await
+                .send_msg(&ClientMsg::JobResult(JobResultMsg {
+                    job_id,
+                    results: HashMap::new(),
+                }))
+                .await;
+        }
     }
 }
 
@@ -203,13 +242,13 @@ pub async fn client_loop(
     mut ws_send: WsSink,
     client_config: Arc<SharedClientData>,
 ) {
-    let ready_msg = ClientMsg::ClientStatus(ClientStatusMsg {
-        active_task_count: 0,
-        can_accept_new_task: true,
-    });
-    let ready_msg_ser = serde_json::to_string(&ready_msg).unwrap();
-    log::info!("{}", ready_msg_ser);
-    ws_send.send(Message::Text(ready_msg_ser)).await.unwrap();
+    ws_send
+        .send_msg(&ClientMsg::ClientStatus(ClientStatusMsg {
+            active_task_count: 0,
+            can_accept_new_task: true,
+        }))
+        .await
+        .unwrap();
 
     let ws_send = Arc::new(Mutex::new(ws_send));
     while let Some(Some(Ok(x))) = {
