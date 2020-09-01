@@ -13,7 +13,7 @@ use serde::{self, Deserialize, Serialize};
 use std::fs;
 use std::io::{self, prelude::*};
 use std::time;
-use std::{collections::HashMap, path::PathBuf};
+use std::{collections::HashMap, path::Path, path::PathBuf};
 
 #[cfg(not(unix))]
 fn strsignal(i: i32) -> String {
@@ -209,6 +209,9 @@ pub enum Image {
         tag: String,
         /// Path of the context directory.
         path: PathBuf,
+        /// Path of the dockerfile itself, relative to the context directory.
+        /// Leaving this value to None means using the default dockerfile: `Dockerfile`.
+        file: Option<PathBuf>,
     },
 }
 
@@ -242,7 +245,7 @@ impl Image {
                 })?;
                 Ok(())
             }
-            Image::Dockerfile { tag, path } => {
+            Image::Dockerfile { tag, path, file } => {
                 let tar = {
                     let buffer: Vec<u8> = vec![];
                     let mut builder = tar::Builder::new(buffer);
@@ -253,8 +256,11 @@ impl Image {
                 let ms = instance
                     .build_image(
                         bollard::image::BuildImageOptions {
-                            dockerfile: "Dockerfile",
-                            t: tag,
+                            dockerfile: file
+                                .as_ref()
+                                .map(|x| x.to_string_lossy().to_string())
+                                .unwrap_or_else(|| "Dockerfile".into()),
+                            t: tag.into(),
                             rm: true,
                             ..Default::default()
                         },
@@ -901,6 +907,7 @@ mod test_suite {
                 Image::Dockerfile {
                     tag: image_name.to_owned(),
                     path: host_repo_dir,
+                    file: None,
                 },
                 JudgerPrivateConfig {
                     test_root_dir: PathBuf::from(r"../golem/src"),
@@ -952,6 +959,7 @@ mod test_suite {
                 Image::Dockerfile {
                     tag: image_name.to_owned(),
                     path: host_repo_dir, // public: c# gives repo remote, rust clone and unzip
+                    file: None,
                 },
                 JudgerPrivateConfig {
                     test_root_dir: PathBuf::from(r"../golem/src"), // private

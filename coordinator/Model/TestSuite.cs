@@ -18,6 +18,11 @@ namespace Karenia.Rurikawa.Models.Test {
         public string Name { get; set; }
 
         /// <summary>
+        /// The displayed title of this test suite
+        /// </summary>
+        public string Title { get; set; }
+
+        /// <summary>
         /// The description of this test suite, written in Markdown
         /// </summary>
         public string Description { get; set; }

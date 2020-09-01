@@ -72,7 +72,7 @@ namespace Karenia.Rurikawa.Models {
             modelBuilder.Entity<TokenEntry>().HasIndex(x => x.Username);
             modelBuilder.Entity<TokenEntry>().HasIndex(x => x.TokenName);
             modelBuilder.Entity<TestSuite>().HasIndex(x => x.Name).IsUnique();
-            modelBuilder.Entity<TestSuite>().HasIndex(x => x.Id);
+            modelBuilder.Entity<TestSuite>().HasIndex(x => x.Id).IsUnique();
 
             modelBuilder.Entity<Job>().Property(x => x.Id)
                 .HasConversion(flowSnakeConverter);

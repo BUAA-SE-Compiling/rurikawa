@@ -46,18 +46,18 @@ async fn main() {
 }
 
 async fn client(cmd: opt::ConnectSubCmd) {
-    let cfg = ConnectConfig {
-        host: cmd.host,
-        token: cmd.token,
+    let cfg = ClientConfig {
+        cache_folder: "/tmp/".into(),
+        host: ConnectConfig {
+            base: cmd.host,
+            token: cmd.token,
+        },
     };
-    let (mut sink, mut stream) = connect_to_coordinator(&cfg)
+    let (mut sink, mut stream) = connect_to_coordinator(&cfg.host)
         .await
         .expect("Failed to connect");
     sink.send(Message::text("test!")).await.unwrap();
     println!("{:?}", stream.next().await.unwrap());
-    let cfg = ClientConfig {
-        temp_folder: "/tmp/".into(),
-    };
     client_loop(stream, sink, Arc::new(cfg)).await;
 }
 
