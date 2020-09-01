@@ -332,6 +332,7 @@ impl Bind {
 /// Maintained by the owner of the project to be tested.
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct JudgerPublicConfig {
+    pub name: String,
     /// Variables and extensions of test files
     /// (`$src`, `$bin`, `$stdin`, `$stdout`, etc...).
     /// For example: `"$src" => "go"`.

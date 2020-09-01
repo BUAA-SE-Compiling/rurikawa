@@ -1,6 +1,10 @@
 pub mod model;
 
-use crate::{fs, prelude::*};
+use crate::{
+    config::{JudgeToml, JudgerPublicConfig},
+    fs,
+    prelude::*,
+};
 use anyhow::Result;
 use async_trait::async_trait;
 use dashmap::DashMap;
@@ -27,7 +31,8 @@ where
     T: Sink<Message> + Unpin + Send + Sync,
     M: Serialize,
 {
-    async fn send_msg(&mut self, msg: &M) -> Result<(), T::Error>;
+    type Error;
+    async fn send_msg(&mut self, msg: &M) -> Result<(), Self::Error>;
 }
 
 #[async_trait]
@@ -36,7 +41,8 @@ where
     T: Sink<Message> + Unpin + Send + Sync,
     M: Serialize + Sync,
 {
-    async fn send_msg(&mut self, msg: &M) -> Result<(), T::Error> {
+    type Error = T::Error;
+    async fn send_msg(&mut self, msg: &M) -> Result<(), Self::Error> {
         let serialized = serde_json::to_string(msg).unwrap();
         let msg = Message::text(serialized);
         self.send(msg).await
@@ -105,7 +111,7 @@ impl SharedClientData {
         test_suite_temp_folder
     }
 
-    pub fn obtain_suite_lock<'a>(&self, suite_id: FlowSnake) -> Arc<Mutex<()>> {
+    pub fn obtain_suite_lock(&self, suite_id: FlowSnake) -> Arc<Mutex<()>> {
         let cur = self
             .locked_test_suite
             .get(&suite_id)
@@ -126,7 +132,11 @@ impl SharedClientData {
 
 #[derive(Debug)]
 pub enum ClientErr {
+    NoConfigFile(String),
     Io(std::io::Error),
+    Ws(tungstenite::Error),
+    Json(serde_json::Error),
+    TomlDes(toml::de::Error),
     Exec(crate::tester::ExecError),
     Any(anyhow::Error),
 }
@@ -140,6 +150,33 @@ impl From<std::io::Error> for ClientErr {
 impl From<anyhow::Error> for ClientErr {
     fn from(e: anyhow::Error) -> Self {
         ClientErr::Any(e)
+    }
+}
+
+impl From<crate::tester::ExecError> for ClientErr {
+    fn from(e: crate::tester::ExecError) -> Self {
+        ClientErr::Exec(e)
+    }
+}
+
+impl From<serde_json::Error> for ClientErr {
+    fn from(e: serde_json::Error) -> Self {
+        ClientErr::Json(e)
+    }
+}
+
+impl From<tungstenite::error::Error> for ClientErr {
+    fn from(e: tungstenite::error::Error) -> Self {
+        match e {
+            tungstenite::Error::Io(e) => ClientErr::Io(e),
+            _ => ClientErr::Ws(e),
+        }
+    }
+}
+
+impl From<toml::de::Error> for ClientErr {
+    fn from(e: toml::de::Error) -> Self {
+        ClientErr::TomlDes(e)
     }
 }
 
@@ -160,12 +197,10 @@ pub async fn connect_to_coordinator(
     Ok((cli_sink, cli_stream))
 }
 
-pub struct ActiveJob {}
-
-pub async fn check_and_download_test_suite(
+pub async fn check_download_read_test_suite(
     suite_id: FlowSnake,
     cfg: &SharedClientData,
-) -> Result<(), ClientErr> {
+) -> Result<JudgerPublicConfig, ClientErr> {
     let endpoint = cfg.test_suite_download_endpoint(suite_id);
 
     tokio::fs::create_dir_all(cfg.test_suite_folder_root()).await?;
@@ -189,7 +224,6 @@ pub async fn check_and_download_test_suite(
         if !dir_exists {
             fs::net::download_unzip(&endpoint, &suite_folder, &cfg.temp_file_folder_root()).await?;
         }
-        drop(lock);
         cfg.suite_unlock(suite_id);
     }
 
@@ -221,7 +255,18 @@ pub async fn handle_job(
 ) -> Result<(), ClientErr> {
     let job = job.job;
 
-    check_and_download_test_suite(job.test_suite, &*cfg).await?;
+    let suite_cfg = check_download_read_test_suite(job.test_suite, &*cfg).await?;
+
+    send.lock()
+        .await
+        .send_msg(&ClientMsg::JobProgress(JobProgressMsg {
+            id: job.id,
+            job_stage: JobStage::Fetching,
+            total_points: None,
+            finished_points: None,
+            partial_results: HashMap::new(),
+        }))
+        .await?;
 
     // Clone the repo specified in job
     let job_path = cfg.job_folder(job.id);
@@ -235,7 +280,23 @@ pub async fn handle_job(
     )
     .await?;
 
-    crate::tester::exec::TestSuite::from_config(todo!(), todo!(), todo!(), todo!())?;
+    let judge_cfg: PathBuf = fs::find_judge_root(&job_path).await?;
+    let mut job_path = judge_cfg.clone();
+    job_path.pop();
+
+    let judge_cfg = tokio::fs::read(judge_cfg).await?;
+    let judge_cfg = toml::from_slice::<JudgeToml>(&judge_cfg)?;
+
+    let judge_job_cfg = judge_cfg
+        .jobs
+        .get(&suite_cfg.name)
+        .ok_or_else(|| ClientErr::NoConfigFile(suite_cfg.name.to_owned()));
+
+    let suite = crate::tester::exec::TestSuite::from_config(todo!(), todo!(), todo!(), todo!())?;
+
+    let result = suite
+        .run(bollard::Docker::connect_with_local_defaults().unwrap())
+        .await;
 
     Ok(())
 }
