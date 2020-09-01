@@ -50,11 +50,7 @@ pub async fn git_clone(dir: Option<&Path>, options: GitCloneOptions) -> std::io:
     }
 }
 
-pub async fn download_unzip(
-    url: &str,
-    dir: &Path,
-    temp_file_path: &Path,
-) -> Result<(), Box<dyn std::error::Error>> {
+pub async fn download_unzip(url: &str, dir: &Path, temp_file_path: &Path) -> anyhow::Result<()> {
     let mut resp = reqwest::get(url).await?;
     let mut file = tokio::fs::File::create(temp_file_path).await?;
     while let Some(chunk) = resp.chunk().await? {
@@ -74,12 +70,13 @@ pub async fn download_unzip(
     if unzip_res.status.success() {
         Ok(())
     } else {
-        Err(Box::new(std::io::Error::new(
+        Err(std::io::Error::new(
             std::io::ErrorKind::InvalidData,
             format!(
                 "7zip failed to extract, exited with output:\n{}",
                 String::from_utf8_lossy(&unzip_res.stdout)
             ),
-        )))
+        )
+        .into())
     }
 }

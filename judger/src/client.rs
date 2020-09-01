@@ -1,6 +1,7 @@
 pub mod model;
 
 use crate::{fs, prelude::*};
+use anyhow::Result;
 use async_trait::async_trait;
 use dashmap::DashMap;
 use futures::{
@@ -126,7 +127,8 @@ impl SharedClientData {
 #[derive(Debug)]
 pub enum ClientErr {
     Io(std::io::Error),
-    Any(String),
+    Exec(crate::tester::ExecError),
+    Any(anyhow::Error),
 }
 
 impl From<std::io::Error> for ClientErr {
@@ -135,9 +137,9 @@ impl From<std::io::Error> for ClientErr {
     }
 }
 
-impl From<Box<dyn Error>> for ClientErr {
-    fn from(e: Box<dyn Error>) -> Self {
-        ClientErr::Any(e.to_string())
+impl From<anyhow::Error> for ClientErr {
+    fn from(e: anyhow::Error) -> Self {
+        ClientErr::Any(e)
     }
 }
 
@@ -221,11 +223,10 @@ pub async fn handle_job(
 
     check_and_download_test_suite(job.test_suite, &*cfg).await?;
 
-    let path = cfg.job_folder(job.id);
-
     // Clone the repo specified in job
+    let job_path = cfg.job_folder(job.id);
     fs::net::git_clone(
-        Some(&path),
+        Some(&job_path),
         fs::net::GitCloneOptions {
             repo: job.repo,
             branch: job.branch,
@@ -233,6 +234,8 @@ pub async fn handle_job(
         },
     )
     .await?;
+
+    crate::tester::exec::TestSuite::from_config(todo!(), todo!(), todo!(), todo!())?;
 
     Ok(())
 }
