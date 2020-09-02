@@ -5,10 +5,13 @@ use super::{
     runner::{CommandRunner, DockerCommandRunner, DockerCommandRunnerOptions},
     ExecError, ExecErrorKind, JobFailure, OutputMismatch, ProcessInfo,
 };
-use crate::prelude::*;
+use crate::{
+    client::model::{TestResult, TestResultKind},
+    prelude::*,
+};
 use anyhow::Result;
 use futures::future::join_all;
-use futures::stream::StreamExt;
+use futures::{stream::StreamExt, SinkExt};
 use serde::{self, Deserialize, Serialize};
 use std::fs;
 use std::io::{self, prelude::*};
@@ -491,7 +494,11 @@ impl TestSuite {
         })
     }
 
-    pub async fn run(&mut self, instance: bollard::Docker) -> Vec<Result<(), JobFailure>> {
+    pub async fn run(
+        &mut self,
+        instance: bollard::Docker,
+        result_channel: Option<futures::channel::mpsc::UnboundedSender<(String, TestResult)>>,
+    ) -> Result<crate::client::model::JobResultMsg, ()> {
         let TestSuiteOptions {
             time_limit,
             mem_limit,
@@ -516,10 +523,17 @@ impl TestSuite {
         .await
         .unwrap_or_else(|e| panic!("Failed to create command runner `{}`: {}", &image_tag, e));
 
-        let res: Vec<_> = self
-            .test_cases
-            .iter()
-            .map(|case| {
+        let res = futures::stream::iter(self.test_cases)
+            .map(|case| async {
+                result_channel.as_ref().map(|ch| {
+                    ch.send((
+                        case.name.clone(),
+                        TestResult {
+                            kind: TestResultKind::Running,
+                            result_file_id: None,
+                        },
+                    ))
+                });
                 let mut t = Test::new();
                 case.exec.iter().for_each(|step| {
                     t.add_step(Step::new_with_timeout(
@@ -528,12 +542,24 @@ impl TestSuite {
                     ));
                 });
                 t.expected(&case.expected_out);
-                t.run(&runner)
+                let res = t.run(&runner).await;
+                result_channel.as_ref().map(|ch| {
+                    ch.send((
+                        case.name.clone(),
+                        TestResult {
+                            kind: TestResultKind::Accepted,
+                            result_file_id: None,
+                        },
+                    ))
+                });
+                (case.name.clone(), res)
             })
-            .collect();
+            .buffer_unordered(16)
+            .collect::<Vec<_>>()
+            .await;
 
-        let res = join_all(res).await;
         runner.kill().await;
+        result_channel.as_ref().map(|ch| ch.close_channel());
         res
     }
 }

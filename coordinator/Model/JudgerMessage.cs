@@ -22,6 +22,16 @@ namespace Karenia.Rurikawa.Models.Judger {
     }
 
     /// <summary>
+    /// Message that provides a new job to judger with given id and specification.
+    /// <br/>
+    /// The client MUST accept this job after it's being sent.
+    /// </summary>
+    [JsonDiscriminator("abort_job")]
+    public class AbortJobServerMsg : ServerMsg {
+        public FlowSnake JobId { get; set; }
+    }
+
+    /// <summary>
     /// Base class of all messages that are sent from a client (judger).
     /// </summary>
     public class ClientMsg { }
@@ -60,17 +70,18 @@ namespace Karenia.Rurikawa.Models.Judger {
         /// </summary>
         public JobStage Stage { get; set; }
 
-        /// <summary>
-        /// Total progress points of this stage.
-        /// </summary>
-        public ulong? TotalPoints { get; set; }
+    }
 
-        /// <summary>
-        /// Finished progress points of this stage.
-        /// </summary>
-        public ulong? FinishedPoints { get; set; }
+    /// <summary>
+    /// Message that reports the progress of a single job in judger.
+    /// </summary>
+    [JsonDiscriminator("partial_result")]
+    public class PartialResultMsg : ClientMsg {
+        public FlowSnake JobId { get; set; }
 
-        public Dictionary<string, TestResult> PartialResults { get; set; }
+        public string TestId { get; set; }
+
+        public TestResult TestResult { get; set; }
     }
 
     /// <summary>

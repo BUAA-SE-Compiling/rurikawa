@@ -1,6 +1,7 @@
 pub mod model;
 
 use crate::{
+    client::model::JobResultKind,
     config::{JudgeToml, JudgerPublicConfig},
     fs,
     prelude::*,
@@ -263,12 +264,32 @@ pub async fn handle_job_wrapper(job: NewJob, send: Arc<Mutex<WsSink>>, cfg: Arc<
             }
         }
         Err(_err) => {
+            let (err, msg) = match _err {
+                ClientErr::NoSuchFile(f) => (
+                    JobResultKind::CompileError,
+                    format!("Cannot find file: {}", f),
+                ),
+                ClientErr::Io(e) => (JobResultKind::JudgerError, format!("IO error: {:?}", e)),
+                ClientErr::Ws(e) => (
+                    JobResultKind::JudgerError,
+                    format!("Websocket error: {:?}", e),
+                ),
+                ClientErr::Json(e) => (JobResultKind::JudgerError, format!("JSON error: {:?}", e)),
+                ClientErr::TomlDes(e) => (
+                    JobResultKind::JudgerError,
+                    format!("TOML deserialization error: {:?}", e),
+                ),
+                ClientErr::Exec(e) => (JobResultKind::PipelineError, format!("{:?}", e)),
+                ClientErr::Any(e) => (JobResultKind::OtherError, format!("{:?}", e)),
+            };
             let send_res = send
                 .lock()
                 .await
                 .send_msg(&ClientMsg::JobResult(JobResultMsg {
                     job_id,
-                    results: HashMap::new(),
+                    test_results: HashMap::new(),
+                    job_result: err,
+                    message: Some(msg),
                 }))
                 .await;
             match send_res {
@@ -293,9 +314,6 @@ pub async fn handle_job(
         .send_msg(&ClientMsg::JobProgress(JobProgressMsg {
             id: job.id,
             job_stage: JobStage::Fetching,
-            total_points: None,
-            finished_points: None,
-            partial_results: HashMap::new(),
         }))
         .await?;
 
@@ -349,13 +367,41 @@ pub async fn handle_job(
     let mut suite =
         crate::tester::exec::TestSuite::from_config(image, private_cfg, public_cfg, options)?;
 
+    let (ch_send, ch_recv) = futures::channel::mpsc::unbounded();
+
+    let recv_handle = tokio::spawn({
+        let mut recv = ch_recv;
+        let ws_send = send.clone();
+        let job_id = job.id;
+        async move {
+            while let Some((key, res)) = recv.next().await {
+                ws_send
+                    .lock()
+                    .await
+                    .send_msg(&ClientMsg::PartialResult(PartialResultMsg {
+                        job_id,
+                        test_id: key,
+                        test_result: res,
+                    }))
+                    .await;
+            }
+        }
+    });
+
     let result = suite
-        .run(bollard::Docker::connect_with_local_defaults().unwrap())
+        .run(
+            bollard::Docker::connect_with_local_defaults().unwrap(),
+            Some(ch_send),
+        )
         .await;
+
+    recv_handle.await;
 
     let job_result = JobResultMsg {
         job_id: job.id,
-        results: todo!("Create job results"),
+        test_results: todo!("Create job results"),
+        job_result: JobResultKind::Accepted,
+        message: None,
     };
     Ok(job_result)
 }
@@ -392,6 +438,7 @@ pub async fn client_loop(
                         let send = ws_send.clone();
                         tokio::spawn(handle_job_wrapper(job, send, client_config.clone()));
                     }
+                    ServerMsg::AbortJob(job) => todo!("Abort {}", job.job_id),
                 }
             } else {
                 log::warn!("Unknown binary message");
