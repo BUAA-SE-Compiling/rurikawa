@@ -251,9 +251,19 @@ pub async fn handle_job_wrapper(job: NewJob, send: Arc<Mutex<WsSink>>, cfg: Arc<
     // TODO: Handle failed cases and report
     let job_id = job.job.id;
     match handle_job(job, send.clone(), cfg).await {
-        Ok(_) => {}
-        Err(_) => {
-            let _ = send
+        Ok(_res) => {
+            let send_res = send
+                .lock()
+                .await
+                .send_msg(&ClientMsg::JobResult(_res))
+                .await;
+            match send_res {
+                Ok(_) => {}
+                Err(e) => log::error!("Error when sending job result mesage:\n{}", e),
+            }
+        }
+        Err(_err) => {
+            let send_res = send
                 .lock()
                 .await
                 .send_msg(&ClientMsg::JobResult(JobResultMsg {
@@ -261,6 +271,10 @@ pub async fn handle_job_wrapper(job: NewJob, send: Arc<Mutex<WsSink>>, cfg: Arc<
                     results: HashMap::new(),
                 }))
                 .await;
+            match send_res {
+                Ok(_) => {}
+                Err(e) => log::error!("Error when sending job result mesage:\n{}", e),
+            }
         }
     }
 }
