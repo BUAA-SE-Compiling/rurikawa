@@ -4,6 +4,7 @@ use crate::{
     config::{JudgeToml, JudgerPublicConfig},
     fs,
     prelude::*,
+    tester::exec::JudgerPrivateConfig,
 };
 use anyhow::Result;
 use async_trait::async_trait;
@@ -132,7 +133,7 @@ impl SharedClientData {
 
 #[derive(Debug)]
 pub enum ClientErr {
-    NoConfigFile(String),
+    NoSuchFile(String),
     Io(std::io::Error),
     Ws(tungstenite::Error),
     Json(serde_json::Error),
@@ -203,14 +204,15 @@ pub async fn check_download_read_test_suite(
 ) -> Result<JudgerPublicConfig, ClientErr> {
     let endpoint = cfg.test_suite_download_endpoint(suite_id);
 
-    tokio::fs::create_dir_all(cfg.test_suite_folder_root()).await?;
+    let suite_folder_root = cfg.test_suite_folder_root();
+    tokio::fs::create_dir_all(suite_folder_root).await?;
+    let suite_folder = cfg.test_suite_folder(suite_id);
     {
         // Lock this specific test suite and let all other concurrent tasks to wait
         // until downloading completes
         let lock = cfg.obtain_suite_lock(suite_id);
-        let lock = lock.lock().await;
+        lock.lock().await;
 
-        let suite_folder = cfg.test_suite_folder(suite_id);
         let dir_exists = {
             let create_dir = tokio::fs::create_dir(&suite_folder).await;
             match create_dir {
@@ -227,7 +229,22 @@ pub async fn check_download_read_test_suite(
         cfg.suite_unlock(suite_id);
     }
 
-    Ok(())
+    let mut judger_conf_dir = suite_folder.clone();
+    judger_conf_dir.push("testconf.json");
+    let judger_conf = match tokio::fs::read(&judger_conf_dir).await {
+        Ok(c) => c,
+        Err(e) => match e.kind() {
+            std::io::ErrorKind::NotFound => {
+                return Err(ClientErr::NoSuchFile(
+                    judger_conf_dir.to_string_lossy().to_owned().to_string(),
+                ));
+            }
+            _ => return Err(ClientErr::Io(e)),
+        },
+    };
+    let judger_conf = serde_json::from_slice::<JudgerPublicConfig>(&judger_conf)?;
+
+    Ok(judger_conf)
 }
 
 pub async fn handle_job_wrapper(job: NewJob, send: Arc<Mutex<WsSink>>, cfg: Arc<SharedClientData>) {
@@ -252,10 +269,10 @@ pub async fn handle_job(
     job: NewJob,
     send: Arc<Mutex<WsSink>>,
     cfg: Arc<SharedClientData>,
-) -> Result<(), ClientErr> {
+) -> Result<JobResultMsg, ClientErr> {
     let job = job.job;
 
-    let suite_cfg = check_download_read_test_suite(job.test_suite, &*cfg).await?;
+    let mut public_cfg = check_download_read_test_suite(job.test_suite, &*cfg).await?;
 
     send.lock()
         .await
@@ -289,16 +306,44 @@ pub async fn handle_job(
 
     let judge_job_cfg = judge_cfg
         .jobs
-        .get(&suite_cfg.name)
-        .ok_or_else(|| ClientErr::NoConfigFile(suite_cfg.name.to_owned()));
+        .get(&public_cfg.name)
+        .ok_or_else(|| ClientErr::NoSuchFile(public_cfg.name.to_owned()))?;
 
-    let suite = crate::tester::exec::TestSuite::from_config(todo!(), todo!(), todo!(), todo!())?;
+    let image = judge_job_cfg.image.clone();
+
+    // Set run script
+    let run = judge_job_cfg
+        .run
+        .iter()
+        .chain(public_cfg.run.iter())
+        .map(|x| x.to_owned())
+        .collect::<Vec<_>>();
+    public_cfg.run = run;
+
+    let private_cfg = JudgerPrivateConfig {
+        test_root_dir: job_path,
+    };
+
+    let options = crate::tester::exec::TestSuiteOptions {
+        tests: job.test.clone(),
+        time_limit: None,
+        mem_limit: None,
+        build_image: true,
+        remove_image: true,
+    };
+
+    let mut suite =
+        crate::tester::exec::TestSuite::from_config(image, private_cfg, public_cfg, options)?;
 
     let result = suite
         .run(bollard::Docker::connect_with_local_defaults().unwrap())
         .await;
 
-    Ok(())
+    let job_result = JobResultMsg {
+        job_id: job.id,
+        results: todo!("Create job results"),
+    };
+    Ok(job_result)
 }
 
 pub async fn client_loop(

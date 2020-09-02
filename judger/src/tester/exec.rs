@@ -914,6 +914,7 @@ mod test_suite {
                     test_root_dir: PathBuf::from(r"../golem/src"),
                 },
                 JudgerPublicConfig {
+                    name: "golem_no_volume".into(),
                     mapped_dir: PathBuf::from(r"golem/src"),
                     binds: None,
                     run: [
@@ -966,6 +967,7 @@ mod test_suite {
                     test_root_dir: PathBuf::from(r"../golem/src"), // private
                 },
                 JudgerPublicConfig {
+                    name: "golem".into(),
                     binds: Some(vec![Bind {
                         from: PathBuf::from(r"../golem/src"), // private
                         to: PathBuf::from(r"/src"),           // private
