@@ -54,6 +54,7 @@ where
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ClientConfig {
     pub host: String,
+    pub ssl: bool,
     pub token: Option<String>,
     pub cache_folder: PathBuf,
 }
@@ -76,11 +77,30 @@ impl SharedClientData {
     }
 
     pub fn websocket_endpoint(&self) -> String {
-        format!("{}/api/v1/judger/ws", self.cfg.host)
+        let ssl = if self.cfg.ssl {
+            format_args!("wss")
+        } else {
+            format_args!("ws")
+        };
+        format!("{}://{}/api/v1/judger/ws", ssl, self.cfg.host)
     }
 
     pub fn test_suite_download_endpoint(&self, suite_id: FlowSnake) -> String {
-        format!("{}/api/v1/test_suite/{}", self.cfg.host, suite_id)
+        let ssl = if self.cfg.ssl {
+            format_args!("https")
+        } else {
+            format_args!("http")
+        };
+        format!("{}://{}/api/v1/test_suite/{}", ssl, self.cfg.host, suite_id)
+    }
+
+    pub fn result_upload_endpoint(&self) -> String {
+        let ssl = if self.cfg.ssl {
+            format_args!("https")
+        } else {
+            format_args!("http")
+        };
+        format!("{}://{}/api/v1/judger/upload", ssl, self.cfg.host)
     }
 
     pub fn job_folder_root(&self) -> PathBuf {
@@ -306,6 +326,7 @@ pub async fn handle_job(
     cfg: Arc<SharedClientData>,
 ) -> Result<JobResultMsg, ClientErr> {
     let job = job.job;
+    let client = reqwest::Client::new();
 
     let mut public_cfg = check_download_read_test_suite(job.test_suite, &*cfg).await?;
 
@@ -367,7 +388,7 @@ pub async fn handle_job(
     let mut suite =
         crate::tester::exec::TestSuite::from_config(image, private_cfg, public_cfg, options)?;
 
-    let (ch_send, ch_recv) = futures::channel::mpsc::unbounded();
+    let (ch_send, ch_recv) = tokio::sync::mpsc::unbounded_channel();
 
     let recv_handle = tokio::spawn({
         let mut recv = ch_recv;
@@ -392,14 +413,15 @@ pub async fn handle_job(
         .run(
             bollard::Docker::connect_with_local_defaults().unwrap(),
             Some(ch_send),
+            Some((&cfg.result_upload_endpoint(), client)),
         )
-        .await;
+        .await?;
 
     recv_handle.await;
 
     let job_result = JobResultMsg {
         job_id: job.id,
-        test_results: todo!("Create job results"),
+        test_results: result,
         job_result: JobResultKind::Accepted,
         message: None,
     };
@@ -438,7 +460,7 @@ pub async fn client_loop(
                         let send = ws_send.clone();
                         tokio::spawn(handle_job_wrapper(job, send, client_config.clone()));
                     }
-                    ServerMsg::AbortJob(job) => todo!("Abort {}", job.job_id),
+                    ServerMsg::AbortJob(job) => log::warn!("TODO: Abort {}", job.job_id),
                 }
             } else {
                 log::warn!("Unknown binary message");

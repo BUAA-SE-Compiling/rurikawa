@@ -1,26 +1,26 @@
 use super::utils::diff;
-#[cfg(unix)]
-use super::utils::strsignal;
 use super::{
     runner::{CommandRunner, DockerCommandRunner, DockerCommandRunnerOptions},
     ExecError, ExecErrorKind, JobFailure, OutputMismatch, ProcessInfo,
 };
 use crate::{
-    client::model::{TestResult, TestResultKind},
+    client::model::{upload_test_result, TestResult, TestResultKind},
     prelude::*,
 };
 use anyhow::Result;
-use futures::future::join_all;
-use futures::{stream::StreamExt, SinkExt};
+use futures::stream::StreamExt;
 use serde::{self, Deserialize, Serialize};
 use std::fs;
 use std::io::{self, prelude::*};
 use std::time;
-use std::{collections::HashMap, path::Path, path::PathBuf};
+use std::{collections::HashMap, path::PathBuf, string::String};
+
+#[cfg(unix)]
+use super::utils::strsignal;
 
 #[cfg(not(unix))]
 fn strsignal(i: i32) -> String {
-    return "".into();
+    "".into()
 }
 
 #[macro_export]
@@ -497,8 +497,9 @@ impl TestSuite {
     pub async fn run(
         &mut self,
         instance: bollard::Docker,
-        result_channel: Option<futures::channel::mpsc::UnboundedSender<(String, TestResult)>>,
-    ) -> Result<crate::client::model::JobResultMsg, ()> {
+        result_channel: Option<tokio::sync::mpsc::UnboundedSender<(String, TestResult)>>,
+        upload_info: Option<(&str, reqwest::Client)>,
+    ) -> anyhow::Result<HashMap<String, TestResult>> {
         let TestSuiteOptions {
             time_limit,
             mem_limit,
@@ -523,44 +524,46 @@ impl TestSuite {
         .await
         .unwrap_or_else(|e| panic!("Failed to create command runner `{}`: {}", &image_tag, e));
 
-        let res = futures::stream::iter(self.test_cases)
-            .map(|case| async {
-                result_channel.as_ref().map(|ch| {
-                    ch.send((
-                        case.name.clone(),
-                        TestResult {
-                            kind: TestResultKind::Running,
-                            result_file_id: None,
-                        },
-                    ))
-                });
-                let mut t = Test::new();
-                case.exec.iter().for_each(|step| {
-                    t.add_step(Step::new_with_timeout(
-                        Capturable::new(sh![step]),
-                        time_limit.map(|n| std::time::Duration::from_secs(n as u64)),
-                    ));
-                });
-                t.expected(&case.expected_out);
-                let res = t.run(&runner).await;
-                result_channel.as_ref().map(|ch| {
-                    ch.send((
-                        case.name.clone(),
-                        TestResult {
-                            kind: TestResultKind::Accepted,
-                            result_file_id: None,
-                        },
-                    ))
-                });
-                (case.name.clone(), res)
+        // TODO: Remove drain when this compiler issue gets repaired:
+        // https://github.com/rust-lang/rust/issues/64552
+        let res = futures::stream::iter(self.test_cases.drain(..))
+            .map(|case| {
+                let upload_info = upload_info.clone();
+                let result_channel = result_channel.clone();
+                let runner = &runner;
+                async move {
+                    result_channel.as_ref().map(|ch| {
+                        ch.send((
+                            case.name.clone(),
+                            TestResult {
+                                kind: TestResultKind::Running,
+                                result_file_id: None,
+                            },
+                        ))
+                    });
+                    let mut t = Test::new();
+                    case.exec.iter().for_each(|step| {
+                        t.add_step(Step::new_with_timeout(
+                            Capturable::new(sh![step]),
+                            time_limit.map(|n| std::time::Duration::from_secs(n as u64)),
+                        ));
+                    });
+                    t.expected(&case.expected_out);
+                    let res = t.run(runner).await;
+                    let res = upload_test_result(res, upload_info).await;
+                    result_channel
+                        .as_ref()
+                        .map(|ch| ch.send((case.name.clone(), res.clone())));
+                    (case.name.clone(), res)
+                }
             })
             .buffer_unordered(16)
-            .collect::<Vec<_>>()
+            .collect::<HashMap<_, _>>()
             .await;
 
         runner.kill().await;
-        result_channel.as_ref().map(|ch| ch.close_channel());
-        res
+
+        Ok(res)
     }
 }
 
@@ -971,7 +974,7 @@ mod test_suite {
             )?;
 
             let instance = bollard::Docker::connect_with_local_defaults().unwrap();
-            ts.run(instance).await;
+            ts.run(instance, None, None).await;
             Ok(())
         })
     }
@@ -1028,7 +1031,7 @@ mod test_suite {
             )?;
 
             let instance = bollard::Docker::connect_with_local_defaults().unwrap();
-            ts.run(instance).await;
+            ts.run(instance, None, None).await;
             Ok(())
         })
     }

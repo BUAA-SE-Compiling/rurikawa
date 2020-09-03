@@ -50,6 +50,7 @@ async fn main() {
 async fn client(cmd: opt::ConnectSubCmd) {
     let cfg = SharedClientData::new(ClientConfig {
         cache_folder: "/tmp/".into(),
+        ssl: true,
         host: cmd.host,
         token: cmd.token,
     });
