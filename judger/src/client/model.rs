@@ -6,6 +6,7 @@ use std::collections::HashMap;
 /// Message sent from server
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "_t")]
+#[serde(rename_all = "camelCase")]
 pub enum ServerMsg {
     #[serde(rename = "new_job")]
     NewJob(NewJob),
@@ -14,22 +15,25 @@ pub enum ServerMsg {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct NewJob {
     pub job: Job,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct AbortJob {
     pub job_id: FlowSnake,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct Job {
     pub id: FlowSnake,
     pub repo: String,
     pub branch: Option<String>,
     pub test_suite: FlowSnake,
-    pub test: Vec<String>,
+    pub tests: Vec<String>,
     pub stage: JobStage,
     pub results: HashMap<String, TestResult>,
 }
@@ -88,6 +92,7 @@ pub enum JobResultKind {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct TestResult {
     pub kind: TestResultKind,
     pub result_file_id: Option<String>,
@@ -164,12 +169,14 @@ pub async fn upload_test_result(
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct JobProgressMsg {
     pub id: FlowSnake,
     pub job_stage: JobStage,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct PartialResultMsg {
     pub job_id: FlowSnake,
     pub test_id: String,
@@ -177,6 +184,7 @@ pub struct PartialResultMsg {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct JobResultMsg {
     pub job_id: FlowSnake,
     pub job_result: JobResultKind,
@@ -185,12 +193,14 @@ pub struct JobResultMsg {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct ClientStatusMsg {
     pub active_task_count: i32,
     pub can_accept_new_task: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct FailedJobOutputCacheFile {
     pub output: Vec<crate::tester::ProcessInfo>,
     pub stdout_diff: Option<String>,

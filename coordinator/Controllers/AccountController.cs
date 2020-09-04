@@ -95,6 +95,8 @@ namespace Karenia.Rurikawa.Coordinator.Controllers {
             if (username == null || password == null)
                 throw new NotEnoughInformationException("Please provide both username and password!");
             var account = await accountService.GetAccount(username);
+            if (account == null)
+                throw new InvalidLoginInformationException("Username or password is wrong");
             var result = accountService.VerifyPassword(password, account.HashedPassword);
             if (!result)
                 throw new InvalidLoginInformationException("Username or password is wrong");

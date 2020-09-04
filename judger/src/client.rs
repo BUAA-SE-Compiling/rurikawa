@@ -18,7 +18,7 @@ use http::Uri;
 use model::*;
 use serde::{Deserialize, Serialize};
 use serde_json::from_slice;
-use std::{collections::HashMap, error::Error, path::PathBuf, sync::Arc};
+use std::{collections::HashMap, error::Error, fmt::Debug, path::PathBuf, sync::Arc};
 use tokio::{net::TcpStream, sync::Mutex};
 use tokio_tungstenite::{connect_async, tungstenite, MaybeTlsStream, WebSocketStream};
 use tungstenite::Message;
@@ -41,10 +41,11 @@ where
 impl<M, T> SendJsonMessage<M, T> for T
 where
     T: Sink<Message> + Unpin + Send + Sync,
-    M: Serialize + Sync,
+    M: Serialize + Sync + Debug,
 {
     type Error = T::Error;
     async fn send_msg(&mut self, msg: &M) -> Result<(), Self::Error> {
+        log::info!("sent: {:?}", msg);
         let serialized = serde_json::to_string(msg).unwrap();
         let msg = Message::text(serialized);
         self.send(msg).await
@@ -92,7 +93,10 @@ impl SharedClientData {
         } else {
             format_args!("http")
         };
-        format!("{}://{}/api/v1/file/{}", ssl, self.cfg.host, suite_id)
+        format!(
+            "{}://{}/api/v1/judger/download-suite/{}",
+            ssl, self.cfg.host, suite_id
+        )
     }
 
     pub fn result_upload_endpoint(&self) -> String {
@@ -272,7 +276,7 @@ pub async fn check_download_read_test_suite(
 pub async fn handle_job_wrapper(job: NewJob, send: Arc<Mutex<WsSink>>, cfg: Arc<SharedClientData>) {
     // TODO: Handle failed cases and report
     let job_id = job.job.id;
-    match handle_job(job, send.clone(), cfg).await {
+    match handle_job(job, send.clone(), cfg.clone()).await {
         Ok(_res) => {
             let send_res = send
                 .lock()
@@ -319,6 +323,7 @@ pub async fn handle_job_wrapper(job: NewJob, send: Arc<Mutex<WsSink>>, cfg: Arc<
             }
         }
     }
+    let _ = tokio::fs::remove_dir_all(cfg.job_folder(job_id)).await;
 }
 
 pub async fn handle_job(
@@ -329,7 +334,11 @@ pub async fn handle_job(
     let job = job.job;
     let client = reqwest::Client::new();
 
+    log::info!("Job {}: created", job.id);
+
     let mut public_cfg = check_download_read_test_suite(job.test_suite, &*cfg).await?;
+
+    log::info!("Job {}: got test suite", job.id);
 
     send.lock()
         .await
@@ -351,12 +360,18 @@ pub async fn handle_job(
     )
     .await?;
 
+    log::info!("Job {}: fetched", job.id);
+
     let judge_cfg: PathBuf = fs::find_judge_root(&job_path).await?;
     let mut job_path = judge_cfg.clone();
     job_path.pop();
 
+    log::info!("Job {}: found job description file", job.id);
+
     let judge_cfg = tokio::fs::read(judge_cfg).await?;
     let judge_cfg = toml::from_slice::<JudgeToml>(&judge_cfg)?;
+
+    log::info!("Job {}: read job description file", job.id);
 
     let judge_job_cfg = judge_cfg
         .jobs
@@ -364,6 +379,8 @@ pub async fn handle_job(
         .ok_or_else(|| ClientErr::NoSuchFile(public_cfg.name.to_owned()))?;
 
     let image = judge_job_cfg.image.clone();
+
+    log::info!("Job {}: prepare to run", job.id);
 
     // Set run script
     let run = judge_job_cfg
@@ -379,7 +396,7 @@ pub async fn handle_job(
     };
 
     let options = crate::tester::exec::TestSuiteOptions {
-        tests: job.test.clone(),
+        tests: job.tests.clone(),
         time_limit: None,
         mem_limit: None,
         build_image: true,
@@ -421,6 +438,8 @@ pub async fn handle_job(
 
     let _ = recv_handle.await;
 
+    log::info!("Job {}: finished", job.id);
+
     let job_result = JobResultMsg {
         job_id: job.id,
         test_results: result,
@@ -458,19 +477,22 @@ pub async fn client_loop(
         if x.is_text() {
             let payload = x.into_data();
             let msg = from_slice::<ServerMsg>(&payload);
-            if let Ok(msg) = msg {
-                match msg {
+            match msg {
+                Ok(msg) => match msg {
                     ServerMsg::NewJob(job) => {
+                        log::info!("Received job {}", job.job.id);
                         let send = ws_send.clone();
                         tokio::spawn(handle_job_wrapper(job, send, client_config.clone()));
                     }
                     ServerMsg::AbortJob(job) => log::warn!("TODO: Abort {}", job.job_id),
+                },
+                Err(e) => {
+                    log::warn!(
+                        "Unable to deserialize mesage: {}\nError: {:?}",
+                        String::from_utf8_lossy(&payload),
+                        e
+                    );
                 }
-            } else {
-                log::warn!(
-                    "Unable to deserialize mesage: {}",
-                    String::from_utf8_lossy(&payload)
-                );
             }
         } else {
             log::warn!("Unsupported message: {:?}", x);

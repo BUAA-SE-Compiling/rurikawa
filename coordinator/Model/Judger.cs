@@ -51,46 +51,10 @@ namespace Karenia.Rurikawa.Models.Judger {
     /// A job to be run, which involves 1 test suite and 1 repo to be tested.
     /// </summary>
     public class Job {
-        public Job(
-            long id,
-            string repo,
-            string? branch,
-            FlowSnake testSuite,
-            List<string> tests,
-            JobStage stage = default,
-            Dictionary<string, TestResult>? results = null
-        ) {
-            Id = new FlowSnake(id);
-            Repo = repo;
-            Branch = branch;
-            TestSuite = testSuite;
-            Tests = tests;
-            Stage = stage;
-            Results = results;
-        }
-
-        public Job(
-            FlowSnake id,
-            string repo,
-            string? branch,
-            FlowSnake testSuite,
-            List<string> tests,
-            JobStage stage,
-            Dictionary<string, TestResult>? results
-        ) {
-            Id = id;
-            Repo = repo;
-            Branch = branch;
-            TestSuite = testSuite;
-            Tests = tests;
-            Stage = stage;
-            Results = results;
-        }
-
         /// <summary>
         /// A globally unique identifier of this job.
         /// </summary>
-        public FlowSnake Id { get; private set; }
+        public FlowSnake Id { get; set; }
 
         /// <summary>
         /// The account that created this job
@@ -134,7 +98,7 @@ namespace Karenia.Rurikawa.Models.Judger {
         public string? ResultMessage { get; set; }
 
         [Column(TypeName = "jsonb")]
-        public Dictionary<string, TestResult> Results { get; set; }
+        public Dictionary<string, TestResult> Results { get; set; } = new Dictionary<string, TestResult>();
     }
 
     /// <summary>

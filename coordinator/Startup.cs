@@ -45,7 +45,7 @@ namespace Karenia.Rurikawa.Coordinator {
                     ValidateIssuerSigningKey = true,
                     IssuerSigningKey = securityKey,
                     ValidateIssuer = false,
-                    ValidateAudience = false
+                    ValidateAudience = false,
                 };
             }).AddScheme<Microsoft.AspNetCore.Authentication.AuthenticationSchemeOptions, JudgerAuthenticateService>("judger", null);
 
@@ -75,6 +75,7 @@ namespace Karenia.Rurikawa.Coordinator {
             );
             services.AddSingleton<JudgerCoordinatorService>();
             services.AddScoped<AccountService>();
+            services.AddScoped<JudgerService>();
             services.AddSingleton<JsonSerializerOptions>(_ =>
                 SetupJsonSerializerOptions(new JsonSerializerOptions())
             );
@@ -85,6 +86,7 @@ namespace Karenia.Rurikawa.Coordinator {
         public JsonSerializerOptions SetupJsonSerializerOptions(JsonSerializerOptions opt) {
             opt.PropertyNamingPolicy = JsonNamingPolicy.CamelCase;
             opt.Converters.Add(new FlowSnakeJsonConverter());
+            opt.Converters.Add(new System.Text.Json.Serialization.JsonStringEnumConverter());
             opt.SetupExtensions();
 
             var dis = opt.GetDiscriminatorConventionRegistry();
@@ -124,7 +126,7 @@ namespace Karenia.Rurikawa.Coordinator {
             // Add websocket acceptor
             app.Use(async (ctx, next) => {
                 logger.LogInformation("{0}，{1}", ctx.Request.Path, ctx.WebSockets.IsWebSocketRequest);
-                if (ctx.Request.Path == "api/v1/judger/ws") {
+                if (ctx.Request.Path == "/api/v1/judger/ws") {
                     if (ctx.WebSockets.IsWebSocketRequest) {
                         var svc = app.ApplicationServices.GetService<JudgerCoordinatorService>();
                         await svc.TryUseConnection(ctx);

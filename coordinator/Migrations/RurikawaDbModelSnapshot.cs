@@ -21,34 +21,7 @@ namespace Karenia.Rurikawa.Coordinator.Migrations
                 .HasAnnotation("ProductVersion", "3.1.7")
                 .HasAnnotation("Relational:MaxIdentifierLength", 63);
 
-            modelBuilder.Entity("Karenia.Rurikawa.Models.Account.Profile", b =>
-                {
-                    b.Property<string>("Username")
-                        .HasColumnName("username")
-                        .HasColumnType("text");
-
-                    b.Property<string>("Email")
-                        .HasColumnName("email")
-                        .HasColumnType("text");
-
-                    b.Property<string>("StudentId")
-                        .HasColumnName("student_id")
-                        .HasColumnType("text");
-
-                    b.HasKey("Username")
-                        .HasName("pk_profiles");
-
-                    b.HasIndex("Email")
-                        .HasName("ix_profiles_email");
-
-                    b.HasIndex("Username")
-                        .IsUnique()
-                        .HasName("ix_profiles_username");
-
-                    b.ToTable("profiles");
-                });
-
-            modelBuilder.Entity("Karenia.Rurikawa.Models.Account.TokenEntry", b =>
+            modelBuilder.Entity("Karenia.Rurikawa.Models.Account.AccessTokenEntry", b =>
                 {
                     b.Property<string>("Token")
                         .HasColumnName("token")
@@ -89,22 +62,167 @@ namespace Karenia.Rurikawa.Coordinator.Migrations
                         .HasColumnType("text");
 
                     b.HasKey("Token")
-                        .HasName("pk_token_entry");
+                        .HasName("pk_access_tokens");
 
                     b.HasIndex("Expires")
-                        .HasName("ix_token_entry_expires");
+                        .HasName("ix_access_tokens_expires");
 
                     b.HasIndex("Token")
                         .IsUnique()
-                        .HasName("ix_token_entry_token");
+                        .HasName("ix_access_tokens_token");
 
                     b.HasIndex("TokenName")
-                        .HasName("ix_token_entry_token_name");
+                        .HasName("ix_access_tokens_token_name");
 
                     b.HasIndex("Username")
-                        .HasName("ix_token_entry_username");
+                        .HasName("ix_access_tokens_username");
 
-                    b.ToTable("token_entry");
+                    b.ToTable("access_tokens");
+                });
+
+            modelBuilder.Entity("Karenia.Rurikawa.Models.Account.JudgerTokenEntry", b =>
+                {
+                    b.Property<string>("Token")
+                        .HasColumnName("token")
+                        .HasColumnType("text");
+
+                    b.Property<DateTimeOffset?>("Expires")
+                        .HasColumnName("expires")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<bool>("IsSingleUse")
+                        .HasColumnName("is_single_use")
+                        .HasColumnType("boolean");
+
+                    b.Property<DateTimeOffset>("IssuedTime")
+                        .HasColumnName("issued_time")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTimeOffset?>("LastUseTime")
+                        .HasColumnName("last_use_time")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("RelatedToken")
+                        .HasColumnName("related_token")
+                        .HasColumnType("text");
+
+                    b.Property<List<string>>("Scope")
+                        .IsRequired()
+                        .HasColumnName("scope")
+                        .HasColumnType("text[]");
+
+                    b.Property<string>("TokenName")
+                        .HasColumnName("token_name")
+                        .HasColumnType("text");
+
+                    b.Property<string>("Username")
+                        .IsRequired()
+                        .HasColumnName("username")
+                        .HasColumnType("text");
+
+                    b.HasKey("Token")
+                        .HasName("pk_judger_register_tokens");
+
+                    b.HasIndex("Expires")
+                        .HasName("ix_judger_register_tokens_expires");
+
+                    b.HasIndex("Token")
+                        .IsUnique()
+                        .HasName("ix_judger_register_tokens_token");
+
+                    b.HasIndex("TokenName")
+                        .HasName("ix_judger_register_tokens_token_name");
+
+                    b.HasIndex("Username")
+                        .HasName("ix_judger_register_tokens_username");
+
+                    b.ToTable("judger_register_tokens");
+                });
+
+            modelBuilder.Entity("Karenia.Rurikawa.Models.Account.Profile", b =>
+                {
+                    b.Property<string>("Username")
+                        .HasColumnName("username")
+                        .HasColumnType("text");
+
+                    b.Property<string>("Email")
+                        .HasColumnName("email")
+                        .HasColumnType("text");
+
+                    b.Property<string>("StudentId")
+                        .HasColumnName("student_id")
+                        .HasColumnType("text");
+
+                    b.HasKey("Username")
+                        .HasName("pk_profiles");
+
+                    b.HasIndex("Email")
+                        .HasName("ix_profiles_email");
+
+                    b.HasIndex("Username")
+                        .IsUnique()
+                        .HasName("ix_profiles_username");
+
+                    b.ToTable("profiles");
+                });
+
+            modelBuilder.Entity("Karenia.Rurikawa.Models.Account.RefreshTokenEntry", b =>
+                {
+                    b.Property<string>("Token")
+                        .HasColumnName("token")
+                        .HasColumnType("text");
+
+                    b.Property<DateTimeOffset?>("Expires")
+                        .HasColumnName("expires")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<bool>("IsSingleUse")
+                        .HasColumnName("is_single_use")
+                        .HasColumnType("boolean");
+
+                    b.Property<DateTimeOffset>("IssuedTime")
+                        .HasColumnName("issued_time")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTimeOffset?>("LastUseTime")
+                        .HasColumnName("last_use_time")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("RelatedToken")
+                        .HasColumnName("related_token")
+                        .HasColumnType("text");
+
+                    b.Property<List<string>>("Scope")
+                        .IsRequired()
+                        .HasColumnName("scope")
+                        .HasColumnType("text[]");
+
+                    b.Property<string>("TokenName")
+                        .HasColumnName("token_name")
+                        .HasColumnType("text");
+
+                    b.Property<string>("Username")
+                        .IsRequired()
+                        .HasColumnName("username")
+                        .HasColumnType("text");
+
+                    b.HasKey("Token")
+                        .HasName("pk_refresh_tokens");
+
+                    b.HasIndex("Expires")
+                        .HasName("ix_refresh_tokens_expires");
+
+                    b.HasIndex("Token")
+                        .IsUnique()
+                        .HasName("ix_refresh_tokens_token");
+
+                    b.HasIndex("TokenName")
+                        .HasName("ix_refresh_tokens_token_name");
+
+                    b.HasIndex("Username")
+                        .HasName("ix_refresh_tokens_username");
+
+                    b.ToTable("refresh_tokens");
                 });
 
             modelBuilder.Entity("Karenia.Rurikawa.Models.Account.UserAccount", b =>
@@ -155,7 +273,16 @@ namespace Karenia.Rurikawa.Coordinator.Migrations
                         .HasColumnName("repo")
                         .HasColumnType("text");
 
+                    b.Property<int?>("ResultKind")
+                        .HasColumnName("result_kind")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("ResultMessage")
+                        .HasColumnName("result_message")
+                        .HasColumnType("text");
+
                     b.Property<Dictionary<string, TestResult>>("Results")
+                        .IsRequired()
                         .HasColumnName("results")
                         .HasColumnType("jsonb");
 
@@ -257,10 +384,16 @@ namespace Karenia.Rurikawa.Coordinator.Migrations
                         .HasColumnName("time_limit")
                         .HasColumnType("integer");
 
+                    b.Property<string>("Title")
+                        .IsRequired()
+                        .HasColumnName("title")
+                        .HasColumnType("text");
+
                     b.HasKey("Id")
                         .HasName("pk_test_suites");
 
                     b.HasIndex("Id")
+                        .IsUnique()
                         .HasName("ix_test_suites_id");
 
                     b.HasIndex("Name")

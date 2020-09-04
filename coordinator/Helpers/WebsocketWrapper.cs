@@ -86,6 +86,9 @@ namespace Karenia.Rurikawa.Helpers {
                             this.messages.OnCompleted();
                             return;
                     }
+                } catch (WebSocketException e) {
+                    if (e.WebSocketErrorCode == WebSocketError.ConnectionClosedPrematurely || e.WebSocketErrorCode == WebSocketError.NativeError || e.WebSocketErrorCode == WebSocketError.InvalidMessageType)
+                        break;
                 } catch (ConnectionAbortedException) {
                     break;
                 } catch (OperationCanceledException) {

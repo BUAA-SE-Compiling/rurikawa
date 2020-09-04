@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Security.Claims;
 using System.Threading.Tasks;
 using Karenia.Rurikawa.Coordinator.Services;
 using Karenia.Rurikawa.Helpers;
@@ -13,8 +14,8 @@ using Microsoft.Extensions.Logging;
 
 namespace Karenia.Rurikawa.Coordinator.Controllers {
     [ApiController]
-    [Route("api/v1/job/")]
-    [Authorize()]
+    [Route("api/v1/job")]
+    [Authorize("user")]
     public class JobController : ControllerBase {
         public JobController(ILogger<JobController> logger, JudgerCoordinatorService coordinatorService) {
             this.logger = logger;
@@ -47,20 +48,26 @@ namespace Karenia.Rurikawa.Coordinator.Controllers {
         /// <summary>
         /// PUTs a new job
         /// </summary>
-        /// <param name="job"></param>
-        /// <returns></returns>
-        [HttpPost]
-        [Authorize("user")]
-        public async Task<string> NewJob(NewJobMessage msg) {
+        [HttpPost("")]
+        public async Task<IActionResult> NewJob([FromBody] NewJobMessage m) {
+            var account = HttpContext.User.FindFirst(ClaimTypes.NameIdentifier).Value;
             FlowSnake id = FlowSnake.Generate();
-            var job = new Job(
-                id,
-                msg.Repo,
-                msg.Branch,
-                msg.TestSuite,
-                msg.Tests);
-            await coordinatorService.ScheduleJob(job);
-            return id.ToString();
+            var job = new Job
+            {
+                Id = id,
+                Account = account,
+                Repo = m.Repo,
+                Branch = m.Branch,
+                TestSuite = m.TestSuite,
+                Tests = m.Tests,
+                Stage = JobStage.Queued,
+            };
+            try {
+                await coordinatorService.ScheduleJob(job);
+            } catch (KeyNotFoundException) {
+                return BadRequest("No such test suite");
+            }
+            return Ok(id.ToString());
         }
     }
 }

@@ -51,7 +51,8 @@ pub async fn git_clone(dir: Option<&Path>, options: GitCloneOptions) -> std::io:
 }
 
 pub async fn download_unzip(url: &str, dir: &Path, temp_file_path: &Path) -> anyhow::Result<()> {
-    let mut resp = reqwest::get(url).await?;
+    let mut resp = reqwest::get(url).await?.error_for_status()?;
+
     let mut file = tokio::fs::File::create(temp_file_path).await?;
     while let Some(chunk) = resp.chunk().await? {
         file.write_all(&chunk).await?;

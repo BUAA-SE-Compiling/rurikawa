@@ -140,13 +140,15 @@ namespace Karenia.Rurikawa.Coordinator.Services {
             List<string> scope,
             DateTimeOffset? expireTime) {
             var accessToken = GenerateToken();
-            db.AccessTokens.Add(new TokenEntry(
-                username,
-                accessToken,
-                DateTimeOffset.Now,
-                scope,
-                tokenName: alternativeName,
-                expires: expireTime));
+            db.AccessTokens.Add(new AccessTokenEntry
+            {
+                Username = username,
+                Token = accessToken,
+                IssuedTime = DateTimeOffset.Now,
+                Scope = scope,
+                TokenName = alternativeName,
+                Expires = expireTime
+            });
             await db.SaveChangesAsync();
             return accessToken;
         }
@@ -158,14 +160,16 @@ namespace Karenia.Rurikawa.Coordinator.Services {
             DateTimeOffset? expireTime,
             bool isSingleUse) {
             var refreshToken = GenerateToken();
-            db.RefreshTokens.Add(new TokenEntry(
-                username,
-                refreshToken,
-                DateTimeOffset.Now,
-                scope,
-                isSingleUse: isSingleUse,
-                relatedToken: relatedAccessToken,
-                expires: expireTime));
+            db.RefreshTokens.Add(new RefreshTokenEntry
+            {
+                Username = username,
+                Token = refreshToken,
+                IssuedTime = DateTimeOffset.Now,
+                Scope = scope,
+                IsSingleUse = isSingleUse,
+                RelatedToken = relatedAccessToken,
+                Expires = expireTime
+            });
             await db.SaveChangesAsync();
             return refreshToken;
         }
@@ -202,7 +206,7 @@ namespace Karenia.Rurikawa.Coordinator.Services {
         /// </summary>
         /// <param name="token"></param>
         /// <returns>Token, null if not found</returns>
-        public async Task<TokenEntry?> GetToken(string token, DbSet<TokenEntry> tokenSet) {
+        public async Task<T?> GetToken<T>(string token, DbSet<T> tokenSet) where T : TokenEntry {
             var result = await tokenSet.Where(t => t.Token == token)
                 .SingleOrDefaultAsync();
             if (result != null && result.IsExpired()) {
@@ -217,11 +221,11 @@ namespace Karenia.Rurikawa.Coordinator.Services {
             return result;
         }
 
-        public async Task<IList<TokenEntry>> GetAllAccessToken(string username) {
+        public async Task<IList<AccessTokenEntry>> GetAllAccessToken(string username) {
             return await db.AccessTokens.Where(token => token.Username == username).ToListAsync();
         }
 
-        public async Task<IList<TokenEntry>> GetAllRefreshToken(string username) {
+        public async Task<IList<RefreshTokenEntry>> GetAllRefreshToken(string username) {
             return await db.RefreshTokens.Where(token => token.Username == username).ToListAsync();
         }
 

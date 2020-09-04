@@ -33,6 +33,13 @@ const CHAR_TO_BASE32: [u8; 128] = [
     255,
 ];
 
+const ALPHABET: &[u8; 32] = b"0123456789abcdefghjkmnpqrstvwxyz";
+
+pub enum FlowSnakeDeserializeError {
+    InvalidLength(usize),
+    InvalidChar(usize, char),
+}
+
 impl FlowSnake {
     pub fn new_parts(timestamp: u64, worker_id: u64, seq: u64) -> FlowSnake {
         let n = ((timestamp & ((1 << timestamp_bits) - 1)) << (worker_id_bits + sequence_bits))
@@ -66,19 +73,19 @@ impl FlowSnake {
         FlowSnake::new_parts(time, worker_id, seq)
     }
 
-    pub fn parse(s: &str) -> Result<FlowSnake, ()> {
+    pub fn parse(s: &str) -> Result<FlowSnake, FlowSnakeDeserializeError> {
         if s.len() != 13 {
-            return Err(());
+            return Err(FlowSnakeDeserializeError::InvalidLength(s.len()));
         }
         let mut n = 0u64;
-        for ch in s.chars() {
-            let ch = ch as usize;
+        for (pos, ch_) in s.chars().enumerate() {
+            let ch = ch_ as usize;
             if ch >= CHAR_TO_BASE32.len() {
-                return Err(());
+                return Err(FlowSnakeDeserializeError::InvalidChar(pos, ch_));
             }
             let five_bit = CHAR_TO_BASE32[ch] as u64;
             if five_bit == 255 {
-                return Err(());
+                return Err(FlowSnakeDeserializeError::InvalidChar(pos, ch_));
             }
             n <<= 5;
             n |= five_bit;
@@ -91,8 +98,8 @@ impl FlowSnake {
             return Err(());
         }
         for i in 0..13 {
-            let x = ((self.0 >> (5 * (12 - i))) & 0xff) as u8;
-            buf[i as usize] = x;
+            let x = ((self.0 >> (5 * (12 - i))) & 31) as u8;
+            buf[i as usize] = ALPHABET[x as usize];
         }
         Ok(())
     }
@@ -147,10 +154,14 @@ impl<'de> Visitor<'de> for FlowSnakeVisitor {
     {
         match FlowSnake::parse(v) {
             Ok(v) => Ok(v),
-            Err(e) => Err(serde::de::Error::invalid_value(
-                serde::de::Unexpected::Str(v),
-                &"A 13-byte base32 string",
-            )),
+            Err(e) => match e {
+                FlowSnakeDeserializeError::InvalidLength(len) => {
+                    Err(serde::de::Error::invalid_length(len, &"13"))
+                }
+                FlowSnakeDeserializeError::InvalidChar(pos, ch) => Err(serde::de::Error::custom(
+                    format!("Invalid character `{}` at position {}", ch, pos),
+                )),
+            },
         }
     }
 

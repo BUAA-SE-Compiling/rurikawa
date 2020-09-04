@@ -10,6 +10,25 @@ namespace Karenia.Rurikawa.Coordinator.Migrations
         protected override void Up(MigrationBuilder migrationBuilder)
         {
             migrationBuilder.CreateTable(
+                name: "access_tokens",
+                columns: table => new
+                {
+                    token = table.Column<string>(nullable: false),
+                    username = table.Column<string>(nullable: false),
+                    token_name = table.Column<string>(nullable: true),
+                    scope = table.Column<List<string>>(nullable: false),
+                    related_token = table.Column<string>(nullable: true),
+                    issued_time = table.Column<DateTimeOffset>(nullable: false),
+                    expires = table.Column<DateTimeOffset>(nullable: true),
+                    is_single_use = table.Column<bool>(nullable: false),
+                    last_use_time = table.Column<DateTimeOffset>(nullable: true)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("pk_access_tokens", x => x.token);
+                });
+
+            migrationBuilder.CreateTable(
                 name: "accounts",
                 columns: table => new
                 {
@@ -33,11 +52,32 @@ namespace Karenia.Rurikawa.Coordinator.Migrations
                     test_suite = table.Column<long>(nullable: false),
                     tests = table.Column<List<string>>(nullable: false),
                     stage = table.Column<int>(nullable: false),
-                    results = table.Column<Dictionary<string, TestResult>>(type: "jsonb", nullable: true)
+                    result_kind = table.Column<int>(nullable: true),
+                    result_message = table.Column<string>(nullable: true),
+                    results = table.Column<Dictionary<string, TestResult>>(type: "jsonb", nullable: false)
                 },
                 constraints: table =>
                 {
                     table.PrimaryKey("pk_jobs", x => x.id);
+                });
+
+            migrationBuilder.CreateTable(
+                name: "judger_register_tokens",
+                columns: table => new
+                {
+                    token = table.Column<string>(nullable: false),
+                    username = table.Column<string>(nullable: false),
+                    token_name = table.Column<string>(nullable: true),
+                    scope = table.Column<List<string>>(nullable: false),
+                    related_token = table.Column<string>(nullable: true),
+                    issued_time = table.Column<DateTimeOffset>(nullable: false),
+                    expires = table.Column<DateTimeOffset>(nullable: true),
+                    is_single_use = table.Column<bool>(nullable: false),
+                    last_use_time = table.Column<DateTimeOffset>(nullable: true)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("pk_judger_register_tokens", x => x.token);
                 });
 
             migrationBuilder.CreateTable(
@@ -68,11 +108,31 @@ namespace Karenia.Rurikawa.Coordinator.Migrations
                 });
 
             migrationBuilder.CreateTable(
+                name: "refresh_tokens",
+                columns: table => new
+                {
+                    token = table.Column<string>(nullable: false),
+                    username = table.Column<string>(nullable: false),
+                    token_name = table.Column<string>(nullable: true),
+                    scope = table.Column<List<string>>(nullable: false),
+                    related_token = table.Column<string>(nullable: true),
+                    issued_time = table.Column<DateTimeOffset>(nullable: false),
+                    expires = table.Column<DateTimeOffset>(nullable: true),
+                    is_single_use = table.Column<bool>(nullable: false),
+                    last_use_time = table.Column<DateTimeOffset>(nullable: true)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("pk_refresh_tokens", x => x.token);
+                });
+
+            migrationBuilder.CreateTable(
                 name: "test_suites",
                 columns: table => new
                 {
                     id = table.Column<long>(nullable: false),
                     name = table.Column<string>(nullable: false),
+                    title = table.Column<string>(nullable: false),
                     description = table.Column<string>(nullable: false),
                     tags = table.Column<List<string>>(nullable: true),
                     package_file_id = table.Column<string>(nullable: false),
@@ -85,19 +145,26 @@ namespace Karenia.Rurikawa.Coordinator.Migrations
                     table.PrimaryKey("pk_test_suites", x => x.id);
                 });
 
-            migrationBuilder.CreateTable(
-                name: "token_entry",
-                columns: table => new
-                {
-                    access_token = table.Column<string>(nullable: false),
-                    username = table.Column<string>(nullable: false),
-                    token_name = table.Column<string>(nullable: true),
-                    expires = table.Column<DateTimeOffset>(nullable: true)
-                },
-                constraints: table =>
-                {
-                    table.PrimaryKey("pk_token_entry", x => x.access_token);
-                });
+            migrationBuilder.CreateIndex(
+                name: "ix_access_tokens_expires",
+                table: "access_tokens",
+                column: "expires");
+
+            migrationBuilder.CreateIndex(
+                name: "ix_access_tokens_token",
+                table: "access_tokens",
+                column: "token",
+                unique: true);
+
+            migrationBuilder.CreateIndex(
+                name: "ix_access_tokens_token_name",
+                table: "access_tokens",
+                column: "token_name");
+
+            migrationBuilder.CreateIndex(
+                name: "ix_access_tokens_username",
+                table: "access_tokens",
+                column: "username");
 
             migrationBuilder.CreateIndex(
                 name: "ix_accounts_kind",
@@ -127,6 +194,27 @@ namespace Karenia.Rurikawa.Coordinator.Migrations
                 column: "test_suite");
 
             migrationBuilder.CreateIndex(
+                name: "ix_judger_register_tokens_expires",
+                table: "judger_register_tokens",
+                column: "expires");
+
+            migrationBuilder.CreateIndex(
+                name: "ix_judger_register_tokens_token",
+                table: "judger_register_tokens",
+                column: "token",
+                unique: true);
+
+            migrationBuilder.CreateIndex(
+                name: "ix_judger_register_tokens_token_name",
+                table: "judger_register_tokens",
+                column: "token_name");
+
+            migrationBuilder.CreateIndex(
+                name: "ix_judger_register_tokens_username",
+                table: "judger_register_tokens",
+                column: "username");
+
+            migrationBuilder.CreateIndex(
                 name: "ix_judgers_id",
                 table: "judgers",
                 column: "id",
@@ -149,45 +237,52 @@ namespace Karenia.Rurikawa.Coordinator.Migrations
                 unique: true);
 
             migrationBuilder.CreateIndex(
+                name: "ix_refresh_tokens_expires",
+                table: "refresh_tokens",
+                column: "expires");
+
+            migrationBuilder.CreateIndex(
+                name: "ix_refresh_tokens_token",
+                table: "refresh_tokens",
+                column: "token",
+                unique: true);
+
+            migrationBuilder.CreateIndex(
+                name: "ix_refresh_tokens_token_name",
+                table: "refresh_tokens",
+                column: "token_name");
+
+            migrationBuilder.CreateIndex(
+                name: "ix_refresh_tokens_username",
+                table: "refresh_tokens",
+                column: "username");
+
+            migrationBuilder.CreateIndex(
                 name: "ix_test_suites_id",
                 table: "test_suites",
-                column: "id");
+                column: "id",
+                unique: true);
 
             migrationBuilder.CreateIndex(
                 name: "ix_test_suites_name",
                 table: "test_suites",
                 column: "name",
                 unique: true);
-
-            migrationBuilder.CreateIndex(
-                name: "ix_token_entry_access_token",
-                table: "token_entry",
-                column: "access_token",
-                unique: true);
-
-            migrationBuilder.CreateIndex(
-                name: "ix_token_entry_expires",
-                table: "token_entry",
-                column: "expires");
-
-            migrationBuilder.CreateIndex(
-                name: "ix_token_entry_token_name",
-                table: "token_entry",
-                column: "token_name");
-
-            migrationBuilder.CreateIndex(
-                name: "ix_token_entry_username",
-                table: "token_entry",
-                column: "username");
         }
 
         protected override void Down(MigrationBuilder migrationBuilder)
         {
             migrationBuilder.DropTable(
+                name: "access_tokens");
+
+            migrationBuilder.DropTable(
                 name: "accounts");
 
             migrationBuilder.DropTable(
                 name: "jobs");
+
+            migrationBuilder.DropTable(
+                name: "judger_register_tokens");
 
             migrationBuilder.DropTable(
                 name: "judgers");
@@ -196,10 +291,10 @@ namespace Karenia.Rurikawa.Coordinator.Migrations
                 name: "profiles");
 
             migrationBuilder.DropTable(
-                name: "test_suites");
+                name: "refresh_tokens");
 
             migrationBuilder.DropTable(
-                name: "token_entry");
+                name: "test_suites");
         }
     }
 }

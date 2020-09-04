@@ -28,40 +28,23 @@ namespace Karenia.Rurikawa.Models.Account {
         public string? StudentId { get; set; }
     }
 
+    public class AccessTokenEntry : TokenEntry { }
+    public class RefreshTokenEntry : TokenEntry { }
+    public class JudgerTokenEntry : TokenEntry { }
+
     /// <summary>
     /// The class used for storing long-lived Access Tokens and 
     /// Refresh Tokens for users
     /// </summary>
     public class TokenEntry {
-        public TokenEntry(
-            string username,
-            string token,
-            DateTimeOffset issuedTime,
-            List<string> scope,
-            string? tokenName = null,
-            string? relatedToken = null,
-            DateTimeOffset? expires = null,
-            DateTimeOffset? lastUseTime = null,
-            bool isSingleUse = false) {
-            Username = username;
-            TokenName = tokenName;
-            Expires = expires;
-            Token = token;
-            RelatedToken = relatedToken;
-            IssuedTime = issuedTime;
-            Scope = scope;
-            LastUseTime = lastUseTime;
-            IsSingleUse = isSingleUse;
-        }
-
         public string Username { get; set; }
         public string? TokenName { get; set; }
         public string Token { get; set; }
-        public List<string> Scope { get; set; }
+        public List<string> Scope { get; set; } = new List<string>();
         public string? RelatedToken { get; set; }
         public DateTimeOffset IssuedTime { get; set; }
         public DateTimeOffset? Expires { get; set; }
-        public bool IsSingleUse { get; set; }
+        public bool IsSingleUse { get; set; } = false;
         public DateTimeOffset? LastUseTime { get; set; }
 
         public bool IsExpired() {

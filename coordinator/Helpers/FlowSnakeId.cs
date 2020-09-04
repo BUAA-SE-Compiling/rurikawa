@@ -14,7 +14,7 @@ namespace Karenia.Rurikawa.Helpers {
         const int WORKER_ID_BITS = 12;
         const int SEQUENCE_BITS = 18;
 
-        static readonly char[] alphabet = "0123456789abcdefghjkmnpqrstuwxyz".ToCharArray();
+        static readonly char[] alphabet = "0123456789abcdefghjkmnpqrstvwxyz".ToCharArray();
         static readonly byte[] charToBase32 = new byte[] {
             255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255,
             255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255,
@@ -178,12 +178,14 @@ namespace Karenia.Rurikawa.Helpers {
             Type typeToConvert,
             JsonSerializerOptions options
         ) {
-            if (reader.TryGetInt64(out var ul)) {
-                return new FlowSnake(ul);
+            if (reader.TokenType == JsonTokenType.Number) {
+                var i = reader.GetInt64();
+                return new FlowSnake(i);
             } else {
                 var s = reader.GetString();
                 return new FlowSnake(s, true);
             }
+
         }
 
         public override void Write(

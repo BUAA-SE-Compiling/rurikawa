@@ -178,7 +178,11 @@ namespace Karenia.Rurikawa.Coordinator.Services {
             using var scope = scopeProvider.CreateScope();
             var db = GetDb(scope);
 
-            var job = await db.Jobs.Where(j => j.Id == msg.JobId).SingleAsync();
+            var job = await db.Jobs.Where(j => j.Id == msg.JobId).FirstOrDefaultAsync();
+            if (job == null) {
+                logger.LogError("Cannot find job {0}, error?", msg.JobId);
+                return;
+            }
             if (job.Stage != msg.Stage) {
                 job.Stage = msg.Stage;
                 await db.SaveChangesAsync();
@@ -189,8 +193,12 @@ namespace Karenia.Rurikawa.Coordinator.Services {
             using var scope = scopeProvider.CreateScope();
             var db = GetDb(scope);
             using (var tx = await db.Database.BeginTransactionAsync()) {
-                var job = await db.Jobs.Where(job => job.Id == msg.JobId).SingleAsync();
-                job.Results = msg.Results;
+                var job = await db.Jobs.Where(job => job.Id == msg.JobId).SingleOrDefaultAsync();
+                if (job == null) {
+                    logger.LogError("Unable to find job {0} ({1}) in database! Please recheck", msg.JobId, msg.JobId.Num);
+                    return;
+                }
+                job.Results = msg.Results ?? new Dictionary<string, TestResult>();
                 job.Stage = JobStage.Finished;
                 job.ResultKind = msg.JobResult;
                 job.ResultMessage = msg.Message;
@@ -247,7 +255,7 @@ namespace Karenia.Rurikawa.Coordinator.Services {
         protected async Task<Job?> GetLastUndispatchedJobFromDatabase(RurikawaDb db) {
             var res = await db.Jobs.Where(j => j.Stage == JobStage.Queued)
                 .OrderBy(j => j.Id)
-                .SingleOrDefaultAsync();
+                .FirstOrDefaultAsync();
             return res;
         }
 
@@ -264,6 +272,14 @@ namespace Karenia.Rurikawa.Coordinator.Services {
         }
 
         public async Task ScheduleJob(Job job) {
+            // Save this job to database
+            using var scope = scopeProvider.CreateScope();
+            var db = GetDb(scope);
+
+            if (await db.TestSuites.AllAsync(d => d.Id != job.TestSuite)) {
+                throw new KeyNotFoundException();
+            }
+
             job.Stage = JobStage.Queued;
             bool success = false;
 
@@ -287,9 +303,6 @@ namespace Karenia.Rurikawa.Coordinator.Services {
             }
             queueLock.Release();
 
-            // Save this job to database
-            using var scope = scopeProvider.CreateScope();
-            var db = GetDb(scope);
             db.Jobs.Add(job);
             await db.SaveChangesAsync();
         }

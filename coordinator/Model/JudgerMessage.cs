@@ -57,7 +57,7 @@ namespace Karenia.Rurikawa.Models.Judger {
 
         public string? Message { get; set; }
 
-        public Dictionary<string, TestResult> Results { get; set; }
+        public Dictionary<string, TestResult>? Results { get; set; }
     }
 
     /// <summary>
