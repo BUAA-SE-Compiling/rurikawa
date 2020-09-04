@@ -12,8 +12,8 @@ namespace Karenia.Rurikawa.Models.Judger {
     /// A runner of a specific testing task.
     /// </summary>
     public class Judger {
-
         public JsonWebsocketWrapper<ClientMsg, ServerMsg> Socket { get; }
+        public JudgerEntry DbJudgerEntry { get; }
         public string Id { get; }
 
         /// <summary>
@@ -36,6 +36,16 @@ namespace Karenia.Rurikawa.Models.Judger {
             Socket = socket;
         }
     }
+
+    public enum JobResultKind {
+        Accepted,
+        CompileError,
+        PipelineError,
+        JudgerError,
+        Aborted,
+        OtherError,
+    }
+
 
     /// <summary>
     /// A job to be run, which involves 1 test suite and 1 repo to be tested.
@@ -113,26 +123,24 @@ namespace Karenia.Rurikawa.Models.Judger {
         /// </summary>
         public JobStage Stage { get; set; }
 
+        /// <summary>
+        /// The result of this job, if applicable
+        /// </summary>
+        public JobResultKind? ResultKind { get; set; }
+
+        /// <summary>
+        /// Attached message for the result of this job, if applicable
+        /// </summary>
+        public string? ResultMessage { get; set; }
+
         [Column(TypeName = "jsonb")]
-        public Dictionary<string, TestResult>? Results { get; set; }
+        public Dictionary<string, TestResult> Results { get; set; }
     }
 
     /// <summary>
     /// Represents a single judger added to the system
     /// </summary>
     public class JudgerEntry {
-        public JudgerEntry(
-            string id,
-            string? alternateName,
-            List<string>? tags = null,
-             bool acceptUntaggedJobs = false
-        ) {
-            Id = id;
-            AlternateName = alternateName;
-            Tags = tags;
-            AcceptUntaggedJobs = acceptUntaggedJobs;
-        }
-
         /// <summary>
         /// The ID (and token) of this Judger
         /// </summary>
@@ -148,6 +156,6 @@ namespace Karenia.Rurikawa.Models.Judger {
         /// </summary>
         public List<string>? Tags { get; set; }
 
-        public bool AcceptUntaggedJobs { get; set; }
+        public bool AcceptUntaggedJobs { get; set; } = true;
     }
 }

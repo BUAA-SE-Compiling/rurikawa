@@ -33,6 +33,8 @@ namespace Karenia.Rurikawa.Helpers {
         readonly JsonSerializerOptions? serializerOptions;
         readonly ILogger<JsonWebsocketWrapper<TRecvMessage, TSendMessage>>? logger;
 
+        readonly SemaphoreSlim sendLock = new SemaphoreSlim(1);
+
         byte[] recvBuffer;
 
         private readonly Subject<TRecvMessage> messages = new Subject<TRecvMessage>();
@@ -108,8 +110,10 @@ namespace Karenia.Rurikawa.Helpers {
         }
 
         public async Task SendMessage(TSendMessage message) {
+            await sendLock.WaitAsync();
             var buffer = JsonSerializer.SerializeToUtf8Bytes<TSendMessage>(message, this.serializerOptions);
             await this.socket.SendAsync(buffer, WebSocketMessageType.Text, true, this.closeToken);
+            sendLock.Release();
         }
 
         public class UnexpectedBinaryMessageException : Exception { }

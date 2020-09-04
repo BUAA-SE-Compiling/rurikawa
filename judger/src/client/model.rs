@@ -157,7 +157,7 @@ pub async fn upload_test_result(
             };
             TestResult {
                 kind,
-                result_file_id: None,
+                result_file_id,
             }
         }
     }

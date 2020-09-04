@@ -10,6 +10,8 @@ using Karenia.Rurikawa.Coordinator.Services;
 using Karenia.Rurikawa.Models;
 using Karenia.Rurikawa.Models.Account;
 using Karenia.Rurikawa.Models.Auth;
+using Microsoft.AspNetCore.Authentication;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
@@ -172,32 +174,39 @@ namespace Karenia.Rurikawa.Coordinator.Services {
         /// Find the access token with token string as provided
         /// </summary>
         /// <param name="token"></param>
-        /// <returns>Account username, null if not found</returns>
+        /// <returns>Token, null if not found</returns>
         public async Task<TokenEntry?> GetAccessToken(string token) {
-            var result = await db.AccessTokens.Where(t => t.Token == token)
-                .SingleOrDefaultAsync();
-            if (result != null && result.IsExpired()) {
-                db.AccessTokens.Remove(result);
-                await db.SaveChangesAsync();
-                result = null;
-            }
-            if (result != null && result.IsSingleUse) {
-                result.LastUseTime = DateTimeOffset.Now;
-                await db.SaveChangesAsync();
-            }
-            return result;
+            return await GetToken(token, db.AccessTokens);
         }
 
         /// <summary>
         /// Find the refresh token with token string as provided
         /// </summary>
         /// <param name="token"></param>
-        /// <returns>Account username, null if not found</returns>
-        public async Task<TokenEntry?> GetUserByRefreshToken(string token) {
-            var result = await db.RefreshTokens.Where(t => t.Token == token)
+        /// <returns>Token, null if not found</returns>
+        public async Task<TokenEntry?> GetRefreshToken(string token) {
+            return await GetToken(token, db.RefreshTokens);
+        }
+
+        /// <summary>
+        /// Find the judger token with token string as provided
+        /// </summary>
+        /// <param name="token"></param>
+        /// <returns>Token, null if not found</returns>
+        public async Task<TokenEntry?> GetJudgerRegisterToken(string token) {
+            return await GetToken(token, db.JudgerRegisterTokens);
+        }
+
+        /// <summary>
+        /// Find the token with token string as provided
+        /// </summary>
+        /// <param name="token"></param>
+        /// <returns>Token, null if not found</returns>
+        public async Task<TokenEntry?> GetToken(string token, DbSet<TokenEntry> tokenSet) {
+            var result = await tokenSet.Where(t => t.Token == token)
                 .SingleOrDefaultAsync();
             if (result != null && result.IsExpired()) {
-                db.AccessTokens.Remove(result);
+                tokenSet.Remove(result);
                 await db.SaveChangesAsync();
                 result = null;
             }
@@ -235,6 +244,55 @@ namespace Karenia.Rurikawa.Coordinator.Services {
             }
 
             public string Username { get; }
+        }
+    }
+
+    public class JudgerAuthenticateService : AuthenticationHandler<AuthenticationSchemeOptions> {
+        public JudgerAuthenticateService(
+            ILogger<JudgerAuthenticateService> logger,
+            RurikawaDb db1,
+            AccountService accountService,
+            Microsoft.Extensions.Options.IOptionsMonitor<AuthenticationSchemeOptions> options,
+            ILoggerFactory logger1,
+            System.Text.Encodings.Web.UrlEncoder encoder,
+            ISystemClock clock) : base(options, logger1, encoder, clock) {
+            this.logger = logger;
+            this.db1 = db1;
+            this.accountService = accountService;
+        }
+
+        private readonly ILogger<JudgerAuthenticateService> logger;
+        private readonly RurikawaDb db1;
+        private readonly AccountService accountService;
+
+        protected async Task<AuthenticateResult> _AuthenticateAsync() {
+            KeyValuePair<string, Microsoft.Extensions.Primitives.StringValues> hdr;
+            try {
+                hdr = this.Request.Headers.Where(h => h.Key.ToLower() == "authorization").Single();
+            } catch {
+                return AuthenticateResult.Fail("No authorization header was found");
+            }
+            var token = await this.db1.Judgers
+                .Where(judger => judger.Id == hdr.Value.First())
+                .SingleOrDefaultAsync();
+
+            if (token == null) {
+                return AuthenticateResult.Fail("Unable to find token");
+            }
+            return AuthenticateResult.Success(new AuthenticationTicket(
+                new ClaimsPrincipal(new ClaimsIdentity[]{
+                    new ClaimsIdentity(new Claim[]{
+                        new Claim(ClaimTypes.Role, "judger"),
+                        new Claim(ClaimTypes.NameIdentifier, token.Id),
+                    })
+                }),
+                new AuthenticationProperties(),
+                this.Scheme.Name));
+            throw new NotImplementedException();
+        }
+
+        protected override Task<AuthenticateResult> HandleAuthenticateAsync() {
+            return _AuthenticateAsync();
         }
     }
 }

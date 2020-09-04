@@ -30,13 +30,21 @@ pub struct ConnectSubCmd {
     #[clap(required = true)]
     pub host: String,
 
+    /// Enable SSL connection, if possible
+    #[clap(long, short)]
+    pub ssl: bool,
+
     /// Path of temp folder, defaults to ~/.rurikawa/
     #[clap(long = "temp-folder", name = "path")]
     pub temp_folder_path: Option<PathBuf>,
 
     /// Access token
     #[clap(long, short)]
-    pub token: Option<String>,
+    pub access_token: Option<String>,
+
+    /// Register token
+    #[clap(long, short)]
+    pub register_token: Option<String>,
 }
 
 #[derive(Clap, Debug, Clone)]

@@ -129,7 +129,7 @@ namespace Karenia.Rurikawa.Coordinator.Controllers {
             var refreshToken = ((JsonElement?)msg.ExtraInfo.GetValueOrDefault("refresh_token"))?.GetString(); ;
             if (refreshToken == null)
                 throw new NotEnoughInformationException("Please provide refresh_token!");
-            var tokenEntry = await accountService.GetUserByRefreshToken(refreshToken);
+            var tokenEntry = await accountService.GetRefreshToken(refreshToken);
             if (tokenEntry == null)
                 throw new InvalidLoginInformationException("Invalid refresh token");
             var account = await accountService.GetAccount(tokenEntry.Username)!;

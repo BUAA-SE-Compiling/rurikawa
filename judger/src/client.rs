@@ -55,7 +55,8 @@ where
 pub struct ClientConfig {
     pub host: String,
     pub ssl: bool,
-    pub token: Option<String>,
+    pub access_token: Option<String>,
+    pub register_token: Option<String>,
     pub cache_folder: PathBuf,
 }
 
@@ -91,7 +92,7 @@ impl SharedClientData {
         } else {
             format_args!("http")
         };
-        format!("{}://{}/api/v1/test_suite/{}", ssl, self.cfg.host, suite_id)
+        format!("{}://{}/api/v1/file/{}", ssl, self.cfg.host, suite_id)
     }
 
     pub fn result_upload_endpoint(&self) -> String {
@@ -207,7 +208,7 @@ pub async fn connect_to_coordinator(
 ) -> Result<(WsSink, WsStream), tungstenite::Error> {
     let endpoint = cfg.websocket_endpoint();
     let mut req = http::Request::builder().uri(&endpoint);
-    if let Some(token) = cfg.cfg.token.as_ref() {
+    if let Some(token) = cfg.cfg.access_token.as_ref() {
         req = req.header("Authorization", format!("Bearer {}", token));
     } else {
         req = req.header("Authorization", "");
@@ -396,7 +397,8 @@ pub async fn handle_job(
         let job_id = job.id;
         async move {
             while let Some((key, res)) = recv.next().await {
-                ws_send
+                // Omit error; it doesn't matter
+                let _ = ws_send
                     .lock()
                     .await
                     .send_msg(&ClientMsg::PartialResult(PartialResultMsg {
@@ -417,7 +419,7 @@ pub async fn handle_job(
         )
         .await?;
 
-    recv_handle.await;
+    let _ = recv_handle.await;
 
     let job_result = JobResultMsg {
         job_id: job.id,
@@ -452,8 +454,10 @@ pub async fn client_loop(
             ws = ws_lock => Some(ws)
         }
     } {
+        let x: Message = x;
         if x.is_text() {
-            let msg = from_slice::<ServerMsg>(&x.into_data());
+            let payload = x.into_data();
+            let msg = from_slice::<ServerMsg>(&payload);
             if let Ok(msg) = msg {
                 match msg {
                     ServerMsg::NewJob(job) => {
@@ -463,8 +467,13 @@ pub async fn client_loop(
                     ServerMsg::AbortJob(job) => log::warn!("TODO: Abort {}", job.job_id),
                 }
             } else {
-                log::warn!("Unknown binary message");
+                log::warn!(
+                    "Unable to deserialize mesage: {}",
+                    String::from_utf8_lossy(&payload)
+                );
             }
+        } else {
+            log::warn!("Unsupported message: {:?}", x);
         }
     }
 

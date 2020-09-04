@@ -1,5 +1,6 @@
 use broadcaster::BroadcastChannel;
 use clap::Clap;
+use dirs::home_dir;
 use futures::{Future, FutureExt, Sink, SinkExt, StreamExt};
 use once_cell::sync::Lazy;
 use rurikawa_judger::client::{
@@ -49,10 +50,16 @@ async fn main() {
 
 async fn client(cmd: opt::ConnectSubCmd) {
     let cfg = SharedClientData::new(ClientConfig {
-        cache_folder: "/tmp/".into(),
-        ssl: true,
+        cache_folder: cmd.temp_folder_path.unwrap_or_else(|| {
+            let mut dir =
+                home_dir().expect("Failed to get home directory. Please provide a storage folder manually via `--temp-folder-path <path>`");
+            dir.push(".rurikawa");
+            dir
+        }),
+        ssl: cmd.ssl,
         host: cmd.host,
-        token: cmd.token,
+        access_token: cmd.access_token,
+        register_token: cmd.register_token,
     });
     let (sink, stream) = connect_to_coordinator(&cfg)
         .await

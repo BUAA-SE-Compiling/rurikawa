@@ -50,10 +50,12 @@ namespace Karenia.Rurikawa.Models.Judger {
         /// Indicates whether this job has finished normally or is aborted due 
         /// to client issues (e.g. client is killed).
         /// <br/>
-        /// If this value is True, the job should be rescheduled immediately 
+        /// If this value is Aborted, the job should be rescheduled immediately 
         /// to other runners.
         /// </summary>
-        public bool Aborted { get; set; }
+        public JobResultKind JobResult { get; set; }
+
+        public string? Message { get; set; }
 
         public Dictionary<string, TestResult> Results { get; set; }
     }

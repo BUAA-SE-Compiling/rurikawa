@@ -40,6 +40,8 @@ namespace Karenia.Rurikawa.Models {
 
         public DbSet<Account.TokenEntry> RefreshTokens { get; set; }
 
+        public DbSet<Account.TokenEntry> JudgerRegisterTokens { get; set; }
+
 
         protected override void OnConfiguring(DbContextOptionsBuilder opt) {
 

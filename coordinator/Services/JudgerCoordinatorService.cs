@@ -146,6 +146,8 @@ namespace Karenia.Rurikawa.Coordinator.Services {
                         OnJobResultMessage(clientId, msg1); break;
                     case JobProgressMsg msg1:
                         OnJobProgressMessage(clientId, msg1); break;
+                    case PartialResultMsg msg1:
+                        OnPartialResultMessage(clientId, msg1); break;
                     case ClientStatusMsg msg1:
                         OnJudgerStatusUpdateMessage(clientId, msg1); break;
                     default:
@@ -190,9 +192,20 @@ namespace Karenia.Rurikawa.Coordinator.Services {
                 var job = await db.Jobs.Where(job => job.Id == msg.JobId).SingleAsync();
                 job.Results = msg.Results;
                 job.Stage = JobStage.Finished;
+                job.ResultKind = msg.JobResult;
+                job.ResultMessage = msg.Message;
                 await db.SaveChangesAsync();
                 await tx.CommitAsync();
             }
+        }
+
+        async void OnPartialResultMessage(string clientId, PartialResultMsg msg) {
+            using var scope = scopeProvider.CreateScope();
+            var db = GetDb(scope);
+
+            var job = await db.Jobs.Where(j => j.Id == msg.JobId).SingleAsync();
+            job.Results.Add(msg.TestId, msg.TestResult);
+            await db.SaveChangesAsync();
         }
 
         /// <summary>

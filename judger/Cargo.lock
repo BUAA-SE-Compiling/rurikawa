@@ -1454,6 +1454,7 @@ dependencies = [
  "ctrlc",
  "dashmap",
  "difference",
+ "dirs",
  "fern",
  "futures",
  "http",

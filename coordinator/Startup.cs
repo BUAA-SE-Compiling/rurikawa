@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Security.Cryptography.X509Certificates;
+using System.Text.Encodings;
 using System.Text.Json;
 using Dahomey.Json;
 using Dahomey.Json.Serialization.Conventions;
@@ -46,11 +47,13 @@ namespace Karenia.Rurikawa.Coordinator {
                     ValidateIssuer = false,
                     ValidateAudience = false
                 };
-            });
+            }).AddScheme<Microsoft.AspNetCore.Authentication.AuthenticationSchemeOptions, JudgerAuthenticateService>("judger", null);
+
             services.AddAuthorization(opt => {
                 opt.AddPolicy("user", policy => policy.RequireRole("User", "Admin", "Root"));
                 opt.AddPolicy("admin", policy => policy.RequireRole("Admin", "Root"));
                 opt.AddPolicy("root", policy => policy.RequireRole("Root"));
+                opt.AddPolicy("judger", policy => policy.RequireRole("judger").AddAuthenticationSchemes("judger"));
             });
 
             services.AddSingleton<Models.Auth.AuthInfo>(_ => new Models.Auth.AuthInfo
@@ -121,9 +124,15 @@ namespace Karenia.Rurikawa.Coordinator {
             // Add websocket acceptor
             app.Use(async (ctx, next) => {
                 logger.LogInformation("{0}，{1}", ctx.Request.Path, ctx.WebSockets.IsWebSocketRequest);
-                if (ctx.WebSockets.IsWebSocketRequest) {
-                    var svc = app.ApplicationServices.GetService<JudgerCoordinatorService>();
-                    await svc.TryUseConnection(ctx);
+                if (ctx.Request.Path == "api/v1/judger/ws") {
+                    if (ctx.WebSockets.IsWebSocketRequest) {
+                        var svc = app.ApplicationServices.GetService<JudgerCoordinatorService>();
+                        await svc.TryUseConnection(ctx);
+                    } else {
+                        ctx.Response.StatusCode = 400;
+                        await ctx.Response.Body.WriteAsync(System.Text.Encoding.UTF8.GetBytes("Expected websocket connection"));
+                        await ctx.Response.CompleteAsync();
+                    }
                 } else {
                     await next();
                 }
