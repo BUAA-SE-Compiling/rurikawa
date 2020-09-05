@@ -10,6 +10,7 @@ use crate::{
 use anyhow::Result;
 use async_trait::async_trait;
 use dashmap::DashMap;
+use fs::JUDGE_FILE_NAME;
 use futures::{
     stream::{SplitSink, SplitStream},
     FutureExt, Sink, SinkExt, Stream, StreamExt,
@@ -18,7 +19,13 @@ use http::Uri;
 use model::*;
 use serde::{Deserialize, Serialize};
 use serde_json::from_slice;
-use std::{collections::HashMap, error::Error, fmt::Debug, path::PathBuf, sync::Arc};
+use std::{
+    collections::HashMap,
+    error::Error,
+    fmt::Debug,
+    path::PathBuf,
+    sync::{atomic::AtomicUsize, Arc},
+};
 use tokio::{net::TcpStream, sync::Mutex};
 use tokio_tungstenite::{connect_async, tungstenite, MaybeTlsStream, WebSocketStream};
 use tungstenite::Message;
@@ -55,6 +62,7 @@ where
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ClientConfig {
     pub host: String,
+    pub max_concurrent_tasks: usize,
     pub ssl: bool,
     pub access_token: Option<String>,
     pub register_token: Option<String>,
@@ -64,9 +72,8 @@ pub struct ClientConfig {
 #[derive(Debug)]
 pub struct SharedClientData {
     pub cfg: ClientConfig,
+    pub running_tests: AtomicUsize,
     /// All test suites whose folder is being edited.
-    ///
-    ///
     pub locked_test_suite: DashMap<FlowSnake, Arc<Mutex<()>>>,
 }
 
@@ -74,6 +81,7 @@ impl SharedClientData {
     pub fn new(cfg: ClientConfig) -> SharedClientData {
         SharedClientData {
             cfg,
+            running_tests: AtomicUsize::new(0),
             locked_test_suite: DashMap::new(),
         }
     }
@@ -154,6 +162,15 @@ impl SharedClientData {
 
     pub fn suite_unlock(&self, suite_id: FlowSnake) {
         self.locked_test_suite.remove(&suite_id);
+    }
+
+    pub fn new_job(&self) -> usize {
+        self.running_tests
+            .fetch_add(1, std::sync::atomic::Ordering::SeqCst)
+    }
+    pub fn finish_job(&self) -> usize {
+        self.running_tests
+            .fetch_sub(1, std::sync::atomic::Ordering::SeqCst)
     }
 }
 
@@ -276,6 +293,7 @@ pub async fn check_download_read_test_suite(
 pub async fn handle_job_wrapper(job: NewJob, send: Arc<Mutex<WsSink>>, cfg: Arc<SharedClientData>) {
     // TODO: Handle failed cases and report
     let job_id = job.job.id;
+    flag_new_job(send.clone(), cfg.clone()).await;
     match handle_job(job, send.clone(), cfg.clone()).await {
         Ok(_res) => {
             let send_res = send
@@ -323,7 +341,9 @@ pub async fn handle_job_wrapper(job: NewJob, send: Arc<Mutex<WsSink>>, cfg: Arc<
             }
         }
     }
-    let _ = tokio::fs::remove_dir_all(cfg.job_folder(job_id)).await;
+    flag_finished_job(send.clone(), cfg.clone()).await;
+
+    fs::ensure_removed_dir(&cfg.job_folder(job_id)).await;
 }
 
 pub async fn handle_job(
@@ -343,7 +363,7 @@ pub async fn handle_job(
     send.lock()
         .await
         .send_msg(&ClientMsg::JobProgress(JobProgressMsg {
-            id: job.id,
+            job_id: job.id,
             job_stage: JobStage::Fetching,
         }))
         .await?;
@@ -362,11 +382,15 @@ pub async fn handle_job(
 
     log::info!("Job {}: fetched", job.id);
 
-    let judge_cfg: PathBuf = fs::find_judge_root(&job_path).await?;
-    let mut job_path = judge_cfg.clone();
-    job_path.pop();
+    let job_path: PathBuf = fs::find_judge_root(&job_path).await?;
+    let mut judge_cfg = job_path.clone();
+    judge_cfg.push(JUDGE_FILE_NAME);
 
-    log::info!("Job {}: found job description file", job.id);
+    log::info!(
+        "Job {}: found job description file at {:?}",
+        job.id,
+        &judge_cfg
+    );
 
     let judge_cfg = tokio::fs::read(judge_cfg).await?;
     let judge_cfg = toml::from_slice::<JudgeToml>(&judge_cfg)?;
@@ -449,6 +473,30 @@ pub async fn handle_job(
     Ok(job_result)
 }
 
+pub async fn flag_new_job(send: Arc<Mutex<WsSink>>, client_config: Arc<SharedClientData>) {
+    let job_count = client_config.new_job();
+    let _ = send
+        .lock()
+        .await
+        .send_msg(&ClientMsg::ClientStatus(ClientStatusMsg {
+            active_task_count: job_count as i32,
+            can_accept_new_task: job_count < client_config.cfg.max_concurrent_tasks,
+        }))
+        .await;
+}
+
+pub async fn flag_finished_job(send: Arc<Mutex<WsSink>>, client_config: Arc<SharedClientData>) {
+    let job_count = client_config.finish_job();
+    let _ = send
+        .lock()
+        .await
+        .send_msg(&ClientMsg::ClientStatus(ClientStatusMsg {
+            active_task_count: job_count as i32,
+            can_accept_new_task: job_count < client_config.cfg.max_concurrent_tasks,
+        }))
+        .await;
+}
+
 pub async fn client_loop(
     mut ws_recv: WsStream,
     mut ws_send: WsSink,
@@ -494,6 +542,8 @@ pub async fn client_loop(
                     );
                 }
             }
+        } else if x.is_ping() {
+            // Noop.
         } else {
             log::warn!("Unsupported message: {:?}", x);
         }

@@ -171,7 +171,7 @@ pub async fn upload_test_result(
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct JobProgressMsg {
-    pub id: FlowSnake,
+    pub job_id: FlowSnake,
     pub job_stage: JobStage,
 }
 

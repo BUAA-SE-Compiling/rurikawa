@@ -58,6 +58,7 @@ async fn client(cmd: opt::ConnectSubCmd) {
         }),
         ssl: cmd.ssl,
         host: cmd.host,
+        max_concurrent_tasks:4,
         access_token: cmd.access_token,
         register_token: cmd.register_token,
     });

@@ -2,6 +2,7 @@ using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
+using System.Text;
 using System.Text.Json;
 using System.Threading;
 using System.Threading.Channels;
@@ -158,19 +159,22 @@ namespace Karenia.Rurikawa.Coordinator.Services {
         }
 
         async void OnJudgerStatusUpdateMessage(string clientId, ClientStatusMsg msg) {
-            await queueLock.WaitAsync();
-            await connectionLock.WaitAsync();
+            await queueLock.WaitAsync(); try {
+                await connectionLock.WaitAsync(); try {
+                    if (connections.TryGetValue(clientId, out var conn)) {
+                        conn.CanAcceptNewTask = msg.CanAcceptNewTask;
+                        conn.ActiveTaskCount = msg.ActiveTaskCount;
 
-            if (connections.TryGetValue(clientId, out var conn)) {
-                conn.CanAcceptNewTask = msg.CanAcceptNewTask;
-                conn.ActiveTaskCount = msg.ActiveTaskCount;
-
-                await TryDispatchJobFromDatabase(conn);
+                        await TryDispatchJobFromDatabase(conn);
+                    }
+                } finally {
+                    connectionLock.Release();
+                }
+                JudgerQueue.Enqueue(clientId);
+                logger.LogInformation("Status::Judger: {0}", DEBUG_LogEnumerator(JudgerQueue));
+            } finally {
+                queueLock.Release();
             }
-
-            connectionLock.Release();
-            JudgerQueue.Append(clientId);
-            queueLock.Release();
         }
 
         async void OnJobProgressMessage(string clientId, JobProgressMsg msg) {
@@ -225,19 +229,20 @@ namespace Karenia.Rurikawa.Coordinator.Services {
 
         private async Task<Judger?> TryGetNextUsableJudger(bool blockNewTasks) {
             await connectionLock.WaitAsync();
-
-            while (JudgerQueue.TryDequeue(out var nextJudger)) {
-                if (connections.TryGetValue(nextJudger, out var conn)) {
-                    if (conn.CanAcceptNewTask) {
-                        // Change the status to false, until the judger reports
-                        // it can accept new tasks again
-                        conn.CanAcceptNewTask &= !blockNewTasks;
-                        return conn;
+            try {
+                while (JudgerQueue.TryDequeue(out var nextJudger)) {
+                    if (connections.TryGetValue(nextJudger, out var conn)) {
+                        if (conn.CanAcceptNewTask) {
+                            // Change the status to false, until the judger reports
+                            // it can accept new tasks again
+                            conn.CanAcceptNewTask &= !blockNewTasks;
+                            return conn;
+                        }
                     }
                 }
+            } finally {
+                connectionLock.Release();
             }
-
-            connectionLock.Release();
             return null;
         }
 
@@ -267,8 +272,26 @@ namespace Karenia.Rurikawa.Coordinator.Services {
                 if (job == null) return false;
                 await DispatchJob(judger, job);
                 await db.SaveChangesAsync();
+                await tx.CommitAsync();
             }
             return true;
+        }
+
+        protected static string DEBUG_LogEnumerator<T>(IEnumerable<T> x) {
+            var sb = new StringBuilder();
+            var first = true;
+            int idx = 0;
+            foreach (var v in x) {
+                if (!first) {
+                    sb.Append(", ");
+                } else {
+                    first = false;
+                }
+                sb.Append(idx).Append(": ");
+                sb.Append(v);
+                idx++;
+            }
+            return sb.ToString();
         }
 
         public async Task ScheduleJob(Job job) {
@@ -284,24 +307,27 @@ namespace Karenia.Rurikawa.Coordinator.Services {
             bool success = false;
 
             // Lock queue so no one can write to it, leading to race conditions
-            await queueLock.WaitAsync();
-            while (!success) {
-                // Get the first usable judger
-                var judger = await TryGetNextUsableJudger(true);
-                if (judger == null) break;
-                try {
-                    await DispatchJob(judger, job);
-                    success = true;
-                } catch {
-                    // If any exception occurs (including but not limited 
-                    // to connection closed, web error, etc.), this try is 
-                    // considered as unsuccessful.
-                    success = false;
+            await queueLock.WaitAsync(); try {
+                while (!success) {
+                    logger.LogInformation("Schedule::Judger: {0}", DEBUG_LogEnumerator(JudgerQueue));
+                    // Get the first usable judger
+                    var judger = await TryGetNextUsableJudger(true);
+                    if (judger == null) break;
+                    try {
+                        await DispatchJob(judger, job);
+                        success = true;
+                    } catch {
+                        // If any exception occurs (including but not limited 
+                        // to connection closed, web error, etc.), this try is 
+                        // considered as unsuccessful.
+                        success = false;
+                    }
+                    // If this try is unsuccessful, try a next one until
+                    // no judger is usable
                 }
-                // If this try is unsuccessful, try a next one until
-                // no judger is usable
+            } finally {
+                queueLock.Release();
             }
-            queueLock.Release();
 
             db.Jobs.Add(job);
             await db.SaveChangesAsync();
