@@ -1,0 +1,40 @@
+.navbar {
+  width: auto
+  margin: 0
+  display: flex
+  flex-direction: row
+  height: 72px
+  background: var(--background)
+  color: var(--alt-primary)
+  padding-top: var(--space-2)
+  padding-bottom: var(--space-2)
+  font-size: var(--font-size-base)
+}
+
+.nav-sep {
+  flex-grow: 1
+}
+
+.logo {
+  color: var(--accent-color)
+  font-weight: 900
+  font-size: var(--font-size-larger)
+}
+
+.nav-item {
+  height: 100%
+  flex-grow: 0
+  display: flex
+  flex-direction: row
+  align-items: center
+  padding-left: var(--space-3)
+  padding-right: var(--space-3)
+
+  &:first-child {
+    padding-left: var(--space-5)
+  }
+
+  &:last-child {
+    padding-right: var(--space-5)
+  }
+}

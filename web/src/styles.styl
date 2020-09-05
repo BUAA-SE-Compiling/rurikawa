@@ -1,1 +1,164 @@
-/* You can add global styles to this file, and also import other style files */
+@import 'styles/container.styl'
+
+.default-palette {
+  --pal-base-00: #fff
+  --pal-base-01: #E4E4E4
+  --pal-base-02: #AFAFAF
+  --pal-base-03: #585858
+  --pal-base-04: #1B1B1B
+  --pal-base-05: #000000
+  --pal-accent: #71cfca
+  --pal-accent-alt: #80AAC8
+  --pal-accent-dull: #398994
+  --pal-error-color: #E74C5E
+  --pal-info-color: #80AAC8
+  --pal-warning-color: #2CD296
+  --pal-sucess-color: #2CD296
+}
+
+.default-theme {
+  --theme-sans-font-family: 'Work Sans', 'Sarasa Gothic', 'Sarasa UI', 'Noto Sans SC', 'Source Han Sans SC', 'Source Han Sans CN', 'MS Yahei UI', 'PingFang', Arial, 'Helvetica Neue', Helvetica, sans-serif
+  --theme-mono-font-family: Iosevka, 'Sarasa Mono', 'MS Yahei UI', 'PingFang', Consolas, 'Roboto Mono', monospace
+  --background-color: var(--pal-base-00)
+  --primary-color: var(--pal-base-04)
+  --alt-background: var(--pal-base-01)
+  --alt-primary: var(--pal-base-03)
+  --accent-color: var(--pal-accent)
+  --accent-alt: var(--pal-accent-alt)
+  --accent-primary: var(--pal-base-03)
+  --space-0: 4px
+  --space-1: 8px
+  --space-2: 12px
+  --space-3: 16px
+  --space-4: 24px
+  --space-5: 32px
+  --space-6: 48px
+  --space-7: 64px
+  --space-8: 96px
+  --space-9: 128px
+  --font-size-base: 16px
+  --font-size-smaller: 12px
+  --font-size-small: 10px
+  --font-size-mini: 8px
+  --font-size-larger: 20px
+  --font-size-large: 24px
+  --font-size-extra-large: 32px
+  --font-size-title: 48px
+}
+
+.btn {
+  background: var(--accent-color)
+  color: var(--accent-primary)
+
+  &:hover {
+    box-shadow: 8px 0px 8px
+  }
+}
+
+.btn-secondary {
+  background: var(--background-color)
+  border-color: var(--accent-color)
+  border-style: solid 1px
+  color: var(--alt-primary)
+
+  &:hover {
+    box-shadow: 8px 0px 8px
+  }
+}
+
+.ghost-btn {
+  color: var(--accent-alt)
+
+  &:hover {
+    color: var(--alt-primary)
+  }
+}
+
+.container {
+}
+
+.info {
+  --primary-color: var(--pal-info-color)
+  --accent-color: var(--pal-info-color)
+  --accent-primary: var(--pal-base-00)
+}
+
+.warning {
+  --primary-color: var(--pal-warning-color)
+  --accent-color: var(--pal-warning-color)
+  --accent-primary: var(--pal-base-00)
+}
+
+.error {
+  --primary-color: var(--pal-error-color)
+  --accent-color: var(--pal-error-color)
+  --accent-primary: var(--pal-base-00)
+}
+
+.success {
+  --primary-color: var(--pal-success-color)
+  --accent-color: var(--pal-success-color)
+  --accent-primary: var(--pal-base-00)
+}
+
+body {
+  color: var(--primary-color)
+  background: solid var(--background-color)
+  font-family: var(--theme-sans-font-family)
+  font-size: var(--font-size-base)
+  min-height: 100vh
+  margin: 0
+  padding: 0
+}
+
+html {
+  min-height: 100vh
+}
+
+app-root {
+  display: block
+  min-height: 100vh
+}
+
+p,
+div {
+  font-family: var(--theme-sans-font-family)
+}
+
+code {
+  font-family: var(--theme-mono-font-family)
+}
+
+h1 {
+  font-size: var(--font-size-extra-large)
+  color: var(--alt-color)
+  font-weight: 300
+}
+
+h2 {
+  font-size: var(--font-size-large)
+  color: var(--alt-color)
+  font-weight: 500
+}
+
+h3 {
+  font-size: var(--font-size-larger)
+  color: var(--alt-color)
+  font-weight: 500
+}
+
+h4 {
+  font-size: var(--font-size-larger)
+  font-weight: 700
+}
+
+h5 {
+  font-size: var(--font-size-base)
+  font-weight: 700
+}
+
+h6 {
+  font-size: var(--font-size-larger)
+  font-style: italic
+  font-weight: 500
+}

@@ -1,0 +1,12 @@
+<div class="navbar">
+  <div class="nav-item logo">rurikawa</div>
+  <div class="nav-sep"></div>
+  <ng-template [ngIf]="accountService.isLoggedIn" [ngIfElse]="notLoggedIn">
+    <div class="nav-item">Username</div>
+    <div class="nav-item ghost-btn">设置</div>
+    <div class="nav-item ghost-btn">登出</div>
+  </ng-template>
+  <ng-template #notLoggedIn>
+    <div class="nav-item ghost-btn">登录</div>
+  </ng-template>
+</div>
