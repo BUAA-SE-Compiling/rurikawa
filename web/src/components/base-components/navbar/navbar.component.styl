@@ -1,14 +1,19 @@
 .navbar {
   width: auto
   margin: 0
+  height: 96px
   display: flex
   flex-direction: row
-  height: 72px
+  justify-content: center
   background: var(--background)
   color: var(--alt-primary)
-  padding-top: var(--space-2)
-  padding-bottom: var(--space-2)
   font-size: var(--font-size-base)
+}
+
+.navbar-inner {
+  height: 100%
+  display: flex
+  flex-direction: row
 }
 
 .nav-sep {
@@ -31,10 +36,12 @@
   padding-right: var(--space-3)
 
   &:first-child {
-    padding-left: var(--space-5)
+    padding-left: var(--space-3)
+    margin-left: calc(var(--space-3) * -1)
   }
 
   &:last-child {
-    padding-right: var(--space-5)
+    padding-right: var(--space-3)
+    margin-right: calc(var(--space-3) * -1)
   }
 }
