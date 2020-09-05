@@ -203,6 +203,7 @@ impl Test {
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 #[serde(tag = "source")]
+#[serde(rename_all = "camelCase")]
 pub enum Image {
     /// An existing image.
     Image { tag: String },

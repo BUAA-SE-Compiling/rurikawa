@@ -370,6 +370,7 @@ pub async fn handle_job(
 
     // Clone the repo specified in job
     let job_path = cfg.job_folder(job.id);
+    let _ = fs::ensure_removed_dir(&job_path).await;
     fs::net::git_clone(
         Some(&job_path),
         fs::net::GitCloneOptions {

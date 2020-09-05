@@ -15,11 +15,25 @@ async fn get_judge_config(root_path: &Path) -> Result<crate::config::JudgeToml, 
 
 pub fn ensure_removed_dir(path: &Path) -> BoxFuture<Result<(), std::io::Error>> {
     async move {
-        let dir = read_dir(path).await?;
+        let dir = match read_dir(path).await {
+            Ok(dir) => dir,
+            Err(e) => match e.kind() {
+                std::io::ErrorKind::NotFound => return Ok(()),
+                _ => return Err(e),
+            },
+        };
         dir.filter_map(|x| async move {
             if let Ok(x) = x {
-                if x.file_type().await.map(|x| x.is_dir()).unwrap_or(false) {
-                    Some(x.path())
+                let metadata = x.metadata().await;
+                if let Ok(metadata) = metadata {
+                    let mut permissions = metadata.permissions();
+                    permissions.set_readonly(false);
+                    let _ = tokio::fs::set_permissions(x.path(), permissions).await;
+                    if metadata.file_type().is_dir() {
+                        Some(x.path())
+                    } else {
+                        None
+                    }
                 } else {
                     None
                 }

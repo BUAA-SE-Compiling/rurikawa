@@ -4,7 +4,6 @@ use std::collections::HashMap;
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct JudgeToml {
-    pub id: String,
     pub jobs: HashMap<String, JudgeTomlTestConfig>,
 }
 

@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Security.Cryptography.X509Certificates;
 using System.Text.Encodings;
 using System.Text.Json;
+using System.Threading.Tasks;
 using Dahomey.Json;
 using Dahomey.Json.Serialization.Conventions;
 using Karenia.Rurikawa.Coordinator.Services;
@@ -141,7 +142,8 @@ namespace Karenia.Rurikawa.Coordinator {
             });
 
             // pre-initialize long-running services
-            app.ApplicationServices.GetService<JudgerCoordinatorService>();
+            var coordinator = app.ApplicationServices.GetService<JudgerCoordinatorService>();
+            Task.Run(coordinator.RevertJobStatus);
 
             app.UseEndpoints(endpoints => {
                 endpoints.MapControllers();

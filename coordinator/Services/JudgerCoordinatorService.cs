@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
+using System.Dynamic;
 using System.Linq;
 using System.Text;
 using System.Text.Json;
@@ -15,6 +16,7 @@ using Karenia.Rurikawa.Models.Test;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using Z.EntityFramework.Plus;
 
 namespace Karenia.Rurikawa.Coordinator.Services {
     using JudgerWebsocketWrapperTy = JsonWebsocketWrapper<ClientMsg, ServerMsg>;
@@ -164,8 +166,8 @@ namespace Karenia.Rurikawa.Coordinator.Services {
                     if (connections.TryGetValue(clientId, out var conn)) {
                         conn.CanAcceptNewTask = msg.CanAcceptNewTask;
                         conn.ActiveTaskCount = msg.ActiveTaskCount;
-
-                        await TryDispatchJobFromDatabase(conn);
+                        if (conn.CanAcceptNewTask)
+                            await TryDispatchJobFromDatabase(conn);
                     }
                 } finally {
                     connectionLock.Release();
@@ -267,12 +269,18 @@ namespace Karenia.Rurikawa.Coordinator.Services {
         protected async ValueTask<bool> TryDispatchJobFromDatabase(Judger judger) {
             using var scope = scopeProvider.CreateScope();
             var db = GetDb(scope);
-            using (var tx = await db.Database.BeginTransactionAsync()) {
+            while (true) {
                 var job = await GetLastUndispatchedJobFromDatabase(db);
                 if (job == null) return false;
-                await DispatchJob(judger, job);
+                job.Stage = JobStage.Dispatched;
                 await db.SaveChangesAsync();
-                await tx.CommitAsync();
+                try {
+                    await DispatchJob(judger, job);
+                    break;
+                } catch {
+                    job.Stage = JobStage.Queued;
+                    await db.SaveChangesAsync();
+                }
             }
             return true;
         }
@@ -331,6 +339,16 @@ namespace Karenia.Rurikawa.Coordinator.Services {
 
             db.Jobs.Add(job);
             await db.SaveChangesAsync();
+        }
+
+        public async ValueTask RevertJobStatus() {
+            using var scope = scopeProvider.CreateScope();
+            var db = GetDb(scope);
+            dynamic updatedObject = new ExpandoObject();
+            updatedObject.Stage = JobStage.Queued;
+            await db.Jobs
+                .Where(j => j.Stage != JobStage.Finished && j.Stage != JobStage.Cancelled)
+                .UpdateFromQueryAsync(j => updatedObject);
         }
 
         public void Stop() {
