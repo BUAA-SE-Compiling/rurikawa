@@ -1,5 +1,6 @@
 //! Functions to download stuff into destinations
 use std::path::Path;
+use std::str::FromStr;
 use tokio::{
     fs::{canonicalize, read_to_string, DirEntry, File},
     io::{AsyncWrite, AsyncWriteExt},
@@ -51,10 +52,32 @@ pub async fn git_clone(dir: Option<&Path>, options: GitCloneOptions) -> std::io:
 }
 
 pub async fn download_unzip(url: &str, dir: &Path, temp_file_path: &Path) -> anyhow::Result<()> {
+    log::info!("Downloading from {} to {:?}", url, dir);
     let mut resp = reqwest::get(url).await?.error_for_status()?;
 
+    let content_length = resp
+        .headers()
+        .get("Content-Length")
+        .and_then(|v| v.to_str().ok())
+        .and_then(|l| usize::from_str(l).ok());
+
     let mut file = tokio::fs::File::create(temp_file_path).await?;
+
+    let mut downloaded_bytes = 0;
+
     while let Some(chunk) = resp.chunk().await? {
+        downloaded_bytes += chunk.len();
+        if let Some(len) = content_length {
+            log::info!(
+                "{}/{} ({:>6.2}%) downloaded from {}",
+                downloaded_bytes,
+                len,
+                (downloaded_bytes as f64) / (len as f64) * 100f64,
+                url
+            );
+        } else {
+            log::info!("{} bytes downloaded from {}", downloaded_bytes, url);
+        }
         file.write_all(&chunk).await?;
     }
     drop(file);
