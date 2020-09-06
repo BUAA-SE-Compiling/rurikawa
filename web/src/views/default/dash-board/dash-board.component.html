@@ -9,6 +9,7 @@
     <app-dashboard-item-component
       *ngFor="let i of items"
       [item]="i"
+      (click)="gotoJudgeSuite(i.id)"
     ></app-dashboard-item-component>
   </div>
 </div>

@@ -1,5 +1,5 @@
 import { Component, OnInit } from '@angular/core';
-import { ActivatedRoute } from '@angular/router';
+import { ActivatedRoute, Router } from '@angular/router';
 import { JobItem } from 'src/models/job-items';
 
 @Component({
@@ -8,7 +8,7 @@ import { JobItem } from 'src/models/job-items';
   styleUrls: ['./test-suite-view.component.styl'],
 })
 export class TestSuiteViewComponent implements OnInit {
-  constructor(private route: ActivatedRoute) {}
+  constructor(private route: ActivatedRoute, private router: Router) {}
 
   id: string;
 
@@ -17,7 +17,7 @@ export class TestSuiteViewComponent implements OnInit {
       id: '12qwp43e34mc8',
       totalItem: 15,
       finishedItem: 8,
-      status: [{ status: 'ac', cnt: 16 }],
+      status: [{ status: 'Accepted', cnt: 16 }],
       time: new Date('1970-1-1 12:00'),
     },
     {
@@ -25,13 +25,17 @@ export class TestSuiteViewComponent implements OnInit {
       totalItem: 15,
       finishedItem: 8,
       status: [
-        { status: 'ac', cnt: 7 },
-        { status: 'wa', cnt: 6 },
-        { status: 'nt', cnt: 3 },
+        { status: 'Accepted', cnt: 7 },
+        { status: 'WrongAnswer', cnt: 6 },
+        { status: 'NotRunned', cnt: 3 },
       ],
       time: new Date('1970-1-1 12:00'),
     },
   ];
+
+  gotoJob(id: string) {
+    this.router.navigate(['job', id]);
+  }
 
   ngOnInit(): void {
     this.route.paramMap.subscribe({

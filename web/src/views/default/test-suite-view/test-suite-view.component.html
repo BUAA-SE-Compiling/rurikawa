@@ -8,9 +8,14 @@
     <div class="lblk">
       <div id="job-submit">
         <h2>提交评测</h2>
-        <input type="text" placeholder="repository" />
-        <input type="text" placeholder="branch" />
-        <div class="btn dark">提交</div>
+        <div class="input-list">
+          <input class="repo-input" type="text" placeholder="repository" />
+          <input class="branch-input" type="text" placeholder="branch" />
+        </div>
+        <div class="row submit-btn-row text">
+          <div class="ghost-btn">添加 Webhook</div>
+          <div class="btn dark">提交</div>
+        </div>
       </div>
       <div id="suite-desc">
         <h2>测试描述</h2>
@@ -23,7 +28,11 @@
         <div class="no-list">没有评测记录</div>
       </ng-template>
       <ng-template #jobLog>
-        <app-job-item *ngFor="let item of items" [item]="item"></app-job-item>
+        <app-job-item
+          *ngFor="let item of items"
+          [item]="item"
+          (click)="gotoJob(item.id)"
+        ></app-job-item>
       </ng-template>
     </div>
   </div>

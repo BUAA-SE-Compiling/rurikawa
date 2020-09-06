@@ -1,4 +1,5 @@
 @import 'styles/container.styl'
+@import 'styles/common.styl'
 
 .default-palette {
   --pal-base-00: #fff
@@ -26,6 +27,7 @@
   --alt-background: var(--pal-base-0h)
   --alt-primary: var(--pal-base-03)
   --accent-color: var(--pal-accent)
+  --accent-dull: var(--pal-accent-dull)
   --accent-alt: var(--pal-accent-alt)
   --accent-primary: var(--pal-base-03)
   --success-color: var(--pal-success-color)
@@ -54,11 +56,19 @@
   --font-size-large: 24px
   --font-size-extra-large: 32px
   --font-size-title: 48px
+  --font-size-jumbo: 64px
+}
+
+.btn,
+.ghost-btn {
+  box-sizing: border-box
+  user-select: none
 }
 
 .btn {
   transition: all 100ms ease-in-out
-  padding: var(--space-1)
+  padding-y: var(--space-2)
+  padding-x: var(--space-4)
   background: var(--accent-color)
   color: var(--accent-primary)
   border-radius: var(--btn-round-corner)
@@ -70,15 +80,18 @@
   justify-content: center
 
   &:hover {
+    background-color: var(--accent-alt)
   }
 }
 
-.btn-secondary {
+.btn.secondary {
   transition: all 100ms ease-in-out
+  padding-y: var(--space-2)
+  padding-x: var(--space-4)
   background: var(--background-color)
   border-color: var(--accent-color)
-  border-style: solid 1px
-  border-width: 1px
+  border-style: solid
+  border-width: 2px
   border-radius: var(--btn-round-corner)
   display: flex
   flex-direction: row
@@ -88,16 +101,26 @@
   font-weight: 500
 
   &:hover {
-    border-color: var(--alt-accent)
+    border-color: var(--accent-alt)
   }
 }
 
 .ghost-btn {
   transition: all 100ms ease-in-out
   color: var(--accent-alt)
+  padding-y: var(--space-2)
+  padding-x: var(--space-4)
 
   &:hover {
     color: var(--alt-primary)
+  }
+
+  .row &:last-child {
+    margin-right: calc(var(--space-4) * -1)
+  }
+
+  .row &:first-child {
+    margin-left: calc(var(--space-4) * -1)
   }
 }
 
@@ -105,30 +128,35 @@
   --primary-color: var(--pal-info-color)
   --accent-color: var(--pal-info-color)
   --accent-primary: var(--pal-base-00)
+  --accent-alt: var(--pal-base-03)
 }
 
 .dark {
   --primary-color: var(--pal-base-03)
   --accent-color: var(--pal-base-03)
   --accent-primary: var(--pal-base-00)
+  --accent-alt: var(--pal-accent-dull)
 }
 
 .warning {
   --primary-color: var(--pal-warning-color)
   --accent-color: var(--pal-warning-color)
   --accent-primary: var(--pal-base-00)
+  --accent-alt: var(--pal-base-03)
 }
 
 .error {
   --primary-color: var(--pal-error-color)
   --accent-color: var(--pal-error-color)
   --accent-primary: var(--pal-base-00)
+  --accent-alt: var(--pal-base-03)
 }
 
 .success {
   --primary-color: var(--pal-success-color)
   --accent-color: var(--pal-success-color)
   --accent-primary: var(--pal-base-00)
+  --accent-alt: var(--pal-base-03)
 }
 
 body {
@@ -136,9 +164,15 @@ body {
   background: solid var(--background-color)
   font-family: var(--theme-sans-font-family)
   font-size: var(--font-size-base)
-  min-height: 100vh
   margin: 0
   padding: 0
+}
+
+html,
+body,
+app-root,
+router-outlet {
+  min-height: 100vh
 }
 
 html {
@@ -160,15 +194,28 @@ code {
 }
 
 h1 {
+  margin-bottom: var(--space-1)
+}
+
+h2,
+h3,
+h4,
+h5,
+h6 {
+  margin-bottom: var(--space-0)
+}
+
+h1 {
   font-size: var(--font-size-extra-large)
   color: var(--alt-color)
   font-weight: 300
+  margin-top: var(--space-3)
 }
 
 h2 {
   font-size: var(--font-size-large)
   color: var(--alt-color)
-  font-weight: 500
+  font-weight: 400
 }
 
 h3 {
@@ -196,15 +243,21 @@ h6 {
 input {
   transition: all 100ms ease-in-out
   font: inherit
-  padding: var(--space-0)
+  outline: none
+  padding: var(--space-1)
   background: var(--background-color)
-  border-color: var(--alt-background)
+  border-color: var(--secondary-color)
   border-style: solid
-  border-width: 1px
+  border-width: 2px
   border-radius: var(--btn-round-corner)
 
   &:hover {
-    border-color: var(--accent-color)
+    border-color: var(--accent-dull)
+  }
+
+  &:active,
+  &:focus {
+    border-color: var(--accent-alt)
   }
 }
 

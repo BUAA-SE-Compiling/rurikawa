@@ -4,6 +4,8 @@ import { DashBoardComponent } from 'src/views/default/dash-board/dash-board.comp
 import { DefaultModule } from 'src/views/default/default.module';
 import { MainPageComponent } from 'src/views/default/main-page/main-page.component';
 import { TestSuiteViewComponent } from 'src/views/default/test-suite-view/test-suite-view.component';
+import { JobViewComponent } from 'src/views/default/job-view/job-view.component';
+import { NotFoundPageComponent } from 'src/views/default/not-found-page/not-found-page.component';
 
 const routes: Routes = [
   {
@@ -17,6 +19,14 @@ const routes: Routes = [
   {
     path: 'suite/:id',
     component: TestSuiteViewComponent,
+  },
+  {
+    path: 'job/:id',
+    component: JobViewComponent,
+  },
+  {
+    path: '**',
+    component: NotFoundPageComponent,
   },
 ];
 

@@ -1,9 +1,5 @@
 import { Component, OnInit, Input } from '@angular/core';
-import {
-  DashboardItem,
-  TestStatus,
-  dashboardTypeToSlider,
-} from 'src/models/job-items';
+import { DashboardItem, dashboardTypeToSlider } from 'src/models/job-items';
 import {
   SliderItem,
   SliderItemKind,

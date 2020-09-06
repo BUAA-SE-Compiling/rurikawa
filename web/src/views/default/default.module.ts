@@ -6,6 +6,7 @@ import { TestSuiteViewComponent } from './test-suite-view/test-suite-view.compon
 import { JobViewComponent } from './job-view/job-view.component';
 import { BaseComponentsModule } from 'src/components/base-components/base-components.module';
 import { ItemComponentsModule } from 'src/components/item-components/item-components.module';
+import { NotFoundPageComponent } from './not-found-page/not-found-page.component';
 
 @NgModule({
   declarations: [
@@ -13,6 +14,7 @@ import { ItemComponentsModule } from 'src/components/item-components/item-compon
     DashBoardComponent,
     TestSuiteViewComponent,
     JobViewComponent,
+    NotFoundPageComponent,
   ],
   imports: [CommonModule, BaseComponentsModule, ItemComponentsModule],
   exports: [
@@ -20,6 +22,7 @@ import { ItemComponentsModule } from 'src/components/item-components/item-compon
     DashBoardComponent,
     TestSuiteViewComponent,
     JobViewComponent,
+    NotFoundPageComponent,
   ],
 })
 export class DefaultModule {}

@@ -1,7 +1,29 @@
-@import '../../../styles/breakpoint'
+@import '../../../styles/common'
 
+@lost flexbox flex // ...
+@lost rounder 99.9 // ...
+@lost gutter 16px
 .row {
   flex-wrap: wrap
+}
+
+.submit-btn-row {
+  justify-content: flex-end
+}
+
+.input-list {
+  margin-y: var(--space-2)
+  lost-flex-container: row
+}
+
+.repo-input {
+  box-sizing: border-box
+  lost-column: 2 / 3
+}
+
+.branch-input {
+  box-sizing: border-box
+  lost-column: 1 / 3
 }
 
 .lblk,

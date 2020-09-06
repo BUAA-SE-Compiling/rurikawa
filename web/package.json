@@ -19,6 +19,8 @@
     "@angular/platform-browser": "~10.1.0",
     "@angular/platform-browser-dynamic": "~10.1.0",
     "@angular/router": "~10.1.0",
+    "@types/lodash": "^4.14.161",
+    "lodash": "^4.17.20",
     "lost": "^8.3.1",
     "moment": "^2.27.0",
     "ngx-build-plus": "^10.1.1",
