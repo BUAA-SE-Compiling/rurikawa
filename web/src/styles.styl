@@ -35,6 +35,7 @@
   --info-color: var(--pal-accent-dull)
   --gray-color: var(--pal-base-02)
   --disabled-color: var(--pal-base-01)
+  --btn-round-corner: 2px
   --space-0: 4px
   --space-1: 8px
   --space-2: 12px
@@ -57,11 +58,18 @@
 
 .btn {
   transition: all 100ms ease-in-out
+  padding: var(--space-1)
   background: var(--accent-color)
   color: var(--accent-primary)
+  border-radius: var(--btn-round-corner)
+  width: auto
+  font-weight: 500
+  display: flex
+  flex-direction: row
+  align-items: center
+  justify-content: center
 
   &:hover {
-    box-shadow: 0px 8px 4px #0006
   }
 }
 
@@ -70,10 +78,17 @@
   background: var(--background-color)
   border-color: var(--accent-color)
   border-style: solid 1px
+  border-width: 1px
+  border-radius: var(--btn-round-corner)
+  display: flex
+  flex-direction: row
+  align-items: center
+  justify-content: center
   color: var(--alt-primary)
+  font-weight: 500
 
   &:hover {
-    box-shadow: 0px 8px 4px #0006
+    border-color: var(--alt-accent)
   }
 }
 
@@ -89,6 +104,12 @@
 .info {
   --primary-color: var(--pal-info-color)
   --accent-color: var(--pal-info-color)
+  --accent-primary: var(--pal-base-00)
+}
+
+.dark {
+  --primary-color: var(--pal-base-03)
+  --accent-color: var(--pal-base-03)
   --accent-primary: var(--pal-base-00)
 }
 
@@ -170,6 +191,21 @@ h6 {
   font-size: var(--font-size-larger)
   font-style: italic
   font-weight: 500
+}
+
+input {
+  transition: all 100ms ease-in-out
+  font: inherit
+  padding: var(--space-0)
+  background: var(--background-color)
+  border-color: var(--alt-background)
+  border-style: solid
+  border-width: 1px
+  border-radius: var(--btn-round-corner)
+
+  &:hover {
+    border-color: var(--accent-color)
+  }
 }
 
 .hover-highlight {

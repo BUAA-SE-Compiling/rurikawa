@@ -11,6 +11,7 @@
 .row {
   lost-flex-container: row
   align-items: baseline
+  margin-bottom: var(--space-0)
 }
 
 .left-wrapper {
@@ -23,7 +24,6 @@
   lost-column: 1 / 4
   font-size: var(--font-size-larger)
   font-weight: 600
-  margin-bottom: var(--space-0)
 }
 
 .time {
@@ -41,5 +41,13 @@
 
 .slider {
   lost-column: 1 / 2
-  height: 100%
+  align-self: stretch
+  display: flex
+  flex-direction: row
+  justify-content: stretch
+  align-items: center
+
+  app-slider-view {
+    width: 100%
+  }
 }

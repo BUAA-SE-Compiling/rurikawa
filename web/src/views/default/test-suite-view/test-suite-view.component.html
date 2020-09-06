@@ -1,2 +1,30 @@
 <app-navbar></app-navbar>
-<p>test-suite-view works!</p>
+<div class="container">
+  <div class="title-row">
+    <div class="id">{{ id }}</div>
+    <h1>评测标题</h1>
+  </div>
+  <div class="row">
+    <div class="lblk">
+      <div id="job-submit">
+        <h2>提交评测</h2>
+        <input type="text" placeholder="repository" />
+        <input type="text" placeholder="branch" />
+        <div class="btn dark">提交</div>
+      </div>
+      <div id="suite-desc">
+        <h2>测试描述</h2>
+        <p>这是一个测试</p>
+      </div>
+    </div>
+    <div class="rblk" id="job-list">
+      <h2>评测记录</h2>
+      <ng-template [ngIf]="false" [ngIfElse]="jobLog">
+        <div class="no-list">没有评测记录</div>
+      </ng-template>
+      <ng-template #jobLog>
+        <app-job-item *ngFor="let item of items" [item]="item"></app-job-item>
+      </ng-template>
+    </div>
+  </div>
+</div>

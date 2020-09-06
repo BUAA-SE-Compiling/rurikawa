@@ -14,7 +14,7 @@ export class DashBoardComponent implements OnInit {
     {
       id: '123j2dp',
       name: '编译大作业1',
-      completedItem: 8,
+      totalItem: 8,
       finishedItem: 6,
       endTime: new Date('2020-11-30T12:34:56Z'),
       status: [
@@ -27,7 +27,7 @@ export class DashBoardComponent implements OnInit {
     {
       id: '123j2dq',
       name: '编译大作业0',
-      completedItem: 8,
+      totalItem: 8,
       finishedItem: 6,
       endTime: new Date('2020-09-06T12:34:56Z'),
       status: [{ status: 'ac', cnt: 50 }],
