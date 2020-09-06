@@ -8,7 +8,7 @@ import {
   SimpleChanges,
 } from '@angular/core';
 
-export type ItemKind =
+export type SliderItemKind =
   | 'accept'
   | 'error'
   | 'warn'
@@ -18,7 +18,7 @@ export type ItemKind =
   | 'cancel';
 
 export interface SliderItem {
-  kind: ItemKind;
+  kind: SliderItemKind;
   num: number;
 }
 
@@ -26,7 +26,7 @@ interface InternalSliderItem {
   style: { [kl: string]: any };
 }
 
-function kindToVar(kind: ItemKind): string {
+function kindToVar(kind: SliderItemKind): string {
   switch (kind) {
     case 'accept':
       return '--success-color';
@@ -59,6 +59,9 @@ export class SliderViewComponent implements OnInit {
   @Input()
   gapWidth: number = 4;
 
+  @Input()
+  height: number = 4;
+
   @ViewChild('canvas')
   canvas: ElementRef;
 
@@ -75,6 +78,12 @@ export class SliderViewComponent implements OnInit {
         style,
       };
     });
+  }
+
+  get wrapperStyle() {
+    return {
+      height: this.height + 'px',
+    };
   }
 
   ngOnInit(): void {}

@@ -1,6 +1,7 @@
 export type TestStatus = 'ac' | 'wa' | 'tle' | 're' | 'ce' | 'oe';
 
-interface DashboardItem {
+export interface DashboardItem {
+  id: string;
   name: string;
   endTime: Date;
   finishedItem: number;

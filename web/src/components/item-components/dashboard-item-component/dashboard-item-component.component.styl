@@ -1,0 +1,44 @@
+@lost flexbox flex
+.wrapper {
+  margin-top: var(--space-0)
+  margin-bottom: var(--space-0)
+  padding: var(--space-2)
+  margin-left: calc(var(--space-2) * -1)
+  margin-right: calc(var(--space-2) * -1)
+  border-radius: var(--space-0)
+}
+
+.row {
+  lost-flex-container: row
+  align-items: center
+}
+
+.left-wrapper {
+  lost-column: 1 / 4
+  display: flex
+  flex-direction: column
+}
+
+.name {
+  lost-column: 1 / 4
+  font-size: var(--font-size-larger)
+  font-weight: 600
+  margin-bottom: var(--space-0)
+}
+
+.time {
+  lost-column: 1 / 4
+  color: var(--alt-primary)
+  font-variant-numeric: tabular-nums
+}
+
+.score {
+  font-size: var(--font-size-larger)
+  text-align: right
+  font-weight: 700
+  lost-column: 1 / 4
+}
+
+.slider {
+  lost-column: 1 / 2
+}

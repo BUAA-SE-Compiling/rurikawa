@@ -2,6 +2,7 @@
 
 .default-palette {
   --pal-base-00: #fff
+  --pal-base-0h: #f0f0f0
   --pal-base-01: #E4E4E4
   --pal-base-02: #AFAFAF
   --pal-base-03: #585858
@@ -21,7 +22,8 @@
   --theme-mono-font-family: Iosevka, 'Sarasa Mono', 'MS Yahei UI', 'PingFang', Consolas, 'Roboto Mono', monospace
   --background-color: var(--pal-base-00)
   --primary-color: var(--pal-base-04)
-  --alt-background: var(--pal-base-01)
+  --secondary-color: var(--pal-base-02)
+  --alt-background: var(--pal-base-0h)
   --alt-primary: var(--pal-base-03)
   --accent-color: var(--pal-accent)
   --accent-alt: var(--pal-accent-alt)
@@ -47,33 +49,36 @@
   --font-size-smaller: 12px
   --font-size-small: 10px
   --font-size-mini: 8px
-  --font-size-larger: 20px
+  --font-size-larger: 18px
   --font-size-large: 24px
   --font-size-extra-large: 32px
   --font-size-title: 48px
 }
 
 .btn {
+  transition: all 100ms ease-in-out
   background: var(--accent-color)
   color: var(--accent-primary)
 
   &:hover {
-    box-shadow: 8px 0px 8px
+    box-shadow: 0px 8px 4px #0006
   }
 }
 
 .btn-secondary {
+  transition: all 100ms ease-in-out
   background: var(--background-color)
   border-color: var(--accent-color)
   border-style: solid 1px
   color: var(--alt-primary)
 
   &:hover {
-    box-shadow: 8px 0px 8px
+    box-shadow: 0px 8px 4px #0006
   }
 }
 
 .ghost-btn {
+  transition: all 100ms ease-in-out
   color: var(--accent-alt)
 
   &:hover {
@@ -165,4 +170,13 @@ h6 {
   font-size: var(--font-size-larger)
   font-style: italic
   font-weight: 500
+}
+
+.hover-highlight {
+  transition: all 100ms ease-in-out
+
+  &:hover {
+    // box-shadow: 0px 4px 6px #00000044
+    background: var(--alt-background)
+  }
 }

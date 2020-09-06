@@ -5,6 +5,7 @@ import { DashBoardComponent } from './dash-board/dash-board.component';
 import { TestSuiteViewComponent } from './test-suite-view/test-suite-view.component';
 import { JobViewComponent } from './job-view/job-view.component';
 import { BaseComponentsModule } from 'src/components/base-components/base-components.module';
+import { ItemComponentsModule } from 'src/components/item-components/item-components.module';
 
 @NgModule({
   declarations: [
@@ -13,7 +14,7 @@ import { BaseComponentsModule } from 'src/components/base-components/base-compon
     TestSuiteViewComponent,
     JobViewComponent,
   ],
-  imports: [CommonModule, BaseComponentsModule],
+  imports: [CommonModule, BaseComponentsModule, ItemComponentsModule],
   exports: [
     MainPageComponent,
     DashBoardComponent,

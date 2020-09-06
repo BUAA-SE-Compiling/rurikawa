@@ -6,6 +6,9 @@
     <div class="ghost-btn">添加</div>
   </div>
   <div class="wrapper" id="test-suites">
-    <app-slider-view [items]="items"></app-slider-view>
+    <app-dashboard-item-component
+      *ngFor="let i of items"
+      [item]="i"
+    ></app-dashboard-item-component>
   </div>
 </div>

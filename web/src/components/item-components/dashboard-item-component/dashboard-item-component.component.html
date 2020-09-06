@@ -1,1 +1,12 @@
-<p>dashboard-item-component works!</p>
+<div class="wrapper hover-highlight">
+  <div class="row">
+    <div class="name">{{ item.name }}</div>
+    <div class="score">{{ item.finishedItem }}/{{ item.completedItem }}</div>
+    <div class="slider">
+      <app-slider-view [items]="slider" [height]="8"></app-slider-view>
+    </div>
+  </div>
+  <div class="row">
+    <div class="time">{{ timeString }}</div>
+  </div>
+</div>

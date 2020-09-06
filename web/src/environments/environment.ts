@@ -4,6 +4,7 @@
 
 export const environment = {
   production: false,
+  endpointBase: 'http://localhost:5000',
 };
 
 /*
