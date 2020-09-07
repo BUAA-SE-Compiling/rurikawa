@@ -975,7 +975,7 @@ mod test_suite {
             )?;
 
             let instance = bollard::Docker::connect_with_local_defaults().unwrap();
-            ts.run(instance, None, None).await;
+            ts.run(instance, None, None).await?;
             Ok(())
         })
     }
@@ -1032,7 +1032,7 @@ mod test_suite {
             )?;
 
             let instance = bollard::Docker::connect_with_local_defaults().unwrap();
-            ts.run(instance, None, None).await;
+            ts.run(instance, None, None).await?;
             Ok(())
         })
     }
