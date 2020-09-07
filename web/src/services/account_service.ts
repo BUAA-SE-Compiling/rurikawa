@@ -10,7 +10,7 @@ import {
 import { Observable, observable } from 'rxjs';
 import 'rxjs/operators';
 import { environment } from 'src/environments/environment';
-import { catchError, map, tap } from 'rxjs/operators';
+import { catchError, map, tap, switchMap } from 'rxjs/operators';
 import { setUncaughtExceptionCaptureCallback } from 'process';
 
 interface OAuth2Login {
@@ -57,6 +57,33 @@ export class AccountService {
           },
         })
       );
+  }
+
+  public loginUsingRefreshToken() {
+    if (!this.oauthResponse) {
+      return new Observable<OAuth2Response>((sub) =>
+        sub.error('not_logged_in')
+      );
+    } else {
+      return this.httpClient
+        .post<OAuth2Response>(
+          environment.endpointBase + '/api/v1/account/login',
+          {
+            grantType: 'refresh_token',
+            scope: '',
+            clientId: 'web',
+            clientSecret: '',
+            refreshToken: this.oauthResponse.refreshToken,
+          }
+        )
+        .pipe(
+          tap({
+            next: (resp) => {
+              this.oauthResponse = resp;
+            },
+          })
+        );
+    }
   }
 
   public registerAndLogin(username: string, password: string) {
@@ -106,6 +133,9 @@ export class LoginInformationInterceptor implements HttpInterceptor {
       catchError((e, c) => {
         if (e instanceof HttpErrorResponse) {
           if (e.status === 401) {
+            return this.account
+              .loginUsingRefreshToken()
+              .pipe(switchMap(() => next.handle(req)));
           }
         }
         return c;
