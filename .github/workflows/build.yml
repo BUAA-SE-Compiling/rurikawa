@@ -1,0 +1,52 @@
+name: CI
+
+on:
+  push:
+    # branches: [ master ]
+
+jobs:
+  build-coordinator-image:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v2
+        with:
+          submodules: true
+      - name: Build and push Docker images
+        uses: machine-learning-apps/gpr-docker-publish@v1.3
+        id: docker
+        with:
+          USERNAME: ${{ secrets.DOCKER_USERNAME }}
+          PASSWORD: ${{ secrets.DOCKER_PASSWORD }}
+          IMAGE_NAME: "rurikawa-coordinator-dev"
+          DOCKERFILE_PATH: "coordinator/Dockerfile"
+          BUILD_CONTEXT: "coordinator"
+
+  build-judger-image:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v2
+        with:
+          submodules: true
+      - name: Build and push Docker images
+        uses: machine-learning-apps/gpr-docker-publish@v1.3
+        id: docker
+        with:
+          USERNAME: ${{ secrets.DOCKER_USERNAME }}
+          PASSWORD: ${{ secrets.DOCKER_PASSWORD }}
+          IMAGE_NAME: "rurikawa-judger-dev"
+          DOCKERFILE_PATH: "judger/Dockerfile"
+          BUILD_CONTEXT: "judger"
+
+  build-judger:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+        with:
+          submodules: true
+      - name: Build rust
+        run: |
+          cd judger
+          cargo fetch
+          cargo build --forzen
