@@ -2,7 +2,11 @@
     "cSpell.words": [
         "Capturable",
         "Karenia",
+        "Popen",
+        "canonicalize",
+        "golemc",
         "rurikawa",
-        "tungstenite"
+        "tungstenite",
+        "unsync"
     ]
 }

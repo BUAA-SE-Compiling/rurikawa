@@ -23,20 +23,13 @@ pub fn ensure_removed_dir(path: &Path) -> BoxFuture<Result<(), std::io::Error>> 
             },
         };
         dir.filter_map(|x| async move {
-            if let Ok(x) = x {
-                let metadata = x.metadata().await;
-                if let Ok(metadata) = metadata {
-                    let mut permissions = metadata.permissions();
-                    permissions.set_readonly(false);
-                    let _ = tokio::fs::set_permissions(x.path(), permissions).await;
-                    if metadata.file_type().is_dir() {
-                        Some(x.path())
-                    } else {
-                        None
-                    }
-                } else {
-                    None
-                }
+            let x = x.ok()?;
+            let metadata = x.metadata().await.ok()?;
+            let mut permissions = metadata.permissions();
+            permissions.set_readonly(false);
+            let _ = tokio::fs::set_permissions(x.path(), permissions).await;
+            if metadata.file_type().is_dir() {
+                Some(x.path())
             } else {
                 None
             }
@@ -76,7 +69,7 @@ pub fn find_judge_root(path: &Path) -> BoxFuture<Result<PathBuf, std::io::Error>
         for d in dirs {
             match find_judge_root(&d.path()).await {
                 Ok(res) => return Ok(res),
-                Err(e) => {
+                Err(_e) => {
                     continue;
                 }
             }
