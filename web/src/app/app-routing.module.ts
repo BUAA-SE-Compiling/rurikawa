@@ -6,6 +6,8 @@ import { MainPageComponent } from 'src/views/default/main-page/main-page.compone
 import { TestSuiteViewComponent } from 'src/views/default/test-suite-view/test-suite-view.component';
 import { JobViewComponent } from 'src/views/default/job-view/job-view.component';
 import { NotFoundPageComponent } from 'src/views/default/not-found-page/not-found-page.component';
+import { RegisterPageComponent } from 'src/views/default/register-page/register-page.component';
+import { LoginPageComponent } from 'src/views/default/login-page/login-page.component';
 
 const routes: Routes = [
   {
@@ -23,6 +25,14 @@ const routes: Routes = [
   {
     path: 'job/:id',
     component: JobViewComponent,
+  },
+  {
+    path: 'register',
+    component: RegisterPageComponent,
+  },
+  {
+    path: 'login',
+    component: LoginPageComponent,
   },
   {
     path: '**',

@@ -8,7 +8,8 @@
       <div class="nav-item ghost-btn">登出</div>
     </ng-template>
     <ng-template #notLoggedIn>
-      <div class="nav-item ghost-btn">登录</div>
+      <a class="nav-item ghost-btn" [routerLink]="'/login'">登录</a>
+      <a class="nav-item ghost-btn" [routerLink]="'/register'">注册</a>
     </ng-template>
   </div>
 </div>

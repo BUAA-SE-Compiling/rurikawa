@@ -1,0 +1,33 @@
+@import '../../../styles/common.styl'
+
+.wrapper {
+  height: 100vh
+  width: 100%
+  --background-color: var(--pal-base-0h)
+  --accent-color: var(--pal-base-03)
+  --accent-alt: var(--pal-base-03)
+  --alt-primary: var(--pal-base-04)
+  display: flex
+  flex-direction: column
+  align-items: stretch
+  background: var(--background-color)
+}
+
+.login-wrapper {
+  flex-grow: 1
+  display: flex
+  flex-direction: column
+  align-items: stretch
+  justify-content: center
+  text-align: center
+  --background-color: var(--pal-base-00)
+}
+
+.col-wrapper {
+  display: flex
+  flex-direction: column
+
+  &>* {
+    margin-y: var(--space-0)
+  }
+}

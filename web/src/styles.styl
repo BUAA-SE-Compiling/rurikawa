@@ -89,8 +89,9 @@
   transition: all 100ms ease-in-out
   padding-y: var(--space-2)
   padding-x: var(--space-4)
-  background: var(--background-color)
+  background: transparent
   border-color: var(--accent-color)
+  color: var(--accent-color)
   border-style: solid
   border-width: 2px
   border-radius: var(--btn-round-corner)
@@ -98,10 +99,10 @@
   flex-direction: row
   align-items: center
   justify-content: center
-  color: var(--alt-primary)
   font-weight: 500
 
   &:hover {
+    color: var(--accent-alt)
     border-color: var(--accent-alt)
   }
 }
@@ -194,6 +195,16 @@ code {
   font-family: var(--theme-mono-font-family)
 }
 
+a {
+  text-decoration: none
+  color: var(--accent-dull)
+
+  &:hover,
+  &:active {
+    color: var(--accent-alt)
+  }
+}
+
 h1 {
   margin-bottom: var(--space-1)
 }
@@ -245,6 +256,7 @@ input {
   transition: all 100ms ease-in-out
   font: inherit
   outline: none
+  width: auto
   padding: var(--space-1)
   background: var(--background-color)
   border-color: var(--secondary-color)
