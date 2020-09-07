@@ -9,8 +9,20 @@
       <div id="job-submit">
         <h2>提交评测</h2>
         <div class="input-list">
-          <input class="repo-input" type="text" placeholder="repository" />
-          <input class="branch-input" type="text" placeholder="branch" />
+          <textbox
+            class="repo-input"
+            type="text"
+            placeholder="https://my-git.com/me/my-repo"
+            caption="仓库地址"
+            [icon]="repo"
+          ></textbox>
+          <textbox
+            class="branch-input"
+            type="text"
+            placeholder="master"
+            caption="分支"
+            [icon]="branch"
+          ></textbox>
         </div>
         <div class="row submit-btn-row text">
           <div class="ghost-btn">添加 Webhook</div>

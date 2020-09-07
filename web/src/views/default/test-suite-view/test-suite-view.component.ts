@@ -1,6 +1,8 @@
 import { Component, OnInit } from '@angular/core';
 import { ActivatedRoute, Router } from '@angular/router';
 import { JobItem } from 'src/models/job-items';
+import repo from '@iconify/icons-carbon/link';
+import branch from '@iconify/icons-carbon/branch';
 
 @Component({
   selector: 'app-test-suite-view',
@@ -9,6 +11,9 @@ import { JobItem } from 'src/models/job-items';
 })
 export class TestSuiteViewComponent implements OnInit {
   constructor(private route: ActivatedRoute, private router: Router) {}
+
+  readonly repo = repo;
+  readonly branch = branch;
 
   id: string;
 

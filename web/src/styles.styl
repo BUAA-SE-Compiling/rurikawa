@@ -260,6 +260,19 @@ h6 {
 }
 
 input {
+  font: inherit
+  outline: none
+  width: auto
+  background: none
+  border: none
+
+  &::placeholder {
+    color: var(--secondary-color)
+  }
+}
+
+input.input,
+.input {
   transition: all 100ms ease-in-out
   font: inherit
   outline: none
@@ -276,7 +289,7 @@ input {
   }
 
   &:active,
-  &:focus {
+  &:focus-within {
     border-color: var(--accent-alt)
   }
 }
@@ -288,4 +301,10 @@ input {
     // box-shadow: 0px 4px 6px #00000044
     background: var(--alt-background)
   }
+}
+
+ic-icon {
+  display: flex
+  justify-content: center
+  align-items: center
 }

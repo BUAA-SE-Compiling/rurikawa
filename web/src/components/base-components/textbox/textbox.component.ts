@@ -1,4 +1,12 @@
-import { Component, OnInit, Input, Output, EventEmitter } from '@angular/core';
+import {
+  Component,
+  OnInit,
+  Input,
+  Output,
+  EventEmitter,
+  ElementRef,
+  ViewChild,
+} from '@angular/core';
 
 type style = undefined | 'success' | 'warn' | 'error';
 
@@ -15,10 +23,18 @@ export class TextboxComponent implements OnInit {
   @Input() placeholder: string = '';
   @Input() message: string = '';
 
-  @Input() value: string;
+  @Input() value: string = '';
+  @Input() icon: any | undefined;
+  @Input() iconSize: number = 16;
   @Output() valueChange = new EventEmitter<string>();
 
+  @ViewChild('input') input: ElementRef;
+
   constructor() {}
+
+  focus() {
+    this.input.nativeElement.focus();
+  }
 
   ngOnInit(): void {}
 }
