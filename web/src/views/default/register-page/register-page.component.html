@@ -1,1 +1,36 @@
-<p>register-page works!</p>
+<div class="wrapper">
+  <div class="login-wrapper container-slim">
+    <div class="row left">
+      <ic-icon [icon]="leftIcon" [size]="24" (click)="back()"></ic-icon>
+    </div>
+    <div class="row left">
+      <h1>注册</h1>
+    </div>
+    <div class="col-wrapper">
+      <div class="textbox">
+        <textbox
+          type="text"
+          id="username"
+          caption="用户名"
+          [(value)]="username"
+          [style]="usernameMessage ? 'error' : undefined"
+          [message]="usernameMessage"
+        ></textbox>
+      </div>
+      <div class="textbox">
+        <textbox
+          type="password"
+          id="password"
+          caption="密码"
+          [(value)]="password"
+          [style]="passwordMessage ? 'error' : undefined"
+          [message]="passwordMessage"
+        ></textbox>
+      </div>
+    </div>
+    <div class="row right btn-row">
+      <div class="btn light" id="register-btn" routerLink="/login">登录</div>
+      <div class="btn dark" id="login-btn" (click)="register()">注册</div>
+    </div>
+  </div>
+</div>

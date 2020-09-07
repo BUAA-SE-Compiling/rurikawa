@@ -112,7 +112,9 @@ namespace Karenia.Rurikawa.Coordinator {
             }
 
             if (!env.IsDevelopment()) { app.UseHttpsRedirection(); }
-
+            app.UseCors(opt => {
+                opt.AllowAnyOrigin().AllowAnyHeader().AllowAnyMethod();
+            });
             app.UseRouting();
             // TODO: Add websocket options
             WebSocketOptions ws_opt = new WebSocketOptions();

@@ -1,0 +1,40 @@
+.textbox {
+  display: flex
+  flex-direction: column
+  align-items: stretch
+  --this-accent-color: var(--secondary-color)
+}
+
+.caption {
+  font-size: var(--font-size-smaller)
+  font-weight: bold
+  align-self: left
+  margin-bottom: var(--space-0)
+}
+
+input {
+  align-self: stretch
+  border-color: var(--this-accent-color)
+
+  &:active,
+  &:focus {
+    border-color: var(--accent-alt)
+  }
+}
+
+.message {
+  color: var(--this-accent-color)
+  align-self: left
+}
+
+.warn {
+  --this-accent-color: var(--warn-color)
+}
+
+.error {
+  --this-accent-color: var(--error-color)
+}
+
+.success {
+  --this-accent-color: var(--success-color)
+}

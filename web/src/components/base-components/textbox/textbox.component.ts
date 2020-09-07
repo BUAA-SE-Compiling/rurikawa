@@ -1,6 +1,6 @@
 import { Component, OnInit, Input, Output, EventEmitter } from '@angular/core';
 
-type style = undefined | 'warn' | 'error';
+type style = undefined | 'success' | 'warn' | 'error';
 
 @Component({
   // tslint:disable-next-line: component-selector
@@ -11,19 +11,12 @@ type style = undefined | 'warn' | 'error';
 export class TextboxComponent implements OnInit {
   @Input() type: string = 'text';
   @Input() style: style;
-  @Input() placeholder: string | undefined;
+  @Input() caption: string = '';
+  @Input() placeholder: string = '';
+  @Input() message: string = '';
 
-  // tslint:disable-next-line: no-input-rename
-  @Input('value') underlyingValue: string;
+  @Input() value: string;
   @Output() valueChange = new EventEmitter<string>();
-
-  get value() {
-    return this.underlyingValue;
-  }
-  set value(val) {
-    this.underlyingValue = val;
-    this.valueChange.emit(val);
-  }
 
   constructor() {}
 

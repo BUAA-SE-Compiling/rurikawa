@@ -1,21 +1,34 @@
 <div class="wrapper">
   <div class="login-wrapper container-slim">
     <div class="row left">
+      <ic-icon [icon]="leftIcon" [size]="24" (click)="back()"></ic-icon>
+    </div>
+    <div class="row left">
       <h1>登录</h1>
     </div>
     <div class="col-wrapper">
       <div class="textbox">
-        <div class="caption">用户名</div>
-        <input type="text" id="username" />
+        <textbox
+          type="text"
+          id="username"
+          caption="用户名"
+          [(value)]="username"
+        ></textbox>
       </div>
       <div class="textbox">
-        <div class="caption">密码</div>
-        <input type="password" name="password" id="password" />
+        <textbox
+          type="password"
+          id="password"
+          caption="密码"
+          [(value)]="password"
+          [message]="message"
+          [style]="message ? 'error' : undefined"
+        ></textbox>
       </div>
     </div>
-    <div class="row right">
-      <div class="btn secondary info">注册</div>
-      <div class="btn dark">登录</div>
+    <div class="row right btn-row">
+      <div class="btn light" id="register-btn" routerLink="/register">注册</div>
+      <div class="btn dark" id="login-btn" (click)="login()">登录</div>
     </div>
   </div>
 </div>

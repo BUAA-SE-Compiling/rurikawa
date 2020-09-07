@@ -10,6 +10,7 @@ import { NotFoundPageComponent } from './not-found-page/not-found-page.component
 import { LoginPageComponent } from './login-page/login-page.component';
 import { RegisterPageComponent } from './register-page/register-page.component';
 import { RouterModule } from '@angular/router';
+import { IconModule } from '@visurel/iconify-angular';
 
 @NgModule({
   declarations: [
@@ -26,6 +27,7 @@ import { RouterModule } from '@angular/router';
     BaseComponentsModule,
     ItemComponentsModule,
     RouterModule,
+    IconModule,
   ],
   exports: [
     MainPageComponent,

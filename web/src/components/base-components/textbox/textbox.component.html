@@ -1,5 +1,10 @@
-<div class="textbo">
-  <div class="caption"></div>
-  <input [type]="type" [(value)]="value" />
-  <div class="message"></div>
+<div class="textbox" [ngClass]="style">
+  <div class="caption">{{ caption }}</div>
+  <input
+    [type]="type"
+    [value]="value"
+    (input)="valueChange.emit($event.target.value)"
+    [placeholder]="placeholder"
+  />
+  <div class="message">{{ message }}</div>
 </div>

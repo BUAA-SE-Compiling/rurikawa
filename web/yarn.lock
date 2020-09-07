@@ -1096,6 +1096,11 @@
     lodash "^4.17.19"
     to-fast-properties "^2.0.0"
 
+"@iconify/icons-carbon@^1.0.5":
+  version "1.0.5"
+  resolved "https://registry.npm.taobao.org/@iconify/icons-carbon/download/@iconify/icons-carbon-1.0.5.tgz#7cc21298ce4d02417f04edecb881762bf25621bc"
+  integrity sha1-fMISmM5NAkF/BO3suIF2K/JWIbw=
+
 "@istanbuljs/schema@^0.1.2":
   version "0.1.2"
   resolved "https://registry.yarnpkg.com/@istanbuljs/schema/-/schema-0.1.2.tgz#26520bf09abe4a5644cd5414e37125a8954241dd"
@@ -1263,6 +1268,13 @@
     "@types/node" "*"
     "@types/source-list-map" "*"
     source-map "^0.6.1"
+
+"@visurel/iconify-angular@^10.1.2":
+  version "10.1.2"
+  resolved "https://registry.npm.taobao.org/@visurel/iconify-angular/download/@visurel/iconify-angular-10.1.2.tgz#1a89e5888e8e05d64e06b714598ba176fc3bc80d"
+  integrity sha1-GonliI6OBdZOBrcUWYuhdvw7yA0=
+  dependencies:
+    tslib "^2.0.0"
 
 "@webassemblyjs/ast@1.9.0":
   version "1.9.0"
