@@ -49,4 +49,4 @@ jobs:
         run: |
           cd judger
           cargo fetch
-          cargo build --forzen
+          cargo build --frozen
