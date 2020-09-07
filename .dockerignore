@@ -1,0 +1,6 @@
+/web/dist
+/web/node_modules
+/judger/target
+/coordinator/bin
+/coordinator/certs
+/coordinator/obj
