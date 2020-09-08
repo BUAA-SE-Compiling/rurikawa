@@ -11,6 +11,7 @@ using Karenia.Rurikawa.Helpers;
 using Karenia.Rurikawa.Models;
 using Karenia.Rurikawa.Models.Test;
 using MicroKnights.IO.Streams;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.WebUtilities;
@@ -46,6 +47,7 @@ namespace Karenia.Rurikawa.Coordinator.Controllers {
         /// <param name="contentLength"></param>
         /// <returns>Test suite spec</returns>
         [HttpPost]
+        [Authorize("admin")]
         public async Task<IActionResult> PostNewTestSuite(
             [FromHeader] string filename
             ) {
