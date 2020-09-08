@@ -42,7 +42,7 @@ namespace Karenia.Rurikawa.Coordinator.Controllers {
         /// and the end-user may log in using the provided pair of username
         /// and password.
         /// </summary>
-        [Route("register")]
+        [HttpPost("register")]
         public async Task<IActionResult> RegisterAccount(
             [FromBody] AccountInfo msg
         ) {
@@ -68,7 +68,15 @@ namespace Karenia.Rurikawa.Coordinator.Controllers {
             public NotEnoughInformationException(string message) : base(message) { }
         }
 
-        [Route("login")]
+
+        /// <summary>
+        /// Login with specified username/password or refresh token. <br/>
+        /// </summary>
+        /// <param name="msg"></param>
+        /// <returns></returns>
+        [HttpPost("login")]
+        [ProducesResponseType(typeof(OAuth2Response), 200)]
+        [ProducesResponseType(typeof(ErrorResponse), 400)]
         public async Task<IActionResult> LoginUser([FromBody] OAuth2Request msg) {
             try {
                 switch (msg.GrantType) {
@@ -138,7 +146,7 @@ namespace Karenia.Rurikawa.Coordinator.Controllers {
             return await GenerateOAuth2Response(msg.Scope, account);
         }
 
-        [Route("edit/password")]
+        [HttpPost("edit/password")]
         [Authorize()]
         public async Task<IActionResult> EditPassword(
             [FromQuery] string originalPassword,
@@ -156,7 +164,7 @@ namespace Karenia.Rurikawa.Coordinator.Controllers {
         }
 
 
-        [Route("test")]
+        [HttpPost("test")]
         public async Task Test() {
             foreach (var claim in User.Claims) {
                 Console.WriteLine($"{claim.Type},{claim.Value}");
