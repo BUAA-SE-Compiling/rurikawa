@@ -25,6 +25,25 @@ export function dashboardTypeToSlider(item: TestResultKind): SliderItemKind {
   }
 }
 
+export function sliderKindToCssVariable(kind: SliderItemKind): string {
+  switch (kind) {
+    case 'accept':
+      return '--success-color';
+    case 'error':
+      return '--error-color';
+    case 'warn':
+      return '--warning-color';
+    case 'info':
+      return '--info-color';
+    case 'info-alt':
+      return '--info-alt-color';
+    case 'disable':
+      return '--disabled-color';
+    case 'cancel':
+      return '--gray-color';
+  }
+}
+
 export interface DashboardItem {
   id: string;
   name: string;

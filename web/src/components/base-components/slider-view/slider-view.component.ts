@@ -7,6 +7,7 @@ import {
   OnChanges,
   SimpleChanges,
 } from '@angular/core';
+import { sliderKindToCssVariable } from 'src/models/job-items';
 
 export type SliderItemKind =
   | 'accept'
@@ -24,25 +25,6 @@ export interface SliderItem {
 
 interface InternalSliderItem {
   style: { [kl: string]: any };
-}
-
-function kindToVar(kind: SliderItemKind): string {
-  switch (kind) {
-    case 'accept':
-      return '--success-color';
-    case 'error':
-      return '--error-color';
-    case 'warn':
-      return '--warning-color';
-    case 'info':
-      return '--info-color';
-    case 'info-alt':
-      return '--info-alt-color';
-    case 'disable':
-      return '--disabled-color';
-    case 'cancel':
-      return '--gray-color';
-  }
 }
 
 @Component({
@@ -68,7 +50,7 @@ export class SliderViewComponent implements OnInit {
   get sliderItems(): InternalSliderItem[] {
     return this.items.map((i, idx) => {
       let style = {
-        'background-color': 'var(' + kindToVar(i.kind) + ')',
+        'background-color': 'var(' + sliderKindToCssVariable(i.kind) + ')',
         'flex-grow': i.num,
         'margin-left': idx === 0 ? '0px' : this.gapWidth + 'px',
         'margin-right':

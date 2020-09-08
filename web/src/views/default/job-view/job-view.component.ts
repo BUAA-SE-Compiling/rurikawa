@@ -4,7 +4,7 @@ import {
   dashboardTypeToSlider,
   TestResultKind,
 } from 'src/models/job-items';
-import { groupBy, mapValues, toPairs } from 'lodash';
+import { groupBy, mapValues, toPairs, bindKey } from 'lodash';
 import {
   SliderItem,
   SliderItemKind,
@@ -38,6 +38,18 @@ export class JobViewComponent implements OnInit {
         resultFileId: 'tests/1234657',
       },
       succ3: {
+        kind: 'Accepted',
+        resultFileId: 'tests/1234658',
+      },
+      succ5: {
+        kind: 'TimeLimitExceeded',
+        resultFileId: 'tests/1234658',
+      },
+      succ12: {
+        kind: 'MemoryLimitExceeded',
+        resultFileId: 'tests/1234658',
+      },
+      black: {
         kind: 'Accepted',
         resultFileId: 'tests/1234658',
       },
@@ -85,6 +97,22 @@ export class JobViewComponent implements OnInit {
     )
       .map((x) => `${x[1]} ${x[0]}`)
       .join(', ');
+  }
+
+  results() {
+    return toPairs(this.job.results).sort(([ax, ay], [bx, by]) => {
+      if (ay.kind !== by.kind) {
+        if (ay.kind === 'Accepted') {
+          return 1;
+        } else if (by.kind === 'Accepted') {
+          return -1;
+        } else {
+          return ay.kind.localeCompare(by.kind);
+        }
+      } else {
+        return ax.localeCompare(bx);
+      }
+    });
   }
 
   ngOnInit(): void {}

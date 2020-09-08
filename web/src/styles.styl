@@ -19,8 +19,8 @@
 }
 
 .default-theme {
-  --theme-sans-font-family: 'Work Sans', 'Sarasa Gothic', 'Sarasa UI', 'Noto Sans SC', 'Source Han Sans SC', 'Source Han Sans CN', 'MS Yahei UI', 'PingFang', Arial, 'Helvetica Neue', Helvetica, sans-serif
-  --theme-mono-font-family: Iosevka, 'Sarasa Mono', 'MS Yahei UI', 'PingFang', Consolas, 'Roboto Mono', monospace
+  --font-family-sans: 'Work Sans', 'Sarasa Gothic', 'Sarasa UI', 'Noto Sans SC', 'Source Han Sans SC', 'Source Han Sans CN', 'MS Yahei UI', 'PingFang', Arial, 'Helvetica Neue', Helvetica, sans-serif
+  --font-family-mono: 'IBM Plex Mono', 'MS Yahei UI', 'PingFang', Consolas, 'Roboto Mono', monospace
   --background-color: var(--pal-base-00)
   --primary-color: var(--pal-base-04)
   --secondary-color: var(--pal-base-02)
@@ -48,7 +48,7 @@
   --space-7: 64px
   --space-8: 96px
   --space-9: 128px
-  --container-pad: var(--space-3)
+  --container-pad: var(--space-4)
   --font-size-base: 16px
   --font-size-smaller: 14px
   --font-size-small: 12px
@@ -171,7 +171,7 @@
 body {
   color: var(--primary-color)
   background: solid var(--background-color)
-  font-family: var(--theme-sans-font-family)
+  font-family: var(--font-family-sans)
   font-size: var(--font-size-base)
   margin: 0
   padding: 0

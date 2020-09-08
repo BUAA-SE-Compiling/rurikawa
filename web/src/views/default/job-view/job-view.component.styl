@@ -1,5 +1,6 @@
 @import '../../../styles/common.styl'
 
+@lost flex flexbox
 .before-title-spacer {
   height: var(--space-4)
 }
@@ -10,11 +11,21 @@
 }
 
 .id {
-  color: var(--alt-primary)
+  color: var(--secondary-color)
+  font-family: var(--font-family-mono)
+  font-size: var(--font-size-smaller)
+}
+
+.blk {
+  margin-y: var(--space-6)
 }
 
 .title>h1 {
   margin-top: var(--space-0)
+}
+
+.test-points>h2 {
+  margin-bottom: var(--space-2)
 }
 
 .result-brief {
@@ -28,5 +39,27 @@
 
   app-slider-view {
     margin-y: var(--space-2)
+  }
+}
+
+.test-points-wrapper {
+  lost-flex-container: row
+}
+
+app-job-test-item {
+  +active-above(theme-breakpoint-lg) {
+    lost-waffle: 1 / 4
+  }
+
+  +active-between(theme-breakpoint-md, theme-breakpoint-lg) {
+    lost-waffle: 1 / 3
+  }
+
+  +active-between(theme-breakpoint-sm, theme-breakpoint-md) {
+    lost-waffle: 1 / 2
+  }
+
+  +active-below(theme-breakpoint-sm) {
+    lost-waffle: 1 / 1
   }
 }
