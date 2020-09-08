@@ -3,25 +3,22 @@ pub mod model;
 use crate::{
     client::model::JobResultKind,
     config::{JudgeToml, JudgerPublicConfig},
-    fs,
+    fs::{self, JUDGE_FILE_NAME},
     prelude::*,
     tester::exec::JudgerPrivateConfig,
 };
 use anyhow::Result;
 use async_trait::async_trait;
 use dashmap::DashMap;
-use fs::JUDGE_FILE_NAME;
 use futures::{
     stream::{SplitSink, SplitStream},
-    FutureExt, Sink, SinkExt, Stream, StreamExt,
+    FutureExt, Sink, SinkExt, StreamExt,
 };
-use http::Uri;
 use model::*;
 use serde::{Deserialize, Serialize};
 use serde_json::from_slice;
 use std::{
     collections::HashMap,
-    error::Error,
     fmt::Debug,
     path::PathBuf,
     sync::{atomic::AtomicUsize, Arc},
@@ -168,6 +165,7 @@ impl SharedClientData {
         self.running_tests
             .fetch_add(1, std::sync::atomic::Ordering::SeqCst)
     }
+
     pub fn finish_job(&self) -> usize {
         self.running_tests
             .fetch_sub(1, std::sync::atomic::Ordering::SeqCst)

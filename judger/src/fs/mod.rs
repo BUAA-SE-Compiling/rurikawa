@@ -13,31 +13,33 @@ async fn get_judge_config(root_path: &Path) -> Result<crate::config::JudgeToml, 
     todo!()
 }
 
+/// Remove a directory recursively.
 pub fn ensure_removed_dir(path: &Path) -> BoxFuture<Result<(), std::io::Error>> {
     async move {
-        let dir = match read_dir(path).await {
+        let entries = match read_dir(path).await {
             Ok(dir) => dir,
             Err(e) => match e.kind() {
                 std::io::ErrorKind::NotFound => return Ok(()),
                 _ => return Err(e),
             },
         };
-        dir.filter_map(|x| async move {
-            let x = x.ok()?;
-            let metadata = x.metadata().await.ok()?;
-            let mut permissions = metadata.permissions();
-            permissions.set_readonly(false);
-            let _ = tokio::fs::set_permissions(x.path(), permissions).await;
-            if metadata.file_type().is_dir() {
-                Some(x.path())
-            } else {
-                None
-            }
-        })
-        .map(|x| async move { ensure_removed_dir(&x).await })
-        .buffered(16usize)
-        .for_each(|_| async {})
-        .await;
+        entries
+            .filter_map(|entry| async move {
+                let entry = entry.ok()?;
+                let metadata = entry.metadata().await.ok()?;
+                let mut permissions = metadata.permissions();
+                permissions.set_readonly(false);
+                let _ = tokio::fs::set_permissions(entry.path(), permissions).await;
+                if metadata.file_type().is_dir() {
+                    Some(entry.path())
+                } else {
+                    None
+                }
+            })
+            .map(|dir| async move { ensure_removed_dir(&dir).await })
+            .buffered(16usize)
+            .for_each(|_| async {})
+            .await;
         let res = tokio::fs::remove_dir_all(path).await;
         match &res {
             Ok(_) => {}
