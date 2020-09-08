@@ -16,6 +16,7 @@ export class DashboardItemComponentComponent implements OnInit {
   constructor() {}
 
   @Input() item: DashboardItem;
+  @Input() compact: boolean = false
 
   public get slider(): SliderItem[] {
     return this.item.status.map<SliderItem>((st) => {

@@ -10,6 +10,7 @@ import * as moment from 'moment';
 })
 export class JobItemComponent implements OnInit {
   @Input() item: JobItem;
+  @Input() compact: boolean = false;
 
   constructor() {}
 

@@ -1,8 +1,8 @@
-<div class="wrapper hover-highlight">
+<div class="wrapper hover-highlight" [ngClass]="{ compact: compact }">
   <div class="row">
     <div class="name">{{ item.name }}</div>
     <div class="score">{{ item.finishedItem }}/{{ item.totalItem }}</div>
-    <div class="slider">
+    <div class="slider" *ngIf="!compact">
       <app-slider-view [items]="slider" [height]="8"></app-slider-view>
     </div>
   </div>

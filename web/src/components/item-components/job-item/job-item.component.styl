@@ -18,12 +18,20 @@
   lost-column: 1 / 4
   display: flex
   flex-direction: column
+
+  .compact & {
+    lost-column: 1 / 2
+  }
 }
 
 .name {
   lost-column: 1 / 4
   font-size: var(--font-size-larger)
   font-weight: 600
+
+  .compact & {
+    lost-column: 1 / 2
+  }
 }
 
 .time {

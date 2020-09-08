@@ -17,6 +17,10 @@
   lost-column: 1 / 4
   display: flex
   flex-direction: column
+
+  .compact & {
+    lost-column: 1 / 2
+  }
 }
 
 .name {
@@ -24,6 +28,10 @@
   font-size: var(--font-size-larger)
   font-weight: 600
   margin-bottom: var(--space-0)
+
+  .compact & {
+    lost-column: 1 / 2
+  }
 }
 
 .time {
