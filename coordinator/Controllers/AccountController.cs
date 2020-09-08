@@ -157,7 +157,6 @@ namespace Karenia.Rurikawa.Coordinator.Controllers {
 
 
         [Route("test")]
-        [Authorize("admin")]
         public async Task Test() {
             foreach (var claim in User.Claims) {
                 Console.WriteLine($"{claim.Type},{claim.Value}");

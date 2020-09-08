@@ -18,6 +18,7 @@ using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.IdentityModel.Tokens;
 
+
 namespace Karenia.Rurikawa.Coordinator {
     public class Startup {
         public Startup(IConfiguration configuration) {
@@ -80,6 +81,7 @@ namespace Karenia.Rurikawa.Coordinator {
             services.AddSingleton<JsonSerializerOptions>(_ =>
                 SetupJsonSerializerOptions(new JsonSerializerOptions())
             );
+            services.AddSwaggerDocument();
             services.AddRouting(options => { options.LowercaseUrls = true; });
             services.AddControllers().AddJsonOptions(opt => SetupJsonSerializerOptions(opt.JsonSerializerOptions));
         }
@@ -115,13 +117,19 @@ namespace Karenia.Rurikawa.Coordinator {
             app.UseCors(opt => {
                 opt.AllowAnyOrigin().AllowAnyHeader().AllowAnyMethod();
             });
+
+            app.UseOpenApi();
+            app.UseSwaggerUi3();
+
             app.UseRouting();
+
             // TODO: Add websocket options
             WebSocketOptions ws_opt = new WebSocketOptions();
             ws_opt.AllowedOrigins.Add("*");
             ws_opt.AllowedOrigins.Add("localhost");
             ws_opt.KeepAliveInterval = new System.TimeSpan(0, 0, 60);
             app.UseWebSockets(ws_opt);
+
             app.UseAuthentication();
             app.UseAuthorization();
 
