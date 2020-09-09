@@ -197,6 +197,7 @@ pub struct JobResultMsg {
 pub struct ClientStatusMsg {
     pub active_task_count: i32,
     pub can_accept_new_task: bool,
+    pub request_for_new_task: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

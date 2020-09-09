@@ -162,17 +162,21 @@ namespace Karenia.Rurikawa.Coordinator.Services {
 
         async void OnJudgerStatusUpdateMessage(string clientId, ClientStatusMsg msg) {
             await queueLock.WaitAsync(); try {
+                // should we dispatch a new job for this judger?
+                var dispatched = true;
                 await connectionLock.WaitAsync(); try {
                     if (connections.TryGetValue(clientId, out var conn)) {
                         conn.CanAcceptNewTask = msg.CanAcceptNewTask;
                         conn.ActiveTaskCount = msg.ActiveTaskCount;
-                        if (conn.CanAcceptNewTask)
-                            await TryDispatchJobFromDatabase(conn);
+                        if (msg.RequestForNewTask) {
+                            dispatched |= await TryDispatchJobFromDatabase(conn);
+                        }
                     }
                 } finally {
                     connectionLock.Release();
                 }
-                JudgerQueue.Enqueue(clientId);
+                if (!dispatched)
+                    JudgerQueue.Enqueue(clientId);
                 logger.LogInformation("Status::Judger: {0}", DEBUG_LogEnumerator(JudgerQueue));
             } finally {
                 queueLock.Release();

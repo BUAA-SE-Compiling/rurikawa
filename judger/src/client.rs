@@ -12,7 +12,7 @@ use async_trait::async_trait;
 use dashmap::DashMap;
 use futures::{
     stream::{SplitSink, SplitStream},
-    FutureExt, Sink, SinkExt, StreamExt,
+    Future, FutureExt, Sink, SinkExt, Stream, StreamExt,
 };
 use model::*;
 use serde::{Deserialize, Serialize};
@@ -39,6 +39,10 @@ where
 {
     type Error;
     async fn send_msg(&mut self, msg: &M) -> Result<(), Self::Error>;
+    // async fn send_msg_all<'a, I>(&mut self, msgs: I) -> Result<(), Self::Error>
+    // where
+    //     I: Stream<Item = &'a M> + Unpin + Send + Sync,
+    //     M: 'a;
 }
 
 #[async_trait]
@@ -54,6 +58,18 @@ where
         let msg = Message::text(serialized);
         self.send(msg).await
     }
+
+    // async fn send_msg_all<'a, I>(&mut self, msgs: I) -> Result<(), Self::Error>
+    // where
+    //     I: Stream<Item = &'a M> + Unpin + Send + Sync,
+    //     M: 'a,
+    // {
+    //     self.send_all(&mut msgs.filter_map(|x| async {
+    //         let serialized = serde_json::to_string(x).ok()?;
+    //         Some(Message::text(serialized))
+    //     }))
+    //     .await
+    // }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -479,6 +495,7 @@ pub async fn flag_new_job(send: Arc<Mutex<WsSink>>, client_config: Arc<SharedCli
         .await
         .send_msg(&ClientMsg::ClientStatus(ClientStatusMsg {
             active_task_count: job_count as i32,
+            request_for_new_task: false,
             can_accept_new_task: job_count < client_config.cfg.max_concurrent_tasks,
         }))
         .await;
@@ -491,6 +508,7 @@ pub async fn flag_finished_job(send: Arc<Mutex<WsSink>>, client_config: Arc<Shar
         .await
         .send_msg(&ClientMsg::ClientStatus(ClientStatusMsg {
             active_task_count: job_count as i32,
+            request_for_new_task: true,
             can_accept_new_task: job_count < client_config.cfg.max_concurrent_tasks,
         }))
         .await;
@@ -501,13 +519,17 @@ pub async fn client_loop(
     mut ws_send: WsSink,
     client_config: Arc<SharedClientData>,
 ) {
-    ws_send
-        .send_msg(&ClientMsg::ClientStatus(ClientStatusMsg {
-            active_task_count: 0,
-            can_accept_new_task: true,
-        }))
-        .await
-        .unwrap();
+    // Request for max_concurrent_tasks jobs
+    for _ in 0..client_config.cfg.max_concurrent_tasks {
+        ws_send
+            .send_msg(&ClientMsg::ClientStatus(ClientStatusMsg {
+                active_task_count: 0,
+                request_for_new_task: true,
+                can_accept_new_task: true,
+            }))
+            .await
+            .unwrap();
+    }
 
     let ws_send = Arc::new(Mutex::new(ws_send));
     while let Some(Some(Ok(x))) = {
