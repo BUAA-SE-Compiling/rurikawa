@@ -1,0 +1,40 @@
+version: "3"
+
+services:
+  psql:
+    image: postgres:12
+    env_file: .env
+    networks:
+      - default
+
+  minio-oss:
+    image: minio/minio
+    env_file: .env
+    networks:
+      - default
+    volumes:
+      - /data
+    entrypoint: minio server /data
+  coordinator:
+    image: rurikawa-coordinator
+    ports:
+      - 80:80
+      - 443:443
+    build:
+      context: .
+      dockerfile: coordinator.Dockerfile
+    volumes:
+      - ./coordinator/appsettings.Development.json:/app/appsettings.json
+      - ./coordinator/certs:/app/certs
+    depends_on:
+      - psql
+      - minio-oss
+
+  judger:
+    image: rurikawa-judger
+    restart: unless-stopped
+    build:
+      context: judger
+    entrypoint: ["/app/rurikawa", "connect", "coordinator:80"]
+    depends_on:
+      - coordinator
