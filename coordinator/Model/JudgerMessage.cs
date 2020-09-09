@@ -96,7 +96,7 @@ namespace Karenia.Rurikawa.Models.Judger {
     public class ClientStatusMsg : ClientMsg {
         public int ActiveTaskCount { get; set; }
         public bool CanAcceptNewTask { get; set; }
-        public bool RequestForNewTask { get; set; }
+        public ulong RequestForNewTask { get; set; }
     }
 }
 

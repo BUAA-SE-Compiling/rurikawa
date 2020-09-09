@@ -495,7 +495,7 @@ pub async fn flag_new_job(send: Arc<Mutex<WsSink>>, client_config: Arc<SharedCli
         .await
         .send_msg(&ClientMsg::ClientStatus(ClientStatusMsg {
             active_task_count: job_count as i32,
-            request_for_new_task: false,
+            request_for_new_task: 0,
             can_accept_new_task: job_count < client_config.cfg.max_concurrent_tasks,
         }))
         .await;
@@ -508,7 +508,7 @@ pub async fn flag_finished_job(send: Arc<Mutex<WsSink>>, client_config: Arc<Shar
         .await
         .send_msg(&ClientMsg::ClientStatus(ClientStatusMsg {
             active_task_count: job_count as i32,
-            request_for_new_task: true,
+            request_for_new_task: 1,
             can_accept_new_task: job_count < client_config.cfg.max_concurrent_tasks,
         }))
         .await;
@@ -520,16 +520,14 @@ pub async fn client_loop(
     client_config: Arc<SharedClientData>,
 ) {
     // Request for max_concurrent_tasks jobs
-    for _ in 0..client_config.cfg.max_concurrent_tasks {
-        ws_send
-            .send_msg(&ClientMsg::ClientStatus(ClientStatusMsg {
-                active_task_count: 0,
-                request_for_new_task: true,
-                can_accept_new_task: true,
-            }))
-            .await
-            .unwrap();
-    }
+    ws_send
+        .send_msg(&ClientMsg::ClientStatus(ClientStatusMsg {
+            active_task_count: 0,
+            request_for_new_task: client_config.cfg.max_concurrent_tasks as u32,
+            can_accept_new_task: true,
+        }))
+        .await
+        .unwrap();
 
     let ws_send = Arc::new(Mutex::new(ws_send));
     while let Some(Some(Ok(x))) = {
