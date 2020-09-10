@@ -45,12 +45,12 @@ namespace Karenia.Rurikawa.Coordinator.Services {
             this.bucket = bucket;
             this.endpoint = endpoint;
             this.publicEndpoint = publicEndpoint;
-            this.publicEndpointUri = new Uri(
-                new UriBuilder(publicEndpoint ?? this.endpoint)
-                {
-                    Scheme = hasSsl ? "https" : "http"
-                }.Uri,
-                bucket);
+            var endpointUri = new UriBuilder(publicEndpoint ?? this.endpoint);
+            if (endpointUri.Host == null || endpointUri.Host == "") {
+            } else {
+                endpointUri.Scheme = hasSsl ? "https" : "http";
+            }
+            this.publicEndpointUri = new Uri(endpointUri.Uri, bucket);
             this.hasSsl = hasSsl;
             this.logger = logger;
         }
