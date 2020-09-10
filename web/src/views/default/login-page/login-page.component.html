@@ -13,6 +13,7 @@
           id="username"
           caption="用户名"
           [(value)]="username"
+          (enterKeyPress)="login()"
         ></textbox>
       </div>
       <div class="textbox">
@@ -23,12 +24,20 @@
           [(value)]="password"
           [message]="message"
           [style]="message ? 'error' : undefined"
+          (enterKeyPress)="login()"
         ></textbox>
       </div>
     </div>
     <div class="row right btn-row">
       <div class="btn light" id="register-btn" routerLink="/register">注册</div>
-      <div class="btn dark" id="login-btn" (click)="login()">登录</div>
+      <div
+        class="btn dark"
+        id="login-btn"
+        (click)="login()"
+        [ngClass]="{ disabled: loading }"
+      >
+        登录
+      </div>
     </div>
   </div>
 </div>

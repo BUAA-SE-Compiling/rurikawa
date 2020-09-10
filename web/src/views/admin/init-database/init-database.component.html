@@ -30,7 +30,14 @@
         点击确认按钮，表示您确认以上账户信息无误。您将不会再有机会看见您填写的密码；如果您忘记该密码，只能进入数据库强行修改。
       </p>
       <div class="row right btn-row">
-        <div class="btn error" id="login-btn">确认</div>
+        <div
+          class="btn error"
+          id="login-btn"
+          (click)="proceed()"
+          [ngClass]="{ disabled: loading }"
+        >
+          确认
+        </div>
       </div>
     </div>
   </div>

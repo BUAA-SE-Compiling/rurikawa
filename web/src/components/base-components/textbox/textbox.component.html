@@ -13,6 +13,10 @@
       [value]="value"
       (input)="valueChange.emit($event.target.value)"
       [placeholder]="placeholder"
+      (keyup.enter)="enterKeyPress.emit($event)"
+      (keypress)="keyPress.emit($event)"
+      (keydown)="keyDown.emit($event)"
+      (keyup)="keyUp.emit($event)"
       #input
     />
   </div>

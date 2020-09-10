@@ -4,6 +4,7 @@ import { Location, JsonPipe } from '@angular/common';
 import { AccountService } from 'src/services/account_service';
 import { Router } from '@angular/router';
 import { HttpErrorResponse } from '@angular/common/http';
+import { ignoreElements } from 'rxjs/operators';
 
 @Component({
   selector: 'app-login-page',
@@ -23,10 +24,16 @@ export class LoginPageComponent implements OnInit {
   password: string = '';
   message: string | undefined;
 
+  loading: boolean = false;
+
   warnUsername: boolean = false;
   warnPassword: boolean = false;
 
   login() {
+    if (this.loading) {
+      return;
+    }
+    this.loading = true;
     this.message = undefined;
     this.warnPassword = false;
     this.accountService.login(this.username, this.password).subscribe({
@@ -45,6 +52,7 @@ export class LoginPageComponent implements OnInit {
           this.message = '未知错误: ' + JSON.stringify(e);
         }
         this.warnPassword = true;
+        this.loading = false;
       },
     });
   }

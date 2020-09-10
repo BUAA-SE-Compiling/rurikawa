@@ -27,6 +27,10 @@ export class TextboxComponent implements OnInit {
   @Input() icon: any | undefined;
   @Input() iconSize: number = 16;
   @Output() valueChange = new EventEmitter<string>();
+  @Output() enterKeyPress = new EventEmitter<KeyboardEvent>();
+  @Output() keyPress = new EventEmitter<KeyboardEvent>();
+  @Output() keyDown = new EventEmitter<KeyboardEvent>();
+  @Output() keyUp = new EventEmitter<KeyboardEvent>();
 
   @ViewChild('input') input: ElementRef;
 

@@ -20,7 +20,7 @@
 
 .default-theme {
   --font-family-sans: 'Work Sans', 'Sarasa Gothic', 'Sarasa UI', 'Noto Sans SC', 'Source Han Sans SC', 'Source Han Sans CN', 'MS Yahei UI', 'PingFang', Arial, 'Helvetica Neue', Helvetica, sans-serif
-  --font-family-mono: 'IBM Plex Mono', 'MS Yahei UI', 'PingFang', Consolas, 'Roboto Mono', monospace
+  --font-family-mono: 'IBM Plex Mono', 'Noto Sans SC', 'MS Yahei UI', 'PingFang', Consolas, 'Roboto Mono', monospace
   --background-color: var(--pal-base-00)
   --primary-color: var(--pal-base-04)
   --secondary-color: var(--pal-base-02)
@@ -83,6 +83,10 @@
   &:hover {
     background-color: var(--accent-alt)
   }
+
+  &.disabled {
+    background-color: var(--secondary-color)
+  }
 }
 
 .btn.secondary {
@@ -104,6 +108,11 @@
   &:hover {
     color: var(--accent-alt)
     border-color: var(--accent-alt)
+  }
+
+  &.disabled {
+    color: var(--secondary-color)
+    border-color: var(--secondary-color)
   }
 }
 

@@ -15,5 +15,11 @@ export class InitDatabaseComponent implements OnInit {
   warnUsername: boolean = false;
   warnPassword: boolean = false;
 
+  loading: boolean = false;
+
+  proceed() {
+    this.loading = true;
+  }
+
   ngOnInit(): void {}
 }
