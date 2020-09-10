@@ -4,6 +4,8 @@
     <TargetFramework>netcoreapp3.1</TargetFramework>
     <LangVersion>8.0</LangVersion>
     <Nullable>enable</Nullable>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <NoWarn>1591</NoWarn>
   </PropertyGroup>
 
   <ItemGroup>
@@ -33,6 +35,10 @@
   <ItemGroup>
     <ProjectReference Include="..\3rd_party\SplitStream\src\SplitStream\MicroKnights.IO.SplitStream.csproj" />
   </ItemGroup>
-
+  <ItemGroup>
+    <TrimmerRootAssembly Include="System.IO.FileSystem" />
+    <TrimmerRootAssembly Include="System.Xml.XPath.XDocument" />
+    <TrimmerRootAssembly Include="System.Xml.Linq" />
+  </ItemGroup>
 
 </Project>

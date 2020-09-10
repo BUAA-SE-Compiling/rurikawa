@@ -5,7 +5,7 @@
     log 
 
     @api {
-        path /api/* 
+        path /api/* /swagger/*
     }
 
     @oss {
@@ -13,7 +13,7 @@
     }
 
     @api_options {
-        path /api/* /connect/* /ws/*
+        path /api/* 
         method OPTIONS
     }
     
