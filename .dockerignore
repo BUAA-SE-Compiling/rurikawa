@@ -4,3 +4,5 @@
 /coordinator/bin
 /coordinator/certs
 /coordinator/obj
+/coordinator/appsettings.Development.json
+/coordinator/appsettings.json

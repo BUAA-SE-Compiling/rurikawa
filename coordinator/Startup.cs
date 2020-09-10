@@ -8,6 +8,7 @@ using Dahomey.Json;
 using Dahomey.Json.Serialization.Conventions;
 using Karenia.Rurikawa.Coordinator.Services;
 using Karenia.Rurikawa.Helpers;
+using Karenia.Rurikawa.Models;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
@@ -64,12 +65,19 @@ namespace Karenia.Rurikawa.Coordinator {
             });
 
             var pgsqlLinkParams = Configuration.GetValue<string>("pgsqlLink");
+            var alwaysMigrate = Configuration.GetValue<bool>("alwaysMigrate");
+            services.AddSingleton(_ => new DbOptions
+            {
+                AlwaysMigrate = alwaysMigrate
+            });
+
             var testStorageParams = new SingleBucketFileStorageService.Params();
             Configuration.GetSection("testStorage").Bind(testStorageParams);
 
             services.AddDbContextPool<Models.RurikawaDb>(options => {
                 options.UseNpgsql(pgsqlLinkParams);
             });
+
             services.AddSingleton(
                 svc => new SingleBucketFileStorageService(
                     testStorageParams,
@@ -151,8 +159,13 @@ namespace Karenia.Rurikawa.Coordinator {
                 }
             });
 
+            // migrate database if needed
+            if (svc.GetService<DbOptions>().AlwaysMigrate) {
+                svc.GetService<RurikawaDb>().Database.Migrate();
+            }
+
             // pre-initialize long-running services
-            var coordinator = app.ApplicationServices.GetService<JudgerCoordinatorService>();
+            var coordinator = svc.GetService<JudgerCoordinatorService>();
             Task.Run(coordinator.RevertJobStatus);
 
             app.UseEndpoints(endpoints => {

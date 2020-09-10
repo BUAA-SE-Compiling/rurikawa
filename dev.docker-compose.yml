@@ -24,7 +24,7 @@ services:
       context: .
       dockerfile: coordinator.Dockerfile
     volumes:
-      - ./coordinator/appsettings.Development.json:/app/appsettings.json
+      - ./coordinator/appsettings.dev.json:/app/appsettings.json
       - ./coordinator/certs:/app/certs
     depends_on:
       - psql

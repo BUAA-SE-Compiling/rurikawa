@@ -15,6 +15,10 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 
 #pragma warning disable CS8618
 namespace Karenia.Rurikawa.Models {
+    public class DbOptions {
+        public bool AlwaysMigrate { get; set; }
+    }
+
     public class RurikawaDb : DbContext {
         public RurikawaDb(DbContextOptions ctx) : base(ctx) {
         }
