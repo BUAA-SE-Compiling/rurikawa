@@ -11,8 +11,10 @@ namespace Karenia.Rurikawa.Coordinator.Services {
         public class Params {
             public string Bucket { get; set; }
             public string Endpoint { get; set; }
+            public string? PublicEndpoint { get; set; }
             public string AccessKey { get; set; }
             public string SecretKey { get; set; } = "";
+            public string BucketPolicy { get; set; } = "";
             public bool Ssl { get; set; } = true;
         }
 
@@ -22,6 +24,7 @@ namespace Karenia.Rurikawa.Coordinator.Services {
         ) : this(
             param.Bucket,
             param.Endpoint,
+            param.PublicEndpoint,
             param.AccessKey,
             param.SecretKey,
             param.Ssl,
@@ -31,6 +34,7 @@ namespace Karenia.Rurikawa.Coordinator.Services {
         public SingleBucketFileStorageService(
             string bucket,
             string endpoint,
+            string? publicEndpoint,
             string accessKey,
             string secretKey,
             bool hasSsl,
@@ -40,6 +44,13 @@ namespace Karenia.Rurikawa.Coordinator.Services {
             if (hasSsl) client = client.WithSSL();
             this.bucket = bucket;
             this.endpoint = endpoint;
+            this.publicEndpoint = publicEndpoint;
+            this.publicEndpointUri = new Uri(
+                new UriBuilder(publicEndpoint ?? this.endpoint)
+                {
+                    Scheme = hasSsl ? "https" : "http"
+                }.Uri,
+                bucket);
             this.hasSsl = hasSsl;
             this.logger = logger;
         }
@@ -49,11 +60,26 @@ namespace Karenia.Rurikawa.Coordinator.Services {
         private Minio.MinioClient client;
         private readonly string bucket;
         private readonly string endpoint;
+        private readonly string? publicEndpoint;
         private readonly bool hasSsl;
+        private readonly Uri publicEndpointUri;
 
         public async Task Check() {
             if (!await client.BucketExistsAsync(bucket)) {
                 await client.MakeBucketAsync(bucket);
+                await client.SetPolicyAsync(bucket, $@"{{
+                ""Version"":""2012-10-17"",
+                ""Statement"":[
+                    {{
+                    ""Sid"":""PublicRead"",
+                    ""Effect"":""Allow"",
+                    ""Principal"": ""*"",
+                    ""Action"":[""s3:GetObject"", ""s3:GetObjectVersion""],
+                    ""Resource"":[""arn:aws:s3::{bucket}:/*""]
+                    }}
+                ]
+            }}
+            ");
             }
         }
 
@@ -87,12 +113,7 @@ namespace Karenia.Rurikawa.Coordinator.Services {
         public string GetFileAddress(
             string filename
         ) {
-            var uri = new UriBuilder
-            {
-                Scheme = hasSsl ? "https" : "http",
-                Host = $"{bucket}.{endpoint}",
-                Path = filename
-            };
+            var uri = new Uri(publicEndpointUri, filename);
             return uri.ToString();
         }
     }
