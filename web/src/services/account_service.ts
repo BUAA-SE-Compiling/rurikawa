@@ -190,8 +190,12 @@ export class AccountService {
     return this.oauthResponse?.tokenType + this.oauthResponse?.accessToken;
   }
 
-  public get UserName() {
+  public get Username() {
     return this.username;
+  }
+
+  public get Role() {
+    return this.oauthResponse?.role;
   }
 
   public get isLoggedIn() {

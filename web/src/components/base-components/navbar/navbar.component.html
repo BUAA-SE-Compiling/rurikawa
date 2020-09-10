@@ -3,9 +3,9 @@
     <div class="nav-item logo">rurikawa</div>
     <div class="nav-sep"></div>
     <ng-template [ngIf]="accountService.isLoggedIn" [ngIfElse]="notLoggedIn">
-      <div class="nav-item">{{ accountService.UserName }}</div>
+      <div class="nav-item">{{ username }}</div>
       <div class="nav-item ghost-btn">设置</div>
-      <div class="nav-item ghost-btn">登出</div>
+      <div class="nav-item ghost-btn" (click)="logout()">登出</div>
     </ng-template>
     <ng-template #notLoggedIn>
       <a class="nav-item ghost-btn" [routerLink]="'/login'">登录</a>

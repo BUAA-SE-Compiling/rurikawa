@@ -133,7 +133,8 @@ namespace Karenia.Rurikawa.Coordinator.Controllers {
                 AccessToken = accessToken,
                 RefreshToken = refreshToken,
                 ExpiresIn = accessTokenExpireTime.ToUnixTimeSeconds(),
-                Scope = strScope
+                Scope = strScope,
+                Role = account.Kind.ToString()
             };
         }
 

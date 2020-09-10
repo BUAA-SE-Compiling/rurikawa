@@ -19,6 +19,7 @@ namespace Karenia.Rurikawa.Models.Auth {
         public string TokenType { get; set; } = "bearer";
         public long? ExpiresIn { get; set; }
         public string? RefreshToken { get; set; }
+        public string Role { get; set; }
         public string? Scope { get; set; }
     }
 
