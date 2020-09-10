@@ -1,0 +1,61 @@
+:80, :443 {
+    # TODO: serve web files
+    root * /app
+
+    log 
+
+    @api {
+        path /api/* 
+    }
+
+    @oss {
+        path /file/*
+    }
+
+    @api_options {
+        path /api/* /connect/* /ws/*
+        method OPTIONS
+    }
+    
+    handle @oss {
+        uri strip_prefix /file
+        reverse_proxy {
+            to minio-oss:9000
+        }
+    }
+
+    handle @api_options {
+        respond 204
+
+        header {
+            Access-Control-Allow-Origin *
+            Access-Control-Allow-Methods GET,POST,PATCH,PUT,DELETE,OPTIONS
+            Access-Control-Allow-Headers DNT,User-Agent,X-Requested-With,If-Modified-Since,Cache-Control,Content-Type,Range,Authorization
+            Access-Control-Expose-Headers Content-Length,Content-Range
+            Access-Control-Max-Age 1728000
+            Content-Type text/plain; charset=utf-8
+            Content-Length 0
+            X-StmChat-Options TRUE
+            defer
+        }
+    }
+
+    handle @api {
+        reverse_proxy {
+            to coordinator:80
+        }
+
+        header {
+            Access-Control-Allow-Origin *
+            Access-Control-Allow-Methods GET,POST,PATCH,PUT,DELETE,OPTIONS
+            Access-Control-Allow-Headers DNT,User-Agent,X-Requested-With,If-Modified-Since,Cache-Control,Content-Type,Range
+            Access-Control-Expose-Headers Content-Length,Content-Range
+            defer
+        }
+    }
+
+  
+    try_files {path} {path}.html {path}.htm index.html index.htm
+    file_server
+    
+}

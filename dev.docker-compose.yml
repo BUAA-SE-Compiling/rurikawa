@@ -15,11 +15,11 @@ services:
     volumes:
       - /data
     entrypoint: minio server /data
+    ports:
+      - 39000:9000
+
   coordinator:
     image: rurikawa-coordinator
-    ports:
-      - 80:80
-      - 443:443
     build:
       context: .
       dockerfile: coordinator.Dockerfile
@@ -38,3 +38,11 @@ services:
     entrypoint: ["/app/rurikawa", "connect", "coordinator:80"]
     depends_on:
       - coordinator
+
+  caddy:
+    image: caddy:2.1.1-alpine
+    restart: unless-stopped
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile
+    ports:
+      - 38080:80
