@@ -237,6 +237,21 @@ namespace Karenia.Rurikawa.Coordinator.Services {
             return BCrypt.Net.BCrypt.EnhancedVerify(provided, hashed);
         }
 
+        public async Task InitializeRootAccount(string username, string password) {
+            if (await db.Accounts.AnyAsync(a => a.Kind == AccountKind.Root)) {
+                throw new AlreadyInitializedException();
+            }
+            db.Accounts.Add(new UserAccount
+            {
+                Username = username,
+                HashedPassword = HashPasswordWithGeneratedSalt(password),
+                Kind = AccountKind.Root
+            });
+            await db.SaveChangesAsync();
+        }
+
+        public class AlreadyInitializedException : System.Exception { }
+
         public class UsernameNotUniqueException : System.Exception {
             public UsernameNotUniqueException(string username)
                 : base($"Username {username}is not unique in database") {
