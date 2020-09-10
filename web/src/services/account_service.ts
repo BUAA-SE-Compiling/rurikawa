@@ -12,6 +12,16 @@ import 'rxjs/operators';
 import { environment } from 'src/environments/environment';
 import { catchError, map, tap, switchMap } from 'rxjs/operators';
 import { setUncaughtExceptionCaptureCallback } from 'process';
+import {
+  CanActivate,
+  ActivatedRouteSnapshot,
+  RouterStateSnapshot,
+  UrlTree,
+  Router,
+  CanActivateChild,
+  CanLoad,
+  Route,
+} from '@angular/router';
 
 interface OAuth2Login {
   grantType: string;
@@ -26,15 +36,18 @@ interface OAuth2Response {
   tokenType: string;
   expiresIn?: number;
   refreshToken?: string;
+  role?: string;
   scope?: string;
 }
 
 @Injectable({ providedIn: 'root' })
 export class AccountService {
-  constructor(private httpClient: HttpClient) {}
+  constructor(private httpClient: HttpClient, private router: Router) {}
 
   private oauthResponse: OAuth2Response | undefined = undefined;
   private username: string | undefined;
+
+  private attemptedToAccessUri: string | undefined;
 
   public login(username: string, password: string) {
     return this.httpClient
@@ -54,6 +67,10 @@ export class AccountService {
           next: (resp) => {
             this.oauthResponse = resp;
             this.username = username;
+            if (this.attemptedToAccessUri !== undefined) {
+              this.router.navigateByUrl(this.attemptedToAccessUri);
+              this.attemptedToAccessUri = undefined;
+            }
           },
         })
       );
@@ -105,6 +122,45 @@ export class AccountService {
     });
   }
 
+  public saveLoginInfo() {}
+
+  public tryLoadLoginInfo() {}
+
+  public async loggedInOrRedirect(attempted?: string): Promise<boolean> {
+    if (this.isLoggedIn) {
+      return true;
+    }
+    if (attempted !== undefined) {
+      this.attemptedToAccessUri = attempted;
+    }
+    this.router.navigate(['/login']);
+  }
+
+  public isInRoles(roles: string[]): boolean {
+    return (
+      this.isLoggedIn &&
+      this.oauthResponse.role &&
+      roles.includes(this.oauthResponse.role)
+    );
+  }
+
+  public async roleOrRedirect(
+    roles: string[],
+    attempted?: string
+  ): Promise<boolean> {
+    if (
+      this.isLoggedIn &&
+      this.oauthResponse.role &&
+      roles.includes(this.oauthResponse.role)
+    ) {
+      return true;
+    }
+    if (attempted !== undefined) {
+      this.attemptedToAccessUri = attempted;
+    }
+    this.router.navigate(['/login']);
+  }
+
   public get Token() {
     return this.oauthResponse?.tokenType + this.oauthResponse?.accessToken;
   }
@@ -141,5 +197,53 @@ export class LoginInformationInterceptor implements HttpInterceptor {
         return c;
       })
     );
+  }
+}
+
+@Injectable({
+  providedIn: 'root',
+})
+export class NotLoggedInGuard implements CanActivate, CanActivateChild {
+  constructor(private accountService: AccountService) {}
+
+  canActivate(route: ActivatedRouteSnapshot, state: RouterStateSnapshot) {
+    return !this.accountService.isLoggedIn;
+  }
+
+  canActivateChild(route: ActivatedRouteSnapshot, state: RouterStateSnapshot) {
+    return !this.accountService.isLoggedIn;
+  }
+}
+
+@Injectable({
+  providedIn: 'root',
+})
+export class LoginGuard implements CanActivate, CanActivateChild {
+  constructor(private accountService: AccountService) {}
+
+  canActivate(route: ActivatedRouteSnapshot, state: RouterStateSnapshot) {
+    return this.accountService.loggedInOrRedirect(state.url);
+  }
+
+  canActivateChild(route: ActivatedRouteSnapshot, state: RouterStateSnapshot) {
+    return this.accountService.loggedInOrRedirect(state.url);
+  }
+}
+
+@Injectable({
+  providedIn: 'root',
+})
+export class AdminLoginGuard implements CanActivate, CanActivateChild, CanLoad {
+  constructor(private accountService: AccountService) {}
+  canLoad(route: Route, segments: import('@angular/router').UrlSegment[]) {
+    return this.accountService.isInRoles(['Admin']);
+  }
+
+  canActivate(route: ActivatedRouteSnapshot, state: RouterStateSnapshot) {
+    return this.accountService.roleOrRedirect(['Admin'], state.url);
+  }
+
+  canActivateChild(route: ActivatedRouteSnapshot, state: RouterStateSnapshot) {
+    return this.accountService.roleOrRedirect(['Admin'], state.url);
   }
 }

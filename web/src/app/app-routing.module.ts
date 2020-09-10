@@ -8,11 +8,13 @@ import { JobViewComponent } from 'src/views/default/job-view/job-view.component'
 import { NotFoundPageComponent } from 'src/views/default/not-found-page/not-found-page.component';
 import { RegisterPageComponent } from 'src/views/default/register-page/register-page.component';
 import { LoginPageComponent } from 'src/views/default/login-page/login-page.component';
+import { LoginGuard, AdminLoginGuard } from 'src/services/account_service';
 
 const routes: Routes = [
   {
     path: 'dashboard',
     component: DashBoardComponent,
+    canActivate: [LoginGuard],
   },
   {
     path: '',
@@ -21,10 +23,12 @@ const routes: Routes = [
   {
     path: 'suite/:id',
     component: TestSuiteViewComponent,
+    canActivate: [LoginGuard],
   },
   {
     path: 'job/:id',
     component: JobViewComponent,
+    canActivate: [LoginGuard],
   },
   {
     path: 'register',
@@ -33,6 +37,12 @@ const routes: Routes = [
   {
     path: 'login',
     component: LoginPageComponent,
+  },
+  {
+    path: 'admin',
+    children: [],
+    canActivate: [AdminLoginGuard],
+    canActivateChild: [AdminLoginGuard],
   },
   {
     path: '**',
