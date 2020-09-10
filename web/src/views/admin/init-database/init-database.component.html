@@ -1,0 +1,37 @@
+<div class="wrapper">
+  <div class="login-wrapper container-slim">
+    <div class="section left">
+      <h1>初始化</h1>
+      <p>嗨，管理员。请在下面指定你的用户名和密码。</p>
+    </div>
+    <div class="section">
+      <div class="textbox">
+        <textbox
+          type="text"
+          id="username"
+          caption="用户名"
+          [(value)]="username"
+          placeholder="root"
+        ></textbox>
+      </div>
+      <div class="textbox">
+        <textbox
+          type="password"
+          id="password"
+          caption="密码"
+          [(value)]="password"
+          [message]="message"
+          [style]="message ? 'error' : undefined"
+        ></textbox>
+      </div>
+    </div>
+    <div class="section">
+      <p id="submit-msg">
+        点击确认按钮，表示您确认以上账户信息无误。您将不会再有机会看见您填写的密码；如果您忘记该密码，只能进入数据库强行修改。
+      </p>
+      <div class="row right btn-row">
+        <div class="btn error" id="login-btn">确认</div>
+      </div>
+    </div>
+  </div>
+</div>

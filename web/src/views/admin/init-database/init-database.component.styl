@@ -1,0 +1,51 @@
+@import '../../../styles/common.styl'
+
+.wrapper {
+  height: 100vh
+  width: 100%
+  // --background-color: var(--pal-base-0h)
+  --accent-color: var(--pal-base-03)
+  --accent-alt: var(--pal-base-03)
+  --alt-primary: var(--pal-base-04)
+  display: flex
+  flex-direction: column
+  align-items: stretch
+  background: var(--background-color)
+}
+
+.login-wrapper {
+  flex-grow: 1
+  display: flex
+  flex-direction: column
+  align-items: stretch
+  justify-content: center
+  --background-color: var(--pal-base-00)
+}
+
+.btn-row {
+  display: flex
+  flex-direction: row
+  margin-y: var(--space-2)
+
+  &>* {
+    margin-x: var(--space-1)
+  }
+
+  &>*:first-child {
+    margin-left: 0
+  }
+
+  &>*:last-child {
+    margin-right: 0
+  }
+}
+
+#login-btn {
+  flex-grow: 1
+}
+
+#submit-msg {
+  color: var(--error-color)
+  font-weight: bold
+  font-size: var(--font-size-smaller)
+}

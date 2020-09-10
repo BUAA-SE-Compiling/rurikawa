@@ -151,14 +151,16 @@ export class AccountService {
     window.localStorage.removeItem('auth');
   }
 
-  public async loggedInOrRedirect(attempted?: string): Promise<boolean> {
+  public async loggedInOrRedirect(
+    attempted?: string
+  ): Promise<boolean | UrlTree> {
     if (this.isLoggedIn) {
       return true;
     }
     if (attempted !== undefined) {
       this.attemptedToAccessUri = attempted;
     }
-    this.router.navigate(['/login']);
+    this.router.createUrlTree(['/login']);
   }
 
   public isInRoles(roles: string[]): boolean {
@@ -172,7 +174,7 @@ export class AccountService {
   public async roleOrRedirect(
     roles: string[],
     attempted?: string
-  ): Promise<boolean> {
+  ): Promise<boolean | UrlTree> {
     if (
       this.isLoggedIn &&
       this.oauthResponse.role &&
@@ -183,7 +185,7 @@ export class AccountService {
     if (attempted !== undefined) {
       this.attemptedToAccessUri = attempted;
     }
-    this.router.navigate(['/login']);
+    this.router.createUrlTree(['/login']);
   }
 
   public get Token() {
@@ -247,6 +249,30 @@ export class NotLoggedInGuard implements CanActivate, CanActivateChild {
 @Injectable({
   providedIn: 'root',
 })
+export class NotLoggedInRedirectToDashboardGuard
+  implements CanActivate, CanActivateChild {
+  constructor(private accountService: AccountService, private router: Router) {}
+
+  canActivate(route: ActivatedRouteSnapshot, state: RouterStateSnapshot) {
+    if (!this.accountService.isLoggedIn) {
+      return true;
+    } else {
+      return this.router.createUrlTree(['/dashboard']);
+    }
+  }
+
+  canActivateChild(route: ActivatedRouteSnapshot, state: RouterStateSnapshot) {
+    if (!this.accountService.isLoggedIn) {
+      return true;
+    } else {
+      return this.router.createUrlTree(['/dashboard']);
+    }
+  }
+}
+
+@Injectable({
+  providedIn: 'root',
+})
 export class LoginGuard implements CanActivate, CanActivateChild {
   constructor(private accountService: AccountService) {}
 
@@ -265,14 +291,14 @@ export class LoginGuard implements CanActivate, CanActivateChild {
 export class AdminLoginGuard implements CanActivate, CanActivateChild, CanLoad {
   constructor(private accountService: AccountService) {}
   canLoad(route: Route, segments: import('@angular/router').UrlSegment[]) {
-    return this.accountService.isInRoles(['Admin']);
+    return this.accountService.isInRoles(['Admin', 'Root']);
   }
 
   canActivate(route: ActivatedRouteSnapshot, state: RouterStateSnapshot) {
-    return this.accountService.roleOrRedirect(['Admin'], state.url);
+    return this.accountService.roleOrRedirect(['Admin', 'Root'], state.url);
   }
 
   canActivateChild(route: ActivatedRouteSnapshot, state: RouterStateSnapshot) {
-    return this.accountService.roleOrRedirect(['Admin'], state.url);
+    return this.accountService.roleOrRedirect(['Admin', 'Root'], state.url);
   }
 }

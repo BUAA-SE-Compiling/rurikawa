@@ -3,15 +3,26 @@
   margin: 0
   height: 96px
   display: flex
-  flex-direction: row
-  justify-content: center
+  flex-direction: column
+  // justify-content: center
+  align-items: center
   background: var(--background)
   color: var(--alt-primary)
   font-size: var(--font-size-base)
+
+  &.admin-mode {
+    --accent-color: var(--pal-warning-color)
+  }
+}
+
+.admin-banner {
+  background: var(--accent-color)
+  height: var(--space-1)
+  align-self: stretch
 }
 
 .navbar-inner {
-  height: 100%
+  flex-grow: 1
   display: flex
   flex-direction: row
 }
@@ -23,6 +34,13 @@
 .logo {
   color: var(--accent-color)
   font-weight: 900
+  font-size: var(--font-size-large)
+}
+
+.subdir {
+  margin-left: var(--space-2)
+  color: var(--secondary-color)
+  font-weight: 700
   font-size: var(--font-size-large)
 }
 

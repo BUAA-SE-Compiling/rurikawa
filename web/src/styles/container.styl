@@ -1,4 +1,4 @@
-@import 'breakpoint'
+@import 'common'
 
 .container {
   generate-breakpoints: theme-breakpoint-sm theme-breakpoint-md theme-breakpoint-lg, theme-page-sm theme-page-md theme-page-lg
@@ -6,6 +6,18 @@
 
 .container-slim {
   generate-breakpoints: theme-breakpoint-sm theme-breakpoint-md theme-breakpoint-lg, theme-page-sm-slim theme-page-md-slim theme-page-lg-slim
+}
+
+.section {
+  width: 100%
+  display: flex
+  flex-direction: column
+  align-items: stretch
+  margin-y: var(--space-1)
+
+  &>* {
+    margin-y: var(--space-0)
+  }
 }
 
 .row {

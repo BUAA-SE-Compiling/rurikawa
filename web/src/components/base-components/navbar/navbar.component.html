@@ -1,6 +1,10 @@
-<div class="navbar">
+<div class="navbar" [ngClass]="{ 'admin-mode': adminMode }">
+  <div class="admin-banner" *ngIf="adminMode"></div>
   <div class="container navbar-inner">
-    <div class="nav-item logo">rurikawa</div>
+    <div class="nav-item">
+      <span class="logo">rurikawa</span>
+      <span class="subdir" *ngIf="realSubir">/ {{ realSubir }}</span>
+    </div>
     <div class="nav-sep"></div>
     <ng-template [ngIf]="accountService.isLoggedIn" [ngIfElse]="notLoggedIn">
       <div class="nav-item">{{ username }}</div>
