@@ -42,7 +42,9 @@ interface OAuth2Response {
 
 @Injectable({ providedIn: 'root' })
 export class AccountService {
-  constructor(private httpClient: HttpClient, private router: Router) {}
+  constructor(private httpClient: HttpClient, private router: Router) {
+    this.tryLoadLoginInfo();
+  }
 
   private oauthResponse: OAuth2Response | undefined = undefined;
   private username: string | undefined;
@@ -71,6 +73,7 @@ export class AccountService {
               this.router.navigateByUrl(this.attemptedToAccessUri);
               this.attemptedToAccessUri = undefined;
             }
+            this.saveLoginInfo();
           },
         })
       );
@@ -122,9 +125,31 @@ export class AccountService {
     });
   }
 
-  public saveLoginInfo() {}
+  public logout() {
+    this.clearSavedLoginInfo();
+    this.oauthResponse = undefined;
+    this.username = undefined;
+  }
 
-  public tryLoadLoginInfo() {}
+  public saveLoginInfo() {
+    window.localStorage.setItem('auth', JSON.stringify(this.oauthResponse));
+    window.localStorage.setItem('usr', this.username);
+  }
+
+  public tryLoadLoginInfo() {
+    let authString = window.localStorage.getItem('auth');
+    let usr = window.localStorage.getItem('usr');
+    if (authString != null && usr != null) {
+      let oauth = JSON.parse(authString);
+      this.oauthResponse = oauth;
+      this.username = usr;
+    }
+  }
+
+  public clearSavedLoginInfo() {
+    window.localStorage.removeItem('usr');
+    window.localStorage.removeItem('auth');
+  }
 
   public async loggedInOrRedirect(attempted?: string): Promise<boolean> {
     if (this.isLoggedIn) {
