@@ -53,14 +53,14 @@ services:
       - minio-oss
 
   # [^4]: Judger config. Edit if needed.
-  judger:
-    image: rurikawa-judger
-    restart: unless-stopped
-    build:
-      context: judger
-    entrypoint: ["/app/rurikawa", "connect", "coordinator:80"]
-    depends_on:
-      - coordinator
+  # judger:
+  #   image: rurikawa-judger
+  #   restart: unless-stopped
+  #   build:
+  #     context: judger
+  #   entrypoint: ["/app/rurikawa", "connect", "caddy:80"]
+  #   depends_on:
+  #     - coordinator
 
   caddy:
     image: caddy:2.1.1-alpine
@@ -71,3 +71,5 @@ services:
     ports:
       # [^3.2]: This port binding
       - 5000:80
+    depends_on:
+      - coordinator
