@@ -46,6 +46,8 @@ namespace Karenia.Rurikawa.Models {
 
         public DbSet<JudgerTokenEntry> JudgerRegisterTokens { get; set; }
 
+        public DbSet<Announcement> Announcements { get; set; }
+
 
         protected override void OnConfiguring(DbContextOptionsBuilder opt) {
 
@@ -70,6 +72,7 @@ namespace Karenia.Rurikawa.Models {
             modelBuilder.Entity<JudgerEntry>().HasKey(x => x.Id);
             modelBuilder.Entity<UserAccount>().HasKey(x => x.Username);
             modelBuilder.Entity<Profile>().HasKey(x => x.Username);
+            modelBuilder.Entity<Announcement>().HasKey(x => x.Username);
 
             modelBuilder.Entity<Job>().HasIndex(x => x.Id).IsUnique();
             modelBuilder.Entity<Job>().HasIndex(x => x.Account);
@@ -82,6 +85,7 @@ namespace Karenia.Rurikawa.Models {
             modelBuilder.Entity<Profile>().HasIndex(x => x.Email);
             modelBuilder.Entity<TestSuite>().HasIndex(x => x.Name).IsUnique();
             modelBuilder.Entity<TestSuite>().HasIndex(x => x.Id).IsUnique();
+            modelBuilder.Entity<Announcement>().HasIndex(x => x.Id).IsUnique();
 
             AssignEntityTokenEntry<AccessTokenEntry>(modelBuilder);
             AssignEntityTokenEntry<RefreshTokenEntry>(modelBuilder);
@@ -92,6 +96,8 @@ namespace Karenia.Rurikawa.Models {
             modelBuilder.Entity<Job>().Property(x => x.TestSuite)
                 .HasConversion(flowSnakeConverter);
             modelBuilder.Entity<TestSuite>().Property(x => x.Id)
+                .HasConversion(flowSnakeConverter);
+            modelBuilder.Entity<Announcement>().Property(x => x.Id)
                 .HasConversion(flowSnakeConverter);
 
             modelBuilder.ToSnakeCase();
