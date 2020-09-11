@@ -4,11 +4,15 @@ using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.Threading;
+using System.Threading.Tasks;
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Mvc.ModelBinding;
 
 namespace Karenia.Rurikawa.Helpers {
     /// <summary>
     /// FlowSnake is a time-sortable unique ID generator based on Twitter Snowflake.
     /// </summary>
+    [ModelBinder(typeof(FlowSnakeBinder))]
     public struct FlowSnake : IEquatable<FlowSnake>, IComparable<FlowSnake>, IComparable<long> {
         const int TIMESTAMP_BITS = 34;
         const int WORKER_ID_BITS = 12;
@@ -197,6 +201,29 @@ namespace Karenia.Rurikawa.Helpers {
                 writer.WriteStringValue(value.ToString());
             } else {
                 writer.WriteNumberValue(value.Num);
+            }
+        }
+    }
+
+    public class FlowSnakeBinder : IModelBinder {
+        public Task BindModelAsync(ModelBindingContext bindingContext) {
+            if (bindingContext == null) {
+                throw new ArgumentNullException(nameof(bindingContext));
+            }
+            var modelName = bindingContext.ModelName;
+            var valueProviderResult = bindingContext.ValueProvider.GetValue(modelName);
+            if (valueProviderResult == ValueProviderResult.None) {
+                return Task.CompletedTask;
+            }
+            bindingContext.ModelState.SetModelValue(modelName, valueProviderResult);
+            var val = valueProviderResult.FirstValue;
+            try {
+                var val_parsed = new FlowSnake(val);
+                bindingContext.Result = ModelBindingResult.Success(val_parsed);
+                return Task.CompletedTask;
+            } catch (ArgumentException e) {
+                bindingContext.ModelState.AddModelError(modelName, e.Message);
+                return Task.CompletedTask;
             }
         }
     }

@@ -17,12 +17,14 @@ namespace Karenia.Rurikawa.Coordinator.Controllers {
     [Route("api/v1/job")]
     [Authorize("user")]
     public class JobController : ControllerBase {
-        public JobController(ILogger<JobController> logger, JudgerCoordinatorService coordinatorService) {
+        public JobController(ILogger<JobController> logger, DbService dbsvc, JudgerCoordinatorService coordinatorService) {
             this.logger = logger;
+            this.dbsvc = dbsvc;
             this.coordinatorService = coordinatorService;
         }
 
         private readonly ILogger<JobController> logger;
+        private readonly DbService dbsvc;
         private readonly JudgerCoordinatorService coordinatorService;
 
         /// <summary>
@@ -32,8 +34,13 @@ namespace Karenia.Rurikawa.Coordinator.Controllers {
         /// <returns></returns>
         [HttpGet]
         [Route("{id}")]
-        public Job GetJob(string id) {
-            throw new NotImplementedException();
+        public async Task<ActionResult<Job>> GetJob(FlowSnake id) {
+            var res = await dbsvc.GetJob(id);
+            if (res == null) {
+                return NotFound();
+            } else {
+                return res;
+            }
         }
 
 #pragma warning disable 
