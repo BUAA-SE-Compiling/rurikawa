@@ -9,12 +9,14 @@ using System.Threading.Tasks;
 using Karenia.Rurikawa.Coordinator.Services;
 using Karenia.Rurikawa.Helpers;
 using Karenia.Rurikawa.Models;
+using Karenia.Rurikawa.Models.Judger;
 using Karenia.Rurikawa.Models.Test;
 using MicroKnights.IO.Streams;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.WebUtilities;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using SharpCompress.Readers;
 
@@ -24,6 +26,7 @@ namespace Karenia.Rurikawa.Coordinator.Controllers {
     public class TestApiController : ControllerBase {
         private readonly ILogger<JudgerApiController> logger;
         private readonly RurikawaDb db;
+        private readonly DbService dbService;
         private readonly SingleBucketFileStorageService fs;
         private readonly JsonSerializerOptions? jsonOptions;
         public static readonly string TestSuiteBaseDir = "test/";
@@ -31,12 +34,44 @@ namespace Karenia.Rurikawa.Coordinator.Controllers {
         public TestApiController(
             ILogger<JudgerApiController> logger,
             RurikawaDb db,
+            DbService dbService,
             SingleBucketFileStorageService fs,
             JsonSerializerOptions? jsonOptions) {
             this.logger = logger;
             this.db = db;
+            this.dbService = dbService;
             this.fs = fs;
             this.jsonOptions = jsonOptions;
+        }
+
+        /// <summary>
+        /// Gets a test suite by its id
+        /// </summary>
+        /// <param name="id"></param>
+        /// <returns>the test suite</returns>
+        [HttpGet("{id}")]
+        [ProducesErrorResponseType(typeof(void))]
+        public async Task<ActionResult<TestSuite>> GetTestSuite([FromRoute] FlowSnake id) {
+            var res = await db.TestSuites.Where(t => t.Id == id).SingleOrDefaultAsync();
+            if (res == null) return NotFound();
+            else return res;
+        }
+
+        [HttpGet]
+        [Route("{id}/jobs")]
+        [Authorize("user")]
+        public async Task<IList<Job>> GetJobsFromSuite(
+            [FromRoute] FlowSnake suiteId,
+            [FromQuery] FlowSnake startId = new FlowSnake(),
+            [FromQuery] int take = 20,
+            [FromQuery] bool asc = false) {
+            var username = AuthHelper.ExtractUsername(HttpContext.User);
+            return await dbService.GetJobs(
+                startId: startId,
+                take: take,
+                asc: asc,
+                bySuite: suiteId,
+                byUsername: username);
         }
 
         /// <summary>
@@ -44,7 +79,7 @@ namespace Karenia.Rurikawa.Coordinator.Controllers {
         /// spec inside this archive, saves this test suite spec into database,
         /// and returns it as a base for client to edit.
         /// </summary>
-        /// <param name="contentLength"></param>
+        /// <param name="filename">the name of this file, required</param>
         /// <returns>Test suite spec</returns>
         [HttpPost]
         [Authorize("admin")]
@@ -83,7 +118,6 @@ namespace Karenia.Rurikawa.Coordinator.Controllers {
         /// For an uploaded test suite, parse its contents and upload it to s3 
         /// bucket at the same time. Closes stream after all things are done.
         /// </summary>
-        /// <param name="fileStream"></param>
         /// <returns></returns>
         async Task<TestSuite> UploadAndParseTestSuite(
             Stream fileStream,

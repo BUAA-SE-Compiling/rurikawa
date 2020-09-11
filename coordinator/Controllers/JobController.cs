@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Security.Claims;
+using System.Text;
 using System.Threading.Tasks;
 using Karenia.Rurikawa.Coordinator.Services;
 using Karenia.Rurikawa.Helpers;
@@ -43,6 +44,14 @@ namespace Karenia.Rurikawa.Coordinator.Controllers {
             }
         }
 
+        [HttpGet]
+        public async Task<IList<Job>> GetJobs(
+            [FromQuery] FlowSnake startId = new FlowSnake(),
+            [FromQuery] int take = 20,
+            [FromQuery] bool asc = false) {
+            return await dbsvc.GetJobs(startId, take, asc);
+        }
+
 #pragma warning disable 
         public class NewJobMessage {
             public string Repo { get; set; }
@@ -56,6 +65,7 @@ namespace Karenia.Rurikawa.Coordinator.Controllers {
         /// PUTs a new job
         /// </summary>
         [HttpPost("")]
+        [Authorize("user")]
         public async Task<IActionResult> NewJob([FromBody] NewJobMessage m) {
             var account = HttpContext.User.FindFirst(ClaimTypes.NameIdentifier).Value;
             FlowSnake id = FlowSnake.Generate();
