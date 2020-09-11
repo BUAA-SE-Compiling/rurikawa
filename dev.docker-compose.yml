@@ -63,7 +63,10 @@ services:
   #     - coordinator
 
   caddy:
-    image: caddy:2.1.1-alpine
+    # image: caddy:2.1.1-alpine
+    image: rurikawa-web
+    build:
+      context: web
     restart: unless-stopped
     volumes:
       # [^3.1]: This file below
