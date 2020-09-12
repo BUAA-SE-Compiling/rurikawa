@@ -237,6 +237,10 @@ namespace Karenia.Rurikawa.Coordinator.Services {
             return BCrypt.Net.BCrypt.EnhancedVerify(provided, hashed);
         }
 
+        public async ValueTask<bool> IsInitialzed() {
+            return await db.Accounts.AnyAsync(a => a.Kind == AccountKind.Root);
+        }
+
         public async Task InitializeRootAccount(string username, string password) {
             if (await db.Accounts.AnyAsync(a => a.Kind == AccountKind.Root)) {
                 throw new AlreadyInitializedException();
