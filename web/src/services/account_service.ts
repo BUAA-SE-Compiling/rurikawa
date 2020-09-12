@@ -7,7 +7,7 @@ import {
   HttpEvent,
   HttpErrorResponse,
 } from '@angular/common/http';
-import { Observable, observable } from 'rxjs';
+import { Observable, observable, throwError } from 'rxjs';
 import 'rxjs/operators';
 import { environment } from 'src/environments/environment';
 import { catchError, map, tap, switchMap } from 'rxjs/operators';
@@ -22,6 +22,7 @@ import {
   CanLoad,
   Route,
 } from '@angular/router';
+import { endpoints } from 'src/environments/endpoints';
 
 interface OAuth2Login {
   grantType: string;
@@ -54,7 +55,7 @@ export class AccountService {
   public login(username: string, password: string) {
     return this.httpClient
       .post<OAuth2Response>(
-        environment.endpointBase + '/api/v1/account/login',
+        environment.endpointBase + endpoints.account.login,
         {
           grantType: 'password',
           scope: '',
@@ -87,7 +88,7 @@ export class AccountService {
     } else {
       return this.httpClient
         .post<OAuth2Response>(
-          environment.endpointBase + '/api/v1/account/login',
+          environment.endpointBase + endpoints.account.login,
           {
             grantType: 'refresh_token',
             scope: '',
@@ -109,7 +110,7 @@ export class AccountService {
   public registerAndLogin(username: string, password: string) {
     return new Observable<OAuth2Response>((sub) => {
       this.httpClient
-        .post<void>(environment.endpointBase + '/api/v1/account/register', {
+        .post<void>(environment.endpointBase + endpoints.account.register, {
           username,
           password,
         })
@@ -189,7 +190,13 @@ export class AccountService {
   }
 
   public get Token() {
-    return this.oauthResponse?.tokenType + this.oauthResponse?.accessToken;
+    if (this.oauthResponse === undefined) {
+      return undefined;
+    } else {
+      return (
+        this.oauthResponse.tokenType + ' ' + this.oauthResponse.accessToken
+      );
+    }
   }
 
   public get Username() {
@@ -209,23 +216,37 @@ export class AccountService {
 export class LoginInformationInterceptor implements HttpInterceptor {
   constructor(private account: AccountService) {}
 
+  refreshTokenRunning: boolean = false;
+
   intercept(
     req: HttpRequest<any>,
     next: HttpHandler
   ): Observable<HttpEvent<any>> {
     if (this.account.Token !== undefined) {
-      req.headers.append('Authorization', this.account.Token);
+      req = req.clone({
+        headers: req.headers.set('Authorization', this.account.Token),
+      });
     }
     return next.handle(req).pipe(
       catchError((e, c) => {
         if (e instanceof HttpErrorResponse) {
-          if (e.status === 401) {
-            return this.account
-              .loginUsingRefreshToken()
-              .pipe(switchMap(() => next.handle(req)));
+          if (e.status === 401 && !this.refreshTokenRunning) {
+            this.refreshTokenRunning = true;
+            return this.account.loginUsingRefreshToken().pipe(
+              tap(
+                () => (this.refreshTokenRunning = false),
+                () => (this.refreshTokenRunning = false)
+              ),
+              switchMap(() => next.handle(req)),
+              catchError((e, c) => {
+                if (e instanceof HttpErrorResponse && e.status !== 401) {
+                  return throwError(e);
+                }
+              })
+            );
           }
         }
-        return c;
+        return throwError(e);
       })
     );
   }

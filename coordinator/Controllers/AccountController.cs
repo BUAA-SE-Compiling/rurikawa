@@ -139,7 +139,12 @@ namespace Karenia.Rurikawa.Coordinator.Controllers {
         }
 
         private async Task<OAuth2Response> LoginUsingRefreshToken(OAuth2Request msg) {
-            var refreshToken = ((JsonElement?)msg.ExtraInfo.GetValueOrDefault("refresh_token"))?.GetString(); ;
+            string? refreshToken;
+            try {
+                refreshToken = ((JsonElement?)msg.ExtraInfo.GetValueOrDefault("refresh_token"))?.GetString();
+            } catch (InvalidOperationException) {
+                throw new NotEnoughInformationException("Please provide refresh_token!");
+            }
             if (refreshToken == null)
                 throw new NotEnoughInformationException("Please provide refresh_token!");
             var tokenEntry = await accountService.GetRefreshToken(refreshToken);

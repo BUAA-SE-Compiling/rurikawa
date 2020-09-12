@@ -6,10 +6,14 @@
     <div class="ghost-btn">添加</div>
   </div>
   <div class="wrapper" id="test-suites">
-    <app-dashboard-item-component
-      *ngFor="let i of items"
-      [item]="i"
-      (click)="gotoJudgeSuite(i.id)"
-    ></app-dashboard-item-component>
+    <ng-template #isLoading> 在加载了在加载了 </ng-template>
+    <ng-template [ngIf]="!loading" [ngIfElse]="isLoading">
+      <div class="empty" *ngIf="!items || items.length == 0">没有 ouo</div>
+      <app-dashboard-item-component
+        *ngFor="let i of items"
+        [item]="i"
+        (click)="gotoJudgeSuite(i.id)"
+      ></app-dashboard-item-component>
+    </ng-template>
   </div>
 </div>

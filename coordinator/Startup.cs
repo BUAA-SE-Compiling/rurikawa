@@ -86,6 +86,7 @@ namespace Karenia.Rurikawa.Coordinator {
             services.AddSingleton<JudgerCoordinatorService>();
             services.AddScoped<AccountService>();
             services.AddScoped<JudgerService>();
+            services.AddScoped<DbService>();
             services.AddSingleton<JsonSerializerOptions>(_ =>
                 SetupJsonSerializerOptions(new JsonSerializerOptions())
             );
