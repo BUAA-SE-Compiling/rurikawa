@@ -315,7 +315,7 @@ export class AdminLoginGuard implements CanActivate, CanActivateChild, CanLoad {
   }
 
   canActivate(route: ActivatedRouteSnapshot, state: RouterStateSnapshot) {
-    if (route.url.join('') === '/admin/init-db') {
+    if (state.url === '/admin/init-db') {
       return true;
     } else {
       return this.accountService.roleOrRedirect(['Admin', 'Root'], undefined, [
@@ -325,7 +325,7 @@ export class AdminLoginGuard implements CanActivate, CanActivateChild, CanLoad {
   }
 
   canActivateChild(route: ActivatedRouteSnapshot, state: RouterStateSnapshot) {
-    if (route.url.join('') === '/admin/init-db') {
+    if (state.url === '/admin/init-db') {
       return true;
     } else {
       return this.accountService.roleOrRedirect(['Admin', 'Root'], undefined, [
