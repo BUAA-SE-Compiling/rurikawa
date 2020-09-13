@@ -6,6 +6,10 @@ Rurikawa 是一个简易的自动评测系统，主要面向多文件项目和�
 
 # 运行
 
+- 阅读 `dev.docker-compose.yml` 并进行相应修改
+
+- `docker-compose -f dev.docker-compose.yml up`
+
 ## Coordinator
 
 运行（或购买相关服务）：
