@@ -14,6 +14,7 @@ import {
   NotLoggedInGuard,
   NotLoggedInRedirectToDashboardGuard,
 } from 'src/services/account_service';
+import { AdminForbiddenPageComponent } from 'src/views/default/admin-forbidden-page/admin-forbidden-page.component';
 
 const routes: Routes = [
   {
@@ -51,6 +52,10 @@ const routes: Routes = [
       import('../views/admin/admin.module').then((m) => m.AdminModule),
     canActivate: [AdminLoginGuard],
     canActivateChild: [AdminLoginGuard],
+  },
+  {
+    path: '403',
+    component: AdminForbiddenPageComponent,
   },
   {
     path: '**',

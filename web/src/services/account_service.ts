@@ -175,7 +175,8 @@ export class AccountService {
 
   public async roleOrRedirect(
     roles: string[],
-    attempted?: string
+    attempted: string | undefined = undefined,
+    to: string[] = ['/login']
   ): Promise<boolean | UrlTree> {
     if (
       this.isLoggedIn &&
@@ -187,7 +188,7 @@ export class AccountService {
     if (attempted !== undefined) {
       this.attemptedToAccessUri = attempted;
     }
-    this.router.createUrlTree(['/login']);
+    this.router.createUrlTree(to);
   }
 
   public get Token() {
@@ -309,14 +310,27 @@ export class LoginGuard implements CanActivate, CanActivateChild {
 export class AdminLoginGuard implements CanActivate, CanActivateChild, CanLoad {
   constructor(private accountService: AccountService) {}
   canLoad(route: Route, segments: import('@angular/router').UrlSegment[]) {
-    return this.accountService.isInRoles(['Admin', 'Root']);
+    // return this.accountService.isInRoles(['Admin', 'Root']);
+    return true;
   }
 
   canActivate(route: ActivatedRouteSnapshot, state: RouterStateSnapshot) {
-    return this.accountService.roleOrRedirect(['Admin', 'Root'], state.url);
+    if (route.url.join('') === '/admin/init-db') {
+      return true;
+    } else {
+      return this.accountService.roleOrRedirect(['Admin', 'Root'], undefined, [
+        '/403',
+      ]);
+    }
   }
 
   canActivateChild(route: ActivatedRouteSnapshot, state: RouterStateSnapshot) {
-    return this.accountService.roleOrRedirect(['Admin', 'Root'], state.url);
+    if (route.url.join('') === '/admin/init-db') {
+      return true;
+    } else {
+      return this.accountService.roleOrRedirect(['Admin', 'Root'], undefined, [
+        '/403',
+      ]);
+    }
   }
 }
