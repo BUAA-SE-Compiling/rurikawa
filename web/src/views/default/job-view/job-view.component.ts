@@ -24,45 +24,12 @@ export class JobViewComponent implements OnInit {
 
   id: string;
 
-  job: Job = {
-    id: '1abcdefghjklm',
-    account: 'rynco',
-    repo: 'https://github.com/BUAA-SE-Compiling/natrium',
-    branch: 'master',
-    testSuite: '1nopqrstvwxyz',
-    tests: ['succ'],
-    stage: 'Finished',
-    resultKind: 'Accepted',
-    resultMessage: undefined,
-    results: {
-      succ: {
-        kind: 'Accepted',
-        resultFileId: 'tests/1234656',
-      },
-      succ2: {
-        kind: 'WrongAnswer',
-        resultFileId: 'tests/1234657',
-      },
-      succ3: {
-        kind: 'Accepted',
-        resultFileId: 'tests/1234658',
-      },
-      succ5: {
-        kind: 'TimeLimitExceeded',
-        resultFileId: 'tests/1234658',
-      },
-      succ12: {
-        kind: 'MemoryLimitExceeded',
-        resultFileId: 'tests/1234658',
-      },
-      black: {
-        kind: 'Accepted',
-        resultFileId: 'tests/1234658',
-      },
-    },
-  };
+  job?: Job = undefined;
 
   titleNumberBrief() {
+    if (!this.job) {
+      return 'Loading';
+    }
     if (this.job.stage !== 'Finished') {
       return this.job.stage;
     }
@@ -106,6 +73,9 @@ export class JobViewComponent implements OnInit {
   }
 
   results() {
+    if (!this.job) {
+      return [];
+    }
     return toPairs(this.job.results).sort(([ax, ay], [bx, by]) => {
       if (ay.kind !== by.kind) {
         if (ay.kind === 'Accepted') {
