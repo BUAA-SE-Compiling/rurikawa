@@ -10,7 +10,7 @@ use names::{Generator, Name};
 use std::default::Default;
 #[cfg(unix)]
 use std::os::unix::process::ExitStatusExt;
-use std::{collections::HashMap, process::ExitStatus};
+use std::process::ExitStatus;
 use tokio::process::Command;
 
 /// An evaluation environment for commands.
@@ -67,10 +67,12 @@ fn ret_code_from_exit_status(status: ExitStatus) -> i32 {
 
 /// Command evaluation environment in a Docker container.
 pub struct DockerCommandRunner {
+    /// The image to be used.
+    image: Image,
     /// A connection to the Docker daemon.
     instance: Docker,
-    /// Name of the container in which the command is evaluated.
-    container_name: String,
+    /// Options while operating the runner.
+    options: DockerCommandRunnerOptions,
 }
 
 pub struct DockerCommandRunnerOptions {
@@ -80,6 +82,8 @@ pub struct DockerCommandRunnerOptions {
     pub mem_limit: Option<usize>,
     /// If the image needs to be pulled/built before run.
     pub build_image: bool,
+    /// If the image needs to be removed after run.
+    pub remove_image: bool,
     /// `host-src:container-dest` volume bindings for the container.
     /// For details see [here](https://docs.rs/bollard/0.7.2/bollard/service/struct.HostConfig.html#structfield.binds).
     pub binds: Option<Vec<String>>,
@@ -92,6 +96,7 @@ impl Default for DockerCommandRunnerOptions {
             container_name: format!("rurikawa_{}", names.next().unwrap()),
             mem_limit: None,
             build_image: false,
+            remove_image: false,
             binds: None,
         }
     }
@@ -103,46 +108,23 @@ impl DockerCommandRunner {
         image: Image,
         options: DockerCommandRunnerOptions,
     ) -> Result<Self> {
-        let DockerCommandRunnerOptions {
-            container_name,
-            mem_limit,
-            build_image,
-            binds,
-        } = options;
         let res = DockerCommandRunner {
+            image,
             instance,
-            container_name,
+            options,
         };
-
-        /*
-        // Pull the image
-        res.instance
-            .create_image(
-                Some(bollard::image::CreateImageOptions {
-                    from_image: image_name,
-                    ..Default::default()
-                }),
-                None,
-                None,
-            )
-            .map(|mr| {
-                mr.unwrap_or_else(|e| panic!("Failed to pull Docker image `{}`: {}", image_name, e))
-            })
-            .collect::<Vec<_>>()
-            .await;
-        */
 
         // Build the image
-        if build_image {
-            image.build(res.instance.clone()).await?
+        if res.options.build_image {
+            res.image.build(res.instance.clone()).await?
         };
-        let image_name = image.tag();
+        let image_name = res.image.tag();
 
         // Create a container
         res.instance
             .create_container(
                 Some(bollard::container::CreateContainerOptions {
-                    name: res.container_name.clone(),
+                    name: res.options.container_name.clone(),
                 }),
                 bollard::container::Config {
                     image: Some(image_name),
@@ -151,7 +133,7 @@ impl DockerCommandRunner {
                     attach_stderr: Some(true),
                     tty: Some(true),
                     host_config: Some(bollard::service::HostConfig {
-                        binds,
+                        binds: res.options.binds.clone(),
                         ..Default::default()
                     }),
                     ..Default::default()
@@ -161,16 +143,18 @@ impl DockerCommandRunner {
             .map_err(|e| {
                 JobFailure::internal_err_from(format!(
                     "Failed to create container `{}`: {}",
-                    &res.container_name, e
+                    &res.options.container_name, e
                 ))
             })?;
+
+        let container_name = &res.options.container_name;
 
         // Set memory limit
         res.instance
             .update_container(
-                &res.container_name,
+                container_name,
                 bollard::container::UpdateContainerOptions::<String> {
-                    memory: mem_limit.map(|n| n as i64),
+                    memory: res.options.mem_limit.map(|n| n as i64),
                     ..Default::default()
                 },
             )
@@ -178,21 +162,21 @@ impl DockerCommandRunner {
             .map_err(|e| {
                 JobFailure::internal_err_from(format!(
                     "Failed to update container `{}`: {}",
-                    &res.container_name, e
+                    container_name, e
                 ))
             })?;
 
         // Start the container
         res.instance
             .start_container(
-                &res.container_name,
+                container_name,
                 None::<bollard::container::StartContainerOptions<String>>,
             )
             .await
             .map_err(|e| {
                 JobFailure::internal_err_from(format!(
                     "Failed to start container `{}`: {}",
-                    &res.container_name, e
+                    container_name, e
                 ))
             })?;
 
@@ -200,9 +184,11 @@ impl DockerCommandRunner {
     }
 
     pub async fn kill(self) {
+        let container_name = &self.options.container_name;
+
         self.instance
             .kill_container(
-                &self.container_name,
+                container_name,
                 None::<bollard::container::KillContainerOptions<String>>,
             )
             .await
@@ -210,7 +196,7 @@ impl DockerCommandRunner {
 
         self.instance
             .wait_container(
-                &self.container_name,
+                container_name,
                 None::<bollard::container::WaitContainerOptions<String>>,
             )
             .collect::<Vec<_>>()
@@ -218,11 +204,16 @@ impl DockerCommandRunner {
 
         self.instance
             .remove_container(
-                &self.container_name,
+                container_name,
                 None::<bollard::container::RemoveContainerOptions>,
             )
             .await
             .unwrap();
+
+        // Remove the image.
+        if self.options.remove_image {
+            self.image.remove(self.instance).await.unwrap();
+        }
     }
 }
 
@@ -230,12 +221,13 @@ impl DockerCommandRunner {
 impl CommandRunner for DockerCommandRunner {
     async fn run(&self, cmd: &[String]) -> PopenResult<ProcessInfo> {
         let cmd_str = format!("{:?}", cmd.to_vec());
+        let container_name = &self.options.container_name;
 
         // Create a Docker Exec
         let message = self
             .instance
             .create_exec(
-                &self.container_name,
+                container_name,
                 bollard::exec::CreateExecOptions {
                     cmd: Some(cmd.to_vec()),
                     attach_stdout: Some(true),

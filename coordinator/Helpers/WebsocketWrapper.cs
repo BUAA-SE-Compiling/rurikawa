@@ -1,63 +1,64 @@
 using System;
-using System.Net.WebSockets;
-using System.Runtime.CompilerServices;
-using System.Threading.Tasks;
-using System.Reactive;
 using System.Collections.Generic;
-using System.Threading;
+using System.Net.WebSockets;
+using System.Reactive;
+using System.Reactive.Concurrency;
+using System.Reactive.Linq;
 using System.Reactive.Subjects;
+using System.Runtime.CompilerServices;
 using System.Text.Json;
+using System.Threading;
+using System.Threading.Tasks;
+using Microsoft.AspNetCore.Connections;
 using Microsoft.Extensions.Logging;
 
-namespace Karenia.Rurikawa.Helpers
-{
-    public class JsonWebsocketWrapper<TRecvMessage, TSendMessage>
-    {
+namespace Karenia.Rurikawa.Helpers {
+    public class JsonWebsocketWrapper<TRecvMessage, TSendMessage> {
         public JsonWebsocketWrapper(
             WebSocket socket,
-            JsonSerializerOptions serializerOptions = null,
+            JsonSerializerOptions? serializerOptions = null,
             int defaultBufferSize = 8192,
-            ILogger<JsonWebsocketWrapper<TRecvMessage, TSendMessage>> logger = null)
-        {
+            ILogger<JsonWebsocketWrapper<TRecvMessage, TSendMessage>>? logger = null
+        ) {
             this.socket = socket;
             this.serializerOptions = serializerOptions;
             this.recvBuffer = new byte[defaultBufferSize];
             this.logger = logger;
+            this.Messages = messages.ObserveOn(Scheduler.Default).Publish();
+            this.Errors = errors.ObserveOn(Scheduler.Default).Publish();
         }
 
         readonly WebSocket socket;
         readonly CancellationToken closeToken = new CancellationToken();
-        readonly JsonSerializerOptions serializerOptions;
-        ILogger<JsonWebsocketWrapper<TRecvMessage, TSendMessage>> logger;
+        readonly JsonSerializerOptions? serializerOptions;
+        readonly ILogger<JsonWebsocketWrapper<TRecvMessage, TSendMessage>>? logger;
+
+        readonly SemaphoreSlim sendLock = new SemaphoreSlim(1);
 
         byte[] recvBuffer;
 
-        public Subject<TRecvMessage> Messages { get; } = new Subject<TRecvMessage>();
-        public Subject<Exception> Errors { get; } = new Subject<Exception>();
+        private readonly Subject<TRecvMessage> messages = new Subject<TRecvMessage>();
+        public IConnectableObservable<TRecvMessage> Messages { get; }
+        private readonly Subject<Exception> errors = new Subject<Exception>();
+        public IConnectableObservable<Exception> Errors { get; }
 
-        protected void DoubleRecvCapacity()
-        {
+        protected void DoubleRecvCapacity() {
             var newBuffer = new byte[this.recvBuffer.Length * 2];
             this.recvBuffer.CopyTo(new Span<byte>(newBuffer));
             this.recvBuffer = newBuffer;
         }
 
-        protected async Task EventLoop()
-        {
-            while (true)
-            {
-                try
-                {
-                    if (this.socket.State == WebSocketState.Closed)
-                    {
-                        this.Messages.OnCompleted();
-                        this.Errors.OnCompleted();
+        protected async Task EventLoop() {
+            while (true) {
+                try {
+                    if (this.socket.State == WebSocketState.Closed) {
+                        this.messages.OnCompleted();
+                        this.errors.OnCompleted();
                         return;
                     }
                     var result = await this.socket.ReceiveAsync(new ArraySegment<byte>(recvBuffer), this.closeToken);
                     var writtenBytes = 0;
-                    while (!result.EndOfMessage)
-                    {
+                    while (!result.EndOfMessage) {
                         writtenBytes += result.Count;
                         this.DoubleRecvCapacity();
                         result = await this.socket.ReceiveAsync(new ArraySegment<byte>(
@@ -67,43 +68,55 @@ namespace Karenia.Rurikawa.Helpers
                     }
                     writtenBytes += result.Count;
 
-                    this.logger?.LogInformation($"Received message with {writtenBytes} bytes.");
+                    logger?.LogInformation($"Received message with {writtenBytes} bytes, type {result.MessageType}");
 
-                    switch (result.MessageType)
-                    {
+                    switch (result.MessageType) {
                         case WebSocketMessageType.Text:
-                            var message = JsonSerializer.Deserialize<TRecvMessage>(new ArraySegment<byte>(this.recvBuffer, 0, writtenBytes), serializerOptions);
-                            this.Messages.OnNext(message);
+                            var message = JsonSerializer.Deserialize<TRecvMessage>(
+                                new ArraySegment<byte>(this.recvBuffer, 0, writtenBytes),
+                                serializerOptions
+                            );
+                            logger?.LogInformation("{0}", message);
+                            this.messages.OnNext(message);
                             break;
                         case WebSocketMessageType.Binary:
-                            this.Errors.OnNext(new UnexpectedBinaryMessageException());
+                            this.errors.OnNext(new UnexpectedBinaryMessageException());
                             break;
                         case WebSocketMessageType.Close:
-                            this.Messages.OnCompleted();
+                            this.messages.OnCompleted();
                             return;
                     }
-                }
-                catch (Exception e)
-                {
-                    this.Errors.OnNext(e);
+                } catch (WebSocketException e) {
+                    if (e.WebSocketErrorCode == WebSocketError.ConnectionClosedPrematurely || e.WebSocketErrorCode == WebSocketError.NativeError || e.WebSocketErrorCode == WebSocketError.InvalidMessageType)
+                        break;
+                } catch (ConnectionAbortedException) {
+                    break;
+                } catch (OperationCanceledException) {
+                    break;
+                } catch (Exception e) {
+                    logger?.LogError(e, "Failed to receive message");
+                    this.errors.OnNext(e);
                 }
             }
         }
 
-        public async Task Close(WebSocketCloseStatus status, string message, CancellationToken cancellation)
-        {
+        public async Task Close(
+            WebSocketCloseStatus status,
+            string message,
+            CancellationToken cancellation
+        ) {
             await this.socket.CloseAsync(status, message, cancellation);
         }
 
-        public async Task WaitUntilClose()
-        {
+        public async Task WaitUntilClose() {
             await this.EventLoop();
         }
 
-        public async Task SendMessage(TSendMessage message)
-        {
+        public async Task SendMessage(TSendMessage message) {
+            await sendLock.WaitAsync();
             var buffer = JsonSerializer.SerializeToUtf8Bytes<TSendMessage>(message, this.serializerOptions);
             await this.socket.SendAsync(buffer, WebSocketMessageType.Text, true, this.closeToken);
+            sendLock.Release();
         }
 
         public class UnexpectedBinaryMessageException : Exception { }

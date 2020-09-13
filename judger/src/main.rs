@@ -1,14 +1,20 @@
+use broadcaster::BroadcastChannel;
 use clap::Clap;
-use rurikawa_judger::client::{client_loop, connect_to_coordinator, ConnectConfig};
+use dirs::home_dir;
+use futures::{Future, FutureExt, Sink, SinkExt, StreamExt};
+use once_cell::sync::Lazy;
+use rurikawa_judger::client::{
+    client_loop, connect_to_coordinator, ClientConfig, SharedClientData,
+};
 use std::{
     process::exit,
     sync::{
         atomic::{AtomicBool, Ordering},
         Arc,
     },
-    time::Duration,
 };
 use tokio::{prelude::*, sync::Mutex};
+use tungstenite::Message;
 
 mod opt;
 
@@ -28,9 +34,11 @@ async fn main() {
                 message
             ))
         })
+        .level(log::LevelFilter::Info)
         .chain(std::io::stdout())
         .apply()
         .expect("Failed to set up logger");
+
     ctrlc::set_handler(handle_ctrl_c).expect("Failed to set termination handler!");
 
     match opt.cmd {
@@ -41,15 +49,23 @@ async fn main() {
 }
 
 async fn client(cmd: opt::ConnectSubCmd) {
-    let cfg = ConnectConfig {
+    let cfg = SharedClientData::new(ClientConfig {
+        cache_folder: cmd.temp_folder_path.unwrap_or_else(|| {
+            let mut dir =
+                home_dir().expect("Failed to get home directory. Please provide a storage folder manually via `--temp-folder-path <path>`");
+            dir.push(".rurikawa");
+            dir
+        }),
+        ssl: cmd.ssl,
         host: cmd.host,
-        token: cmd.token,
-    };
-    let conn = connect_to_coordinator(&cfg)
+        max_concurrent_tasks:4,
+        access_token: cmd.access_token,
+        register_token: cmd.register_token,
+    });
+    let (sink, stream) = connect_to_coordinator(&cfg)
         .await
         .expect("Failed to connect");
-    let conn = Arc::new(Mutex::new(conn));
-    client_loop(conn.clone()).await;
+    client_loop(stream, sink, Arc::new(cfg)).await;
 }
 
 fn handle_ctrl_c() {

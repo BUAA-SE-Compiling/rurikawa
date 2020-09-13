@@ -21,15 +21,15 @@ pub struct ProcessInfo {
 
 #[derive(Debug, Clone, Serialize, Deserialize, Eq, PartialEq)]
 pub struct OutputMismatch {
-    diff: String,
-    output: Vec<ProcessInfo>,
+    pub diff: String,
+    pub output: Vec<ProcessInfo>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Eq, PartialEq)]
 pub struct ExecError {
-    stage: usize,
-    kind: ExecErrorKind,
-    output: Vec<ProcessInfo>,
+    pub stage: usize,
+    pub kind: ExecErrorKind,
+    pub output: Vec<ProcessInfo>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Eq, PartialEq)]

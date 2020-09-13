@@ -1,23 +1,26 @@
 use super::utils::diff;
-#[cfg(unix)]
-use super::utils::strsignal;
 use super::{
     runner::{CommandRunner, DockerCommandRunner, DockerCommandRunnerOptions},
     ExecError, ExecErrorKind, JobFailure, OutputMismatch, ProcessInfo,
 };
-use crate::prelude::*;
+use crate::{
+    client::model::{upload_test_result, TestResult, TestResultKind},
+    prelude::*,
+};
 use anyhow::Result;
-use futures::future::join_all;
 use futures::stream::StreamExt;
 use serde::{self, Deserialize, Serialize};
 use std::fs;
 use std::io::{self, prelude::*};
 use std::time;
-use std::{collections::HashMap, path::PathBuf};
+use std::{collections::HashMap, path::PathBuf, string::String};
+
+#[cfg(unix)]
+use super::utils::strsignal;
 
 #[cfg(not(unix))]
 fn strsignal(i: i32) -> String {
-    return "".into();
+    "".into()
 }
 
 #[macro_export]
@@ -200,6 +203,7 @@ impl Test {
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 #[serde(tag = "source")]
+#[serde(rename_all = "camelCase")]
 pub enum Image {
     /// An existing image.
     Image { tag: String },
@@ -209,6 +213,9 @@ pub enum Image {
         tag: String,
         /// Path of the context directory.
         path: PathBuf,
+        /// Path of the dockerfile itself, relative to the context directory.
+        /// Leaving this value to None means using the default dockerfile: `Dockerfile`.
+        file: Option<PathBuf>,
     },
 }
 
@@ -242,7 +249,7 @@ impl Image {
                 })?;
                 Ok(())
             }
-            Image::Dockerfile { tag, path } => {
+            Image::Dockerfile { tag, path, file } => {
                 let tar = {
                     let buffer: Vec<u8> = vec![];
                     let mut builder = tar::Builder::new(buffer);
@@ -253,8 +260,11 @@ impl Image {
                 let ms = instance
                     .build_image(
                         bollard::image::BuildImageOptions {
-                            dockerfile: "Dockerfile",
-                            t: tag,
+                            dockerfile: file
+                                .as_ref()
+                                .map(|x| x.to_string_lossy().to_string())
+                                .unwrap_or_else(|| "Dockerfile".into()),
+                            t: tag.into(),
                             rm: true,
                             ..Default::default()
                         },
@@ -270,6 +280,22 @@ impl Image {
                 Ok(())
             }
         }
+    }
+
+    /// Remove the Image when finished.
+    /// Attention: this action must be done AFTER removing related containers.
+    pub async fn remove(self, instance: bollard::Docker) -> Result<()> {
+        let tag = self.tag();
+        instance
+            .remove_image(
+                &tag,
+                Some(bollard::image::RemoveImageOptions {
+                    ..Default::default()
+                }),
+                None,
+            )
+            .await?;
+        Ok(())
     }
 }
 
@@ -306,40 +332,31 @@ impl Bind {
     }
 }
 
-/// Info on the building process and the usage of a "ready-to-use" image,
-/// which contains the compiler to be examined.
+/// Judger's public config, specific to a paticular repository,
+/// Maintained by the owner of the project to be tested.
 #[derive(Serialize, Deserialize, Debug, Clone)]
-pub struct ImageUsage {
-    /// The image to be used.
-    pub image: Image,
-    /// Sequence of commands necessary to perform an IO check.
-    pub run: Vec<String>,
-    /// `host-src:container-dest` volume bindings for the container.
-    /// For details see [here](https://docs.rs/bollard/0.7.2/bollard/service/struct.HostConfig.html#structfield.binds).
-    pub binds: Option<Vec<String>>,
-}
-
-/// Extra info on how to turn `ImageUsage` into `docker` usage.
-#[derive(Serialize, Deserialize, Debug, Clone)]
-pub struct JudgeInfo {
-    /// Directory of test sources and `stdin` files in the container.
-    pub src_dir: PathBuf,
-    /// Directory of test `stdout` files on the host machine.
-    pub out_dir: PathBuf,
-    /// File names of tests.
-    pub tests: Vec<String>,
+pub struct JudgerPublicConfig {
+    pub name: String,
     /// Variables and extensions of test files
     /// (`$src`, `$bin`, `$stdin`, `$stdout`, etc...).
     /// For example: `"$src" => "go"`.
     pub vars: HashMap<String, String>,
+    /// Sequence of commands necessary to perform an IO check.
+    pub run: Vec<String>,
+    /// The path of test root directory to be mapped inside test container
+    pub mapped_dir: PathBuf,
+    /// `host-src:container-dest` volume bindings for the container.
+    /// For details see [here](https://docs.rs/bollard/0.7.2/bollard/service/struct.HostConfig.html#structfield.binds).
+    pub binds: Option<Vec<Bind>>,
 }
 
-/*
+/// Judger's private config, specific to a host machine.
 #[derive(Serialize, Deserialize, Debug, Clone)]
-pub struct TestDockerConfig {
-    pub volumes: HashMap<String, String>,
+pub struct JudgerPrivateConfig {
+    /// Directory of test sources files (including `stdin` and `stdout` files)
+    /// in the container.
+    pub test_root_dir: PathBuf,
 }
-*/
 
 /// The public representation of a test.
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -353,67 +370,70 @@ pub struct TestCase {
 }
 
 /// Initialization options for `Testsuite`.
-#[derive(Debug, Clone, Default)]
-pub struct TestSuiteOptions {
-    /// Time limit of a step, in seconds.
-    pub time_limit: Option<usize>,
-    /// Memory limit of the contrainer, in bytes.
-    pub mem_limit: Option<usize>,
-    /// If the image needs to be built before run.
-    pub build_image: bool,
-}
-
-/// A suite of `Testcase`s to be run.
 #[derive(Serialize, Deserialize, Debug, Clone)]
-pub struct TestSuite {
+pub struct TestSuiteOptions {
+    /// File names of tests.
+    pub tests: Vec<String>,
     /// Time limit of a step, in seconds.
     pub time_limit: Option<usize>,
     // TODO: Use this field.
     /// Memory limit of the contrainer, in bytes.
     pub mem_limit: Option<usize>,
+    /// If the image needs to be built before run.
+    pub build_image: bool,
+    /// If the image needs to be removed after run.
+    pub remove_image: bool,
+}
+
+impl Default for TestSuiteOptions {
+    fn default() -> Self {
+        TestSuiteOptions {
+            tests: vec![],
+            time_limit: None,
+            mem_limit: None,
+            build_image: false,
+            remove_image: false,
+        }
+    }
+}
+
+/// A suite of `TestCase`s to be run.
+///
+/// Attention: a `TestSuite` instance should NOT be constructed manually.
+/// Please use `TestSuite::from_config`, for example.
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct TestSuite {
     /// The test contents.
     pub test_cases: Vec<TestCase>,
     /// The image which contains the compiler to be tested.
-    pub image: Image,
-    /// If the image needs to be pulled/built before run.
-    pub build_image: bool,
+    image: Option<Image>,
     /// `host-src:container-dest` volume bindings for the container.
     /// For details see [here](https://docs.rs/bollard/0.7.2/bollard/service/struct.HostConfig.html#structfield.binds).
     pub binds: Option<Vec<String>>,
+    /// Initialization options for `Testsuite`.
+    pub options: TestSuiteOptions,
 }
 
 impl TestSuite {
-    pub fn new(image: Image, build_image: bool) -> Self {
-        TestSuite {
-            time_limit: None,
-            mem_limit: None,
-            test_cases: vec![],
-            image,
-            build_image,
-            binds: None,
-        }
-    }
-
     pub fn add_case(&mut self, case: TestCase) {
         self.test_cases.push(case)
     }
 
-    pub fn from_config(info: JudgeInfo, usage: ImageUsage, opt: TestSuiteOptions) -> Result<Self> {
-        let TestSuiteOptions {
-            time_limit,
-            mem_limit,
-            build_image,
-            ..
-        } = opt;
-        let test_cases = info
+    pub fn from_config(
+        image: Image,
+        private_cfg: JudgerPrivateConfig,
+        public_cfg: JudgerPublicConfig,
+        options: TestSuiteOptions,
+    ) -> Result<Self> {
+        let test_cases = options
             .tests
             .iter()
             .map(|name| -> Result<TestCase> {
-                let mut src_dir = info.src_dir.clone();
-                src_dir.push(name);
-                let mut io_dir = info.out_dir.clone();
-                io_dir.push(name);
-                let replacer: HashMap<String, _> = info
+                let mut mapped_dir = public_cfg.mapped_dir.clone();
+                let mut test_root = private_cfg.test_root_dir.clone();
+                mapped_dir.push(name);
+                test_root.push(name);
+                let replacer: HashMap<String, _> = public_cfg
                     .vars
                     .iter()
                     .map(|(var, ext)| {
@@ -422,15 +442,15 @@ impl TestSuite {
                             // These variables will point to files under `io_dir`,
                             // while others to `src_dir`.
                             let mut p = match var.as_ref() {
-                                "$stdout" => io_dir.clone(),
-                                _ => src_dir.clone(),
+                                "$stdout" => test_root.clone(),
+                                _ => mapped_dir.clone(),
                             };
                             p.set_extension(ext);
                             p
                         })
                     })
                     .collect();
-                let exec: Vec<String> = usage
+                let exec: Vec<String> = public_cfg
                     .run
                     .iter()
                     .map(|line| {
@@ -466,50 +486,85 @@ impl TestSuite {
             })
             .collect::<Result<Vec<TestCase>>>()?;
         Ok(TestSuite {
-            time_limit,
-            mem_limit,
-            image: usage.image,
+            image: Some(image),
             test_cases,
-            build_image,
-            binds: usage.binds,
+            options,
+            binds: public_cfg
+                .binds
+                .map(|bs| bs.iter().map(|b| b.stringify()).collect()),
         })
     }
 
-    pub async fn run(&self, instance: bollard::Docker) -> Vec<Result<(), JobFailure>> {
-        let image_tag = self.image.tag();
-        let runner = DockerCommandRunner::try_new(
-            instance,
-            self.image.clone(),
+    pub async fn run(
+        &mut self,
+        instance: bollard::Docker,
+        result_channel: Option<tokio::sync::mpsc::UnboundedSender<(String, TestResult)>>,
+        upload_info: Option<(&str, reqwest::Client)>,
+    ) -> anyhow::Result<HashMap<String, TestResult>> {
+        let TestSuiteOptions {
+            time_limit,
+            mem_limit,
+            build_image,
+            remove_image,
+            ..
+        } = self.options;
+
+        // Take ownership of the `Image` instance stored in `Self`
+        let image = std::mem::replace(&mut self.image, None)
+            .expect("TestSuite instance not fully constructed");
+        let image_tag = image.tag();
+        let runner = DockerCommandRunner::try_new(instance, image, {
             DockerCommandRunnerOptions {
-                mem_limit: self.mem_limit,
-                build_image: self.build_image,
+                mem_limit,
+                build_image,
+                remove_image,
                 binds: self.binds.clone(),
                 ..Default::default()
-            },
-        )
+            }
+        })
         .await
         .unwrap_or_else(|e| panic!("Failed to create command runner `{}`: {}", &image_tag, e));
 
-        let res: Vec<_> = self
-            .test_cases
-            .iter()
+        // TODO: Remove drain when this compiler issue gets repaired:
+        // https://github.com/rust-lang/rust/issues/64552
+        let res = futures::stream::iter(self.test_cases.drain(..))
             .map(|case| {
-                let mut t = Test::new();
-                case.exec.iter().for_each(|step| {
-                    t.add_step(Step::new_with_timeout(
-                        Capturable::new(sh![step]),
-                        self.time_limit
-                            .map(|n| std::time::Duration::from_secs(n as u64)),
-                    ));
-                });
-                t.expected(&case.expected_out);
-                t.run(&runner)
+                let upload_info = upload_info.clone();
+                let result_channel = result_channel.clone();
+                let runner = &runner;
+                async move {
+                    result_channel.as_ref().map(|ch| {
+                        ch.send((
+                            case.name.clone(),
+                            TestResult {
+                                kind: TestResultKind::Running,
+                                result_file_id: None,
+                            },
+                        ))
+                    });
+                    let mut t = Test::new();
+                    case.exec.iter().for_each(|step| {
+                        t.add_step(Step::new_with_timeout(
+                            Capturable::new(sh![step]),
+                            time_limit.map(|n| std::time::Duration::from_secs(n as u64)),
+                        ));
+                    });
+                    t.expected(&case.expected_out);
+                    let res = t.run(runner).await;
+                    let res = upload_test_result(res, upload_info).await;
+                    result_channel
+                        .as_ref()
+                        .map(|ch| ch.send((case.name.clone(), res.clone())));
+                    (case.name.clone(), res)
+                }
             })
-            .collect();
+            .buffer_unordered(16)
+            .collect::<HashMap<_, _>>()
+            .await;
 
-        let res = join_all(res).await;
         runner.kill().await;
-        res
+
+        Ok(res)
     }
 }
 
@@ -693,7 +748,7 @@ mod tests {
         {
             block_on(async {
                 let runner = DockerCommandRunner::try_new(
-                    bollard::Docker::connect_with_unix_defaults().unwrap(),
+                    bollard::Docker::connect_with_local_defaults().unwrap(),
                     Image::Image {
                         tag: "alpine:latest".to_owned(),
                     },
@@ -875,15 +930,31 @@ mod test_suite {
     #[test]
     fn golem_no_volume() -> Result<()> {
         block_on(async {
-            let image_name = "golem";
+            let image_name = "golem_no_volume";
             // Repo directory in the host FS.
             let host_repo_dir = PathBuf::from(r"../golem");
 
-            let ts = TestSuite::from_config(
-                JudgeInfo {
-                    src_dir: PathBuf::from(r"golem/src"),
-                    out_dir: PathBuf::from(r"../golem/out"),
-                    tests: ["succ"].iter().map(|s| s.to_string()).collect(),
+            let mut ts = TestSuite::from_config(
+                Image::Dockerfile {
+                    tag: image_name.to_owned(),
+                    path: host_repo_dir,
+                    file: None,
+                },
+                JudgerPrivateConfig {
+                    test_root_dir: PathBuf::from(r"../golem/src"),
+                },
+                JudgerPublicConfig {
+                    name: "golem_no_volume".into(),
+                    mapped_dir: PathBuf::from(r"golem/src"),
+                    binds: None,
+                    run: [
+                        "cd golem",
+                        "python ./golemc.py $src -o $bin",
+                        "cat $stdin | python ./golem.py $bin",
+                    ]
+                    .iter()
+                    .map(|s| s.to_string())
+                    .collect(),
                     vars: [
                         ("$src", "py"),
                         ("$bin", "pyc"),
@@ -894,30 +965,17 @@ mod test_suite {
                     .map(|(k, v)| (k.to_string(), v.to_string()))
                     .collect(),
                 },
-                ImageUsage {
-                    image: Image::Dockerfile {
-                        tag: image_name.to_owned(),
-                        path: host_repo_dir,
-                    },
-                    run: [
-                        "cd golem",
-                        "python ./golemc.py $src -o $bin",
-                        "cat $stdin | python ./golem.py $bin",
-                    ]
-                    .iter()
-                    .map(|s| s.to_string())
-                    .collect(),
-                    binds: None,
-                },
                 TestSuiteOptions {
+                    tests: ["succ"].iter().map(|s| s.to_string()).collect(),
                     time_limit: None,
                     mem_limit: None,
                     build_image: true,
+                    remove_image: true,
                 },
             )?;
 
-            let instance = bollard::Docker::connect_with_unix_defaults().unwrap();
-            ts.run(instance).await;
+            let instance = bollard::Docker::connect_with_local_defaults().unwrap();
+            ts.run(instance, None, None).await?;
             Ok(())
         })
     }
@@ -929,54 +987,52 @@ mod test_suite {
             // Repo directory in the host FS.
             let host_repo_dir = PathBuf::from(r"../golem");
 
-            let ts = TestSuite::from_config(
-                JudgeInfo {
-                    src_dir: PathBuf::from(r"/src"),
-                    out_dir: PathBuf::from(r"../golem/out"),
-                    tests: ["succ"].iter().map(|s| s.to_string()).collect(),
+            let mut ts = TestSuite::from_config(
+                Image::Dockerfile {
+                    tag: image_name.to_owned(),
+                    path: host_repo_dir, // public: c# gives repo remote, rust clone and unzip
+                    file: None,
+                },
+                JudgerPrivateConfig {
+                    test_root_dir: PathBuf::from(r"../golem/src"), // private
+                },
+                JudgerPublicConfig {
+                    name: "golem".into(),
+                    binds: Some(vec![Bind {
+                        from: PathBuf::from(r"../golem/src"), // private
+                        to: PathBuf::from(r"/src"),           // private
+                        options: "ro".to_owned(),
+                    }]),
+                    mapped_dir: PathBuf::from(r"/src"), // private
+                    run: [
+                        "cd golem",
+                        "python ./golemc.py $src -o $bin",
+                        "cat $stdin | python ./golem.py $bin",
+                    ] // public
+                    .iter()
+                    .map(|s| s.to_string())
+                    .collect(),
                     vars: [
                         ("$src", "py"),
                         ("$bin", "pyc"),
                         ("$stdin", "in"),
                         ("$stdout", "out"),
-                    ]
+                    ] // public
                     .iter()
                     .map(|(k, v)| (k.to_string(), v.to_string()))
                     .collect(),
                 },
-                ImageUsage {
-                    image: Image::Dockerfile {
-                        tag: image_name.to_owned(),
-                        path: host_repo_dir,
-                    },
-                    run: [
-                        "cd golem",
-                        "python ./golemc.py $src -o $bin",
-                        "cat $stdin | python ./golem.py $bin",
-                    ]
-                    .iter()
-                    .map(|s| s.to_string())
-                    .collect(),
-                    binds: Some(
-                        [Bind {
-                            from: PathBuf::from(r"../golem/src"),
-                            to: PathBuf::from(r"/src"),
-                            options: "ro".to_owned(),
-                        }]
-                        .iter()
-                        .map(|i| i.stringify())
-                        .collect(),
-                    ),
-                },
                 TestSuiteOptions {
-                    time_limit: None,
-                    mem_limit: None,
-                    build_image: true,
+                    tests: ["succ"].iter().map(|s| s.to_string()).collect(), // private
+                    time_limit: None,                                        // private
+                    mem_limit: None,                                         // private
+                    build_image: true,                                       // private
+                    remove_image: true,                                      // private
                 },
             )?;
 
-            let instance = bollard::Docker::connect_with_unix_defaults().unwrap();
-            ts.run(instance).await;
+            let instance = bollard::Docker::connect_with_local_defaults().unwrap();
+            ts.run(instance, None, None).await?;
             Ok(())
         })
     }

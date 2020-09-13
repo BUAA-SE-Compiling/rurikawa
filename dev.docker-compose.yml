@@ -1,0 +1,83 @@
+# *** Before running this dockerfile: ***
+#
+# - Edit the config of the OSS service [^1]. Delete and replace with an external
+#   provider if needed.
+#
+# - Create file `.env` with the following keys:
+#   POSTGRES_PASSWORD (Database password),
+#   MINIO_ACCESS_KEY (OSS access key),
+#   MINIO_SECRET_KEY (OSS secret key).
+#
+# - Create or edit file `coordinator/appsettings.dev.json` [^2] so that it
+#   is consistent with the values you set in the last step. Change the path if
+#   needed.
+#
+# - Set up your own Caddy configuration in `Caddyfile` [^3.1]. Edit the port number
+#   it binds to [^3.2].
+#
+# - Edit judger configuration based on your setup. Manually connect judgers
+#   outside Docker if needed. Edit them at [^4].
+
+version: "3"
+
+services:
+  psql:
+    image: postgres:12
+    restart: unless-stopped
+    env_file: .env
+    ports:
+      - 54321:5432
+    networks:
+      - default
+
+  # [^1]
+  minio-oss:
+    image: minio/minio
+    env_file: .env
+    restart: unless-stopped
+    networks:
+      - default
+    volumes:
+      - /data
+    entrypoint: minio server /data
+    ports:
+      - 39000:9000
+
+  coordinator:
+    image: rurikawa-coordinator
+    restart: unless-stopped
+    build:
+      context: .
+      dockerfile: coordinator.Dockerfile
+    volumes:
+      # [^2]: This file below. Change its path if applicable.
+      - ./coordinator/appsettings.dev.json:/app/appsettings.json
+      - ./coordinator/certs:/app/certs
+    depends_on:
+      - psql
+      - minio-oss
+
+  # [^4]: Judger config. Edit if needed.
+  # judger:
+  #   image: rurikawa-judger
+  #   restart: unless-stopped
+  #   build:
+  #     context: judger
+  #   entrypoint: ["/app/rurikawa", "connect", "caddy:80"]
+  #   depends_on:
+  #     - coordinator
+
+  caddy:
+    # image: caddy:2.1.1-alpine
+    image: rurikawa-web
+    build:
+      context: web
+    restart: unless-stopped
+    volumes:
+      # [^3.1]: This file below
+      - ./Caddyfile:/etc/caddy/Caddyfile
+    ports:
+      # [^3.2]: This port binding
+      - 5000:80
+    depends_on:
+      - coordinator

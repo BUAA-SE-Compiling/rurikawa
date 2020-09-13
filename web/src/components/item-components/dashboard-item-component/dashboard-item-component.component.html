@@ -1,0 +1,12 @@
+<div class="wrapper hover-highlight" [ngClass]="{ compact: compact }">
+  <div class="row">
+    <div class="name">{{ item.suite.title }}</div>
+    <div class="score">{{ itemCountString }}</div>
+    <div class="slider" *ngIf="!compact">
+      <app-slider-view [items]="slider" [height]="8"></app-slider-view>
+    </div>
+  </div>
+  <div class="row">
+    <div class="time">{{ timeString }}</div>
+  </div>
+</div>

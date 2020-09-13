@@ -1,0 +1,53 @@
+import { Component, OnInit, Input } from '@angular/core';
+import {
+  TestResult,
+  dashboardTypeToSlider,
+  sliderKindToCssVariable,
+} from 'src/models/job-items';
+
+@Component({
+  selector: 'app-job-test-item',
+  templateUrl: './job-test-item.component.html',
+  styleUrls: ['./job-test-item.component.styl'],
+})
+export class JobTestItemComponent implements OnInit {
+  constructor() {}
+
+  @Input() key: string;
+  @Input() item: TestResult;
+
+  displayResult() {
+    switch (this.item.kind) {
+      case 'Accepted':
+        return 'AC';
+      case 'MemoryLimitExceeded':
+        return 'MLE';
+      case 'NotRunned':
+        return 'NR';
+      case 'OtherError':
+        return 'OE';
+      case 'PipelineFailed':
+        return 'PF';
+      case 'Running':
+        return 'RUN';
+      case 'RuntimeError':
+        return 'RE';
+      case 'TimeLimitExceeded':
+        return 'TLE';
+      case 'Waiting':
+        return 'QU';
+      case 'WrongAnswer':
+        return 'WA';
+    }
+  }
+
+  backgroundColor() {
+    return (
+      'var(' +
+      sliderKindToCssVariable(dashboardTypeToSlider(this.item.kind)) +
+      ')'
+    );
+  }
+
+  ngOnInit(): void {}
+}

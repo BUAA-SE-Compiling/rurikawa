@@ -1,5 +1,7 @@
 {
     "FormattingOptions": {
+        "enableEditorConfigSupport": true,
+
         "NewLinesForBracesInLambdaExpressionBody": false,
         "NewLinesForBracesInAnonymousMethods": false,
         "NewLinesForBracesInAnonymousTypes": false,
@@ -11,6 +13,11 @@
         "NewLineForElse": false,
         "NewLineForCatch": false,
         "NewLineForFinally": false,
-        "IndentSwitchCaseSectionWhenBlock": false
+        "IndentSwitchCaseSectionWhenBlock": false,
+        "OrganizeImports": true
+    },
+
+    "RoslynExtensionsOptions": {
+        "enableAnalyzersSupport": true
     }
 }

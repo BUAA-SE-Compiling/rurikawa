@@ -1,0 +1,24 @@
+<div class="textbox" [ngClass]="style">
+  <div class="caption">{{ caption }}</div>
+  <div class="input input-wrapper" (click)="focus()">
+    <ic-icon
+      *ngIf="icon"
+      [icon]="icon"
+      class="icon"
+      [size]="iconSize"
+      [align]="'center,bottom,slice'"
+    ></ic-icon>
+    <input
+      [type]="type"
+      [value]="value"
+      (input)="valueChange.emit($event.target.value)"
+      [placeholder]="placeholder"
+      (keyup.enter)="enterKeyPress.emit($event)"
+      (keypress)="keyPress.emit($event)"
+      (keydown)="keyDown.emit($event)"
+      (keyup)="keyUp.emit($event)"
+      #input
+    />
+  </div>
+  <div class="message">{{ message }}</div>
+</div>

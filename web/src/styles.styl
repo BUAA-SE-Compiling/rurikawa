@@ -1,1 +1,323 @@
-/* You can add global styles to this file, and also import other style files */
+@import 'styles/container.styl'
+@import 'styles/common.styl'
+
+.default-palette {
+  --pal-base-00: #fff
+  --pal-base-0h: #f0f0f0
+  --pal-base-01: #E4E4E4
+  --pal-base-02: #AFAFAF
+  --pal-base-03: #585858
+  --pal-base-04: #1B1B1B
+  --pal-base-05: #000000
+  --pal-accent: #7BE0DA
+  --pal-accent-alt: #80AAC8
+  --pal-accent-dull: #398994
+  --pal-error-color: #E74C5E
+  --pal-info-color: #80AAC8
+  --pal-warning-color: #91CF42
+  --pal-success-color: #2CD296
+}
+
+.default-theme {
+  --font-family-sans: 'Work Sans', 'Sarasa Gothic', 'Sarasa UI', 'Noto Sans SC', 'Source Han Sans SC', 'Source Han Sans CN', 'MS Yahei UI', 'PingFang', Arial, 'Helvetica Neue', Helvetica, sans-serif
+  --font-family-mono: 'IBM Plex Mono', 'Noto Sans SC', 'MS Yahei UI', 'PingFang', Consolas, 'Roboto Mono', monospace
+  --background-color: var(--pal-base-00)
+  --primary-color: var(--pal-base-04)
+  --secondary-color: var(--pal-base-02)
+  --alt-background: var(--pal-base-0h)
+  --alt-primary: var(--pal-base-03)
+  --accent-color: var(--pal-accent)
+  --accent-dull: var(--pal-accent-dull)
+  --accent-alt: var(--pal-accent-alt)
+  --accent-primary: var(--pal-base-03)
+  --success-color: var(--pal-success-color)
+  --error-color: var(--pal-error-color)
+  --warning-color: var(--pal-warning-color)
+  --info-alt-color: var(--pal-info-color)
+  --info-color: var(--pal-accent-dull)
+  --gray-color: var(--pal-base-02)
+  --disabled-color: var(--pal-base-01)
+  --btn-round-corner: 2px
+  --space-0: 4px
+  --space-1: 8px
+  --space-2: 12px
+  --space-3: 16px
+  --space-4: 24px
+  --space-5: 32px
+  --space-6: 48px
+  --space-7: 64px
+  --space-8: 96px
+  --space-9: 128px
+  --container-pad: var(--space-4)
+  --font-size-base: 16px
+  --font-size-smaller: 14px
+  --font-size-small: 12px
+  --font-size-mini: 10px
+  --font-size-larger: 18px
+  --font-size-large: 24px
+  --font-size-extra-large: 32px
+  --font-size-title: 48px
+  --font-size-jumbo: 64px
+}
+
+.btn,
+.ghost-btn {
+  box-sizing: border-box
+  user-select: none
+}
+
+.btn {
+  transition: all 100ms ease-in-out
+  padding-y: var(--space-2)
+  padding-x: var(--space-4)
+  background: var(--accent-color)
+  color: var(--accent-primary)
+  border-radius: var(--btn-round-corner)
+  width: auto
+  font-weight: 500
+  display: flex
+  flex-direction: row
+  align-items: center
+  justify-content: center
+
+  &:hover {
+    background-color: var(--accent-alt)
+  }
+
+  &.disabled {
+    background-color: var(--secondary-color)
+  }
+}
+
+.btn.secondary {
+  transition: all 100ms ease-in-out
+  padding-y: var(--space-2)
+  padding-x: var(--space-4)
+  background: transparent
+  border-color: var(--accent-color)
+  color: var(--accent-color)
+  border-style: solid
+  border-width: 2px
+  border-radius: var(--btn-round-corner)
+  display: flex
+  flex-direction: row
+  align-items: center
+  justify-content: center
+  font-weight: 500
+
+  &:hover {
+    color: var(--accent-alt)
+    border-color: var(--accent-alt)
+  }
+
+  &.disabled {
+    color: var(--secondary-color)
+    border-color: var(--secondary-color)
+  }
+}
+
+.ghost-btn {
+  transition: all 100ms ease-in-out
+  color: var(--accent-alt)
+  padding-y: var(--space-2)
+  padding-x: var(--space-4)
+
+  &:hover {
+    color: var(--alt-primary)
+  }
+
+  .row &:last-child {
+    margin-right: calc(var(--space-4) * -1)
+  }
+
+  .row &:first-child {
+    margin-left: calc(var(--space-4) * -1)
+  }
+}
+
+.info {
+  --primary-color: var(--pal-info-color)
+  --accent-color: var(--pal-info-color)
+  --accent-primary: var(--pal-base-00)
+  --accent-alt: var(--pal-base-03)
+}
+
+.dark {
+  --primary-color: var(--pal-base-03)
+  --accent-color: var(--pal-base-03)
+  --accent-primary: var(--pal-base-00)
+  --accent-alt: var(--pal-base-04)
+}
+
+.light {
+  --primary-color: var(--pal-base-0h)
+  --accent-color: var(--pal-base-0h)
+  --accent-primary: var(--pal-base-04)
+  --accent-alt: var(--pal-base-01)
+}
+
+.warning {
+  --primary-color: var(--pal-warning-color)
+  --accent-color: var(--pal-warning-color)
+  --accent-primary: var(--pal-base-00)
+  --accent-alt: var(--pal-base-03)
+}
+
+.error {
+  --primary-color: var(--pal-error-color)
+  --accent-color: var(--pal-error-color)
+  --accent-primary: var(--pal-base-00)
+  --accent-alt: var(--pal-base-03)
+}
+
+.success {
+  --primary-color: var(--pal-success-color)
+  --accent-color: var(--pal-success-color)
+  --accent-primary: var(--pal-base-00)
+  --accent-alt: var(--pal-base-03)
+}
+
+body {
+  color: var(--primary-color)
+  background: solid var(--background-color)
+  font-family: var(--font-family-sans)
+  font-size: var(--font-size-base)
+  margin: 0
+  padding: 0
+}
+
+html,
+body,
+app-root,
+router-outlet {
+  min-height: 100vh
+}
+
+html {
+  min-height: 100vh
+}
+
+app-root {
+  display: block
+  min-height: 100vh
+}
+
+p,
+div {
+  font-family: var(--theme-sans-font-family)
+}
+
+code {
+  font-family: var(--theme-mono-font-family)
+}
+
+a {
+  text-decoration: none
+  color: var(--accent-dull)
+
+  &:hover,
+  &:active {
+    color: var(--accent-alt)
+  }
+}
+
+p {
+  margin-y: var(--space-0)
+}
+
+h1 {
+  margin-bottom: var(--space-0)
+}
+
+h2,
+h3,
+h4,
+h5,
+h6 {
+  margin-bottom: var(--space-0)
+}
+
+h1 {
+  font-size: var(--font-size-extra-large)
+  color: var(--alt-color)
+  font-weight: 300
+  margin-top: var(--space-3)
+}
+
+h2 {
+  font-size: var(--font-size-large)
+  color: var(--alt-color)
+  font-weight: 400
+}
+
+h3 {
+  font-size: var(--font-size-larger)
+  color: var(--alt-color)
+  font-weight: 500
+}
+
+h4 {
+  font-size: var(--font-size-larger)
+  font-weight: 700
+}
+
+h5 {
+  font-size: var(--font-size-base)
+  font-weight: 700
+}
+
+h6 {
+  font-size: var(--font-size-larger)
+  font-style: italic
+  font-weight: 500
+}
+
+input {
+  font: inherit
+  outline: none
+  width: auto
+  background: none
+  border: none
+
+  &::placeholder {
+    color: var(--secondary-color)
+  }
+}
+
+input.input,
+.input {
+  transition: all 100ms ease-in-out
+  font: inherit
+  outline: none
+  width: auto
+  padding: var(--space-1)
+  background: var(--background-color)
+  border-color: var(--secondary-color)
+  border-style: solid
+  border-width: 2px
+  border-radius: var(--btn-round-corner)
+
+  &:hover {
+    border-color: var(--accent-dull)
+  }
+
+  &:active,
+  &:focus-within {
+    border-color: var(--accent-alt)
+  }
+}
+
+.hover-highlight {
+  transition: all 100ms ease-in-out
+
+  &:hover {
+    // box-shadow: 0px 4px 6px #00000044
+    background: var(--alt-background)
+  }
+}
+
+ic-icon {
+  display: flex
+  justify-content: center
+  align-items: center
+}
