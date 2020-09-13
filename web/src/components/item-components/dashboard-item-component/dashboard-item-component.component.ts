@@ -22,8 +22,13 @@ export class DashboardItemComponentComponent implements OnInit {
   @Input() compact: boolean = false;
 
   private _slider: SliderItem[] | undefined;
+
   getSlider(): SliderItem[] {
-    if (!this.item.job) {
+    if (
+      this.item.job === undefined ||
+      this.item.job.stage !== 'Finished' ||
+      this.item.job.resultKind != 'Accepted'
+    ) {
       return [{ kind: 'disable', num: 1 }];
     }
     let res = mapValues(
@@ -49,6 +54,10 @@ export class DashboardItemComponentComponent implements OnInit {
   public get itemCountString(): string {
     if (this.item.job === undefined) {
       return 'N/A';
+    } else if (this.item.job.stage !== 'Finished') {
+      return this.item.job.stage;
+    } else if (this.item.job.resultKind !== 'Accepted') {
+      return this.item.job.resultKind;
     } else {
       let totalItems = this._slider.reduce((p, v) => p + v.num, 0);
       let finishedItems = this._slider.reduce(
@@ -60,11 +69,11 @@ export class DashboardItemComponentComponent implements OnInit {
   }
 
   public get timeString(): string {
-    let id = this.item?.job?.id;
+    let id = this.item.job?.id;
     if (id === undefined) {
       return '---- --:--';
     }
-    return extractTime(id).local().format('YYYY-MM-DD h:mm:ss');
+    return extractTime(id).local().format('YYYY-MM-DD HH:mm');
   }
 
   ngOnInit(): void {}
