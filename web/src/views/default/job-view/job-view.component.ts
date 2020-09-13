@@ -9,6 +9,10 @@ import {
   SliderItem,
   SliderItemKind,
 } from 'src/components/base-components/slider-view/slider-view.component';
+import { ActivatedRoute } from '@angular/router';
+import { HttpClient } from '@angular/common/http';
+import { environment } from 'src/environments/environment';
+import { endpoints } from 'src/environments/endpoints';
 
 @Component({
   selector: 'app-job-view',
@@ -16,7 +20,9 @@ import {
   styleUrls: ['./job-view.component.styl'],
 })
 export class JobViewComponent implements OnInit {
-  constructor() {}
+  constructor(private route: ActivatedRoute, private httpClient: HttpClient) {}
+
+  id: string;
 
   job: Job = {
     id: '1abcdefghjklm',
@@ -115,5 +121,24 @@ export class JobViewComponent implements OnInit {
     });
   }
 
-  ngOnInit(): void {}
+  fetchJob() {
+    this.httpClient
+      .get<Job>(
+        environment.endpointBase + endpoints.job.get.replace(':id', this.id)
+      )
+      .subscribe({
+        next: (v) => {
+          this.job = v;
+        },
+      });
+  }
+
+  ngOnInit(): void {
+    this.route.paramMap.subscribe({
+      next: (v) => {
+        this.id = v.get('id');
+        this.fetchJob();
+      },
+    });
+  }
 }

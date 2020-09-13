@@ -24,7 +24,7 @@ export class JobItemComponent implements OnInit {
   }
 
   public get timeString(): string {
-    return this.item.time.local().format('YYYY-MM-DD hh:mm');
+    return this.item.time.local().format('YYYY-MM-DD HH:mm');
   }
 
   ngOnInit(): void {}
