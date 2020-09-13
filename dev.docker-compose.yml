@@ -23,7 +23,10 @@ version: "3"
 services:
   psql:
     image: postgres:12
+    restart: unless-stopped
     env_file: .env
+    ports:
+      - 54321:5432
     networks:
       - default
 
@@ -31,6 +34,7 @@ services:
   minio-oss:
     image: minio/minio
     env_file: .env
+    restart: unless-stopped
     networks:
       - default
     volumes:
@@ -41,6 +45,7 @@ services:
 
   coordinator:
     image: rurikawa-coordinator
+    restart: unless-stopped
     build:
       context: .
       dockerfile: coordinator.Dockerfile

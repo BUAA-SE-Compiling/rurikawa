@@ -6,6 +6,7 @@ import { AppComponent } from './app.component';
 import { BaseComponentsModule } from 'src/components/base-components/base-components.module';
 import { HttpClientModule, HTTP_INTERCEPTORS } from '@angular/common/http';
 import { LoginInformationInterceptor } from 'src/services/account_service';
+import { MarkdownModule } from 'ngx-markdown';
 
 @NgModule({
   declarations: [AppComponent],
@@ -14,6 +15,7 @@ import { LoginInformationInterceptor } from 'src/services/account_service';
     AppRoutingModule,
     BaseComponentsModule,
     HttpClientModule,
+    MarkdownModule.forRoot(),
   ],
   providers: [
     {

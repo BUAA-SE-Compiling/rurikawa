@@ -70,11 +70,11 @@ namespace Karenia.Rurikawa.Coordinator.Controllers {
             ).Where(j => suiteIds.Contains(j.TestSuite)).AsNoTracking().ToListAsync();
 
             var dashboard = suites
-                .Join(
+                .GroupJoin(
                     jobs,
                     s => s.Id,
                     j => j.TestSuite,
-                    (s, j) => new Dashboard { Suite = s, Job = j })
+                    (s, j) => new Dashboard { Suite = s, Job = j.FirstOrDefault() })
                 .ToList();
 
             return dashboard;

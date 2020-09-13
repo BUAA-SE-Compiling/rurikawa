@@ -25,7 +25,7 @@
             "aot": true,
             "assets": ["src/favicon.ico", "src/assets"],
             "styles": ["src/styles.styl"],
-            "scripts": [],
+            "scripts": ["node_modules/marked/lib/marked.js"],
             "extraWebpackConfig": "webpack.config.js"
           },
           "configurations": {

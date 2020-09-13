@@ -58,16 +58,18 @@ namespace Karenia.Rurikawa.Coordinator.Controllers {
         }
 
         [HttpGet]
-        [Route("{id}/jobs")]
+        [Route("{suiteId}/jobs")]
         [Authorize("user")]
         public async Task<IList<Job>> GetJobsFromSuite(
             [FromRoute] FlowSnake suiteId,
             [FromQuery] FlowSnake startId = new FlowSnake(),
             [FromQuery] int take = 20,
             [FromQuery] bool asc = false) {
+            FlowSnake? startId_ = startId;
+            if (startId_ == FlowSnake.MinValue) startId_ = null;
             var username = AuthHelper.ExtractUsername(HttpContext.User);
             return await dbService.GetJobs(
-                startId: startId,
+                startId: startId_,
                 take: take,
                 asc: asc,
                 bySuite: suiteId,

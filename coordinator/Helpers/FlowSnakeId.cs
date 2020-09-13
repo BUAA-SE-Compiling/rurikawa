@@ -18,6 +18,9 @@ namespace Karenia.Rurikawa.Helpers {
         const int WORKER_ID_BITS = 12;
         const int SEQUENCE_BITS = 18;
 
+        public static readonly FlowSnake MaxValue = new FlowSnake(long.MaxValue);
+        public static readonly FlowSnake MinValue = new FlowSnake(0);
+
         static readonly char[] alphabet = "0123456789abcdefghjkmnpqrstvwxyz".ToCharArray();
         static readonly byte[] charToBase32 = new byte[] {
             255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255,

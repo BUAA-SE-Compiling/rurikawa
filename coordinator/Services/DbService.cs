@@ -24,7 +24,7 @@ namespace Karenia.Rurikawa.Coordinator.Services {
         }
 
         public async Task<IList<Job>> GetJobs(
-            FlowSnake startId = new FlowSnake(),
+            FlowSnake? startId = null,
             int take = 20,
             bool asc = false,
             FlowSnake? bySuite = null,
@@ -39,8 +39,10 @@ namespace Karenia.Rurikawa.Coordinator.Services {
                 query = query.Where(j => j.Account == byUsername);
 
             if (asc) {
+                if (startId == null) startId = FlowSnake.MinValue;
                 query = query.Where(j => j.Id > startId).OrderBy(j => j.Id);
             } else {
+                if (startId == null) startId = FlowSnake.MaxValue;
                 query = query.Where(j => j.Id < startId).OrderByDescending(j => j.Id);
             }
 

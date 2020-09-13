@@ -345,6 +345,7 @@ namespace Karenia.Rurikawa.Coordinator.Services {
 
             db.Jobs.Add(job);
             await db.SaveChangesAsync();
+            logger.LogInformation("Added job id {0}, suite {1}", job.Id, job.TestSuite);
         }
 
         public async ValueTask RevertJobStatus() {

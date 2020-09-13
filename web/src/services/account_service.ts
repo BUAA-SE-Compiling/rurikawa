@@ -101,6 +101,7 @@ export class AccountService {
           tap({
             next: (resp) => {
               this.oauthResponse = resp;
+              this.saveLoginInfo();
             },
           })
         );
@@ -193,9 +194,7 @@ export class AccountService {
     if (this.oauthResponse === undefined) {
       return undefined;
     } else {
-      return (
-        this.oauthResponse.tokenType + ' ' + this.oauthResponse.accessToken
-      );
+      return 'Bearer ' + this.oauthResponse.accessToken;
     }
   }
 
@@ -237,11 +236,9 @@ export class LoginInformationInterceptor implements HttpInterceptor {
                 () => (this.refreshTokenRunning = false),
                 () => (this.refreshTokenRunning = false)
               ),
-              switchMap(() => next.handle(req)),
+              switchMap(() => this.intercept(req, next)),
               catchError((e, c) => {
-                if (e instanceof HttpErrorResponse && e.status !== 401) {
-                  return throwError(e);
-                }
+                return throwError(e);
               })
             );
           }

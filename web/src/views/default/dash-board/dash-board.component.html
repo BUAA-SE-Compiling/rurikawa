@@ -8,11 +8,14 @@
   <div class="wrapper" id="test-suites">
     <ng-template #isLoading> 在加载了在加载了 </ng-template>
     <ng-template [ngIf]="!loading" [ngIfElse]="isLoading">
-      <div class="empty" *ngIf="!items || items.length == 0">没有 ouo</div>
+      <div class="empty" *ngIf="!error && (!items || items.length == 0)">
+        没有 ouo
+      </div>
+      <div class="empty" *ngIf="error">出错了：{{ errorMessage }}</div>
       <app-dashboard-item-component
         *ngFor="let i of items"
         [item]="i"
-        (click)="gotoJudgeSuite(i.id)"
+        (click)="gotoJudgeSuite(i.suite.id)"
       ></app-dashboard-item-component>
     </ng-template>
   </div>

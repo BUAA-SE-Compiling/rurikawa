@@ -10,4 +10,13 @@ export const endpoints = {
   dashboard: {
     get: 'dashboard',
   },
+  testSuite: {
+    get: 'tests/:id',
+    getJobs: 'tests/:id/jobs',
+    post: 'tests',
+  },
+  job: {
+    get: 'job/:id',
+    new: 'job',
+  },
 };

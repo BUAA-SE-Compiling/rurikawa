@@ -16,6 +16,7 @@ namespace Karenia.Rurikawa.Coordinator.Services {
             public string SecretKey { get; set; } = "";
             public string BucketPolicy { get; set; } = "";
             public bool Ssl { get; set; } = true;
+            public bool PublicSsl { get; set; } = true;
         }
 
         public SingleBucketFileStorageService(
@@ -28,6 +29,7 @@ namespace Karenia.Rurikawa.Coordinator.Services {
             param.AccessKey,
             param.SecretKey,
             param.Ssl,
+            param.PublicSsl,
             logger
         ) { }
 
@@ -38,6 +40,7 @@ namespace Karenia.Rurikawa.Coordinator.Services {
             string accessKey,
             string secretKey,
             bool hasSsl,
+            bool hasPublicSsl,
             ILogger<SingleBucketFileStorageService> logger
         ) {
             client = new Minio.MinioClient(endpoint, accessKey, secretKey);
@@ -48,7 +51,7 @@ namespace Karenia.Rurikawa.Coordinator.Services {
             var endpointUri = new UriBuilder(publicEndpoint ?? this.endpoint);
             if (endpointUri.Host == null || endpointUri.Host == "") {
             } else {
-                endpointUri.Scheme = hasSsl ? "https" : "http";
+                endpointUri.Scheme = hasPublicSsl ? "https" : "http";
             }
             this.publicEndpointUri = new Uri(endpointUri.Uri, bucket);
             this.hasSsl = hasSsl;
@@ -75,7 +78,7 @@ namespace Karenia.Rurikawa.Coordinator.Services {
                     ""Effect"":""Allow"",
                     ""Principal"": ""*"",
                     ""Action"":[""s3:GetObject"", ""s3:GetObjectVersion""],
-                    ""Resource"":[""arn:aws:s3::{bucket}:/*""]
+                    ""Resource"":[""arn:aws:s3:::{bucket}:/*""]
                     }}
                 ]
             }}

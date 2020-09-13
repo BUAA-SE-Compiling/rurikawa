@@ -46,3 +46,10 @@ export interface JudgerEntry {
   tags: string[] | undefined;
   acceptUntaggedJobs: boolean;
 }
+
+export interface NewJobMessage {
+  repo: string;
+  branch?: string;
+  testSuite: string;
+  tests: string[];
+}

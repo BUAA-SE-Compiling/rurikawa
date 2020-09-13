@@ -1,8 +1,8 @@
 <app-navbar></app-navbar>
 <div class="container">
   <div class="title-row">
-    <div class="id">{{ id }}</div>
-    <h1>评测标题</h1>
+    <div class="id">{{ suite?.name }}:{{ id }}</div>
+    <h1>{{ suite?.title }}</h1>
   </div>
   <div class="row">
     <div class="lblk">
@@ -14,29 +14,31 @@
             type="text"
             placeholder="https://my-git.com/me/my-repo"
             caption="仓库地址"
-            [icon]="repo"
+            [icon]="repoIcon"
+            [(value)]="repo"
           ></textbox>
           <textbox
             class="branch-input"
             type="text"
             placeholder="master"
             caption="分支"
-            [icon]="branch"
+            [icon]="branchIcon"
+            [(value)]="branch"
           ></textbox>
         </div>
         <div class="row submit-btn-row text">
-          <div class="ghost-btn">添加 Webhook</div>
-          <div class="btn dark">提交</div>
+          <!-- <div class="ghost-btn">添加 Webhook</div> -->
+          <div class="btn dark" (click)="submitTest()">提交</div>
         </div>
       </div>
-      <div id="suite-desc">
+      <div id="section suite-desc">
         <h2>测试描述</h2>
-        <p>这是一个测试</p>
+        <markdown [data]="suite?.description"></markdown>
       </div>
     </div>
     <div class="rblk" id="job-list">
       <h2>评测记录</h2>
-      <ng-template [ngIf]="false" [ngIfElse]="jobLog">
+      <ng-template [ngIf]="!items || items.length === 0" [ngIfElse]="jobLog">
         <div class="no-list">没有评测记录</div>
       </ng-template>
       <ng-template #jobLog>

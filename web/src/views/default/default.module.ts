@@ -11,6 +11,7 @@ import { LoginPageComponent } from './login-page/login-page.component';
 import { RegisterPageComponent } from './register-page/register-page.component';
 import { RouterModule } from '@angular/router';
 import { IconModule } from '@visurel/iconify-angular';
+import { MarkdownModule } from 'ngx-markdown';
 
 @NgModule({
   declarations: [
@@ -28,6 +29,7 @@ import { IconModule } from '@visurel/iconify-angular';
     ItemComponentsModule,
     RouterModule,
     IconModule,
+    MarkdownModule.forChild(),
   ],
   exports: [
     MainPageComponent,

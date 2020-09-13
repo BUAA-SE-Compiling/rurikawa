@@ -1,4 +1,7 @@
 import { SliderItemKind } from 'src/components/base-components/slider-view/slider-view.component';
+import { mapValues, groupBy, toPairs } from 'lodash';
+import { extractTime } from './flowsnake';
+import { Moment } from 'moment';
 
 export function dashboardTypeToSlider(item: TestResultKind): SliderItemKind {
   switch (item) {
@@ -44,21 +47,25 @@ export function sliderKindToCssVariable(kind: SliderItemKind): string {
   }
 }
 
-export interface DashboardItem {
-  id: string;
-  name: string;
-  endTime: Date;
-  finishedItem: number;
-  totalItem: number;
-  status: { status: TestResultKind; cnt: number }[];
+interface JobStatus {
+  status: TestResultKind;
+  cnt: number;
 }
+
+// export interface DashboardItem {
+//   id: string;
+//   name: string;
+//   endTime: Date;
+//   finishedItem: number;
+//   totalItem: number;
+//   status: { status: TestResultKind; cnt: number }[];
+// }
 
 export interface JobItem {
   id: string;
-  time: Date;
-  finishedItem: number;
-  totalItem: number;
-  status: { status: TestResultKind; cnt: number }[];
+  time: Moment;
+  numberBrief: string;
+  status: JobStatus[];
 }
 
 export type JobStage =
@@ -106,4 +113,51 @@ export interface Job {
   resultKind: JobResultKind;
   resultMessage: string | undefined;
   results: { [key: string]: TestResult };
+}
+
+export function getStatus(job: Job): JobStatus[] {
+  let res = toPairs(
+    mapValues(
+      groupBy(job.results, (result) => dashboardTypeToSlider(result.kind)),
+      (i) => i.length
+    )
+  ).map(([x, y]) => {
+    return { status: x as TestResultKind, cnt: y };
+  });
+  if (res.length === 0) {
+    return [{ status: 'Waiting', cnt: job.tests.length }];
+  } else {
+    return res;
+  }
+}
+
+export function getNumberBrief(job: Job): string {
+  if (job.stage !== 'Finished') {
+    return job.stage;
+  }
+  if (job.resultKind !== 'Accepted') {
+    return job.resultKind;
+  }
+
+  let totalCnt = 0;
+  let acCnt = 0;
+
+  // tslint:disable-next-line: forin
+  for (let idx in job.results) {
+    let res = this.job.results[idx];
+    totalCnt++;
+    if (res.kind === 'Accepted') {
+      acCnt++;
+    }
+  }
+  return `${acCnt}/${totalCnt}`;
+}
+
+export function JobToJobItem(job: Job): JobItem {
+  return {
+    id: job.id,
+    numberBrief: getNumberBrief(job),
+    status: getStatus(job),
+    time: extractTime(job.id),
+  };
 }

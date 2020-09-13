@@ -1,10 +1,11 @@
 import { Component, OnInit } from '@angular/core';
 import { SliderItem } from 'src/components/base-components/slider-view/slider-view.component';
-import { DashboardItem } from 'src/models/job-items';
+// import { DashboardItem } from 'src/models/job-items';
 import { Router } from '@angular/router';
-import { HttpClient } from '@angular/common/http';
+import { HttpClient, HttpErrorResponse } from '@angular/common/http';
 import { environment } from 'src/environments/environment';
 import { endpoints } from 'src/environments/endpoints';
+import { DashboardItem } from 'src/models/server-types';
 
 @Component({
   selector: 'app-dash-board',
@@ -16,11 +17,16 @@ export class DashBoardComponent implements OnInit {
   loading = true;
   items: DashboardItem[] | undefined = undefined;
 
+  error: boolean = false;
+  errorMessage?: string;
+
   gotoJudgeSuite(id: string) {
     this.router.navigate(['/suite', id]);
   }
 
   ngOnInit(): void {
+    this.error = false;
+    this.errorMessage = undefined;
     this.httpClient
       .get<DashboardItem[]>(environment.endpointBase + endpoints.dashboard.get)
       .subscribe({
@@ -29,35 +35,15 @@ export class DashBoardComponent implements OnInit {
           this.loading = false;
         },
         error: (e) => {
+          if (e instanceof HttpErrorResponse) {
+            this.errorMessage = e.message;
+          } else {
+            this.errorMessage = JSON.stringify(e);
+          }
           console.warn(e);
+          this.error = true;
           this.loading = false;
         },
       });
   }
-}
-
-function getSampleItems(): DashboardItem[] {
-  return [
-    {
-      id: '123j2dp',
-      name: '编译大作业1',
-      totalItem: 8,
-      finishedItem: 6,
-      endTime: new Date('2020-11-30T12:34:56Z'),
-      status: [
-        { status: 'Accepted', cnt: 16 },
-        { status: 'WrongAnswer', cnt: 5 },
-        { status: 'Running', cnt: 3 },
-        { status: 'NotRunned', cnt: 4 },
-      ],
-    },
-    {
-      id: '123j2dq',
-      name: '编译大作业0',
-      totalItem: 8,
-      finishedItem: 6,
-      endTime: new Date('2020-09-06T12:34:56Z'),
-      status: [{ status: 'Accepted', cnt: 50 }],
-    },
-  ];
 }

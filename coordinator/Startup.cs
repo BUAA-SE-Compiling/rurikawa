@@ -167,7 +167,10 @@ namespace Karenia.Rurikawa.Coordinator {
 
             // pre-initialize long-running services
             var coordinator = svc.GetService<JudgerCoordinatorService>();
-            Task.Run(coordinator.RevertJobStatus);
+            // coordinator.RevertJobStatus().AsTask().Wait();
+
+            var client = svc.GetService<SingleBucketFileStorageService>();
+            client.Check().Wait();
 
             app.UseEndpoints(endpoints => {
                 endpoints.MapControllers();
