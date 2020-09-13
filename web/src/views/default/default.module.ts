@@ -12,9 +12,11 @@ import { RegisterPageComponent } from './register-page/register-page.component';
 import { RouterModule } from '@angular/router';
 import { IconModule } from '@visurel/iconify-angular';
 import { MarkdownModule } from 'ngx-markdown';
+import { AdminForbiddenPageComponent } from './admin-forbidden-page/admin-forbidden-page.component';
 
 @NgModule({
   declarations: [
+    AdminForbiddenPageComponent,
     MainPageComponent,
     DashBoardComponent,
     TestSuiteViewComponent,
@@ -32,6 +34,7 @@ import { MarkdownModule } from 'ngx-markdown';
     MarkdownModule.forChild(),
   ],
   exports: [
+    AdminForbiddenPageComponent,
     MainPageComponent,
     DashBoardComponent,
     TestSuiteViewComponent,
