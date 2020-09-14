@@ -12,7 +12,7 @@ use async_trait::async_trait;
 use dashmap::DashMap;
 use futures::{
     stream::{SplitSink, SplitStream},
-    Future, FutureExt, Sink, SinkExt, Stream, StreamExt,
+    FutureExt, Sink, SinkExt, StreamExt,
 };
 use model::*;
 use serde::{Deserialize, Serialize};
@@ -532,7 +532,7 @@ pub async fn client_loop(
     let ws_send = Arc::new(Mutex::new(ws_send));
     while let Some(Some(Ok(x))) = {
         let mut ws_lock = ws_recv.next().fuse();
-        // TODO: add abort mechaisms
+        // TODO: add abort mechanisms
         // let mut abort_lock = abort.next().fuse();
         let mut abort_lock = futures::future::pending::<()>();
         futures::select_biased! {

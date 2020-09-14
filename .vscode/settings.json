@@ -4,6 +4,7 @@
         "Karenia",
         "Popen",
         "canonicalize",
+        "deserialization",
         "golemc",
         "rurikawa",
         "tungstenite",

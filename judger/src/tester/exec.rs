@@ -324,7 +324,6 @@ impl Bind {
         let to = format!("{:?}", to);
         let to = strip_quote(&to).unwrap();
         let mut res = format!("{}:{}", from, to);
-        dbg!(&res);
         if !options.is_empty() {
             res.push_str(&format!(":{}", options));
         }

@@ -1,20 +1,11 @@
-use broadcaster::BroadcastChannel;
 use clap::Clap;
 use dirs::home_dir;
-use futures::{Future, FutureExt, Sink, SinkExt, StreamExt};
-use once_cell::sync::Lazy;
 use rurikawa_judger::client::{
     client_loop, connect_to_coordinator, ClientConfig, SharedClientData,
 };
-use std::{
-    process::exit,
-    sync::{
-        atomic::{AtomicBool, Ordering},
-        Arc,
-    },
-};
-use tokio::{prelude::*, sync::Mutex};
-use tungstenite::Message;
+use std::process::exit;
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::Arc;
 
 mod opt;
 

@@ -1,11 +1,7 @@
 //! Functions to download stuff into destinations
 use std::path::Path;
 use std::str::FromStr;
-use tokio::{
-    fs::{canonicalize, read_to_string, DirEntry, File},
-    io::{AsyncWrite, AsyncWriteExt},
-    process::Command,
-};
+use tokio::{io::AsyncWriteExt, process::Command};
 
 #[derive(Debug)]
 pub struct GitCloneOptions {
