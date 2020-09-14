@@ -7,11 +7,13 @@ using Karenia.Rurikawa.Models.Account;
 using Karenia.Rurikawa.Models.Judger;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
 using static Karenia.Rurikawa.Coordinator.Controllers.AccountController;
 
 namespace Karenia.Rurikawa.Coordinator.Controllers {
     [ApiController]
     [Route("api/v1/admin")]
+    [Authorize("admin")]
     public class AdminController : ControllerBase {
         private readonly DbService dbService;
         private readonly AccountService accountService;
@@ -24,7 +26,6 @@ namespace Karenia.Rurikawa.Coordinator.Controllers {
 
         [HttpGet]
         [Route("suite/{id}/jobs")]
-        [Authorize("user")]
         public async Task<IList<Job>> GetJobsFromSuite(
             [FromRoute] FlowSnake suiteId,
             [FromQuery] FlowSnake startId = new FlowSnake(),
@@ -38,12 +39,34 @@ namespace Karenia.Rurikawa.Coordinator.Controllers {
                 bySuite: suiteId);
         }
 
+        public class JudgerStat {
+            public int Count { get; set; }
+            public int Connected { get; set; }
+            public int Running { get; set; }
+        }
+
+        [HttpGet("judger/stat")]
+        public async Task<JudgerStat> GetJudgerStat(
+            [FromServices] JudgerCoordinatorService coordinatorService,
+            [FromServices] RurikawaDb db) {
+            var judgerCount = await db.Judgers.CountAsync();
+            var (connectedCount, runningCount) = await coordinatorService.GetConnectedJudgerInfo();
+            return new JudgerStat
+            {
+                Count = judgerCount,
+                Connected = connectedCount,
+                Running = runningCount
+            };
+        }
+
         [HttpGet("init")]
+        [AllowAnonymous]
         public ValueTask<bool> IsInitalized() {
             return accountService.IsInitialzed();
         }
 
         [HttpPost("init")]
+        [AllowAnonymous]
         public async Task<IActionResult> InitializeRoot(AccountInfo msg) {
             try {
                 await accountService.InitializeRootAccount(msg.Username, msg.Password);
@@ -56,7 +79,7 @@ namespace Karenia.Rurikawa.Coordinator.Controllers {
             }
         }
 
-#pragma warning disable CS8618  
+#pragma warning disable CS8618
         public class RootCreateAccountInfo {
             public string Username { get; set; }
             public string Password { get; set; }
@@ -71,7 +94,6 @@ namespace Karenia.Rurikawa.Coordinator.Controllers {
         /// and password.
         /// </summary>
         [HttpPost("register")]
-        [Authorize("root")]
         public async Task<IActionResult> CreateAccount(
             [FromServices] SingleBucketFileStorageService fs,
             [FromBody] RootCreateAccountInfo msg
