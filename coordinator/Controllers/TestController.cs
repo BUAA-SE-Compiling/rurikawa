@@ -82,6 +82,56 @@ namespace Karenia.Rurikawa.Coordinator.Controllers {
         /// and returns it as a base for client to edit.
         /// </summary>
         /// <param name="filename">the name of this file, required</param>
+        /// <param name="suiteId">the id of the test suite, required</param>
+        /// <param name="replaceDescription">
+        /// whether to replace description, defaults to true</param>
+        /// <returns>Test suite spec</returns>
+        [HttpPut("{suiteId}/file")]
+        [Authorize("admin")]
+        public async Task<IActionResult> ReplaceTestSuiteFile(
+            [FromRoute] FlowSnake suiteId,
+            [FromHeader] string filename,
+            [FromQuery] bool replaceDescription = true
+            ) {
+            var original = await db.TestSuites.Where(t => t.Id == suiteId).SingleOrDefaultAsync();
+            if (original == null) { return NotFound(new ErrorResponse("no_such_suite")); }
+
+            if (!Request.ContentLength.HasValue) {
+                return BadRequest("Content length must be present in header");
+            } else if (Request.ContentLength == 0) {
+                return BadRequest("The request has an empty body!");
+            }
+            long contentLength = Request.ContentLength.Value;
+            var id = FlowSnake.Generate();
+            var newFilename = TestSuite.FormatFileName(filename, id);
+
+            TestSuite newSuite;
+            logger.LogInformation("Begin uploading");
+            try {
+                newSuite = await UploadAndParseTestSuite(
+                    Request.Body,
+                    contentLength,
+                    id,
+                    newFilename);
+                newSuite.Id = id;
+            } catch (EndOfStreamException e) {
+                return BadRequest(e.Message);
+            }
+            logger.LogInformation("End uploading");
+
+            original.Patch(newSuite, replaceDescription);
+            await db.SaveChangesAsync();
+            logger.LogInformation("DB updated");
+            return Ok(newSuite);
+            // throw new NotImplementedException();
+        }
+
+        /// <summary>
+        /// Accepts an uploaded file as a test suite archive, parse the test 
+        /// spec inside this archive, saves this test suite spec into database,
+        /// and returns it as a base for client to edit.
+        /// </summary>
+        /// <param name="filename">the name of this file, required</param>
         /// <returns>Test suite spec</returns>
         [HttpPost]
         [Authorize("admin")]

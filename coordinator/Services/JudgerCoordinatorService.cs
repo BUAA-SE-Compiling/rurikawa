@@ -361,5 +361,22 @@ namespace Karenia.Rurikawa.Coordinator.Services {
         public void Stop() {
             JobQueue.Writer.Complete();
         }
+
+        /// <summary>
+        /// Get information about connected judgers
+        /// </summary>
+        /// <returns>(connectedCount, runningCount)</returns>
+        public async Task<(int, int)> GetConnectedJudgerInfo() {
+            await connectionLock.WaitAsync();
+            var result = connections.Aggregate((0, 0), (cnt, val) => {
+                if (val.Value.ActiveTaskCount > 0) {
+                    return (cnt.Item1 + 1, cnt.Item2 + 1);
+                } else {
+                    return (cnt.Item1 + 1, cnt.Item2);
+                }
+            });
+            connectionLock.Release();
+            return result;
+        }
     }
 }

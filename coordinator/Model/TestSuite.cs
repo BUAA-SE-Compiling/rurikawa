@@ -65,6 +65,17 @@ namespace Karenia.Rurikawa.Models.Test {
                 return $"{id}.{orig}";
             }
         }
+
+        public void Patch(TestSuite other, bool patchDescription = true) {
+            this.Name = other.Name;
+            this.MemoryLimit = other.MemoryLimit;
+            this.TimeLimit = other.TimeLimit;
+            this.Title = other.Title;
+            this.TestGroups = other.TestGroups;
+            this.Tags = other.Tags;
+            this.PackageFileId = other.PackageFileId;
+            if (patchDescription) this.Description = other.Description;
+        }
     }
 
     public class TestJob {
