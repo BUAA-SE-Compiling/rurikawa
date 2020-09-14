@@ -57,15 +57,13 @@ namespace Karenia.Rurikawa.Coordinator.Controllers {
 
             var jobs = await db.Jobs.FromSqlInterpolated(
                 $@"
-                select * from (
-                    select
-                        distinct on (test_suite)
-                        * from jobs
-                    where 
-                        account = {username}
-                    order by test_suite
-                ) as sub
-                order by id desc
+                select
+                    distinct on (test_suite)
+                    * from (
+                        select * from jobs
+                        order by id desc
+                    ) as sub
+                where account = {username}
                 "
             ).Where(j => suiteIds.Contains(j.TestSuite)).AsNoTracking().ToListAsync();
 
