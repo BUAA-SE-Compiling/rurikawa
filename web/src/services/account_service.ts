@@ -207,6 +207,10 @@ export class AccountService {
     return this.oauthResponse?.role;
   }
 
+  public get isAdmin() {
+    return this.Role === 'Admin' || this.Role === 'Root';
+  }
+
   public get isLoggedIn() {
     return this.oauthResponse !== undefined;
   }

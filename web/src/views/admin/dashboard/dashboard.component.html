@@ -4,7 +4,7 @@
     <div class="row text">
       <h1>评测姬</h1>
     </div>
-    <app-slider-view></app-slider-view>
+    <!-- <app-slider-view></app-slider-view> -->
   </div>
   <div class="section">
     <div class="row text">
@@ -12,6 +12,8 @@
       <div class="space"></div>
       <div class="ghost-btn">创建</div>
     </div>
-    <div class="wrapper"></div>
+    <div class="wrapper">
+      <div *ngFor="let i of suite">{{ i | json }}</div>
+    </div>
   </div>
 </div>

@@ -13,6 +13,7 @@ import { RouterModule } from '@angular/router';
 import { IconModule } from '@visurel/iconify-angular';
 import { MarkdownModule } from 'ngx-markdown';
 import { AdminForbiddenPageComponent } from './admin-forbidden-page/admin-forbidden-page.component';
+import { AboutPageComponent } from './about-page/about-page.component';
 
 @NgModule({
   declarations: [
@@ -24,6 +25,7 @@ import { AdminForbiddenPageComponent } from './admin-forbidden-page/admin-forbid
     NotFoundPageComponent,
     LoginPageComponent,
     RegisterPageComponent,
+    AboutPageComponent,
   ],
   imports: [
     CommonModule,
@@ -42,6 +44,7 @@ import { AdminForbiddenPageComponent } from './admin-forbidden-page/admin-forbid
     NotFoundPageComponent,
     LoginPageComponent,
     RegisterPageComponent,
+    AboutPageComponent,
   ],
 })
 export class DefaultModule {}

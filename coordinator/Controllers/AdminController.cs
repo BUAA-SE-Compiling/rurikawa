@@ -23,7 +23,6 @@ namespace Karenia.Rurikawa.Coordinator.Controllers {
             this.accountService = accountService;
         }
 
-
         [HttpGet]
         [Route("suite/{id}/jobs")]
         public async Task<IList<Job>> GetJobsFromSuite(

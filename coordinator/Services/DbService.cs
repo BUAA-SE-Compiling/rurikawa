@@ -52,14 +52,16 @@ namespace Karenia.Rurikawa.Coordinator.Services {
             return result;
         }
 
-        public async Task<IList<TestSuite>> GetTestSuites(
-            FlowSnake startId = new FlowSnake(),
+        public async Task<List<TestSuite>> GetTestSuites(
+            FlowSnake? startId = null,
             int take = 20,
             bool asc = false) {
             var query = db.TestSuites.AsQueryable();
             if (asc) {
+                if (startId == null) startId = FlowSnake.MinValue;
                 query = query.Where(j => j.Id > startId).OrderBy(j => j.Id);
             } else {
+                if (startId == null) startId = FlowSnake.MaxValue;
                 query = query.Where(j => j.Id < startId).OrderByDescending(j => j.Id);
             }
             query = query.Take(take);

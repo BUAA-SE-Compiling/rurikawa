@@ -11,6 +11,7 @@ export const endpoints = {
     get: 'dashboard',
   },
   testSuite: {
+    query: 'tests',
     get: 'tests/:id',
     getJobs: 'tests/:id/jobs',
     post: 'tests',
@@ -18,5 +19,6 @@ export const endpoints = {
   job: {
     get: 'job/:id',
     new: 'job',
+    query: 'job',
   },
 };

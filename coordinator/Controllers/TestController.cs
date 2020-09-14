@@ -45,6 +45,21 @@ namespace Karenia.Rurikawa.Coordinator.Controllers {
         }
 
         /// <summary>
+        /// Gets a list of test suites
+        /// </summary>
+        /// <returns></returns>
+        [HttpGet()]
+        public async Task<ActionResult<List<TestSuite>>> QueryTestSuites(
+            [FromQuery] FlowSnake startId = new FlowSnake(),
+            [FromQuery] int take = 20,
+            [FromQuery] bool asc = false
+        ) {
+            FlowSnake? startId_ = startId;
+            if (startId == FlowSnake.MinValue) startId_ = null;
+            return await dbService.GetTestSuites(startId_, take, asc);
+        }
+
+        /// <summary>
         /// Gets a test suite by its id
         /// </summary>
         /// <param name="id"></param>

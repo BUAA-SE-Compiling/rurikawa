@@ -38,16 +38,16 @@
   --gray-color: var(--pal-base-02)
   --disabled-color: var(--pal-base-01)
   --btn-round-corner: 2px
-  --space-0: 4px
-  --space-1: 8px
-  --space-2: 12px
-  --space-3: 16px
-  --space-4: 24px
-  --space-5: 32px
-  --space-6: 48px
-  --space-7: 64px
-  --space-8: 96px
-  --space-9: 128px
+  --space-0: 0.25rem
+  --space-1: 0.5rem
+  --space-2: 0.75rem
+  --space-3: 1rem
+  --space-4: 1.5rem
+  --space-5: 2rem
+  --space-6: 3rem
+  --space-7: 4rem
+  --space-8: 6rem
+  --space-9: 8rem
   --container-pad: var(--space-4)
   --font-size-base: 16px
   --font-size-smaller: 14px
@@ -205,6 +205,10 @@ app-root {
 p,
 div {
   font-family: var(--font-family-sans)
+}
+
+p {
+  margin-y: var(--space-3)
 }
 
 code {

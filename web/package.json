@@ -21,6 +21,7 @@
     "@angular/router": "~10.1.0",
     "@iconify/icons-carbon": "^1.0.5",
     "@types/lodash": "^4.14.161",
+    "@types/lru-cache": "^5.1.0",
     "@visurel/iconify-angular": "^10.1.2",
     "compression-webpack-plugin": "^5.0.2",
     "lodash": "^4.17.20",

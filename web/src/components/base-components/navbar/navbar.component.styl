@@ -12,12 +12,14 @@
 
   &.admin-mode {
     --accent-color: var(--pal-warning-color)
+    --accent-alt: var(--pal-base-03)
+    --alt-primary: var(--pal-accent-dull)
   }
 }
 
 .admin-banner {
   background: var(--accent-color)
-  height: var(--space-1)
+  height: 8px
   align-self: stretch
 }
 
@@ -35,13 +37,23 @@
   color: var(--accent-color)
   font-weight: 900
   font-size: var(--font-size-large)
+  transition: color 100ms ease-in-out
+
+  &:hover {
+    color: var(--accent-alt)
+  }
 }
 
 .subdir {
+  transition: color 100ms ease-in-out
   margin-left: var(--space-2)
   color: var(--secondary-color)
   font-weight: 700
   font-size: var(--font-size-large)
+
+  &:hover {
+    color: var(--accent-alt)
+  }
 }
 
 .nav-item {

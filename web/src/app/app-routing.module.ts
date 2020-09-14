@@ -15,6 +15,7 @@ import {
   NotLoggedInRedirectToDashboardGuard,
 } from 'src/services/account_service';
 import { AdminForbiddenPageComponent } from 'src/views/default/admin-forbidden-page/admin-forbidden-page.component';
+import { AboutPageComponent } from 'src/views/default/about-page/about-page.component';
 
 const routes: Routes = [
   {
@@ -45,6 +46,10 @@ const routes: Routes = [
   {
     path: 'login',
     component: LoginPageComponent,
+  },
+  {
+    path: 'about',
+    component: AboutPageComponent,
   },
   {
     path: 'admin',
