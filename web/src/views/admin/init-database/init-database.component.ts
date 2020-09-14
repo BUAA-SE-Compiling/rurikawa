@@ -50,10 +50,13 @@ export class InitDatabaseComponent implements OnInit {
   }
 
   ngOnInit(): void {
-    this.adminService.isServerInitialized().then((v) => {
-      if (v) {
-        this.router.navigate(['/admin']);
-      }
+    this.adminService.isServerInitialized().subscribe({
+      next: (v) => {
+        if (v) {
+          console.warn('Already initialzed! redirecting');
+          this.router.navigate(['/admin']);
+        }
+      },
     });
   }
 }

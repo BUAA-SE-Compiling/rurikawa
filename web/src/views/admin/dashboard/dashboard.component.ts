@@ -11,7 +11,7 @@ export class DashboardComponent implements OnInit {
   constructor(private adminService: AdminService, private router: Router) {}
 
   ngOnInit(): void {
-    this.adminService.isServerInitialized().then((v) => {
+    this.adminService.isServerInitialized().subscribe((v) => {
       if (!v) {
         this.router.navigate(['/admin', 'init-db']);
       }

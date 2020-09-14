@@ -55,6 +55,7 @@ const routes: Routes = [
   },
   {
     path: '403',
+    pathMatch: 'full',
     component: AdminForbiddenPageComponent,
   },
   {
