@@ -66,6 +66,9 @@ export interface JobItem {
   time: Moment;
   numberBrief: string;
   status: JobStatus[];
+  repo: string;
+  branch: string;
+  revision: string;
 }
 
 export type JobStage =
@@ -107,6 +110,7 @@ export interface Job {
   account: string;
   repo: string;
   branch: string | undefined;
+  revision: string;
   testSuite: string;
   tests: string[];
   stage: JobStage;
@@ -159,5 +163,8 @@ export function JobToJobItem(job: Job): JobItem {
     numberBrief: getNumberBrief(job),
     status: getStatus(job),
     time: extractTime(job.id),
+    repo: job.repo,
+    branch: job.branch ?? 'HEAD',
+    revision: job.revision,
   };
 }

@@ -96,7 +96,7 @@ export class TestSuiteViewComponent implements OnInit {
 
     let newJobMsg: NewJobMessage = {
       repo,
-      branch,
+      ref: branch,
       testSuite: this.suite.id,
       tests,
     };

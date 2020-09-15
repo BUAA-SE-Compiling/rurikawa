@@ -20,6 +20,10 @@ export class DashboardComponent implements OnInit {
 
   suite: TestSuite[];
 
+  navigateToSuite(id: string) {
+    this.router.navigate(['admin', 'suite', id]);
+  }
+
   fetchTestSuites() {
     this.httpClient
       .get<TestSuite[]>(environment.endpointBase + endpoints.testSuite.query, {

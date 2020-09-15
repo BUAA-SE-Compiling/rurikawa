@@ -24,10 +24,11 @@
   }
 }
 
-.name {
+.id {
   lost-column: 1 / 4
-  font-size: var(--font-size-larger)
-  font-weight: 600
+  // font-size: var(--font-size-larger)
+  font-size: var(--font-size-smaller)
+  color: var(--secondary-color)
 
   .compact & {
     lost-column: 1 / 2
@@ -35,9 +36,15 @@
 }
 
 .time {
-  lost-column: 1 / 1
-  color: var(--alt-primary)
+  lost-column: 1 / 4
   font-variant-numeric: tabular-nums
+}
+
+.repo {
+  font-size: var(--font-size-smaller)
+  lost-column: 1 / 4
+  text-align: right
+  color: var(--secondary-color)
 }
 
 .score {

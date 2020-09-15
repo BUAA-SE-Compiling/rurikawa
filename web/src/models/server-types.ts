@@ -49,7 +49,7 @@ export interface JudgerEntry {
 
 export interface NewJobMessage {
   repo: string;
-  branch?: string;
+  ref?: string;
   testSuite: string;
   tests: string[];
 }

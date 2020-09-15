@@ -1,15 +1,20 @@
-import { Component, OnInit } from '@angular/core';
+import { Component, OnInit, Input } from '@angular/core';
+import { TestSuite } from 'src/models/server-types';
+import { extractTime } from 'src/models/flowsnake';
 
 @Component({
-  selector: 'app-dashboard-item',
+  selector: 'app-admin-dashboard-item',
   templateUrl: './dashboard-item.component.html',
-  styleUrls: ['./dashboard-item.component.styl']
+  styleUrls: ['./dashboard-item.component.styl'],
 })
-export class DashboardItemComponent implements OnInit {
+export class AdminDashboardItemComponent implements OnInit {
+  constructor() {}
 
-  constructor() { }
+  @Input() item: TestSuite;
 
-  ngOnInit(): void {
+  get time() {
+    return extractTime(this.item.id).local().format('YYYY-MM-DD HH:mm');
   }
 
+  ngOnInit(): void {}
 }

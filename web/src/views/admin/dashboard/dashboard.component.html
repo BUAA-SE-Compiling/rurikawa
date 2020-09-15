@@ -10,10 +10,14 @@
     <div class="row text">
       <h1>作业</h1>
       <div class="space"></div>
-      <div class="ghost-btn">创建</div>
+      <div class="ghost-btn" routerLink="/admin/suite/create">创建</div>
     </div>
     <div class="wrapper">
-      <div *ngFor="let i of suite">{{ i | json }}</div>
+      <app-admin-dashboard-item
+        *ngFor="let i of suite"
+        [item]="i"
+        (click)="navigateToSuite(i.id)"
+      ></app-admin-dashboard-item>
     </div>
   </div>
 </div>

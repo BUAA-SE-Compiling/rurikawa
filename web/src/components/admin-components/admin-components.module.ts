@@ -1,14 +1,10 @@
 import { NgModule } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { DashboardItemComponent } from './dashboard-item/dashboard-item.component';
-
-
+import { AdminDashboardItemComponent } from './dashboard-item/dashboard-item.component';
 
 @NgModule({
-  declarations: [DashboardItemComponent],
-  imports: [
-    CommonModule
-  ],
-  exports: [DashboardItemComponent]
+  declarations: [AdminDashboardItemComponent],
+  imports: [CommonModule],
+  exports: [AdminDashboardItemComponent],
 })
-export class AdminComponentsModule { }
+export class AdminComponentsModule {}
