@@ -386,10 +386,10 @@ pub async fn handle_job(
     let job_path = cfg.job_folder(job.id);
     let _ = fs::ensure_removed_dir(&job_path).await;
     fs::net::git_clone(
-        Some(&job_path),
+        &job_path,
         fs::net::GitCloneOptions {
             repo: job.repo,
-            branch: job.branch,
+            revision: job.revision,
             depth: 3,
         },
     )

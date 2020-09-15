@@ -73,6 +73,12 @@ namespace Karenia.Rurikawa.Models.Judger {
         public string? Branch { get; set; }
 
         /// <summary>
+        /// The revision of that repo to be tested. This is the actual data sent
+        /// to judgers.
+        /// </summary>
+        public string Revision { get; set; }
+
+        /// <summary>
         /// The job suite to test.
         /// </summary>
         public FlowSnake TestSuite { get; set; }

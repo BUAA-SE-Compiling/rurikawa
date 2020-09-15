@@ -30,7 +30,7 @@ pub struct AbortJob {
 pub struct Job {
     pub id: FlowSnake,
     pub repo: String,
-    pub branch: Option<String>,
+    pub revision: String,
     pub test_suite: FlowSnake,
     pub tests: Vec<String>,
     pub stage: JobStage,

@@ -55,7 +55,7 @@ namespace Karenia.Rurikawa.Coordinator.Controllers {
 #pragma warning disable 
         public class NewJobMessage {
             public string Repo { get; set; }
-            public string? Branch { get; set; }
+            public string? Ref { get; set; }
             public FlowSnake TestSuite { get; set; }
             public List<string> Tests { get; set; }
         }
@@ -74,17 +74,51 @@ namespace Karenia.Rurikawa.Coordinator.Controllers {
                 Id = id,
                 Account = account,
                 Repo = m.Repo,
-                Branch = m.Branch,
+                Branch = m.Ref,
                 TestSuite = m.TestSuite,
                 Tests = m.Tests,
                 Stage = JobStage.Queued,
             };
             try {
+                var result = await GetRevision(job);
+                if (result == null) {
+                    return BadRequest(new ErrorResponse("No such revision"));
+                } else {
+                    job.Revision = result;
+                }
                 await coordinatorService.ScheduleJob(job);
             } catch (KeyNotFoundException) {
-                return BadRequest("No such test suite");
+                return BadRequest(new ErrorResponse("No such test suite"));
             }
             return Ok(id.ToString());
+        }
+
+        /// <summary>
+        /// Get the revision commit that is 
+        /// </summary>
+        /// <param name="job"></param>
+        /// <returns></returns>
+        public async Task<string?> GetRevision(Job job) {
+            System.Diagnostics.ProcessStartInfo command = new System.Diagnostics.ProcessStartInfo("git");
+            command.ArgumentList.Add("ls-remote");
+            command.ArgumentList.Add(job.Repo);
+            command.ArgumentList.Add(job.Revision);
+            command.ArgumentList.Add("-q");
+            command.ArgumentList.Add("--exit-code");
+
+            command.RedirectStandardOutput = true;
+
+            var process = System.Diagnostics.Process.Start(command);
+            var stdout = await process.StandardOutput.ReadToEndAsync();
+            await Task.Run(process.WaitForExit);
+            var exitCode = process.ExitCode;
+
+            if (exitCode == 0) {
+                var rev = stdout.Split('\t')[0];
+                return rev;
+            } else {
+                return null;
+            }
         }
     }
 }
