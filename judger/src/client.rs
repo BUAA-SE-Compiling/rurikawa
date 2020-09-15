@@ -159,6 +159,13 @@ impl SharedClientData {
         test_suite_temp_folder
     }
 
+    pub fn random_temp_file_path(&self) -> PathBuf {
+        let mut root = self.temp_file_folder_root();
+        let random_filename = FlowSnake::generate().to_string();
+        root.push(random_filename);
+        root
+    }
+
     pub fn obtain_suite_lock(&self, suite_id: FlowSnake) -> Arc<Mutex<()>> {
         let cur = self
             .locked_test_suite
@@ -259,8 +266,7 @@ pub async fn check_download_read_test_suite(
     suite_id: FlowSnake,
     cfg: &SharedClientData,
 ) -> Result<JudgerPublicConfig, ClientErr> {
-    let endpoint = cfg.test_suite_download_endpoint(suite_id);
-
+    log::info!("Checking test suite {}", suite_id);
     let suite_folder_root = cfg.test_suite_folder_root();
     tokio::fs::create_dir_all(suite_folder_root).await?;
     let suite_folder = cfg.test_suite_folder(suite_id);
@@ -281,8 +287,19 @@ pub async fn check_download_read_test_suite(
             }
         };
         if !dir_exists {
-            fs::net::download_unzip(&endpoint, &suite_folder, &cfg.temp_file_folder_root()).await?;
+            let endpoint = cfg.test_suite_download_endpoint(suite_id);
+            let filename = cfg.random_temp_file_path();
+            let file_folder_root = cfg.temp_file_folder_root();
+            tokio::fs::create_dir_all(file_folder_root).await?;
+            log::info!(
+                "Test suite does not exits. Initiating download of suite {} from {} to {:?}",
+                suite_id,
+                &endpoint,
+                &filename
+            );
+            fs::net::download_unzip(&endpoint, &suite_folder, &filename).await?;
         }
+        log::info!("Suite downloaded");
         cfg.suite_unlock(suite_id);
     }
 

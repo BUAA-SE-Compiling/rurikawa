@@ -1,7 +1,9 @@
 //! Functions to download stuff into destinations
+use futures::{SinkExt, StreamExt};
 use std::path::Path;
 use std::str::FromStr;
-use tokio::{io::AsyncWriteExt, process::Command};
+use tokio::io::{AsyncReadExt, AsyncWriteExt};
+use tokio::process::Command;
 
 #[derive(Debug)]
 pub struct GitCloneOptions {
@@ -72,34 +74,25 @@ pub async fn git_clone(dir: &Path, options: GitCloneOptions) -> std::io::Result<
 }
 
 pub async fn download_unzip(url: &str, dir: &Path, temp_file_path: &Path) -> anyhow::Result<()> {
-    log::info!("Downloading from {} to {:?}", url, dir);
-    let mut resp = reqwest::get(url).await?.error_for_status()?;
-
-    let content_length = resp
-        .headers()
-        .get("Content-Length")
-        .and_then(|v| v.to_str().ok())
-        .and_then(|l| usize::from_str(l).ok());
-
+    log::info!("Downloading from {} to {}", url, temp_file_path.display());
+    let resp = reqwest::get(url).await?;
+    if !resp.status().is_success() {
+        return Err(std::io::Error::new(
+            std::io::ErrorKind::Other,
+            format!("Response failed with status {}", resp.status()),
+        )
+        .into());
+    }
     let mut file = tokio::fs::File::create(temp_file_path).await?;
 
-    let mut downloaded_bytes = 0;
+    let mut stream = resp.bytes_stream();
 
-    while let Some(chunk) = resp.chunk().await? {
-        downloaded_bytes += chunk.len();
-        if let Some(len) = content_length {
-            log::info!(
-                "{}/{} ({:>6.2}%) downloaded from {}",
-                downloaded_bytes,
-                len,
-                (downloaded_bytes as f64) / (len as f64) * 100f64,
-                url
-            );
-        } else {
-            log::info!("{} bytes downloaded from {}", downloaded_bytes, url);
-        }
-        file.write_all(&chunk).await?;
+    while let Some(bytes) = stream.next().await {
+        let bytes = bytes?;
+        log::info!("Writing {} bytes into {}", bytes.len(), dir.display());
+        file.write_all(&bytes).await?;
     }
+    file.flush();
     drop(file);
 
     let unzip_res = Command::new("7z")
