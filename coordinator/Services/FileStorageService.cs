@@ -49,11 +49,12 @@ namespace Karenia.Rurikawa.Coordinator.Services {
             this.endpoint = endpoint;
             this.publicEndpoint = publicEndpoint;
             var endpointUri = new UriBuilder(publicEndpoint ?? this.endpoint);
-            if (endpointUri.Host == null || endpointUri.Host == "") {
+            if (endpointUri.Host == null || endpointUri.Host == "" || endpointUri.Scheme != null || endpointUri.Scheme != "") {
             } else {
                 endpointUri.Scheme = hasPublicSsl ? "https" : "http";
             }
-            this.publicEndpointUri = new Uri(endpointUri.Uri, bucket);
+            this.publicEndpointUri = new Uri(endpointUri.Uri, bucket + "/");
+            logger.LogInformation("Set up public endpoint as {0}", publicEndpointUri.ToString());
             this.hasSsl = hasSsl;
             this.logger = logger;
         }
@@ -116,7 +117,10 @@ namespace Karenia.Rurikawa.Coordinator.Services {
         public string GetFileAddress(
             string filename
         ) {
+            // filename must be a relative directory
+            filename = filename.TrimStart('/');
             var uri = new Uri(publicEndpointUri, filename);
+            logger.LogInformation("Mapped endpoint {0} as {1}", filename, uri.ToString());
             return uri.ToString();
         }
     }

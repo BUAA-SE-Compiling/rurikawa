@@ -1,9 +1,14 @@
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using System.Security.Claims;
 using System.Text;
+using System.Text.Unicode;
+using System.Threading;
 using System.Threading.Tasks;
+using CliWrap;
+using CliWrap.Buffered;
 using Karenia.Rurikawa.Coordinator.Services;
 using Karenia.Rurikawa.Helpers;
 using Karenia.Rurikawa.Models;
@@ -86,9 +91,14 @@ namespace Karenia.Rurikawa.Coordinator.Controllers {
                 } else {
                     job.Revision = result;
                 }
+                logger.LogInformation("Scheduleing job {0}", job.Id);
                 await coordinatorService.ScheduleJob(job);
             } catch (KeyNotFoundException) {
+                logger.LogInformation("No such test suite {1} for job {0}", job.Id, job.TestSuite);
                 return BadRequest(new ErrorResponse("No such test suite"));
+            } catch (TaskCanceledException) {
+                logger.LogInformation("Fetching for job {0} timed out", job.Id);
+                return BadRequest(new ErrorResponse("Timed out fetching revision"));
             }
             return Ok(id.ToString());
         }
@@ -99,19 +109,21 @@ namespace Karenia.Rurikawa.Coordinator.Controllers {
         /// <param name="job"></param>
         /// <returns></returns>
         public async Task<string?> GetRevision(Job job) {
-            System.Diagnostics.ProcessStartInfo command = new System.Diagnostics.ProcessStartInfo("git");
-            command.ArgumentList.Add("ls-remote");
-            command.ArgumentList.Add(job.Repo);
-            command.ArgumentList.Add(job.Revision);
-            command.ArgumentList.Add("-q");
-            command.ArgumentList.Add("--exit-code");
+            var cancel = new CancellationTokenSource();
+            cancel.CancelAfter(30_000);
 
-            command.RedirectStandardOutput = true;
+            logger.LogInformation("Fetching revision for job {0}", job.Id);
 
-            var process = System.Diagnostics.Process.Start(command);
-            var stdout = await process.StandardOutput.ReadToEndAsync();
-            await Task.Run(process.WaitForExit);
-            var exitCode = process.ExitCode;
+            var res = await Cli.Wrap("git").WithArguments(new List<string>(){
+                "ls-remote",
+                job.Repo,
+                job.Branch??"HEAD",
+                "-q",
+                "--exit-code"
+            }).ExecuteBufferedAsync(cancel.Token);
+
+            var stdout = res.StandardOutput;
+            var exitCode = res.ExitCode;
 
             if (exitCode == 0) {
                 var rev = stdout.Split('\t')[0];

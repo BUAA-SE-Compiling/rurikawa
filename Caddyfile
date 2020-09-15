@@ -2,10 +2,6 @@
     # TODO: serve web files
     root * /app
 
-    log {
-        format console
-    }
-
     @api {
         path /api/* /swagger/*
     }
@@ -29,6 +25,10 @@
         uri strip_prefix /file
         reverse_proxy {
             to minio-oss:9000
+        }
+        header {
+            Location ^ /file
+            defer
         }
     }
 
@@ -62,7 +62,7 @@
         }
     }
 
-    handle @not_api {
+    handle {
         try_files {path} {path}.html {path}.htm index.html index.htm
         file_server
     }

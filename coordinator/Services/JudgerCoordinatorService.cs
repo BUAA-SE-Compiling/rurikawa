@@ -101,9 +101,8 @@ namespace Karenia.Rurikawa.Coordinator.Services {
                         wsLogger);
                     var judger = new Judger(auth, wrapper);
                     {
-                        await connectionLock.WaitAsync();
+                        using var _ = await connectionLock.LockAsync();
                         connections.Add(auth, judger);
-                        connectionLock.Release();
                     }
                     logger.LogInformation($"Connected to judger {auth}");
 
@@ -127,9 +126,8 @@ namespace Karenia.Rurikawa.Coordinator.Services {
                     logger.LogInformation($"Disconnected from judger {auth}");
 
                     {
-                        await connectionLock.WaitAsync();
+                        using var _ = await connectionLock.LockAsync();
                         connections.Remove(auth);
-                        connectionLock.Release();
                     }
                     return true;
                 } else {
@@ -161,27 +159,27 @@ namespace Karenia.Rurikawa.Coordinator.Services {
         }
 
         async void OnJudgerStatusUpdateMessage(string clientId, ClientStatusMsg msg) {
-            await queueLock.WaitAsync(); try {
+            using (await queueLock.LockAsync()) {
+                logger.LogInformation("lock");
                 // should we dispatch a new job for this judger?
                 var remainingDispatches = msg.RequestForNewTask;
-                await connectionLock.WaitAsync(); try {
+                using (await connectionLock.LockAsync()) {
+                    logger.LogInformation("lock2");
                     if (connections.TryGetValue(clientId, out var conn)) {
                         conn.CanAcceptNewTask = msg.CanAcceptNewTask;
                         conn.ActiveTaskCount = msg.ActiveTaskCount;
                         while (remainingDispatches > 0) {
                             if (await TryDispatchJobFromDatabase(conn)) {
                                 remainingDispatches--;
+                            } else {
+                                break;
                             }
                         }
                     }
-                } finally {
-                    connectionLock.Release();
                 }
                 for (ulong i = 0; i < remainingDispatches; i++)
                     JudgerQueue.Enqueue(clientId);
                 logger.LogInformation("Status::Judger: {0}", DEBUG_LogEnumerator(JudgerQueue));
-            } finally {
-                queueLock.Release();
             }
         }
 
@@ -236,8 +234,7 @@ namespace Karenia.Rurikawa.Coordinator.Services {
         }
 
         private async Task<Judger?> TryGetNextUsableJudger(bool blockNewTasks) {
-            await connectionLock.WaitAsync();
-            try {
+            using (await connectionLock.LockAsync()) {
                 while (JudgerQueue.TryDequeue(out var nextJudger)) {
                     if (connections.TryGetValue(nextJudger, out var conn)) {
                         if (conn.CanAcceptNewTask) {
@@ -248,8 +245,6 @@ namespace Karenia.Rurikawa.Coordinator.Services {
                         }
                     }
                 }
-            } finally {
-                connectionLock.Release();
             }
             return null;
         }
@@ -275,20 +270,19 @@ namespace Karenia.Rurikawa.Coordinator.Services {
         protected async ValueTask<bool> TryDispatchJobFromDatabase(Judger judger) {
             using var scope = scopeProvider.CreateScope();
             var db = GetDb(scope);
-            while (true) {
-                var job = await GetLastUndispatchedJobFromDatabase(db);
-                if (job == null) return false;
-                job.Stage = JobStage.Dispatched;
+            Console.WriteLine("aaa");
+            var job = await GetLastUndispatchedJobFromDatabase(db);
+            if (job == null) return false;
+            job.Stage = JobStage.Dispatched;
+            await db.SaveChangesAsync();
+            try {
+                await DispatchJob(judger, job);
+                return true;
+            } catch {
+                job.Stage = JobStage.Queued;
                 await db.SaveChangesAsync();
-                try {
-                    await DispatchJob(judger, job);
-                    break;
-                } catch {
-                    job.Stage = JobStage.Queued;
-                    await db.SaveChangesAsync();
-                }
+                return false;
             }
-            return true;
         }
 
         protected static string DEBUG_LogEnumerator<T>(IEnumerable<T> x) {
@@ -310,6 +304,7 @@ namespace Karenia.Rurikawa.Coordinator.Services {
 
         public async Task ScheduleJob(Job job) {
             // Save this job to database
+            logger.LogInformation("Scheduleing job {0}", job.Id);
             using var scope = scopeProvider.CreateScope();
             var db = GetDb(scope);
 
@@ -321,7 +316,8 @@ namespace Karenia.Rurikawa.Coordinator.Services {
             bool success = false;
 
             // Lock queue so no one can write to it, leading to race conditions
-            await queueLock.WaitAsync(); try {
+            logger.LogInformation("Locking queue lock: {0}", queueLock.CurrentCount);
+            using (await queueLock.LockAsync()) {
                 while (!success) {
                     logger.LogInformation("Schedule::Judger: {0}", DEBUG_LogEnumerator(JudgerQueue));
                     // Get the first usable judger
@@ -339,8 +335,6 @@ namespace Karenia.Rurikawa.Coordinator.Services {
                     // If this try is unsuccessful, try a next one until
                     // no judger is usable
                 }
-            } finally {
-                queueLock.Release();
             }
 
             db.Jobs.Add(job);

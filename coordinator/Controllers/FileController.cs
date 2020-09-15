@@ -8,7 +8,7 @@ using Microsoft.Extensions.Logging;
 
 namespace Karenia.Rurikawa.Coordinator.Controllers {
     [ApiController]
-    [Route("api/v1/file")]
+    [Route("api/v1/file/")]
     public class GetFileController : ControllerBase {
         private readonly ILogger<JudgerApiController> _logger;
         private readonly SingleBucketFileStorageService fs;
@@ -22,7 +22,8 @@ namespace Karenia.Rurikawa.Coordinator.Controllers {
 
         [Route("{**name}")]
         public IActionResult GetFile(string name) {
-            return RedirectPermanent(fs.GetFileAddress(name));
+            string url = fs.GetFileAddress(name);
+            return RedirectPreserveMethod(url);
         }
     }
 }

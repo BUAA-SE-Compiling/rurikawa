@@ -59,17 +59,11 @@ namespace Karenia.Rurikawa.Coordinator.Controllers {
             return Ok(filename);
         }
 
-        [Route("download-suite/{suite_}")]
+        [Route("download-suite/{suite}")]
         public async Task<IActionResult> DownloadSuite(
-             string suite_,
+            [FromRoute] FlowSnake suite,
             [FromServices] RurikawaDb db) {
-            FlowSnake suite;
-            try { suite = new FlowSnake(suite_); } catch {
-                return BadRequest("Invalid suite id");
-            }
-
             var test_suite = await db.TestSuites.SingleOrDefaultAsync(s => s.Id == suite);
-
             return Redirect($"/api/v1/file/{test_suite.PackageFileId}");
         }
     }

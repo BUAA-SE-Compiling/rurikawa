@@ -11,6 +11,7 @@
   <ItemGroup>
     <PackageReference Include="AsyncPrimitives" Version="1.8.0" />
     <PackageReference Include="BCrypt.Net-Next" Version="4.0.0" />
+    <PackageReference Include="CliWrap" Version="3.1.1" />
     <PackageReference Include="Dahomey.Json" Version="1.9.0" />
     <PackageReference Include="JWT" Version="7.2.1" />
     <PackageReference Include="Marques.EFCorev3.0.SnakeCase" Version="1.0.13" />
