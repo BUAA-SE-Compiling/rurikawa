@@ -4,16 +4,22 @@ use super::{
     ExecError, ExecErrorKind, JobFailure, OutputMismatch, ProcessInfo,
 };
 use crate::{
+    client::model::ResultUploadConfig,
     client::model::{upload_test_result, TestResult, TestResultKind},
     prelude::*,
 };
 use anyhow::Result;
+use bollard::models::Mount;
 use futures::stream::StreamExt;
+use path_absolutize::Absolutize;
 use serde::{self, Deserialize, Serialize};
-use std::fs;
-use std::io::{self, prelude::*};
 use std::time;
 use std::{collections::HashMap, path::PathBuf, string::String};
+use std::{fs, path::Path};
+use std::{
+    io::{self, prelude::*},
+    sync::Arc,
+};
 
 #[cfg(unix)]
 use super::utils::strsignal;
@@ -211,10 +217,10 @@ pub enum Image {
     Dockerfile {
         /// Name to be assigned to the image.
         tag: String,
-        /// Path of the context directory.
+        /// Path of the context directory, relative to the context directory.
         path: PathBuf,
         /// Path of the dockerfile itself, relative to the context directory.
-        /// Leaving this value to None means using the default dockerfile: `Dockerfile`.
+        /// Leaving this value to None means using the default dockerfile: `path/Dockerfile`.
         file: Option<PathBuf>,
     },
 }
@@ -224,6 +230,22 @@ impl Image {
         match &self {
             Image::Image { tag, .. } => tag.to_owned(),
             Image::Dockerfile { tag, .. } => tag.to_owned(),
+        }
+    }
+
+    pub fn replace_with_absolute_dir(&mut self, base_dir: PathBuf) {
+        match self {
+            Image::Image { .. } => {}
+            Image::Dockerfile { path, file, .. } => {
+                if let Some(file) = file {
+                    let mut file_base = base_dir.clone();
+                    file_base.push(&file);
+                    *file = file_base;
+                }
+                let mut path_base = base_dir;
+                path_base.push(&path);
+                *path = path_base;
+            }
         }
     }
 
@@ -308,26 +330,24 @@ pub struct Bind {
     to: PathBuf,
     /// Extra options for this bind. Leave a new `String` for empty.
     /// For details see [here](https://docs.rs/bollard/0.7.2/bollard/service/struct.HostConfig.html#structfield.binds).
-    options: String,
+    readonly: bool,
 }
 
 impl Bind {
-    /// Generate a `host-src:container-dest[:options]` string for the binding.
-    /// For details see [here](https://docs.rs/bollard/0.7.2/bollard/service/struct.HostConfig.html#structfield.binds).
-    pub fn stringify(&self) -> String {
-        fn strip_quote(s: &str) -> Option<&str> {
-            s.strip_prefix("\"")?.strip_suffix("\"")
+    pub fn canonical_from(&mut self, base_dir: &Path) {
+        let mut from_base = base_dir.to_owned();
+        from_base.push(&self.from);
+        self.from = from_base.absolutize().unwrap().into_owned();
+    }
+
+    pub fn to_mount(&self) -> Mount {
+        Mount {
+            target: Some(self.to.display().to_string()),
+            source: Some(self.from.display().to_string()),
+            typ: Some(bollard::models::MountTypeEnum::BIND),
+            read_only: self.readonly.into(),
+            ..Default::default()
         }
-        let Bind { from, to, options } = self;
-        let from = format!("{:?}", std::fs::canonicalize(from).unwrap());
-        let from = strip_quote(&from).unwrap();
-        let to = format!("{:?}", to);
-        let to = strip_quote(&to).unwrap();
-        let mut res = format!("{}:{}", from, to);
-        if !options.is_empty() {
-            res.push_str(&format!(":{}", options));
-        }
-        res
     }
 }
 
@@ -408,7 +428,7 @@ pub struct TestSuite {
     image: Option<Image>,
     /// `host-src:container-dest` volume bindings for the container.
     /// For details see [here](https://docs.rs/bollard/0.7.2/bollard/service/struct.HostConfig.html#structfield.binds).
-    pub binds: Option<Vec<String>>,
+    pub binds: Option<Vec<Mount>>,
     /// Initialization options for `Testsuite`.
     pub options: TestSuiteOptions,
 }
@@ -420,6 +440,7 @@ impl TestSuite {
 
     pub fn from_config(
         image: Image,
+        base_dir: &Path,
         private_cfg: JudgerPrivateConfig,
         public_cfg: JudgerPublicConfig,
         options: TestSuiteOptions,
@@ -488,18 +509,26 @@ impl TestSuite {
             image: Some(image),
             test_cases,
             options,
-            binds: public_cfg
-                .binds
-                .map(|bs| bs.iter().map(|b| b.stringify()).collect()),
+            binds: public_cfg.binds.map(|bs| {
+                bs.iter()
+                    .map(|b| {
+                        let mut b = b.clone();
+                        b.canonical_from(base_dir);
+                        b.to_mount()
+                    })
+                    .collect()
+            }),
         })
     }
 
     pub async fn run(
         &mut self,
         instance: bollard::Docker,
+        base_dir: PathBuf,
         result_channel: Option<tokio::sync::mpsc::UnboundedSender<(String, TestResult)>>,
-        upload_info: Option<(&str, reqwest::Client)>,
+        upload_info: Option<Arc<ResultUploadConfig>>,
     ) -> anyhow::Result<HashMap<String, TestResult>> {
+        let rnd_id = rand::random::<u32>();
         let TestSuiteOptions {
             time_limit,
             mem_limit,
@@ -508,9 +537,14 @@ impl TestSuite {
             ..
         } = self.options;
 
+        log::trace!("{:08x}: started", rnd_id);
+
         // Take ownership of the `Image` instance stored in `Self`
-        let image = std::mem::replace(&mut self.image, None)
+        let mut image = self
+            .image
+            .take()
             .expect("TestSuite instance not fully constructed");
+        image.replace_with_absolute_dir(base_dir);
         let image_tag = image.tag();
         let runner = DockerCommandRunner::try_new(instance, image, {
             DockerCommandRunnerOptions {
@@ -524,6 +558,8 @@ impl TestSuite {
         .await
         .unwrap_or_else(|e| panic!("Failed to create command runner `{}`: {}", &image_tag, e));
 
+        log::trace!("{:08x}: runner created", rnd_id);
+
         // TODO: Remove drain when this compiler issue gets repaired:
         // https://github.com/rust-lang/rust/issues/64552
         let res = futures::stream::iter(self.test_cases.drain(..))
@@ -531,7 +567,10 @@ impl TestSuite {
                 let upload_info = upload_info.clone();
                 let result_channel = result_channel.clone();
                 let runner = &runner;
+                let rnd_id = rnd_id;
                 async move {
+                    log::trace!("{:08x}: started test: {}", rnd_id, case.name);
+
                     result_channel.as_ref().map(|ch| {
                         ch.send((
                             case.name.clone(),
@@ -549,8 +588,23 @@ impl TestSuite {
                         ));
                     });
                     t.expected(&case.expected_out);
+
+                    log::trace!("{:08x}: created test: {}", rnd_id, case.name);
+
                     let res = t.run(runner).await;
-                    let res = upload_test_result(res, upload_info).await;
+
+                    log::trace!("{:08x}: runned: {}", rnd_id, case.name);
+
+                    let (mut res, cache) = TestResult::from_failure(res);
+                    if let Some(cfg) = upload_info {
+                        if let Some(cache) = cache {
+                            let file = upload_test_result(cache, cfg, &case.name).await;
+                            res.result_file_id = file;
+                        }
+                    }
+
+                    log::trace!("{:08x}: uploaded result: {}", rnd_id, case.name);
+
                     result_channel
                         .as_ref()
                         .map(|ch| ch.send((case.name.clone(), res.clone())));
@@ -562,6 +616,8 @@ impl TestSuite {
             .await;
 
         runner.kill().await;
+
+        log::trace!("{:08x}: finished", rnd_id);
 
         Ok(res)
     }
@@ -939,6 +995,7 @@ mod test_suite {
                     path: host_repo_dir,
                     file: None,
                 },
+                &std::env::current_dir().unwrap(),
                 JudgerPrivateConfig {
                     test_root_dir: PathBuf::from(r"../golem/src"),
                 },
@@ -974,7 +1031,8 @@ mod test_suite {
             )?;
 
             let instance = bollard::Docker::connect_with_local_defaults().unwrap();
-            ts.run(instance, None, None).await?;
+            ts.run(instance, std::env::current_dir().unwrap(), None, None)
+                .await?;
             Ok(())
         })
     }
@@ -992,6 +1050,7 @@ mod test_suite {
                     path: host_repo_dir, // public: c# gives repo remote, rust clone and unzip
                     file: None,
                 },
+                &std::env::current_dir().unwrap(),
                 JudgerPrivateConfig {
                     test_root_dir: PathBuf::from(r"../golem/src"), // private
                 },
@@ -1000,7 +1059,7 @@ mod test_suite {
                     binds: Some(vec![Bind {
                         from: PathBuf::from(r"../golem/src"), // private
                         to: PathBuf::from(r"/src"),           // private
-                        options: "ro".to_owned(),
+                        readonly: true,
                     }]),
                     mapped_dir: PathBuf::from(r"/src"), // private
                     run: [
@@ -1031,7 +1090,8 @@ mod test_suite {
             )?;
 
             let instance = bollard::Docker::connect_with_local_defaults().unwrap();
-            ts.run(instance, None, None).await?;
+            ts.run(instance, std::env::current_dir().unwrap(), None, None)
+                .await?;
             Ok(())
         })
     }

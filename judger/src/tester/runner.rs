@@ -4,7 +4,7 @@ use super::{JobFailure, ProcessInfo};
 use crate::prelude::*;
 use anyhow::Result;
 use async_trait::async_trait;
-use bollard::Docker;
+use bollard::{models::Mount, Docker};
 use futures::stream::StreamExt;
 use names::{Generator, Name};
 use std::default::Default;
@@ -86,7 +86,7 @@ pub struct DockerCommandRunnerOptions {
     pub remove_image: bool,
     /// `host-src:container-dest` volume bindings for the container.
     /// For details see [here](https://docs.rs/bollard/0.7.2/bollard/service/struct.HostConfig.html#structfield.binds).
-    pub binds: Option<Vec<String>>,
+    pub binds: Option<Vec<Mount>>,
 }
 
 impl Default for DockerCommandRunnerOptions {
@@ -114,11 +114,15 @@ impl DockerCommandRunner {
             options,
         };
 
+        log::trace!("container {}: started building", res.options.container_name);
+
         // Build the image
         if res.options.build_image {
             res.image.build(res.instance.clone()).await?
         };
         let image_name = res.image.tag();
+
+        log::trace!("container {}: creating", res.options.container_name);
 
         // Create a container
         res.instance
@@ -133,7 +137,7 @@ impl DockerCommandRunner {
                     attach_stderr: Some(true),
                     tty: Some(true),
                     host_config: Some(bollard::service::HostConfig {
-                        binds: res.options.binds.clone(),
+                        mounts: res.options.binds.clone(),
                         ..Default::default()
                     }),
                     ..Default::default()
@@ -166,6 +170,7 @@ impl DockerCommandRunner {
                 ))
             })?;
 
+        log::trace!("container {}: starting", res.options.container_name);
         // Start the container
         res.instance
             .start_container(
@@ -180,6 +185,7 @@ impl DockerCommandRunner {
                 ))
             })?;
 
+        log::trace!("container {}: finished", res.options.container_name);
         Ok(res)
     }
 

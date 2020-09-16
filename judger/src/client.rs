@@ -198,6 +198,7 @@ impl SharedClientData {
 #[derive(Debug)]
 pub enum ClientErr {
     NoSuchFile(String),
+    NoSuchConfig(String),
     Io(std::io::Error),
     Ws(tungstenite::Error),
     Json(serde_json::Error),
@@ -343,6 +344,10 @@ pub async fn handle_job_wrapper(job: NewJob, send: Arc<Mutex<WsSink>>, cfg: Arc<
                     JobResultKind::CompileError,
                     format!("Cannot find file: {}", f),
                 ),
+                ClientErr::NoSuchConfig(f) => (
+                    JobResultKind::CompileError,
+                    format!("Cannot find config for {} in `judger.toml`", f),
+                ),
                 ClientErr::Io(e) => (JobResultKind::JudgerError, format!("IO error: {:?}", e)),
                 ClientErr::Ws(e) => (
                     JobResultKind::JudgerError,
@@ -361,7 +366,7 @@ pub async fn handle_job_wrapper(job: NewJob, send: Arc<Mutex<WsSink>>, cfg: Arc<
                 .await
                 .send_msg(&ClientMsg::JobResult(JobResultMsg {
                     job_id,
-                    test_results: HashMap::new(),
+                    results: HashMap::new(),
                     job_result: err,
                     message: Some(msg),
                 }))
@@ -395,7 +400,7 @@ pub async fn handle_job(
         .await
         .send_msg(&ClientMsg::JobProgress(JobProgressMsg {
             job_id: job.id,
-            job_stage: JobStage::Fetching,
+            stage: JobStage::Fetching,
         }))
         .await?;
 
@@ -432,11 +437,19 @@ pub async fn handle_job(
     let judge_job_cfg = judge_cfg
         .jobs
         .get(&public_cfg.name)
-        .ok_or_else(|| ClientErr::NoSuchFile(public_cfg.name.to_owned()))?;
+        .ok_or_else(|| ClientErr::NoSuchConfig(public_cfg.name.to_owned()))?;
 
     let image = judge_job_cfg.image.clone();
 
     log::info!("Job {}: prepare to run", job.id);
+
+    send.lock()
+        .await
+        .send_msg(&ClientMsg::JobProgress(JobProgressMsg {
+            job_id: job.id,
+            stage: JobStage::Running,
+        }))
+        .await?;
 
     // Set run script
     let run = judge_job_cfg
@@ -447,8 +460,10 @@ pub async fn handle_job(
         .collect::<Vec<_>>();
     public_cfg.run = run;
 
+    let mut tests_path = job_path.clone();
+    tests_path.push(&public_cfg.mapped_dir);
     let private_cfg = JudgerPrivateConfig {
-        test_root_dir: job_path,
+        test_root_dir: tests_path,
     };
 
     let options = crate::tester::exec::TestSuiteOptions {
@@ -459,9 +474,15 @@ pub async fn handle_job(
         remove_image: true,
     };
 
-    let mut suite =
-        crate::tester::exec::TestSuite::from_config(image, private_cfg, public_cfg, options)?;
+    let mut suite = crate::tester::exec::TestSuite::from_config(
+        image,
+        &job_path,
+        private_cfg,
+        public_cfg,
+        options,
+    )?;
 
+    log::info!("Job {}: options created", job.id);
     let (ch_send, ch_recv) = tokio::sync::mpsc::unbounded_channel();
 
     let recv_handle = tokio::spawn({
@@ -470,6 +491,7 @@ pub async fn handle_job(
         let job_id = job.id;
         async move {
             while let Some((key, res)) = recv.next().await {
+                log::info!("Job {}: recv message for key={}", job_id, key);
                 // Omit error; it doesn't matter
                 let _ = ws_send
                     .lock()
@@ -484,13 +506,21 @@ pub async fn handle_job(
         }
     });
 
+    let docker = bollard::Docker::connect_with_local_defaults().unwrap();
+
+    log::info!("Job {}: started.", job.id);
+
+    let upload_info = Arc::new(ResultUploadConfig {
+        client,
+        endpoint: cfg.result_upload_endpoint(),
+        job_id: job.id,
+    });
+
     let result = suite
-        .run(
-            bollard::Docker::connect_with_local_defaults().unwrap(),
-            Some(ch_send),
-            Some((&cfg.result_upload_endpoint(), client)),
-        )
+        .run(docker, job_path, Some(ch_send), Some(upload_info))
         .await?;
+
+    log::info!("Job {}: finished running", job.id);
 
     let _ = recv_handle.await;
 
@@ -498,7 +528,7 @@ pub async fn handle_job(
 
     let job_result = JobResultMsg {
         job_id: job.id,
-        test_results: result,
+        results: result,
         job_result: JobResultKind::Accepted,
         message: None,
     };
