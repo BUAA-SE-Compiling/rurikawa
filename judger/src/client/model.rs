@@ -1,6 +1,6 @@
 use crate::prelude::FlowSnake;
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
+use std::{collections::HashMap, sync::Arc};
 
 /// Message sent from server
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -90,6 +90,13 @@ pub enum JobResultKind {
     OtherError,
 }
 
+#[derive(Debug)]
+pub struct ResultUploadConfig {
+    pub client: reqwest::Client,
+    pub endpoint: String,
+    pub job_id: FlowSnake,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct TestResult {
@@ -97,72 +104,103 @@ pub struct TestResult {
     pub result_file_id: Option<String>,
 }
 
-pub async fn upload_test_result(
-    f: Result<(), crate::tester::JobFailure>,
-    upload_info: Option<(&str, reqwest::Client)>,
-) -> TestResult {
-    match f {
-        Ok(_) => TestResult {
-            kind: TestResultKind::Accepted,
-            result_file_id: None,
-        },
-        Err(e) => {
-            let (kind, cache) = match e {
-                crate::tester::JobFailure::OutputMismatch(m) => (
-                    TestResultKind::WrongAnswer,
-                    FailedJobOutputCacheFile {
-                        output: m.output,
-                        stdout_diff: Some(m.diff),
-                        message: None,
-                    },
-                ),
-
-                crate::tester::JobFailure::ExecError(e) => {
-                    let (res, msg) = match e.kind {
-                        crate::tester::ExecErrorKind::RuntimeError(e) => {
-                            (TestResultKind::RuntimeError, Some(e))
-                        }
-                        crate::tester::ExecErrorKind::ReturnCodeCheckFailed => (
-                            TestResultKind::PipelineFailed,
-                            Some("Return code check failed".into()),
-                        ),
-                        crate::tester::ExecErrorKind::TimedOut => {
-                            (TestResultKind::TimeLimitExceeded, None)
-                        }
-                    };
-                    (
-                        res,
+impl TestResult {
+    pub fn from_failure(
+        failure: Result<(), crate::tester::JobFailure>,
+    ) -> (TestResult, Option<FailedJobOutputCacheFile>) {
+        match failure {
+            Ok(_) => (
+                TestResult {
+                    kind: TestResultKind::Accepted,
+                    result_file_id: None,
+                },
+                None,
+            ),
+            Err(e) => {
+                let (kind, cache) = match e {
+                    crate::tester::JobFailure::OutputMismatch(m) => (
+                        TestResultKind::WrongAnswer,
                         FailedJobOutputCacheFile {
-                            output: e.output,
-                            stdout_diff: None,
-                            message: msg,
+                            output: m.output,
+                            stdout_diff: Some(m.diff),
+                            message: None,
                         },
-                    )
-                }
-                crate::tester::JobFailure::InternalError(e) => (
-                    TestResultKind::OtherError,
-                    FailedJobOutputCacheFile {
-                        output: Vec::new(),
-                        stdout_diff: None,
-                        message: Some(e),
-                    },
-                ),
-            };
+                    ),
 
-            let result_file_id = if let Some((upload_endpoint, client)) = upload_info {
-                let post = client.post(upload_endpoint).json(&cache).send().await.ok();
-                if let Some(resp) = post {
-                    resp.text().await.ok()
-                } else {
+                    crate::tester::JobFailure::ExecError(e) => {
+                        let (res, msg) = match e.kind {
+                            crate::tester::ExecErrorKind::RuntimeError(e) => {
+                                (TestResultKind::RuntimeError, Some(e))
+                            }
+                            crate::tester::ExecErrorKind::ReturnCodeCheckFailed => (
+                                TestResultKind::PipelineFailed,
+                                Some("Return code check failed".into()),
+                            ),
+                            crate::tester::ExecErrorKind::TimedOut => {
+                                (TestResultKind::TimeLimitExceeded, None)
+                            }
+                        };
+                        (
+                            res,
+                            FailedJobOutputCacheFile {
+                                output: e.output,
+                                stdout_diff: None,
+                                message: msg,
+                            },
+                        )
+                    }
+                    crate::tester::JobFailure::InternalError(e) => (
+                        TestResultKind::OtherError,
+                        FailedJobOutputCacheFile {
+                            output: Vec::new(),
+                            stdout_diff: None,
+                            message: Some(e),
+                        },
+                    ),
+                };
+
+                (
+                    TestResult {
+                        kind,
+                        result_file_id: None,
+                    },
+                    Some(cache),
+                )
+            }
+        }
+    }
+}
+
+pub async fn upload_test_result(
+    f: FailedJobOutputCacheFile,
+    upload_info: Arc<ResultUploadConfig>,
+    test_id: &str,
+) -> Option<String> {
+    let post = upload_info
+        .client
+        .post(&upload_info.endpoint)
+        .query(&[
+            ("jobId", upload_info.job_id.to_string().as_str()),
+            ("testId", test_id),
+        ])
+        .json(&f)
+        .send()
+        .await;
+    let resp = post.and_then(|x| x.error_for_status());
+    match resp {
+        Ok(resp) => {
+            let resp = resp.text().await;
+            match resp {
+                Ok(t) => Some(t),
+                Err(e) => {
+                    log::warn!("Failed to upload:\n{:?}", e);
                     None
                 }
-            } else {
-                None
-            };
-            TestResult {
-                kind,
-                result_file_id,
             }
+        }
+        Err(e) => {
+            log::warn!("Failed to upload:\n{:?}", e);
+            None
         }
     }
 }
@@ -171,7 +209,7 @@ pub async fn upload_test_result(
 #[serde(rename_all = "camelCase")]
 pub struct JobProgressMsg {
     pub job_id: FlowSnake,
-    pub job_stage: JobStage,
+    pub stage: JobStage,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -187,7 +225,7 @@ pub struct PartialResultMsg {
 pub struct JobResultMsg {
     pub job_id: FlowSnake,
     pub job_result: JobResultKind,
-    pub test_results: HashMap<String, TestResult>,
+    pub results: HashMap<String, TestResult>,
     pub message: Option<String>,
 }
 

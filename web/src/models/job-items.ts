@@ -25,6 +25,8 @@ export function dashboardTypeToSlider(item: TestResultKind): SliderItemKind {
       return 'warn';
     case 'Waiting':
       return 'disable';
+    default:
+      return item;
   }
 }
 
@@ -148,7 +150,7 @@ export function getNumberBrief(job: Job): string {
 
   // tslint:disable-next-line: forin
   for (let idx in job.results) {
-    let res = this.job.results[idx];
+    let res = job.results[idx];
     totalCnt++;
     if (res.kind === 'Accepted') {
       acCnt++;
@@ -158,7 +160,7 @@ export function getNumberBrief(job: Job): string {
 }
 
 export function JobToJobItem(job: Job): JobItem {
-  return {
+  let res = {
     id: job.id,
     numberBrief: getNumberBrief(job),
     status: getStatus(job),
@@ -167,4 +169,6 @@ export function JobToJobItem(job: Job): JobItem {
     branch: job.branch ?? 'HEAD',
     revision: job.revision,
   };
+  console.log(res);
+  return res;
 }

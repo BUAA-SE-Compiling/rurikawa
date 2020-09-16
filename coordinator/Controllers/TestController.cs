@@ -137,7 +137,7 @@ namespace Karenia.Rurikawa.Coordinator.Controllers {
             original.Patch(newSuite, replaceDescription);
             await db.SaveChangesAsync();
             logger.LogInformation("DB updated");
-            return Ok(newSuite);
+            return Ok(original);
             // throw new NotImplementedException();
         }
 
