@@ -1,9 +1,23 @@
 <app-navbar></app-navbar>
 <div class="container">
   <div class="blk title">
-    <div class="id">#{{ job.id }}</div>
+    <div class="id">#{{ id }}</div>
     <div class="title">
       <h1>评测结果</h1>
+      <div class="row text" *ngIf="job">
+        <span class="job-info repo">
+          <ic-icon [icon]="repoIcon"></ic-icon>
+          {{ job.repo }}
+        </span>
+        <span class="job-info branch">
+          <ic-icon [icon]="branchIcon"></ic-icon>
+          {{ branch }}
+        </span>
+        <span class="job-info revision">
+          <ic-icon [icon]="commitIcon"></ic-icon>
+          {{ revision }}
+        </span>
+      </div>
     </div>
     <div class="before-title-spacer"></div>
     <div class="row">
@@ -11,14 +25,14 @@
         {{ titleNumberBrief() }}
       </span>
     </div>
-    <div class="result-brief-slider">
+    <div class="result-brief-slider" *ngIf="isFinished">
       <app-slider-view [items]="briefSlider()" [height]="4"></app-slider-view>
       <div class="number-brief">
         {{ numberBrief() }}
       </div>
     </div>
   </div>
-  <div class="blk messages" *ngIf="job.resultMessage">
+  <div class="blk messages" *ngIf="job?.resultMessage">
     <h2>编译器输出</h2>
     <code class="result">
       {{ job.resultMessage }}

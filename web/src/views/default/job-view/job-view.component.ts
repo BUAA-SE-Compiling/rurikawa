@@ -14,6 +14,10 @@ import { HttpClient } from '@angular/common/http';
 import { environment } from 'src/environments/environment';
 import { endpoints } from 'src/environments/endpoints';
 
+import BranchIcon from '@iconify/icons-mdi/source-branch';
+import RepoIcon from '@iconify/icons-mdi/git';
+import CommitIcon from '@iconify/icons-mdi/source-commit';
+
 @Component({
   selector: 'app-job-view',
   templateUrl: './job-view.component.html',
@@ -22,9 +26,29 @@ import { endpoints } from 'src/environments/endpoints';
 export class JobViewComponent implements OnInit {
   constructor(private route: ActivatedRoute, private httpClient: HttpClient) {}
 
+  readonly branchIcon = BranchIcon;
+  readonly repoIcon = RepoIcon;
+  readonly commitIcon = CommitIcon;
+
   id: string;
 
   job?: Job = undefined;
+
+  get isFinished() {
+    return (
+      this.job &&
+      this.job.stage === 'Finished' &&
+      this.job.resultKind === 'Accepted'
+    );
+  }
+
+  get branch() {
+    return this.job?.branch || 'HEAD';
+  }
+
+  get revision() {
+    return this.job?.revision.substring(0, 8) || '???';
+  }
 
   titleNumberBrief() {
     if (!this.job) {

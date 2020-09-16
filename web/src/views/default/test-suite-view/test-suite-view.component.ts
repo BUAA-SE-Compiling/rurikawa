@@ -5,8 +5,9 @@ import {
   Job,
   JobToJobItem as jobToJobItem,
 } from 'src/models/job-items';
-import repo from '@iconify/icons-carbon/link';
-import branch from '@iconify/icons-carbon/branch';
+
+import BranchIcon from '@iconify/icons-mdi/source-branch';
+import RepoIcon from '@iconify/icons-mdi/git';
 import { TestSuite, NewJobMessage } from 'src/models/server-types';
 import { HttpClient, HttpErrorResponse } from '@angular/common/http';
 import { environment } from 'src/environments/environment';
@@ -25,8 +26,8 @@ export class TestSuiteViewComponent implements OnInit {
     private router: Router
   ) {}
 
-  readonly repoIcon = repo;
-  readonly branchIcon = branch;
+  readonly repoIcon = RepoIcon;
+  readonly branchIcon = BranchIcon;
 
   repo: string = '';
   branch: string = '';

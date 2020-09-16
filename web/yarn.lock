@@ -1123,6 +1123,11 @@
   resolved "https://registry.npm.taobao.org/@iconify/icons-carbon/download/@iconify/icons-carbon-1.0.5.tgz#7cc21298ce4d02417f04edecb881762bf25621bc"
   integrity sha1-fMISmM5NAkF/BO3suIF2K/JWIbw=
 
+"@iconify/icons-mdi@^1.0.136":
+  version "1.0.136"
+  resolved "https://registry.npm.taobao.org/@iconify/icons-mdi/download/@iconify/icons-mdi-1.0.136.tgz#c7b4e0f41fabe678fe6b26c6001c6337d1518084"
+  integrity sha1-x7Tg9B+r5nj+aybGABxjN9FRgIQ=
+
 "@istanbuljs/schema@^0.1.2":
   version "0.1.2"
   resolved "https://registry.npm.taobao.org/@istanbuljs/schema/download/@istanbuljs/schema-0.1.2.tgz#26520bf09abe4a5644cd5414e37125a8954241dd"

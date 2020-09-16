@@ -1,4 +1,4 @@
-import { Component, OnInit, Input } from '@angular/core';
+import { Component, OnInit, Input, Injectable } from '@angular/core';
 import { AccountService } from 'src/services/account_service';
 import {
   trigger,
@@ -7,6 +7,11 @@ import {
   transition,
   animate,
 } from '@angular/animations';
+
+@Injectable({ providedIn: 'root' })
+export class NavbarHelper {
+  public isAdminMode: boolean = false;
+}
 
 @Component({
   selector: 'app-navbar',
@@ -25,9 +30,18 @@ import {
   ],
 })
 export class NavbarComponent implements OnInit {
-  constructor(public accountService: AccountService) {}
+  constructor(
+    public accountService: AccountService,
+    private navbarHelper: NavbarHelper
+  ) {}
 
-  @Input() adminMode: boolean = false;
+  @Input() set adminMode(val: boolean) {
+    this.navbarHelper.isAdminMode = val;
+  }
+  get adminMode() {
+    return this.navbarHelper.isAdminMode;
+  }
+
   @Input() subdir: string | undefined = undefined;
   @Input() hideLogo: boolean = false;
   @Input() logoLink: string = '/';

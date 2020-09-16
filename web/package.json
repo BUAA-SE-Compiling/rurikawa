@@ -20,6 +20,7 @@
     "@angular/platform-browser-dynamic": "~10.1.0",
     "@angular/router": "~10.1.0",
     "@iconify/icons-carbon": "^1.0.5",
+    "@iconify/icons-mdi": "^1.0.136",
     "@types/lodash": "^4.14.161",
     "@types/lru-cache": "^5.1.0",
     "@visurel/iconify-angular": "^10.1.2",
