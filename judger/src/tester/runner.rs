@@ -75,6 +75,8 @@ pub struct DockerCommandRunner {
     instance: Docker,
     /// Options while operating the runner.
     options: DockerCommandRunnerOptions,
+    /// Intermediate images created by this runner
+    pub intermediate_images: Vec<String>,
 }
 
 pub struct DockerCommandRunnerOptions {
@@ -113,10 +115,11 @@ impl DockerCommandRunner {
         image: Image,
         options: DockerCommandRunnerOptions,
     ) -> Result<Self> {
-        let res = DockerCommandRunner {
+        let mut res = DockerCommandRunner {
             image,
             instance,
             options,
+            intermediate_images: vec![],
         };
 
         log::info!("container {}: started building", res.options.container_name);
@@ -125,10 +128,14 @@ impl DockerCommandRunner {
         if res.options.build_image {
             res.image.build(res.instance.clone()).await?
         };
-        let image_name = res.image.tag();
+        let mut image_name = res.image.tag();
+
+        res.intermediate_images.push(image_name.clone());
 
         // Copy data into the container
         if let Some(copies) = &res.options.copies {
+            let after_copy_image_name = format!("{}_copied", image_name);
+
             let container_name = format!(
                 "{}-add-data-{}",
                 res.options.container_name,
@@ -215,12 +222,15 @@ impl DockerCommandRunner {
                 .commit_container(
                     bollard::image::CommitContainerOptions {
                         container: container_name.clone(),
-                        repo: image_name.clone(),
+                        repo: after_copy_image_name.clone(),
                         ..Default::default()
                     },
                     bollard::container::Config::<String>::default(),
                 )
                 .await?;
+
+            res.intermediate_images.push(after_copy_image_name.clone());
+            image_name = after_copy_image_name;
 
             res.instance.stop_container(&container_name, None).await?;
             res.instance
@@ -326,7 +336,19 @@ impl DockerCommandRunner {
 
         // Remove the image.
         if self.options.remove_image {
-            self.image.remove(self.instance).await.unwrap();
+            for image in &self.intermediate_images {
+                let _res = self
+                    .instance
+                    .remove_image(
+                        image,
+                        Some(bollard::image::RemoveImageOptions {
+                            ..Default::default()
+                        }),
+                        None,
+                    )
+                    .await;
+                log::info!("{:?}", _res);
+            }
         }
     }
 }
