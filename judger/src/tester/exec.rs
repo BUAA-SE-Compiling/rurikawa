@@ -194,7 +194,8 @@ impl Test {
 
             // Special case for last step
             if i == steps_len - 1 {
-                let got = info.stdout;
+                let got = info.stdout.trim();
+                let expected = expected.trim();
                 if got != expected {
                     return Err(JobFailure::OutputMismatch(OutputMismatch {
                         diff: diff(&got, &expected),
