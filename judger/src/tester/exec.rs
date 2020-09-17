@@ -9,6 +9,7 @@ use crate::{
     prelude::*,
 };
 use anyhow::Result;
+use async_compat::CompatExt;
 use bollard::models::Mount;
 use futures::stream::StreamExt;
 use path_absolutize::Absolutize;
@@ -21,6 +22,7 @@ use std::{
     io::{self, prelude::*},
     sync::Arc,
 };
+use tokio::io::AsyncReadExt;
 
 #[cfg(unix)]
 use super::utils::strsignal;
@@ -274,17 +276,19 @@ impl Image {
                 Ok(())
             }
             Image::Dockerfile { tag, path, file } => {
-                let tar = {
-                    let buffer: Vec<u8> = vec![];
-                    let mut builder = tar::Builder::new(buffer);
-                    let mut builder = tokio::task::block_in_place(move || {
-                        builder.append_dir_all(".", path);
-                        builder
-                    });
-                    builder.finish();
-                    let bytes = builder.into_inner();
-                    hyper::Body::wrap_stream(futures::stream::iter(vec![bytes]))
+                let from_path = path.clone();
+                let (pipe_recv, pipe_send) = async_pipe::pipe();
+                let read_codec = tokio_util::codec::BytesCodec::new();
+                let frame = tokio_util::codec::FramedRead::new(pipe_send, read_codec);
+                let task = async move {
+                    let mut tar = async_tar::Builder::new(pipe_recv.compat());
+                    match tar.append_dir_all(".", from_path).await {
+                        Ok(_) => tar.finish().await,
+                        e @ Err(_) => e,
+                    }
                 };
+
+                let task = tokio::spawn(task);
                 let ms = instance
                     .build_image(
                         bollard::image::BuildImageOptions {
@@ -298,10 +302,13 @@ impl Image {
                         },
                         None,
                         // Freeze `path` as a tar archive.
-                        Some(tar),
+                        Some(hyper::Body::wrap_stream(frame)),
                     )
                     .collect::<Vec<_>>()
                     .await;
+
+                task.await??;
+
                 ms.into_iter().collect::<Result<Vec<_>, _>>().map_err(|e| {
                     JobFailure::internal_err_from(format!("Failed to build image `{}`: {}", tag, e))
                 })?;
