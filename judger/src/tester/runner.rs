@@ -3,15 +3,17 @@ use super::utils::convert_code;
 use super::{JobFailure, ProcessInfo};
 use crate::prelude::*;
 use anyhow::Result;
+use async_compat::CompatExt;
 use async_trait::async_trait;
-use bollard::{models::Mount, Docker};
+use bollard::{container::UploadToContainerOptions, models::Mount, Docker};
 use futures::stream::StreamExt;
 use names::{Generator, Name};
-use std::default::Default;
 #[cfg(unix)]
 use std::os::unix::process::ExitStatusExt;
 use std::process::ExitStatus;
+use std::{default::Default, path::PathBuf};
 use tokio::process::Command;
+use tokio_util::codec::Decoder;
 
 /// An evaluation environment for commands.
 #[async_trait]
@@ -87,6 +89,8 @@ pub struct DockerCommandRunnerOptions {
     /// `host-src:container-dest` volume bindings for the container.
     /// For details see [here](https://docs.rs/bollard/0.7.2/bollard/service/struct.HostConfig.html#structfield.binds).
     pub binds: Option<Vec<Mount>>,
+    /// Data to be copied into container before build, in format of `(source_dir, target_dir)`
+    pub copies: Option<Vec<(String, String)>>,
 }
 
 impl Default for DockerCommandRunnerOptions {
@@ -98,6 +102,7 @@ impl Default for DockerCommandRunnerOptions {
             build_image: false,
             remove_image: false,
             binds: None,
+            copies: None,
         }
     }
 }
@@ -114,13 +119,116 @@ impl DockerCommandRunner {
             options,
         };
 
-        log::trace!("container {}: started building", res.options.container_name);
+        log::info!("container {}: started building", res.options.container_name);
 
         // Build the image
         if res.options.build_image {
             res.image.build(res.instance.clone()).await?
         };
         let image_name = res.image.tag();
+
+        // Copy data into the container
+        if let Some(copies) = &res.options.copies {
+            let container_name = format!(
+                "{}-add-data-{}",
+                res.options.container_name,
+                FlowSnake::generate()
+            );
+            log::info!(
+                "Preparing to copy files into {}; to create container {}",
+                image_name,
+                container_name
+            );
+            res.instance
+                .create_container(
+                    Some(bollard::container::CreateContainerOptions {
+                        name: container_name.clone(),
+                    }),
+                    bollard::container::Config {
+                        image: Some(image_name.clone()),
+                        tty: Some(true),
+                        open_stdin: Some(true),
+                        attach_stdin: Some(true),
+                        ..Default::default()
+                    },
+                )
+                .await
+                .map_err(|e| {
+                    JobFailure::internal_err_from(format!(
+                        "Failed to create container `{}`: {}",
+                        &container_name, e
+                    ))
+                })?;
+            res.instance
+                .start_container::<String>(&container_name, None)
+                .await?;
+
+            log::info!("created container {}", container_name);
+
+            for (from_path, to_path) in copies {
+                log::info!("Copying {} to {} in {}", from_path, to_path, image_name);
+
+                let exec = res
+                    .instance
+                    .create_exec(
+                        &container_name,
+                        bollard::exec::CreateExecOptions {
+                            cmd: Some(vec!["mkdir", "-p", to_path]),
+                            ..Default::default()
+                        },
+                    )
+                    .await?;
+                res.instance
+                    .start_exec(
+                        &exec.id,
+                        Some(bollard::exec::StartExecOptions { detach: false }),
+                    )
+                    .collect::<Vec<_>>()
+                    .await;
+
+                let from_path = from_path.clone();
+                let (pipe_recv, pipe_send) = async_pipe::pipe();
+                let read_codec = tokio_util::codec::BytesCodec::new();
+                let frame = tokio_util::codec::FramedRead::new(pipe_send, read_codec);
+                let task = async move {
+                    let mut tar = async_tar::Builder::new(pipe_recv.compat());
+                    match tar.append_dir_all(".", from_path).await {
+                        Ok(_) => tar.finish().await,
+                        e @ Err(_) => e,
+                    }
+                };
+                let task = tokio::spawn(task);
+                res.instance
+                    .upload_to_container(
+                        &container_name,
+                        Some(UploadToContainerOptions {
+                            path: to_path.clone(),
+                            ..Default::default()
+                        }),
+                        hyper::Body::wrap_stream(frame.map(|x| x.map(bytes::BytesMut::freeze))),
+                    )
+                    .await?;
+                task.await??;
+            }
+
+            res.instance
+                .commit_container(
+                    bollard::image::CommitContainerOptions {
+                        container: container_name.clone(),
+                        repo: image_name.clone(),
+                        ..Default::default()
+                    },
+                    bollard::container::Config::<String>::default(),
+                )
+                .await?;
+
+            res.instance.stop_container(&container_name, None).await?;
+            res.instance
+                .wait_container::<String>(&container_name, None)
+                .collect::<Vec<_>>()
+                .await;
+            res.instance.remove_container(&container_name, None).await?;
+        }
 
         log::trace!("container {}: creating", res.options.container_name);
 

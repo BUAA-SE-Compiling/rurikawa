@@ -11,6 +11,9 @@ path = "src/main.rs"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 [dependencies]
 anyhow = "*"
+async-compat = "0.1"
+async-pipe = "0.1"
+async-tar = "0.3.0"
 async-trait = "0.1.38"
 bollard = "0.8.0"
 broadcaster = {version = "1.0.0", features = ["default-channels"]}
@@ -23,6 +26,7 @@ difference = "2.0.0"
 dirs = "3.0.1"
 fern = "0.6.0"
 futures = "0.3.5"
+futures_codec = "0.4.1"
 http = "*"
 hyper = {version = "0.13.7", features = ["stream"]}
 libc = "0.2.76"
@@ -30,6 +34,7 @@ log = "*"
 names = "0.11.0"
 once_cell = "1.4.1"
 path-absolutize = "3.0.6"
+path-slash = "0.1.3"
 rand = "0.7.3"
 reqwest = {version = "0.10.8", features = ["json", "stream"]}
 serde = {version = "1.0.115", features = ["derive"]}
@@ -44,6 +49,7 @@ tokio = {version = "0.2.22", features = [
   "macros",
 ]}
 tokio-tungstenite = {version = "0.11.0", features = ["tls"]}
+tokio-util = "0.3.1"
 toml = "0.5.6"
 tungstenite = "0.11.1"
 

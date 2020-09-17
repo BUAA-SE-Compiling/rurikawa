@@ -393,7 +393,7 @@ pub async fn handle_job(
     log::info!("Job {}: created", job.id);
 
     let mut public_cfg = check_download_read_test_suite(job.test_suite, &*cfg).await?;
-
+    public_cfg.binds.get_or_insert_with(Vec::new);
     log::info!("Job {}: got test suite", job.id);
 
     send.lock()
@@ -461,9 +461,10 @@ pub async fn handle_job(
     public_cfg.run = run;
 
     let mut tests_path = job_path.clone();
-    tests_path.push(&public_cfg.mapped_dir);
+    tests_path.push(&public_cfg.mapped_dir.from);
     let private_cfg = JudgerPrivateConfig {
         test_root_dir: tests_path,
+        mapped_test_root_dir: public_cfg.mapped_dir.to.clone(),
     };
 
     let options = crate::tester::exec::TestSuiteOptions {

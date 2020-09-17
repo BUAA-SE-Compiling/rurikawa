@@ -12,6 +12,7 @@ use anyhow::Result;
 use bollard::models::Mount;
 use futures::stream::StreamExt;
 use path_absolutize::Absolutize;
+use path_slash::PathBufExt;
 use serde::{self, Deserialize, Serialize};
 use std::time;
 use std::{collections::HashMap, path::PathBuf, string::String};
@@ -275,7 +276,11 @@ impl Image {
                 let tar = {
                     let buffer: Vec<u8> = vec![];
                     let mut builder = tar::Builder::new(buffer);
-                    builder.append_dir_all(".", path)?;
+                    let mut builder = tokio::task::block_in_place(move || {
+                        builder.append_dir_all(".", path);
+                        builder
+                    });
+                    builder.finish();
                     let bytes = builder.into_inner();
                     hyper::Body::wrap_stream(futures::stream::iter(vec![bytes]))
                 };
@@ -325,12 +330,12 @@ impl Image {
 #[derive(Serialize, Deserialize, Debug, Clone, Default)]
 pub struct Bind {
     /// Absolute/Relative `from` path (in the host machine).
-    from: PathBuf,
+    pub from: PathBuf,
     /// Absolute `to` path (in the container).
-    to: PathBuf,
+    pub to: PathBuf,
     /// Extra options for this bind. Leave a new `String` for empty.
     /// For details see [here](https://docs.rs/bollard/0.7.2/bollard/service/struct.HostConfig.html#structfield.binds).
-    readonly: bool,
+    pub readonly: bool,
 }
 
 impl Bind {
@@ -351,6 +356,12 @@ impl Bind {
     }
 }
 
+pub fn path_canonical_from(path: &Path, base_dir: &Path) -> PathBuf {
+    let mut from_base = base_dir.to_owned();
+    from_base.push(path);
+    from_base.absolutize().unwrap().into_owned()
+}
+
 /// Judger's public config, specific to a paticular repository,
 /// Maintained by the owner of the project to be tested.
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -363,7 +374,7 @@ pub struct JudgerPublicConfig {
     /// Sequence of commands necessary to perform an IO check.
     pub run: Vec<String>,
     /// The path of test root directory to be mapped inside test container
-    pub mapped_dir: PathBuf,
+    pub mapped_dir: Bind,
     /// `host-src:container-dest` volume bindings for the container.
     /// For details see [here](https://docs.rs/bollard/0.7.2/bollard/service/struct.HostConfig.html#structfield.binds).
     pub binds: Option<Vec<Bind>>,
@@ -373,8 +384,10 @@ pub struct JudgerPublicConfig {
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct JudgerPrivateConfig {
     /// Directory of test sources files (including `stdin` and `stdout` files)
-    /// in the container.
+    /// outside the container.
     pub test_root_dir: PathBuf,
+    /// Directory of test sources files inside the container.
+    pub mapped_test_root_dir: PathBuf,
 }
 
 /// The public representation of a test.
@@ -429,6 +442,8 @@ pub struct TestSuite {
     /// `host-src:container-dest` volume bindings for the container.
     /// For details see [here](https://docs.rs/bollard/0.7.2/bollard/service/struct.HostConfig.html#structfield.binds).
     pub binds: Option<Vec<Mount>>,
+    ///`(source, dest)` pairs of data to be copied into the container.
+    pub copies: Option<Vec<(String, String)>>,
     /// Initialization options for `Testsuite`.
     pub options: TestSuiteOptions,
 }
@@ -449,10 +464,10 @@ impl TestSuite {
             .tests
             .iter()
             .map(|name| -> Result<TestCase> {
-                let mut mapped_dir = public_cfg.mapped_dir.clone();
+                let mut container_test_root = private_cfg.mapped_test_root_dir.clone();
                 let mut test_root = private_cfg.test_root_dir.clone();
-                mapped_dir.push(name);
                 test_root.push(name);
+                container_test_root.push(name);
                 let replacer: HashMap<String, _> = public_cfg
                     .vars
                     .iter()
@@ -463,10 +478,10 @@ impl TestSuite {
                             // while others to `src_dir`.
                             let mut p = match var.as_ref() {
                                 "$stdout" => test_root.clone(),
-                                _ => mapped_dir.clone(),
+                                _ => container_test_root.clone(),
                             };
                             p.set_extension(ext);
-                            p
+                            p.to_slash_lossy()
                         })
                     })
                     .collect();
@@ -475,7 +490,7 @@ impl TestSuite {
                     .iter()
                     .map(|line| {
                         replacer.iter().fold(line.to_owned(), |seed, (pat, rep)| {
-                            seed.replace(pat, &format!(r#""{}""#, rep.to_str().unwrap()))
+                            seed.replace(pat, &format!(r#""{}""#, rep))
                         })
                     })
                     .collect();
@@ -518,6 +533,10 @@ impl TestSuite {
                     })
                     .collect()
             }),
+            copies: Some(vec![(
+                path_canonical_from(&public_cfg.mapped_dir.from, base_dir).to_slash_lossy(),
+                public_cfg.mapped_dir.to.to_slash_lossy(),
+            )]),
         })
     }
 
@@ -545,13 +564,14 @@ impl TestSuite {
             .take()
             .expect("TestSuite instance not fully constructed");
         image.replace_with_absolute_dir(base_dir);
-        let image_tag = image.tag();
+        let image_tag = format!("{}_{:08x}", image.tag(), rnd_id);
         let runner = DockerCommandRunner::try_new(instance, image, {
             DockerCommandRunnerOptions {
                 mem_limit,
                 build_image,
                 remove_image,
                 binds: self.binds.clone(),
+                copies: self.copies.clone(),
                 ..Default::default()
             }
         })
@@ -998,10 +1018,15 @@ mod test_suite {
                 &std::env::current_dir().unwrap(),
                 JudgerPrivateConfig {
                     test_root_dir: PathBuf::from(r"../golem/src"),
+                    mapped_test_root_dir: PathBuf::from(r"golem/src"),
                 },
                 JudgerPublicConfig {
                     name: "golem_no_volume".into(),
-                    mapped_dir: PathBuf::from(r"golem/src"),
+                    mapped_dir: Bind {
+                        from: PathBuf::from(r"../golem/src"),
+                        to: PathBuf::from(r"golem/src"),
+                        readonly: false,
+                    },
                     binds: None,
                     run: [
                         "cd golem",
@@ -1052,16 +1077,17 @@ mod test_suite {
                 },
                 &std::env::current_dir().unwrap(),
                 JudgerPrivateConfig {
-                    test_root_dir: PathBuf::from(r"../golem/src"), // private
+                    test_root_dir: PathBuf::from(r"../golem/src"),
+                    mapped_test_root_dir: PathBuf::from(r"golem/src"),
                 },
                 JudgerPublicConfig {
                     name: "golem".into(),
-                    binds: Some(vec![Bind {
-                        from: PathBuf::from(r"../golem/src"), // private
-                        to: PathBuf::from(r"/src"),           // private
-                        readonly: true,
-                    }]),
-                    mapped_dir: PathBuf::from(r"/src"), // private
+                    binds: Some(vec![]),
+                    mapped_dir: Bind {
+                        from: PathBuf::from(r"../golem/src"),
+                        to: PathBuf::from(r"golem/src"),
+                        readonly: false,
+                    },
                     run: [
                         "cd golem",
                         "python ./golemc.py $src -o $bin",
