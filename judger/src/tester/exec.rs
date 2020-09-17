@@ -196,6 +196,9 @@ impl Test {
 
             // Special case for last step
             if i == steps_len - 1 {
+                // * Actually there is a test that should not have passed,
+                // * because the `.out` file is missing a `\n`.
+                // * We trim the result here anyway...
                 let got = info.stdout.trim();
                 let expected = expected.trim();
                 if got != expected {
