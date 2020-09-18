@@ -17,10 +17,10 @@ using Karenia.Rurikawa.Models.Test;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Logging;
+using NSwag.Annotations;
 
 namespace Karenia.Rurikawa.Coordinator.Controllers {
-    [ApiController]
-    [Route("api/v1/job")]
+    [Route("api/v1/job/")]
     [Authorize("user")]
     public class JobController : ControllerBase {
         public JobController(ILogger<JobController> logger, DbService dbsvc, JudgerCoordinatorService coordinatorService) {
@@ -38,9 +38,8 @@ namespace Karenia.Rurikawa.Coordinator.Controllers {
         /// </summary>
         /// <param name="id"></param>
         /// <returns></returns>
-        [HttpGet]
-        [Route("{id}")]
-        public async Task<ActionResult<Job>> GetJob(FlowSnake id) {
+        [HttpGet("{id}")]
+        public async Task<ActionResult<Job>> GetJob([FromRoute] FlowSnake id) {
             var res = await dbsvc.GetJob(id);
             if (res == null) {
                 return NotFound();
@@ -49,7 +48,7 @@ namespace Karenia.Rurikawa.Coordinator.Controllers {
             }
         }
 
-        [HttpGet]
+        [HttpGet("")]
         public async Task<IList<Job>> GetJobs(
             [FromQuery] FlowSnake startId = new FlowSnake(),
             [FromQuery] int take = 20,
@@ -70,7 +69,6 @@ namespace Karenia.Rurikawa.Coordinator.Controllers {
         /// PUTs a new job
         /// </summary>
         [HttpPost("")]
-        [Authorize("user")]
         public async Task<IActionResult> NewJob([FromBody] NewJobMessage m) {
             var account = HttpContext.User.FindFirst(ClaimTypes.NameIdentifier).Value;
             FlowSnake id = FlowSnake.Generate();
@@ -108,6 +106,7 @@ namespace Karenia.Rurikawa.Coordinator.Controllers {
         /// </summary>
         /// <param name="job"></param>
         /// <returns></returns>
+        [OpenApiIgnore]
         public async Task<string?> GetRevision(Job job) {
             var cancel = new CancellationTokenSource();
             cancel.CancelAfter(30_000);
