@@ -27,7 +27,7 @@ export class DashboardItemComponentComponent implements OnInit {
     if (
       this.item.job === undefined ||
       this.item.job.stage !== 'Finished' ||
-      this.item.job.resultKind != 'Accepted'
+      this.item.job.resultKind !== 'Accepted'
     ) {
       return [{ kind: 'disable', num: 1 }];
     }
@@ -45,9 +45,6 @@ export class DashboardItemComponentComponent implements OnInit {
   }
 
   public get slider(): SliderItem[] {
-    if (this._slider === undefined) {
-      this._slider = this.getSlider();
-    }
     return this._slider;
   }
 
@@ -76,5 +73,7 @@ export class DashboardItemComponentComponent implements OnInit {
     return extractTime(id).local().format('YYYY-MM-DD HH:mm');
   }
 
-  ngOnInit(): void {}
+  ngOnInit(): void {
+    this._slider = this.getSlider();
+  }
 }

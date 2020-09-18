@@ -169,6 +169,5 @@ export function JobToJobItem(job: Job): JobItem {
     branch: job.branch ?? 'HEAD',
     revision: job.revision,
   };
-  console.log(res);
   return res;
 }
