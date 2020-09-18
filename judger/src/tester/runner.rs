@@ -12,7 +12,7 @@ use names::{Generator, Name};
 use std::os::unix::process::ExitStatusExt;
 use std::process::ExitStatus;
 use std::{default::Default, path::PathBuf};
-use tokio::process::Command;
+use tokio::{io::BufWriter, process::Command};
 use tokio_util::codec::Decoder;
 
 /// An evaluation environment for commands.
@@ -198,7 +198,7 @@ impl DockerCommandRunner {
                 let read_codec = tokio_util::codec::BytesCodec::new();
                 let frame = tokio_util::codec::FramedRead::new(pipe_send, read_codec);
                 let task = async move {
-                    let mut tar = async_tar::Builder::new(pipe_recv.compat());
+                    let mut tar = async_tar::Builder::new(BufWriter::new(pipe_recv).compat());
                     match tar.append_dir_all(".", from_path).await {
                         Ok(_) => tar.finish().await,
                         e @ Err(_) => e,

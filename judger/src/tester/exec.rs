@@ -22,7 +22,7 @@ use std::{
     io::{self, prelude::*},
     sync::Arc,
 };
-use tokio::io::AsyncReadExt;
+use tokio::io::{AsyncReadExt, BufWriter};
 
 #[cfg(unix)]
 use super::utils::strsignal;
@@ -284,7 +284,7 @@ impl Image {
                 let read_codec = tokio_util::codec::BytesCodec::new();
                 let frame = tokio_util::codec::FramedRead::new(pipe_send, read_codec);
                 let task = async move {
-                    let mut tar = async_tar::Builder::new(pipe_recv.compat());
+                    let mut tar = async_tar::Builder::new(BufWriter::new(pipe_recv).compat());
                     match tar.append_dir_all(".", from_path).await {
                         Ok(_) => tar.finish().await,
                         e @ Err(_) => e,
