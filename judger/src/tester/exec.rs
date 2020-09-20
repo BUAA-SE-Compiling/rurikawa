@@ -1,8 +1,8 @@
-use super::utils::diff;
 use super::{
     runner::{CommandRunner, DockerCommandRunner, DockerCommandRunnerOptions},
     ExecError, ExecErrorKind, JobFailure, OutputMismatch, ProcessInfo,
 };
+use super::{utils::diff, BuildError};
 use crate::{
     client::model::ResultUploadConfig,
     client::model::{upload_test_result, TestResult, TestResultKind},
@@ -257,7 +257,7 @@ impl Image {
     }
 
     /// Build (or pull) a image with the specified config.
-    pub async fn build(&self, instance: bollard::Docker) -> Result<()> {
+    pub async fn build(&self, instance: bollard::Docker) -> Result<(), BuildError> {
         match &self {
             Image::Image { tag } => {
                 let ms = instance
@@ -274,7 +274,7 @@ impl Image {
                 // ! FIXME: This is not efficient (for not being lazy),
                 // ! but it seems that directly collecting to Result is not possible.
                 ms.into_iter().collect::<Result<Vec<_>, _>>().map_err(|e| {
-                    JobFailure::internal_err_from(format!("Failed to pull image `{}`: {}", tag, e))
+                    BuildError::ImagePullFailure(format!("Failed to pull image `{}`: {}", tag, e))
                 })?;
                 Ok(())
             }
@@ -292,7 +292,7 @@ impl Image {
                 };
 
                 let task = tokio::spawn(task);
-                let ms = instance
+                instance
                     .build_image(
                         bollard::image::BuildImageOptions {
                             dockerfile: file
@@ -301,20 +301,23 @@ impl Image {
                                 .unwrap_or_else(|| "Dockerfile".into()),
                             t: tag.into(),
                             rm: true,
+                            forcerm: true,
                             ..Default::default()
                         },
                         None,
                         // Freeze `path` as a tar archive.
                         Some(hyper::Body::wrap_stream(frame)),
                     )
-                    .collect::<Vec<_>>()
+                    .for_each(|x| async move {
+                        // TODO: wait for PR#107 to merge in bollard
+                        log::info!("{:?}", x);
+                    })
                     .await;
 
-                task.await??;
+                task.await
+                    .map_err(|e| BuildError::Internal(e.to_string()))?
+                    .map_err(|e| BuildError::FileTransferError(e.to_string()))?;
 
-                ms.into_iter().collect::<Result<Vec<_>, _>>().map_err(|e| {
-                    JobFailure::internal_err_from(format!("Failed to build image `{}`: {}", tag, e))
-                })?;
                 Ok(())
             }
         }

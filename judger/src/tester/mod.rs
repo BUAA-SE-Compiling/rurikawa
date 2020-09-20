@@ -32,6 +32,22 @@ pub struct ExecError {
     pub output: Vec<ProcessInfo>,
 }
 
+#[derive(Debug, Serialize, Deserialize)]
+pub enum BuildError {
+    ImagePullFailure(String),
+    FileTransferError(String),
+    BuildError(Vec<ProcessInfo>),
+    Internal(String),
+}
+
+impl std::fmt::Display for BuildError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{:?}", self)
+    }
+}
+
+impl std::error::Error for BuildError {}
+
 #[derive(Debug, Clone, Serialize, Deserialize, Eq, PartialEq)]
 pub enum JobFailure {
     OutputMismatch(OutputMismatch),

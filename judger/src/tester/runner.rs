@@ -347,7 +347,6 @@ impl DockerCommandRunner {
                         None,
                     )
                     .await;
-                log::info!("{:?}", _res);
             }
         }
     }
