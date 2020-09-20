@@ -1,4 +1,4 @@
-import * as moment from 'moment';
+import dayjs, { Dayjs } from 'dayjs';
 
 const charToBase32 = [
   255,
@@ -131,7 +131,7 @@ const charToBase32 = [
   255,
 ];
 
-export function extractTime(flowsnake: string): moment.Moment {
+export function extractTime(flowsnake: string): Dayjs {
   if (flowsnake.length !== 13) {
     throw new Error(
       `Not a flowsnake value. Invalid length ${flowsnake.length}, expected 13`
@@ -152,5 +152,5 @@ export function extractTime(flowsnake: string): moment.Moment {
     // timestamp is 42 bits long, so no bitwise operations here
     timestamp = timestamp * 32 + base32;
   }
-  return moment.unix(timestamp).utc();
+  return dayjs.unix(timestamp);
 }

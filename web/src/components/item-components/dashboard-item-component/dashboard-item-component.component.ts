@@ -4,8 +4,7 @@ import {
   SliderItem,
   SliderItemKind,
 } from 'src/components/base-components/slider-view/slider-view.component';
-import { Moment } from 'moment';
-import * as moment from 'moment';
+import { Dayjs} from 'dayjs'
 import { DashboardItem } from 'src/models/server-types';
 import { mapValues, groupBy, toPairs } from 'lodash';
 import { extractTime } from 'src/models/flowsnake';

@@ -1,7 +1,7 @@
 import { Component, OnInit, Input } from '@angular/core';
 import { JobItem, dashboardTypeToSlider } from 'src/models/job-items';
 import { SliderItem } from 'src/components/base-components/slider-view/slider-view.component';
-import * as moment from 'moment';
+import { Dayjs } from 'dayjs';
 
 @Component({
   selector: 'app-job-item',

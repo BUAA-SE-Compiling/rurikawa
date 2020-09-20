@@ -1,7 +1,7 @@
 import { SliderItemKind } from 'src/components/base-components/slider-view/slider-view.component';
 import { mapValues, groupBy, toPairs } from 'lodash';
 import { extractTime } from './flowsnake';
-import { Moment } from 'moment';
+import { Dayjs } from 'dayjs';
 
 export function dashboardTypeToSlider(item: TestResultKind): SliderItemKind {
   switch (item) {
@@ -65,7 +65,7 @@ interface JobStatus {
 
 export interface JobItem {
   id: string;
-  time: Moment;
+  time: Dayjs;
   numberBrief: string;
   status: JobStatus[];
   repo: string;
