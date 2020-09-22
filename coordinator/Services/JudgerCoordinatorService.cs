@@ -28,11 +28,13 @@ namespace Karenia.Rurikawa.Coordinator.Services {
         public JudgerCoordinatorService(
             JsonSerializerOptions jsonSerializerOptions,
             IServiceScopeFactory serviceProvider,
+            FrontendUpdateService frontendService,
             ILogger<JudgerCoordinatorService> logger,
             ILogger<JudgerWebsocketWrapperTy> wsLogger
         ) {
             this.jsonSerializerOptions = jsonSerializerOptions;
             this.scopeProvider = serviceProvider;
+            this.frontendService = frontendService;
             this.logger = logger;
             this.wsLogger = wsLogger;
         }
@@ -51,6 +53,7 @@ namespace Karenia.Rurikawa.Coordinator.Services {
         readonly SemaphoreSlim connectionLock = new SemaphoreSlim(1);
         private readonly JsonSerializerOptions jsonSerializerOptions;
         private readonly IServiceScopeFactory scopeProvider;
+        private readonly FrontendUpdateService frontendService;
         private readonly ILogger<JudgerCoordinatorService> logger;
         private readonly ILogger<JudgerWebsocketWrapperTy> wsLogger;
 
@@ -193,6 +196,13 @@ namespace Karenia.Rurikawa.Coordinator.Services {
                 logger.LogError("Cannot find job {0}, error?", msg.JobId);
                 return;
             }
+
+            frontendService.OnJobStautsUpdate(msg.JobId, new Models.WebsocketApi.JobStatusUpdateMsg
+            {
+                JobId = msg.JobId,
+                Stage = msg.Stage
+            });
+
             if (job.Stage != msg.Stage) {
                 job.Stage = msg.Stage;
                 await db.SaveChangesAsync();
@@ -208,6 +218,15 @@ namespace Karenia.Rurikawa.Coordinator.Services {
                     logger.LogError("Unable to find job {0} ({1}) in database! Please recheck", msg.JobId, msg.JobId.Num);
                     return;
                 }
+
+                frontendService.OnJobStautsUpdate(msg.JobId, new Models.WebsocketApi.JobStatusUpdateMsg
+                {
+                    JobId = msg.JobId,
+                    Stage = JobStage.Finished,
+                    JobResult = msg.JobResult,
+                    TestResult = msg.Results
+                });
+
                 job.Results = msg.Results ?? new Dictionary<string, TestResult>();
                 job.Stage = JobStage.Finished;
                 job.ResultKind = msg.JobResult;

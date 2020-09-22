@@ -1,9 +1,11 @@
 using System;
+using System.Buffers.Text;
 using System.Collections.Generic;
 using System.IdentityModel.Tokens.Jwt;
 using System.Linq;
 using System.Security.Claims;
 using System.Text;
+using System.Text.Json;
 using System.Threading.Tasks;
 using BCrypt.Net;
 using Karenia.Rurikawa.Coordinator.Services;
@@ -22,14 +24,17 @@ namespace Karenia.Rurikawa.Coordinator.Services {
     public class AccountService {
         private readonly RurikawaDb db;
         private readonly AuthInfo authInfo;
+        private readonly JsonSerializerOptions jsonSerializerOptions;
         private readonly ILogger<AccountService> logger;
 
         public AccountService(
             RurikawaDb db,
             AuthInfo authInfo,
+            JsonSerializerOptions jsonSerializerOptions,
             ILogger<AccountService> logger) {
             this.db = db;
             this.authInfo = authInfo;
+            this.jsonSerializerOptions = jsonSerializerOptions;
             this.logger = logger;
         }
 
@@ -132,6 +137,51 @@ namespace Karenia.Rurikawa.Coordinator.Services {
             };
             var token = tokenHandler.CreateToken(tokenDescriptor);
             return tokenHandler.WriteToken(token);
+        }
+
+        public string CreateNewShortLivingToken(string username, TimeSpan lifespan) {
+            var crypto = authInfo.SigningKey.CryptoProviderFactory.CreateForSigning(authInfo.SigningKey, "ES256");
+
+            var expiresBefore = DateTimeOffset.Now.Add(lifespan);
+
+            var wsAuth = new WebsocketAuthInfo()
+            {
+                Username = username,
+                ExpireBefore = expiresBefore
+            };
+            var json = JsonSerializer.SerializeToUtf8Bytes(wsAuth, jsonSerializerOptions);
+            var signature = crypto.Sign(json);
+
+            var resultBuilder = new StringBuilder();
+            resultBuilder.Append(Convert.ToBase64String(json));
+            resultBuilder.Append(".");
+            resultBuilder.Append(Convert.ToBase64String(signature));
+            var token = resultBuilder.ToString();
+            token = token.Replace('+', '_');
+            return token;
+        }
+
+        public string? VerifyShortLivingToken(string token) {
+            token = token.Replace('_', '+');
+            var timestamp = DateTimeOffset.Now;
+            var parts = token.Split('.');
+            if (parts.Length != 2) return null;
+            try {
+                var info = Convert.FromBase64String(parts[0]);
+                var signature = Convert.FromBase64String(parts[1]);
+                var wsAuthInfo = JsonSerializer.Deserialize<WebsocketAuthInfo>(info, jsonSerializerOptions);
+                var crypto = authInfo.SigningKey.CryptoProviderFactory.CreateForSigning(authInfo.SigningKey, "ES256");
+                var result = crypto.Verify(info, signature);
+                var expired = timestamp > wsAuthInfo.ExpireBefore;
+                if (result && !expired) {
+                    return wsAuthInfo.Username;
+                } else {
+                    return null;
+                }
+            } catch (Exception e) {
+                logger.LogWarning(e, "Failed to verify token {0}", token);
+                return null;
+            }
         }
 
         public async Task<string> CreateNewAlternateAccessToken(

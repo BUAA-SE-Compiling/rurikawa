@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.Text.Json;
 using System.Text.Json.Serialization;
@@ -29,6 +30,14 @@ namespace Karenia.Rurikawa.Models.Auth {
 
     public static class AuthConstants {
         public static readonly string WebhookScope = "";
+    }
+
+    public class WebsocketAuthInfo {
+        [JsonPropertyName("usr")]
+        public string Username { get; set; }
+
+        [JsonPropertyName("exp")]
+        public DateTimeOffset ExpireBefore { get; set; }
     }
 #pragma warning restore
 }

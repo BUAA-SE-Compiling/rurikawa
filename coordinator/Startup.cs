@@ -84,6 +84,7 @@ namespace Karenia.Rurikawa.Coordinator {
                     svc.GetService<ILogger<SingleBucketFileStorageService>>())
             );
             services.AddSingleton<JudgerCoordinatorService>();
+            services.AddSingleton<FrontendUpdateService>();
             services.AddScoped<AccountService>();
             services.AddScoped<JudgerService>();
             services.AddScoped<DbService>();
@@ -107,7 +108,14 @@ namespace Karenia.Rurikawa.Coordinator {
             dis.RegisterType<Models.Judger.ClientStatusMsg>();
             dis.RegisterType<Models.Judger.JobProgressMsg>();
             dis.RegisterType<Models.Judger.JobResultMsg>();
+            dis.RegisterType<Models.Judger.PartialResultMsg>();
+            dis.RegisterType<Models.Judger.AbortJobServerMsg>();
             dis.RegisterType<Models.Judger.NewJobServerMsg>();
+            dis.RegisterType<Models.WebsocketApi.JobStatusUpdateMsg>();
+            dis.RegisterType<Models.WebsocketApi.JudgerStatusUpdateMsg>();
+            dis.RegisterType<Models.WebsocketApi.NewJobUpdateMsg>();
+            dis.RegisterType<Models.WebsocketApi.SubscribeMsg>();
+            dis.RegisterType<Models.WebsocketApi.TestOutputUpdateMsg>();
             dis.DiscriminatorPolicy = DiscriminatorPolicy.Always;
 
             opt.IgnoreNullValues = true;
@@ -149,6 +157,21 @@ namespace Karenia.Rurikawa.Coordinator {
                 if (ctx.Request.Path == "/api/v1/judger/ws") {
                     if (ctx.WebSockets.IsWebSocketRequest) {
                         var svc = app.ApplicationServices.GetService<JudgerCoordinatorService>();
+                        await svc.TryUseConnection(ctx);
+                    } else {
+                        ctx.Response.StatusCode = 400;
+                        await ctx.Response.Body.WriteAsync(System.Text.Encoding.UTF8.GetBytes("Expected websocket connection"));
+                        await ctx.Response.CompleteAsync();
+                    }
+                } else {
+                    await next();
+                }
+            });
+            app.Use(async (ctx, next) => {
+                logger.LogInformation("{0}，{1}", ctx.Request.Path, ctx.WebSockets.IsWebSocketRequest);
+                if (ctx.Request.Path == "/api/v1/test/ws") {
+                    if (ctx.WebSockets.IsWebSocketRequest) {
+                        var svc = app.ApplicationServices.GetService<FrontendUpdateService>();
                         await svc.TryUseConnection(ctx);
                     } else {
                         ctx.Response.StatusCode = 400;

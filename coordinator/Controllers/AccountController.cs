@@ -1,7 +1,10 @@
 using System;
+using System.Buffers.Text;
 using System.Collections.Generic;
 using System.Linq;
+using System.Runtime.InteropServices.ComTypes;
 using System.Security.Claims;
+using System.Text;
 using System.Text.Json;
 using System.Threading.Tasks;
 using Karenia.Rurikawa.Coordinator.Services;
@@ -171,6 +174,20 @@ namespace Karenia.Rurikawa.Coordinator.Controllers {
             }
         }
 
+
+        [HttpGet("ws-token")]
+        [Authorize()]
+        public ActionResult<string> GetWebsocketToken() {
+            var username = AuthHelper.ExtractUsername(HttpContext.User)!;
+            return accountService.CreateNewShortLivingToken(username, TimeSpan.FromMinutes(15));
+        }
+
+        [HttpPost("ws-token")]
+        public ActionResult<string?> VerifyWebsocketToken([FromQuery] string token) {
+            var res = accountService.VerifyShortLivingToken(token);
+            if (res != null) return res;
+            else return BadRequest();
+        }
 
         [HttpPost("test")]
         public async Task Test() {
