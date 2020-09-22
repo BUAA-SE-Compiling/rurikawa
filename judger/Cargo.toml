@@ -15,7 +15,7 @@ async-compat = "0.1"
 async-pipe = "0.1"
 async-tar = "0.3.0"
 async-trait = "0.1.38"
-bollard = "0.8.0"
+bollard = {path = "3rd_party/bollard"}
 broadcaster = {version = "1.0.0", features = ["default-channels"]}
 bytes = "*"
 chrono = "0.4.15"
