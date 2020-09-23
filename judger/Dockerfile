@@ -5,6 +5,7 @@ COPY Cargo.toml Cargo.lock ./
 RUN mkdir -p ./.cargo && \
     echo -e '[source.crates-io]\nreplace-with = "ustc"\n[source.ustc]\nregistry = "https://mirrors.tuna.tsinghua.edu.cn/git/crates.io-index.git"' > ./.cargo/config.toml
 ENV CARGO_NET_GIT_FETCH_WITH_CLI=true
+COPY 3rd_party ./
 RUN cargo fetch 
 RUN mkdir src && \
     echo "fn main() {println!(\"if you see this, the build broke\")}" > src/main.rs

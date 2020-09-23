@@ -44,7 +44,7 @@ import { Subscription } from 'rxjs';
     ]),
   ],
 })
-export class TestSuiteViewComponent implements OnInit, OnDestroy {
+export class TestSuiteViewComponent implements OnInit {
   constructor(
     private route: ActivatedRoute,
     private httpClient: HttpClient,
