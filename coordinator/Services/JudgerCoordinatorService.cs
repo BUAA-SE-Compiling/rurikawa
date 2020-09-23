@@ -163,11 +163,9 @@ namespace Karenia.Rurikawa.Coordinator.Services {
 
         async void OnJudgerStatusUpdateMessage(string clientId, ClientStatusMsg msg) {
             using (await queueLock.LockAsync()) {
-                logger.LogInformation("lock");
                 // should we dispatch a new job for this judger?
                 var remainingDispatches = msg.RequestForNewTask;
                 using (await connectionLock.LockAsync()) {
-                    logger.LogInformation("lock2");
                     if (connections.TryGetValue(clientId, out var conn)) {
                         conn.CanAcceptNewTask = msg.CanAcceptNewTask;
                         conn.ActiveTaskCount = msg.ActiveTaskCount;
@@ -182,7 +180,7 @@ namespace Karenia.Rurikawa.Coordinator.Services {
                 }
                 for (ulong i = 0; i < remainingDispatches; i++)
                     JudgerQueue.Enqueue(clientId);
-                logger.LogInformation("Status::Judger: {0}", DEBUG_LogEnumerator(JudgerQueue));
+                // logger.LogInformation("Status::Judger: {0}", DEBUG_LogEnumerator(JudgerQueue));
             }
         }
 
@@ -323,7 +321,6 @@ namespace Karenia.Rurikawa.Coordinator.Services {
 
         public async Task ScheduleJob(Job job) {
             // Save this job to database
-            logger.LogInformation("Scheduleing job {0}", job.Id);
             using var scope = scopeProvider.CreateScope();
             var db = GetDb(scope);
 
@@ -335,10 +332,8 @@ namespace Karenia.Rurikawa.Coordinator.Services {
             bool success = false;
 
             // Lock queue so no one can write to it, leading to race conditions
-            logger.LogInformation("Locking queue lock: {0}", queueLock.CurrentCount);
             using (await queueLock.LockAsync()) {
                 while (!success) {
-                    logger.LogInformation("Schedule::Judger: {0}", DEBUG_LogEnumerator(JudgerQueue));
                     // Get the first usable judger
                     var judger = await TryGetNextUsableJudger(true);
                     if (judger == null) break;
@@ -358,7 +353,6 @@ namespace Karenia.Rurikawa.Coordinator.Services {
 
             db.Jobs.Add(job);
             await db.SaveChangesAsync();
-            logger.LogInformation("Added job id {0}, suite {1}", job.Id, job.TestSuite);
         }
 
         public async ValueTask RevertJobStatus() {

@@ -150,7 +150,6 @@ namespace Karenia.Rurikawa.Coordinator.Services {
 
         public void SubscribeToJob(FlowSnake id, FrontendConnection conn) {
             if (conn.JobSubscriptions.ContainsKey(id)) return;
-            logger.LogInformation("Subscribe to {0}", id);
             var sub = jobUpdateListeners.GetOrAdd(
                 id,
                 _x => {
@@ -164,16 +163,13 @@ namespace Karenia.Rurikawa.Coordinator.Services {
                 });
 
             var subscripton = sub.Item2.Subscribe(async (msg) => {
-                logger.LogInformation("Update message on {0}", msg.JobId);
                 await conn.Conn.SendMessage(msg);
             });
             conn.JobSubscriptions.Add(id, subscripton);
         }
 
         public void OnJobStautsUpdate(FlowSnake id, JobStatusUpdateMsg msg) {
-            logger.LogInformation("Status Update: {0}", id);
             if (jobUpdateListeners.TryGetValue(id, out var val)) {
-                logger.LogInformation("Status Update triggered: {0}", id);
                 val.Item1.OnNext(msg);
             }
         }
