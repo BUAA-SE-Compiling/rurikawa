@@ -1,4 +1,4 @@
-import { Component, OnInit } from '@angular/core';
+import { Component, OnInit, ChangeDetectorRef, OnDestroy } from '@angular/core';
 import { ActivatedRoute, Router } from '@angular/router';
 import {
   JobItem,
@@ -23,6 +23,7 @@ import {
 } from '@angular/animations';
 import { tap } from 'rxjs/operators';
 import { TestSuiteAndJobCache } from 'src/services/test_suite_cacher';
+import { Subscription } from 'rxjs';
 
 @Component({
   selector: 'app-test-suite-view',
@@ -43,7 +44,7 @@ import { TestSuiteAndJobCache } from 'src/services/test_suite_cacher';
     ]),
   ],
 })
-export class TestSuiteViewComponent implements OnInit {
+export class TestSuiteViewComponent implements OnInit, OnDestroy {
   constructor(
     private route: ActivatedRoute,
     private httpClient: HttpClient,
@@ -68,12 +69,14 @@ export class TestSuiteViewComponent implements OnInit {
 
   suite: TestSuite | undefined;
 
-  items: JobItem[] | undefined = undefined;
   jobs: Job[] | undefined = undefined;
 
   submittingTest: boolean = false;
   allJobsFinished: boolean = false;
 
+  get items(): JobItem[] | undefined {
+    return this.jobs?.map(jobToJobItem);
+  }
   loadMore() {
     if (this.jobs === undefined || this.jobs.length === 0) {
       this.fetchJobs(this.id).subscribe();
@@ -162,14 +165,11 @@ export class TestSuiteViewComponent implements OnInit {
             }
             if (this.jobs === undefined || this.jobs.length === 0) {
               this.jobs = jobs;
-              this.items = jobs.map(jobToJobItem);
               this.initSubmit();
             } else if (opt.insertInFront) {
               this.jobs.unshift(...jobs);
-              this.items.unshift(...jobs.map(jobToJobItem));
             } else {
               this.jobs.push(...jobs);
-              this.items.push(...jobs.map(jobToJobItem));
             }
           },
         })

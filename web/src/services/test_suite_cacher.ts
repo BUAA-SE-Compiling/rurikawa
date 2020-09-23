@@ -1,4 +1,4 @@
-import { Injectable } from '@angular/core';
+import { Injectable, NgZone } from '@angular/core';
 import * as LruCache from 'quick-lru';
 import { TestSuite } from 'src/models/server-types';
 import { Job, JobStage } from 'src/models/job-items';
@@ -17,7 +17,7 @@ import {
   WebSocketSubjectConfig,
   webSocket,
 } from 'rxjs/webSocket';
-import { Observable, of } from 'rxjs';
+import { Observable, of, Subject } from 'rxjs';
 import { preserveWhitespacesDefault } from '@angular/compiler';
 
 export interface FetchSuiteJobOption {
