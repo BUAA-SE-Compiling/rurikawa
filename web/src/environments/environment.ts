@@ -5,6 +5,7 @@
 export const environment = {
   production: false,
   endpointBase: 'http://localhost:5000/api/v1/',
+  websocketBase: 'ws://localhost:5000/api/v1/',
 };
 
 /*

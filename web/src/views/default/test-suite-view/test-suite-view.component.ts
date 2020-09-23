@@ -21,6 +21,8 @@ import {
   query,
   animate,
 } from '@angular/animations';
+import { tap } from 'rxjs/operators';
+import { TestSuiteAndJobCache } from 'src/services/test_suite_cacher';
 
 @Component({
   selector: 'app-test-suite-view',
@@ -45,6 +47,7 @@ export class TestSuiteViewComponent implements OnInit {
   constructor(
     private route: ActivatedRoute,
     private httpClient: HttpClient,
+    private service: TestSuiteAndJobCache,
     private router: Router
   ) {}
 
@@ -73,24 +76,31 @@ export class TestSuiteViewComponent implements OnInit {
 
   loadMore() {
     if (this.jobs === undefined || this.jobs.length === 0) {
-      this.fetchJobs(this.id);
+      this.fetchJobs(this.id).subscribe();
     } else {
       let lastId = this.jobs[this.jobs.length - 1].id;
-      this.fetchJobs(this.id, { startId: lastId });
+      this.fetchJobs(this.id, { startId: lastId }).subscribe();
     }
   }
 
   loadFirst() {
     if (this.jobs === undefined || this.jobs.length === 0) {
-      this.fetchJobs(this.id);
+      this.fetchJobs(this.id).subscribe();
     } else {
       let firstId = this.jobs[0].id;
-      this.fetchJobs(this.id, { startId: firstId, insertInFront: true });
+      this.fetchJobs(this.id, {
+        startId: firstId,
+        insertInFront: true,
+      }).subscribe();
     }
   }
 
   gotoJob(id: string) {
     this.router.navigate(['job', id]);
+  }
+
+  trackBy(item: JobItem) {
+    return item.id;
   }
 
   fetchTestSuite(id: string) {
@@ -110,7 +120,14 @@ export class TestSuiteViewComponent implements OnInit {
           }
         },
       });
-    this.fetchJobs(id);
+    this.fetchJobs(id).subscribe();
+  }
+
+  private initSubmit() {
+    if (this.repo === '' && this.jobs && this.jobs.length > 0) {
+      this.repo = this.jobs[0].repo;
+      this.branch = this.jobs[0].branch;
+    }
   }
 
   private fetchJobs(
@@ -125,35 +142,38 @@ export class TestSuiteViewComponent implements OnInit {
     opt.take = opt.take ?? 20;
     opt.insertInFront = opt.insertInFront ?? false;
 
-    this.httpClient
-      .get<Job[]>(
-        environment.endpointBase +
-          endpoints.testSuite.getJobs.replace(':id', id),
-        {
-          params: {
-            startId: opt.startId,
-            take: opt.take.toString(),
-            asc: opt.insertInFront.toString(),
+    return this.service
+      .fetchSuiteJobs({
+        suiteId: id,
+        asc: opt.insertInFront,
+        cache: true,
+        startId: opt.startId,
+        take: opt.take,
+        tracking: true,
+      })
+      .pipe(
+        tap({
+          next: (jobs) => {
+            if (jobs.length < opt.take && !opt.insertInFront) {
+              this.allJobsFinished = true;
+            }
+            if (opt.insertInFront) {
+              jobs = jobs.reverse();
+            }
+            if (this.jobs === undefined || this.jobs.length === 0) {
+              this.jobs = jobs;
+              this.items = jobs.map(jobToJobItem);
+              this.initSubmit();
+            } else if (opt.insertInFront) {
+              this.jobs.unshift(...jobs);
+              this.items.unshift(...jobs.map(jobToJobItem));
+            } else {
+              this.jobs.push(...jobs);
+              this.items.push(...jobs.map(jobToJobItem));
+            }
           },
-        }
-      )
-      .subscribe({
-        next: (jobs) => {
-          if (jobs.length < opt.take && !opt.insertInFront) {
-            this.allJobsFinished = true;
-          }
-          if (this.jobs === undefined || this.jobs.length === 0) {
-            this.jobs = jobs;
-            this.items = jobs.map(jobToJobItem);
-          } else if (opt.insertInFront) {
-            this.jobs.unshift(...jobs);
-            this.items.unshift(...jobs.map(jobToJobItem));
-          } else {
-            this.jobs.push(...jobs);
-            this.items.push(...jobs.map(jobToJobItem));
-          }
-        },
-      });
+        })
+      );
   }
 
   submitTest() {

@@ -17,6 +17,7 @@ import { endpoints } from 'src/environments/endpoints';
 import BranchIcon from '@iconify/icons-mdi/source-branch';
 import RepoIcon from '@iconify/icons-mdi/git';
 import CommitIcon from '@iconify/icons-mdi/source-commit';
+import { TestSuiteAndJobCache } from 'src/services/test_suite_cacher';
 
 @Component({
   selector: 'app-job-view',
@@ -24,7 +25,10 @@ import CommitIcon from '@iconify/icons-mdi/source-commit';
   styleUrls: ['./job-view.component.styl'],
 })
 export class JobViewComponent implements OnInit {
-  constructor(private route: ActivatedRoute, private httpClient: HttpClient) {}
+  constructor(
+    private route: ActivatedRoute,
+    private service: TestSuiteAndJobCache
+  ) {}
 
   readonly branchIcon = BranchIcon;
   readonly repoIcon = RepoIcon;
@@ -116,15 +120,11 @@ export class JobViewComponent implements OnInit {
   }
 
   fetchJob() {
-    this.httpClient
-      .get<Job>(
-        environment.endpointBase + endpoints.job.get.replace(':id', this.id)
-      )
-      .subscribe({
-        next: (v) => {
-          this.job = v;
-        },
-      });
+    this.service.getJob(this.id, false, true).subscribe({
+      next: (v) => {
+        this.job = v;
+      },
+    });
   }
 
   ngOnInit(): void {

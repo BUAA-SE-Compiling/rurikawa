@@ -7,6 +7,7 @@ using System.Reactive.Linq;
 using System.Reactive.Subjects;
 using System.Security.Claims;
 using System.Text.Json;
+using System.Threading;
 using System.Threading.Tasks;
 using Karenia.Rurikawa.Helpers;
 using Karenia.Rurikawa.Models.WebsocketApi;
@@ -28,6 +29,7 @@ namespace Karenia.Rurikawa.Coordinator.Services {
             Username = username;
         }
 
+        public SemaphoreSlim SubscriptionLock { get; } = new SemaphoreSlim(1);
         public Dictionary<FlowSnake, IDisposable> JobSubscriptions { get; } = new Dictionary<FlowSnake, IDisposable>();
     }
 
@@ -114,24 +116,31 @@ namespace Karenia.Rurikawa.Coordinator.Services {
             conn.Conn.Messages.Connect();
             return conn.Conn.Messages.Subscribe((val) => {
                 switch (val) {
-                    case SubscribeMsg msg: {
-                        if (msg.Sub) {
-                            if (msg.Jobs != null) {
-                                foreach (var job in msg.Jobs) {
-                                    this.SubscribeToJob(job, conn);
-                                }
-                            }
-                        } else {
-                            if (msg.Jobs != null) {
-                                foreach (var job in msg.Jobs) {
-                                    this.UnsubscribeJob(job, conn);
-                                }
-                            }
-                        }
+                    case SubscribeMsg msg:
+                        this.HandleSubscribeMsg(msg, conn);
                         break;
-                    }
+                    default:
+                        logger.LogWarning("Unknown message: {0}", val);
+                        break;
                 }
             });
+        }
+
+        private async void HandleSubscribeMsg(SubscribeMsg msg, FrontendConnection conn) {
+            using var lock_ = await conn.SubscriptionLock.LockAsync();
+            if (msg.Sub) {
+                if (msg.Jobs != null) {
+                    foreach (var job in msg.Jobs) {
+                        this.SubscribeToJob(job, conn);
+                    }
+                }
+            } else {
+                if (msg.Jobs != null) {
+                    foreach (var job in msg.Jobs) {
+                        this.UnsubscribeJob(job, conn);
+                    }
+                }
+            }
         }
 
         public void UnsubscribeJob(FlowSnake id, FrontendConnection conn) {
@@ -140,6 +149,7 @@ namespace Karenia.Rurikawa.Coordinator.Services {
         }
 
         public void SubscribeToJob(FlowSnake id, FrontendConnection conn) {
+            if (conn.JobSubscriptions.ContainsKey(id)) return;
             logger.LogInformation("Subscribe to {0}", id);
             var sub = jobUpdateListeners.GetOrAdd(
                 id,
@@ -168,9 +178,11 @@ namespace Karenia.Rurikawa.Coordinator.Services {
             }
         }
 
-        public void ClearNotifications(FrontendConnection conn) {
-            foreach (var sub in conn.JobSubscriptions) {
-                sub.Value.Dispose();
+        public async ValueTask ClearNotifications(FrontendConnection conn) {
+            using (await conn.SubscriptionLock.LockAsync()) {
+                foreach (var sub in conn.JobSubscriptions) {
+                    sub.Value.Dispose();
+                }
             }
         }
     }

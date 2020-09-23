@@ -51,7 +51,7 @@
       <ng-template #jobLog>
         <app-job-item
           class="test-item"
-          *ngFor="let item of items"
+          *ngFor="let item of items; trackBy: trackBy"
           [item]="item"
           (click)="gotoJob(item.id)"
         ></app-job-item>
