@@ -23,7 +23,7 @@ use std::{
     path::PathBuf,
     sync::{atomic::AtomicUsize, Arc},
 };
-use tokio::{net::TcpStream, sync::Mutex};
+use tokio::{net::TcpStream, sync::Mutex, task::JoinHandle};
 use tokio_tungstenite::{connect_async, tungstenite, MaybeTlsStream, WebSocketStream};
 use tungstenite::Message;
 
@@ -88,6 +88,7 @@ pub struct SharedClientData {
     pub running_tests: AtomicUsize,
     /// All test suites whose folder is being edited.
     pub locked_test_suite: DashMap<FlowSnake, Arc<Mutex<()>>>,
+    pub running_job_handles: DashMap<FlowSnake, JoinHandle<()>>,
 }
 
 impl SharedClientData {
@@ -96,6 +97,7 @@ impl SharedClientData {
             cfg,
             running_tests: AtomicUsize::new(0),
             locked_test_suite: DashMap::new(),
+            running_job_handles: DashMap::new(),
         }
     }
 
@@ -562,6 +564,13 @@ pub async fn flag_finished_job(send: Arc<Mutex<WsSink>>, client_config: Arc<Shar
         .await;
 }
 
+pub fn accept_job(job: NewJob, send: Arc<Mutex<WsSink>>, client_config: Arc<SharedClientData>) {
+    log::info!("Received job {}", job.job.id);
+    let job_id = job.job.id;
+    let handle = tokio::spawn(handle_job_wrapper(job, send, client_config.clone()));
+    client_config.running_job_handles.insert(job_id, handle);
+}
+
 pub async fn client_loop(
     mut ws_recv: WsStream,
     mut ws_send: WsSink,
@@ -595,9 +604,7 @@ pub async fn client_loop(
             match msg {
                 Ok(msg) => match msg {
                     ServerMsg::NewJob(job) => {
-                        log::info!("Received job {}", job.job.id);
-                        let send = ws_send.clone();
-                        tokio::spawn(handle_job_wrapper(job, send, client_config.clone()));
+                        accept_job(job, ws_send.clone(), client_config.clone())
                     }
                     ServerMsg::AbortJob(job) => log::warn!("TODO: Abort {}", job.job_id),
                 },

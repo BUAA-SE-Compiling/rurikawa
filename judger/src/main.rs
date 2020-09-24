@@ -53,10 +53,13 @@ async fn client(cmd: opt::ConnectSubCmd) {
         access_token: cmd.access_token,
         register_token: cmd.register_token,
     });
-    let (sink, stream) = connect_to_coordinator(&cfg)
-        .await
-        .expect("Failed to connect");
-    client_loop(stream, sink, Arc::new(cfg)).await;
+    let client_config = Arc::new(cfg);
+    loop {
+        let (sink, stream) = connect_to_coordinator(&client_config)
+            .await
+            .expect("Failed to connect");
+        client_loop(stream, sink, client_config.clone()).await;
+    }
 }
 
 fn handle_ctrl_c() {
