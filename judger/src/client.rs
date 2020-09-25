@@ -88,7 +88,8 @@ pub struct SharedClientData {
     pub running_tests: AtomicUsize,
     /// All test suites whose folder is being edited.
     pub locked_test_suite: DashMap<FlowSnake, Arc<Mutex<()>>>,
-    pub running_job_handles: DashMap<FlowSnake, JoinHandle<()>>,
+    pub running_job_handles: DashMap<FlowSnake, (JoinHandle<()>, CancellationTokenHandle)>,
+    pub cancel_handle: CancellationTokenHandle,
 }
 
 impl SharedClientData {
@@ -98,6 +99,7 @@ impl SharedClientData {
             running_tests: AtomicUsize::new(0),
             locked_test_suite: DashMap::new(),
             running_job_handles: DashMap::new(),
+            cancel_handle: CancellationTokenHandle::new(),
         }
     }
 
@@ -206,6 +208,7 @@ pub enum ClientErr {
     Json(serde_json::Error),
     TomlDes(toml::de::Error),
     Exec(crate::tester::ExecError),
+    Cancelled,
     Any(anyhow::Error),
 }
 
@@ -324,11 +327,16 @@ pub async fn check_download_read_test_suite(
     Ok(judger_conf)
 }
 
-pub async fn handle_job_wrapper(job: NewJob, send: Arc<Mutex<WsSink>>, cfg: Arc<SharedClientData>) {
+pub async fn handle_job_wrapper(
+    job: NewJob,
+    send: Arc<Mutex<WsSink>>,
+    cancel: CancellationToken,
+    cfg: Arc<SharedClientData>,
+) {
     // TODO: Handle failed cases and report
     let job_id = job.job.id;
     flag_new_job(send.clone(), cfg.clone()).await;
-    match handle_job(job, send.clone(), cfg.clone()).await {
+    match handle_job(job, send.clone(), cancel, cfg.clone()).await {
         Ok(_res) => {
             let send_res = send
                 .lock()
@@ -355,6 +363,7 @@ pub async fn handle_job_wrapper(job: NewJob, send: Arc<Mutex<WsSink>>, cfg: Arc<
                     JobResultKind::JudgerError,
                     format!("Websocket error: {:?}", e),
                 ),
+                ClientErr::Cancelled => (JobResultKind::Aborted, "Job cancelled by user".into()),
                 ClientErr::Json(e) => (JobResultKind::JudgerError, format!("JSON error: {:?}", e)),
                 ClientErr::TomlDes(e) => (
                     JobResultKind::JudgerError,
@@ -381,12 +390,16 @@ pub async fn handle_job_wrapper(job: NewJob, send: Arc<Mutex<WsSink>>, cfg: Arc<
     }
     flag_finished_job(send.clone(), cfg.clone()).await;
 
-    fs::ensure_removed_dir(&cfg.job_folder(job_id)).await;
+    match fs::ensure_removed_dir(&cfg.job_folder(job_id)).await {
+        Ok(_) => {}
+        Err(e) => log::error!("Failed to remove directory for job {}: {}", job_id, e),
+    };
 }
 
 pub async fn handle_job(
     job: NewJob,
     send: Arc<Mutex<WsSink>>,
+    cancel: CancellationToken,
     cfg: Arc<SharedClientData>,
 ) -> Result<JobResultMsg, ClientErr> {
     let job = job.job;
@@ -394,7 +407,10 @@ pub async fn handle_job(
 
     log::info!("Job {}: created", job.id);
 
-    let mut public_cfg = check_download_read_test_suite(job.test_suite, &*cfg).await?;
+    let mut public_cfg = check_download_read_test_suite(job.test_suite, &*cfg)
+        .with_cancel(cancel.clone())
+        .await
+        .ok_or(ClientErr::Cancelled)??;
     public_cfg.binds.get_or_insert_with(Vec::new);
     log::info!("Job {}: got test suite", job.id);
 
@@ -520,7 +536,13 @@ pub async fn handle_job(
     });
 
     let result = suite
-        .run(docker, job_path, Some(ch_send), Some(upload_info))
+        .run(
+            docker,
+            job_path,
+            Some(ch_send),
+            Some(upload_info),
+            cancel.clone(),
+        )
         .await?;
 
     log::info!("Job {}: finished running", job.id);
@@ -567,8 +589,28 @@ pub async fn flag_finished_job(send: Arc<Mutex<WsSink>>, client_config: Arc<Shar
 pub fn accept_job(job: NewJob, send: Arc<Mutex<WsSink>>, client_config: Arc<SharedClientData>) {
     log::info!("Received job {}", job.job.id);
     let job_id = job.job.id;
-    let handle = tokio::spawn(handle_job_wrapper(job, send, client_config.clone()));
-    client_config.running_job_handles.insert(job_id, handle);
+    let cancel_handle = client_config.cancel_handle.create_child();
+    let cancel_token = cancel_handle.get_token();
+    let handle = tokio::spawn(handle_job_wrapper(
+        job,
+        send,
+        cancel_token,
+        client_config.clone(),
+    ));
+    client_config
+        .running_job_handles
+        .insert(job_id, (handle, cancel_handle));
+}
+
+async fn cancel_job(job_id: FlowSnake, client_config: Arc<SharedClientData>) {
+    let job = client_config.running_job_handles.remove(&job_id);
+    if let Some((_, (handle, cancel))) = job {
+        cancel.cancel();
+        match handle.await {
+            Ok(_) => log::info!("Cancelled job {}", job_id),
+            Err(e) => log::warn!("Unable to cancel job {}: {}", job_id, e),
+        };
+    }
 }
 
 pub async fn client_loop(
@@ -587,16 +629,11 @@ pub async fn client_loop(
         .unwrap();
 
     let ws_send = Arc::new(Mutex::new(ws_send));
-    while let Some(Some(Ok(x))) = {
-        let mut ws_lock = ws_recv.next().fuse();
-        // TODO: add abort mechanisms
-        // let mut abort_lock = abort.next().fuse();
-        let mut abort_lock = futures::future::pending::<()>();
-        futures::select_biased! {
-            abort = abort_lock => None,
-            ws = ws_lock => Some(ws)
-        }
-    } {
+    while let Some(Some(Ok(x))) = ws_recv
+        .next()
+        .with_cancel(client_config.cancel_handle.get_token())
+        .await
+    {
         let x: Message = x;
         if x.is_text() {
             let payload = x.into_data();
@@ -606,7 +643,9 @@ pub async fn client_loop(
                     ServerMsg::NewJob(job) => {
                         accept_job(job, ws_send.clone(), client_config.clone())
                     }
-                    ServerMsg::AbortJob(job) => log::warn!("TODO: Abort {}", job.job_id),
+                    ServerMsg::AbortJob(job) => {
+                        tokio::spawn(cancel_job(job.job_id, client_config.clone()));
+                    }
                 },
                 Err(e) => {
                     log::warn!(

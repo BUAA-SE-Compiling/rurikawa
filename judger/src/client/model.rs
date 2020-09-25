@@ -120,11 +120,11 @@ impl TestResult {
                 let (kind, cache) = match e {
                     crate::tester::JobFailure::OutputMismatch(m) => (
                         TestResultKind::WrongAnswer,
-                        FailedJobOutputCacheFile {
+                        Some(FailedJobOutputCacheFile {
                             output: m.output,
                             stdout_diff: Some(m.diff),
                             message: None,
-                        },
+                        }),
                     ),
 
                     crate::tester::JobFailure::ExecError(e) => {
@@ -142,21 +142,22 @@ impl TestResult {
                         };
                         (
                             res,
-                            FailedJobOutputCacheFile {
+                            Some(FailedJobOutputCacheFile {
                                 output: e.output,
                                 stdout_diff: None,
                                 message: msg,
-                            },
+                            }),
                         )
                     }
                     crate::tester::JobFailure::InternalError(e) => (
                         TestResultKind::OtherError,
-                        FailedJobOutputCacheFile {
+                        Some(FailedJobOutputCacheFile {
                             output: Vec::new(),
                             stdout_diff: None,
                             message: Some(e),
-                        },
+                        }),
                     ),
+                    crate::tester::JobFailure::Cancelled => (TestResultKind::NotRunned, None),
                 };
 
                 (
@@ -164,7 +165,7 @@ impl TestResult {
                         kind,
                         result_file_id: None,
                     },
-                    Some(cache),
+                    cache,
                 )
             }
         }

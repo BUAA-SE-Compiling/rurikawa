@@ -38,6 +38,7 @@ pub enum BuildError {
     FileTransferError(String),
     BuildError(Vec<ProcessInfo>),
     Internal(String),
+    Cancelled,
 }
 
 impl std::fmt::Display for BuildError {
@@ -53,6 +54,7 @@ pub enum JobFailure {
     OutputMismatch(OutputMismatch),
     ExecError(ExecError),
     InternalError(String),
+    Cancelled,
 }
 
 impl std::fmt::Display for JobFailure {

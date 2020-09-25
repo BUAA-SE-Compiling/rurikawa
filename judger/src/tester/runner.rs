@@ -93,6 +93,8 @@ pub struct DockerCommandRunnerOptions {
     pub binds: Option<Vec<Mount>>,
     /// Data to be copied into container before build, in format of `(source_dir, target_dir)`
     pub copies: Option<Vec<(String, String)>>,
+    /// Token to cancel this runner
+    pub cancellation_token: CancellationToken,
 }
 
 impl Default for DockerCommandRunnerOptions {
@@ -105,6 +107,7 @@ impl Default for DockerCommandRunnerOptions {
             remove_image: false,
             binds: None,
             copies: None,
+            cancellation_token: Default::default(),
         }
     }
 }
@@ -121,12 +124,15 @@ impl DockerCommandRunner {
             options,
             intermediate_images: vec![],
         };
+        let cancel = res.options.cancellation_token.clone();
 
         log::info!("container {}: started building", res.options.container_name);
 
         // Build the image
         if res.options.build_image {
-            res.image.build(res.instance.clone()).await?
+            res.image
+                .build(res.instance.clone(), cancel.clone())
+                .await?
         };
         let mut image_name = res.image.tag();
 
@@ -146,7 +152,9 @@ impl DockerCommandRunner {
                 image_name,
                 container_name
             );
-            res.instance
+
+            let create_instance = res
+                .instance
                 .create_container(
                     Some(bollard::container::CreateContainerOptions {
                         name: container_name.clone(),
@@ -159,13 +167,22 @@ impl DockerCommandRunner {
                         ..Default::default()
                     },
                 )
-                .await
-                .map_err(|e| {
+                .with_cancel(cancel.clone())
+                .await;
+            match create_instance {
+                Some(r) => r.map_err(|e| {
                     JobFailure::internal_err_from(format!(
                         "Failed to create container `{}`: {}",
                         &container_name, e
                     ))
-                })?;
+                })?,
+                None => {
+                    // TODO: Cleanup
+                    res.kill().await;
+                    return Err(JobFailure::Cancelled.into());
+                }
+            };
+
             res.instance
                 .start_container::<String>(&container_name, None)
                 .await?;
@@ -310,29 +327,31 @@ impl DockerCommandRunner {
     pub async fn kill(self) {
         let container_name = &self.options.container_name;
 
-        self.instance
+        let res = self
+            .instance
             .kill_container(
                 container_name,
                 None::<bollard::container::KillContainerOptions<String>>,
             )
-            .await
-            .unwrap();
-
-        self.instance
-            .wait_container(
-                container_name,
-                None::<bollard::container::WaitContainerOptions<String>>,
-            )
-            .collect::<Vec<_>>()
             .await;
 
-        self.instance
-            .remove_container(
-                container_name,
-                None::<bollard::container::RemoveContainerOptions>,
-            )
-            .await
-            .unwrap();
+        if res.is_ok() {
+            self.instance
+                .wait_container(
+                    container_name,
+                    None::<bollard::container::WaitContainerOptions<String>>,
+                )
+                .for_each(|_| async {})
+                .await;
+
+            let _res = self
+                .instance
+                .remove_container(
+                    container_name,
+                    None::<bollard::container::RemoveContainerOptions>,
+                )
+                .await;
+        }
 
         // Remove the image.
         if self.options.remove_image {

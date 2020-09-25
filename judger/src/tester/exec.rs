@@ -257,7 +257,11 @@ impl Image {
     }
 
     /// Build (or pull) a image with the specified config.
-    pub async fn build(&self, instance: bollard::Docker) -> Result<(), BuildError> {
+    pub async fn build(
+        &self,
+        instance: bollard::Docker,
+        cancel: CancellationToken,
+    ) -> Result<(), BuildError> {
         match &self {
             Image::Image { tag } => {
                 let ms = instance
@@ -270,7 +274,9 @@ impl Image {
                         None,
                     )
                     .collect::<Vec<_>>()
-                    .await;
+                    .with_cancel(cancel)
+                    .await
+                    .ok_or(BuildError::Cancelled)?;
                 // ! FIXME: This is not efficient (for not being lazy),
                 // ! but it seems that directly collecting to Result is not possible.
                 ms.into_iter().collect::<Result<Vec<_>, _>>().map_err(|e| {
@@ -312,7 +318,9 @@ impl Image {
                         // TODO: wait for PR#107 to merge in bollard
                         log::info!("{:?}", x);
                     })
-                    .await;
+                    .with_cancel(cancel.clone())
+                    .await
+                    .ok_or(BuildError::Cancelled)?;
 
                 task.await
                     .map_err(|e| BuildError::Internal(e.to_string()))?
@@ -560,6 +568,7 @@ impl TestSuite {
         base_dir: PathBuf,
         result_channel: Option<tokio::sync::mpsc::UnboundedSender<(String, TestResult)>>,
         upload_info: Option<Arc<ResultUploadConfig>>,
+        cancellation_token: CancellationToken,
     ) -> anyhow::Result<HashMap<String, TestResult>> {
         let rnd_id = rand::random::<u32>();
         let TestSuiteOptions {
@@ -586,6 +595,7 @@ impl TestSuite {
                 remove_image,
                 binds: self.binds.clone(),
                 copies: self.copies.clone(),
+                cancellation_token,
                 ..Default::default()
             }
         })
@@ -1070,8 +1080,14 @@ mod test_suite {
             )?;
 
             let instance = bollard::Docker::connect_with_local_defaults().unwrap();
-            ts.run(instance, std::env::current_dir().unwrap(), None, None)
-                .await?;
+            ts.run(
+                instance,
+                std::env::current_dir().unwrap(),
+                None,
+                None,
+                Default::default(),
+            )
+            .await?;
             Ok(())
         })
     }
@@ -1130,8 +1146,14 @@ mod test_suite {
             )?;
 
             let instance = bollard::Docker::connect_with_local_defaults().unwrap();
-            ts.run(instance, std::env::current_dir().unwrap(), None, None)
-                .await?;
+            ts.run(
+                instance,
+                std::env::current_dir().unwrap(),
+                None,
+                None,
+                Default::default(),
+            )
+            .await?;
             Ok(())
         })
     }

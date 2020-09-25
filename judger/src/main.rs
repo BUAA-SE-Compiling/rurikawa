@@ -1,7 +1,9 @@
 use clap::Clap;
 use dirs::home_dir;
-use rurikawa_judger::client::{
-    client_loop, connect_to_coordinator, ClientConfig, SharedClientData,
+use once_cell::sync::OnceCell;
+use rurikawa_judger::{
+    client::{client_loop, connect_to_coordinator, ClientConfig, SharedClientData},
+    prelude::CancellationTokenHandle,
 };
 use std::process::exit;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -11,6 +13,7 @@ mod opt;
 
 static CTRL_C: AtomicBool = AtomicBool::new(false);
 static CTRL_C_TWICE: AtomicBool = AtomicBool::new(false);
+static ABORT_HANDLE: OnceCell<CancellationTokenHandle> = OnceCell::new();
 
 #[tokio::main]
 async fn main() {
@@ -54,11 +57,16 @@ async fn client(cmd: opt::ConnectSubCmd) {
         register_token: cmd.register_token,
     });
     let client_config = Arc::new(cfg);
+    let handle = client_config.cancel_handle.clone();
+    ABORT_HANDLE.set(handle).unwrap();
     loop {
         let (sink, stream) = connect_to_coordinator(&client_config)
             .await
             .expect("Failed to connect");
         client_loop(stream, sink, client_config.clone()).await;
+        if client_config.cancel_handle.is_cancelled() {
+            break;
+        }
     }
 }
 
@@ -66,6 +74,9 @@ fn handle_ctrl_c() {
     if !CTRL_C.load(Ordering::SeqCst) {
         log::warn!("Waiting for existing jobs to complete... Press Ctrl-C again to force quit.");
         CTRL_C.store(true, Ordering::SeqCst);
+        if let Some(x) = ABORT_HANDLE.get() {
+            x.cancel();
+        }
     } else if !CTRL_C_TWICE.load(Ordering::SeqCst) {
         log::error!("Force quit!");
         CTRL_C.store(true, Ordering::SeqCst);
