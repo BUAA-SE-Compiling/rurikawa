@@ -1,10 +1,10 @@
+use async_trait::async_trait;
+use dashmap::DashMap;
+use futures::Future;
 use std::{
     sync::atomic::AtomicBool, sync::atomic::AtomicUsize, sync::atomic::Ordering, sync::Arc,
     task::Poll, task::Waker,
 };
-
-use dashmap::DashMap;
-use futures::Future;
 
 pub struct CancellationTokenHandle {
     token_ref: Option<Arc<InnerCToken>>,
@@ -106,6 +106,36 @@ impl Drop for CancellationToken {
             if let Some(id) = self.waker_id.take() {
                 token_ref.drop_waker(id);
             }
+        }
+    }
+}
+
+impl futures::future::FusedFuture for CancellationToken {
+    fn is_terminated(&self) -> bool {
+        self.token_ref
+            .as_ref()
+            .map(|r| r.cancelled.load(Ordering::SeqCst))
+            .unwrap_or(false)
+    }
+}
+
+#[async_trait]
+trait CancelFutureExt {
+    type Output;
+    async fn with_cancel(self, cancel: CancellationToken) -> Option<Self::Output>;
+}
+
+#[async_trait]
+impl<T> CancelFutureExt for T
+where
+    T: Future + Unpin + futures::future::FusedFuture + Send,
+{
+    type Output = T::Output;
+    async fn with_cancel(self, mut cancel: CancellationToken) -> Option<T::Output> {
+        let mut self_ = self;
+        futures::select_biased! {
+            abort = cancel => None,
+            fut = self_ => Some(fut)
         }
     }
 }
