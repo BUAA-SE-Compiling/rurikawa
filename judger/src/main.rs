@@ -39,7 +39,6 @@ async fn main() {
         opt::SubCmd::Connect(cmd) => client(cmd).await,
         opt::SubCmd::Run(_) => {}
     }
-    println!("Hello world");
 }
 
 async fn client(cmd: opt::ConnectSubCmd) {
