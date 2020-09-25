@@ -1,6 +1,6 @@
 use async_trait::async_trait;
 use dashmap::DashMap;
-use futures::{future::FusedFuture, pin_mut, Future, FutureExt};
+use futures::{pin_mut, Future, FutureExt};
 use std::{
     num::NonZeroUsize, sync::atomic::AtomicBool, sync::atomic::AtomicUsize, sync::atomic::Ordering,
     sync::Arc, sync::Weak, task::Poll, task::Waker,
@@ -227,11 +227,12 @@ impl Future for CancellationToken {
                 }
                 return Poll::Ready(());
             }
-            let id = token_ref.store_waker(cx.waker().clone());
-            if let Some(id1) = self.waker_id.take() {
-                token_ref.drop_waker(id1);
+            if let Some(_id) = self.waker_id.as_ref() {
+                // noop
+            } else {
+                let id = token_ref.store_waker(cx.waker().clone());
+                self.waker_id = Some(id);
             }
-            self.waker_id = Some(id);
             Poll::Pending
         } else {
             log::info!("eternity");
