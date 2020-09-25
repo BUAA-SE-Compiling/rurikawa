@@ -23,7 +23,7 @@ use std::{
     path::PathBuf,
     sync::{atomic::AtomicUsize, Arc},
 };
-use tokio::{net::TcpStream, sync::Mutex, task::JoinHandle};
+use tokio::{net::TcpStream, sync::Mutex, sync::RwLock, task::JoinHandle};
 use tokio_tungstenite::{connect_async, tungstenite, MaybeTlsStream, WebSocketStream};
 use tungstenite::Message;
 
@@ -87,8 +87,9 @@ pub struct SharedClientData {
     pub cfg: ClientConfig,
     pub running_tests: AtomicUsize,
     /// All test suites whose folder is being edited.
-    pub locked_test_suite: DashMap<FlowSnake, Arc<Mutex<()>>>,
-    pub running_job_handles: DashMap<FlowSnake, (JoinHandle<()>, CancellationTokenHandle)>,
+    pub locked_test_suite: RwLock<HashMap<FlowSnake, Arc<Mutex<()>>>>,
+    pub running_job_handles: Mutex<HashMap<FlowSnake, (JoinHandle<()>, CancellationTokenHandle)>>,
+    pub cancelling_job_handles: Mutex<HashMap<FlowSnake, JoinHandle<()>>>,
     pub cancel_handle: CancellationTokenHandle,
 }
 
@@ -97,8 +98,9 @@ impl SharedClientData {
         SharedClientData {
             cfg,
             running_tests: AtomicUsize::new(0),
-            locked_test_suite: DashMap::new(),
-            running_job_handles: DashMap::new(),
+            locked_test_suite: RwLock::new(HashMap::new()),
+            running_job_handles: Mutex::new(HashMap::new()),
+            cancelling_job_handles: Mutex::new(HashMap::new()),
             cancel_handle: CancellationTokenHandle::new(),
         }
     }
@@ -170,22 +172,27 @@ impl SharedClientData {
         root
     }
 
-    pub fn obtain_suite_lock(&self, suite_id: FlowSnake) -> Arc<Mutex<()>> {
+    pub async fn obtain_suite_lock(&self, suite_id: FlowSnake) -> Arc<Mutex<()>> {
         let cur = self
             .locked_test_suite
+            .read()
+            .await
             .get(&suite_id)
-            .map(|pair| pair.value().clone());
+            .map(|pair| pair.clone());
         if let Some(cur) = cur {
             cur
         } else {
             let arc = Arc::new(Mutex::new(()));
-            self.locked_test_suite.insert(suite_id, arc.clone());
+            self.locked_test_suite
+                .write()
+                .await
+                .insert(suite_id, arc.clone());
             arc
         }
     }
 
-    pub fn suite_unlock(&self, suite_id: FlowSnake) {
-        self.locked_test_suite.remove(&suite_id);
+    pub async fn suite_unlock(&self, suite_id: FlowSnake) {
+        self.locked_test_suite.write().await.remove(&suite_id);
     }
 
     pub fn new_job(&self) -> usize {
@@ -280,7 +287,7 @@ pub async fn check_download_read_test_suite(
         // Lock this specific test suite and let all other concurrent tasks to wait
         // until downloading completes
         let lock = cfg.obtain_suite_lock(suite_id);
-        lock.lock().await;
+        lock.await.lock().await;
 
         let dir_exists = {
             let create_dir = tokio::fs::create_dir(&suite_folder).await;
@@ -586,7 +593,11 @@ pub async fn flag_finished_job(send: Arc<Mutex<WsSink>>, client_config: Arc<Shar
         .await;
 }
 
-pub fn accept_job(job: NewJob, send: Arc<Mutex<WsSink>>, client_config: Arc<SharedClientData>) {
+pub async fn accept_job(
+    job: NewJob,
+    send: Arc<Mutex<WsSink>>,
+    client_config: Arc<SharedClientData>,
+) {
     log::info!("Received job {}", job.job.id);
     let job_id = job.job.id;
     let cancel_handle = client_config.cancel_handle.create_child();
@@ -599,18 +610,30 @@ pub fn accept_job(job: NewJob, send: Arc<Mutex<WsSink>>, client_config: Arc<Shar
     ));
     client_config
         .running_job_handles
+        .lock()
+        .await
         .insert(job_id, (handle, cancel_handle));
 }
 
 async fn cancel_job(job_id: FlowSnake, client_config: Arc<SharedClientData>) {
-    let job = client_config.running_job_handles.remove(&job_id);
-    if let Some((_, (handle, cancel))) = job {
+    let job = client_config
+        .running_job_handles
+        .lock()
+        .await
+        .remove(&job_id);
+    if let Some((handle, cancel)) = job {
         cancel.cancel();
         match handle.await {
             Ok(_) => log::info!("Cancelled job {}", job_id),
             Err(e) => log::warn!("Unable to cancel job {}: {}", job_id, e),
         };
     }
+    // remove self from cancelling job list
+    client_config
+        .cancelling_job_handles
+        .lock()
+        .await
+        .remove(&job_id);
 }
 
 pub async fn client_loop(
@@ -641,10 +664,15 @@ pub async fn client_loop(
             match msg {
                 Ok(msg) => match msg {
                     ServerMsg::NewJob(job) => {
-                        accept_job(job, ws_send.clone(), client_config.clone())
+                        accept_job(job, ws_send.clone(), client_config.clone()).await
                     }
                     ServerMsg::AbortJob(job) => {
-                        tokio::spawn(cancel_job(job.job_id, client_config.clone()));
+                        let abort = tokio::spawn(cancel_job(job.job_id, client_config.clone()));
+                        client_config
+                            .cancelling_job_handles
+                            .lock()
+                            .await
+                            .insert(job.job_id, abort);
                     }
                 },
                 Err(e) => {

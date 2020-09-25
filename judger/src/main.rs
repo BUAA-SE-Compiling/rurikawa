@@ -58,6 +58,7 @@ async fn client(cmd: opt::ConnectSubCmd) {
     let client_config = Arc::new(cfg);
     let handle = client_config.cancel_handle.clone();
     ABORT_HANDLE.set(handle).unwrap();
+
     loop {
         let (sink, stream) = connect_to_coordinator(&client_config)
             .await
@@ -67,6 +68,23 @@ async fn client(cmd: opt::ConnectSubCmd) {
             break;
         }
     }
+
+    let mut cancelling_guard = client_config.cancelling_job_handles.lock().await;
+    let mut cancelling = cancelling_guard.drain().collect::<Vec<_>>();
+    let mut running_guard = client_config.running_job_handles.lock().await;
+    let mut running = running_guard.drain().collect::<Vec<_>>();
+    drop(cancelling_guard);
+    drop(running_guard);
+
+    let cancelling = cancelling.drain(..).map(|(id, fut)| {
+        log::info!("Waiting for job {} to cancel...", id);
+        fut
+    });
+    let running = running.drain(..).map(|(id, fut)| {
+        log::info!("Waiting for job {} to abort...", id);
+        fut.0
+    });
+    futures::future::join_all(cancelling.chain(running)).await;
 }
 
 fn handle_ctrl_c() {
