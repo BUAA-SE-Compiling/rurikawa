@@ -777,7 +777,7 @@ mod tests {
                 t.expected("Hello,\nworld!");
                 let got = t.run(&TokioCommandRunner {}).await;
                 let expected: Result<(), _> = Err(JobFailure::OutputMismatch(OutputMismatch {
-                    diff: "+ Hello,\n  world!\n- ".into(),
+                    diff: "+ Hello,\n  world!".into(),
                     output: vec![
                         ProcessInfo {
                             ret_code: 0,
@@ -960,7 +960,7 @@ mod tests {
                 t.expected("Hello,\nworld!");
                 let got = t.run(&runner).await;
                 let expected: Result<(), _> = Err(JobFailure::OutputMismatch(OutputMismatch {
-                    diff: "+ Hello,\n  world!\n- ".into(),
+                    diff: "+ Hello,\n  world!".into(),
                     output: vec![
                         ProcessInfo {
                             ret_code: 0,
