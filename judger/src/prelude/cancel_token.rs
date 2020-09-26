@@ -16,7 +16,7 @@ use std::{
 ///
 /// # Structure
 ///
-/// ```no_run
+/// ```plaintext
 ///  -> Waker 1               -> Waker 3
 /// |-> Waker 2              |-> Waker 4
 /// |                        |
@@ -296,3 +296,62 @@ where
 pub trait ICancellationToken: Future<Output = ()> + Send + Unpin {}
 
 impl ICancellationToken for CancellationToken {}
+
+mod test {
+    use super::*;
+    use std::time::Duration;
+
+    #[test]
+    fn cancel_token_should_not_be_triggered() {
+        let handle = CancellationTokenHandle::new();
+        let res = tokio_test::block_on(async move {
+            let token = handle.get_token();
+            let awaiter = tokio::time::delay_for(Duration::from_secs(5));
+            awaiter.with_cancel(token).await
+        });
+        assert_eq!(res, Some(()))
+    }
+
+    #[test]
+    fn cancel_token_being_triggered() {
+        let handle = CancellationTokenHandle::new();
+        let res = tokio_test::block_on(async move {
+            let token = handle.get_token();
+            let awaiter = tokio::time::delay_for(Duration::from_secs(3600));
+            futures::join!(awaiter.with_cancel(token), async { handle.cancel() })
+        });
+        assert_eq!(res, (None, ()))
+    }
+
+    #[test]
+    fn multiple_cancel_token_being_triggered() {
+        let handle = CancellationTokenHandle::new();
+        let res = tokio_test::block_on(async move {
+            let token = handle.get_token();
+            let token2 = handle.get_token();
+            let awaiter = tokio::time::delay_for(Duration::from_secs(3600));
+            let awaiter2 = tokio::time::delay_for(Duration::from_secs(3600));
+            futures::join!(
+                awaiter.with_cancel(token),
+                awaiter2.with_cancel(token2),
+                async { handle.cancel() }
+            )
+        });
+        assert_eq!(res, (None, None, ()))
+    }
+
+    #[test]
+    fn child_token_being_triggered() {
+        let handle = CancellationTokenHandle::new();
+        let res = tokio_test::block_on(async move {
+            let child_handle = handle.create_child();
+            let token = child_handle.get_token();
+            let awaiter = tokio::time::delay_for(Duration::from_secs(3600));
+            futures::join!(awaiter.with_cancel(token), async move {
+                let child = child_handle;
+                handle.cancel()
+            })
+        });
+        assert_eq!(res, (None, ()))
+    }
+}
