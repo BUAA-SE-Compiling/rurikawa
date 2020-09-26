@@ -1,11 +1,15 @@
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 using Karenia.Rurikawa.Helpers;
 using Karenia.Rurikawa.Models;
+using Karenia.Rurikawa.Models.Account;
 using Karenia.Rurikawa.Models.Judger;
 using Karenia.Rurikawa.Models.Test;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 
 namespace Karenia.Rurikawa.Coordinator.Services {
     public class DbService {
@@ -66,6 +70,46 @@ namespace Karenia.Rurikawa.Coordinator.Services {
             }
             query = query.Take(take);
             return await query.ToListAsync();
+        }
+    }
+
+    public class DbVacuumingService {
+        private static readonly TimeSpan vacuumInterval = TimeSpan.FromMinutes(30);
+        private readonly ILogger<DbVacuumingService> logger;
+        private readonly IServiceScopeFactory scopeFactory;
+
+        public DbVacuumingService(
+            ILogger<DbVacuumingService> logger,
+            IServiceScopeFactory scopeFactory) {
+            this.logger = logger;
+            this.scopeFactory = scopeFactory;
+        }
+
+        public async void StartVacuuming() {
+            while (true) {
+                await VacuumDb();
+                await Task.Delay(vacuumInterval);
+            }
+        }
+
+        private async Task VacuumDb() {
+            using var scope = scopeFactory.CreateScope();
+            var db = scope.ServiceProvider.GetService<RurikawaDb>();
+            await VacuumTokens(db.AccessTokens);
+            await VacuumTokens(db.RefreshTokens);
+            await VacuumTokens(db.JudgerRegisterTokens);
+        }
+
+        private async Task VacuumTokens<T>(DbSet<T> tokenSet) where T : TokenBase {
+            var now = DateTimeOffset.Now;
+            var nowMinusGracePeriod = DateTimeOffset.Now - TokenBase.SingleUseTokenGracePeriod;
+            await tokenSet
+                .Where(x => (
+                    x.Expires < now
+                    || (x.IsSingleUse
+                        && x.LastUseTime.HasValue
+                        && x.LastUseTime < nowMinusGracePeriod)))
+                .DeleteFromQueryAsync();
         }
     }
 }

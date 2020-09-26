@@ -88,6 +88,7 @@ namespace Karenia.Rurikawa.Coordinator {
             services.AddScoped<AccountService>();
             services.AddScoped<JudgerService>();
             services.AddScoped<DbService>();
+            services.AddSingleton<DbVacuumingService>();
             services.AddSingleton<JsonSerializerOptions>(_ =>
                 SetupJsonSerializerOptions(new JsonSerializerOptions())
             );
@@ -191,7 +192,8 @@ namespace Karenia.Rurikawa.Coordinator {
             // pre-initialize long-running services
             var coordinator = svc.GetService<JudgerCoordinatorService>();
             // coordinator.RevertJobStatus().AsTask().Wait();
-
+            var vacuumingService = svc.GetService<DbVacuumingService>();
+            vacuumingService.StartVacuuming();
             var client = svc.GetService<SingleBucketFileStorageService>();
             client.Check().Wait();
 

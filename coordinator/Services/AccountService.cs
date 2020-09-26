@@ -161,6 +161,25 @@ namespace Karenia.Rurikawa.Coordinator.Services {
             return token;
         }
 
+        public async Task<string> CreateNewJudgerToken(
+            DateTimeOffset? expireAt,
+            bool isSingleUse,
+            List<string> tags) {
+            var token = GenerateToken();
+            db.JudgerRegisterTokens.Add(
+                new JudgerTokenEntry
+                {
+                    Token = token,
+                    IssuedTime = DateTimeOffset.Now,
+                    IsSingleUse = isSingleUse,
+                    Expires = expireAt,
+                    Tags = tags
+                }
+            );
+            await db.SaveChangesAsync();
+            return token;
+        }
+
         public string? VerifyShortLivingToken(string token) {
             token = token.Replace('_', '+');
             var timestamp = DateTimeOffset.Now;
@@ -247,7 +266,7 @@ namespace Karenia.Rurikawa.Coordinator.Services {
         /// </summary>
         /// <param name="token"></param>
         /// <returns>Token, null if not found</returns>
-        public async Task<TokenEntry?> GetJudgerRegisterToken(string token) {
+        public async Task<JudgerTokenEntry?> GetJudgerRegisterToken(string token) {
             return await GetToken(token, db.JudgerRegisterTokens);
         }
 
@@ -255,8 +274,9 @@ namespace Karenia.Rurikawa.Coordinator.Services {
         /// Find the token with token string as provided
         /// </summary>
         /// <param name="token"></param>
+        /// <param name="tokenSet"></param>
         /// <returns>Token, null if not found</returns>
-        public async Task<T?> GetToken<T>(string token, DbSet<T> tokenSet) where T : TokenEntry {
+        private async Task<T?> GetToken<T>(string token, DbSet<T> tokenSet) where T : TokenBase {
             var result = await tokenSet.Where(t => t.Token == token)
                 .SingleOrDefaultAsync();
             if (result != null && result.IsExpired()) {
