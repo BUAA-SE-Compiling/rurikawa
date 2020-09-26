@@ -1042,18 +1042,18 @@ mod test_suite {
                 &std::env::current_dir().unwrap(),
                 JudgerPrivateConfig {
                     test_root_dir: PathBuf::from(r"../golem/src"),
-                    mapped_test_root_dir: PathBuf::from(r"golem/src"),
+                    mapped_test_root_dir: PathBuf::from(r"/golem/src"),
                 },
                 JudgerPublicConfig {
                     name: "golem_no_volume".into(),
                     mapped_dir: Bind {
                         from: PathBuf::from(r"../golem/src"),
-                        to: PathBuf::from(r"golem/src"),
+                        to: PathBuf::from(r"../golem/src"),
                         readonly: false,
                     },
                     binds: None,
                     run: [
-                        "cd golem",
+                        // "cd golem",
                         "python ./golemc.py $src -o $bin",
                         "cat $stdin | python ./golem.py $bin",
                     ]
@@ -1108,18 +1108,18 @@ mod test_suite {
                 &std::env::current_dir().unwrap(),
                 JudgerPrivateConfig {
                     test_root_dir: PathBuf::from(r"../golem/src"),
-                    mapped_test_root_dir: PathBuf::from(r"golem/src"),
+                    mapped_test_root_dir: PathBuf::from(r"/golem/src"),
                 },
                 JudgerPublicConfig {
                     name: "golem".into(),
                     binds: Some(vec![]),
                     mapped_dir: Bind {
                         from: PathBuf::from(r"../golem/src"),
-                        to: PathBuf::from(r"golem/src"),
+                        to: PathBuf::from(r"/golem/src"),
                         readonly: false,
                     },
                     run: [
-                        "cd golem",
+                        // "cd golem",
                         "python ./golemc.py $src -o $bin",
                         "cat $stdin | python ./golem.py $bin",
                     ] // public
