@@ -36,6 +36,7 @@ jobs:
           dockerfile: coordinator.Dockerfile
           # Adds labels with git repository information to the built image
           add_git_labels: true
+          build-args: CI=true
 
   build-judger-image:
     runs-on: ubuntu-latest
@@ -67,6 +68,7 @@ jobs:
           path: judger
           # Adds labels with git repository information to the built image
           add_git_labels: true
+          build-args: CI=true  
 
   build-web-image:
     runs-on: ubuntu-latest
@@ -98,6 +100,7 @@ jobs:
           path: web
           # Adds labels with git repository information to the built image
           add_git_labels: true
+          build-args: CI=true  
 
 
   build-judger:
