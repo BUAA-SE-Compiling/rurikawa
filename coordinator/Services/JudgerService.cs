@@ -3,6 +3,7 @@ using System.Linq;
 using System.Threading.Tasks;
 using Karenia.Rurikawa.Models;
 using Karenia.Rurikawa.Models.Judger;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 
 namespace Karenia.Rurikawa.Coordinator.Services {
@@ -35,6 +36,13 @@ namespace Karenia.Rurikawa.Coordinator.Services {
             };
             db.Judgers.Add(judger);
             await db.SaveChangesAsync();
+            return judger;
+        }
+
+        public async ValueTask<JudgerEntry?> GetJudgerByToken(string token) {
+            var judger = await db.Judgers.Where(j => j.Id == token)
+                .AsNoTracking()
+                .SingleOrDefaultAsync();
             return judger;
         }
     }

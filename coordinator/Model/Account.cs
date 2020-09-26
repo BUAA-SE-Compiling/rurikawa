@@ -28,20 +28,11 @@ namespace Karenia.Rurikawa.Models.Account {
         public string? StudentId { get; set; }
     }
 
-    public class AccessTokenEntry : TokenEntry { }
-    public class RefreshTokenEntry : TokenEntry { }
-    public class JudgerTokenEntry : TokenEntry { }
-
     /// <summary>
-    /// The class used for storing long-lived Access Tokens and 
-    /// Refresh Tokens for users
+    /// A base class for token-related stuff
     /// </summary>
-    public class TokenEntry {
-        public string Username { get; set; }
-        public string? TokenName { get; set; }
+    public class TokenBase {
         public string Token { get; set; }
-        public List<string> Scope { get; set; } = new List<string>();
-        public string? RelatedToken { get; set; }
         public DateTimeOffset IssuedTime { get; set; }
         public DateTimeOffset? Expires { get; set; }
         public bool IsSingleUse { get; set; } = false;
@@ -59,4 +50,23 @@ namespace Karenia.Rurikawa.Models.Account {
         public static readonly TimeSpan SingleUseTokenGracePeriod
             = TimeSpan.FromMinutes(5);
     }
+
+    /// <summary>
+    /// The class used for storing long-lived Access Tokens and 
+    /// Refresh Tokens for users
+    /// </summary>
+    public class TokenEntry : TokenBase {
+        public string Username { get; set; }
+        public string? TokenName { get; set; }
+        public List<string> Scope { get; set; } = new List<string>();
+        public string? RelatedToken { get; set; }
+    }
+
+    public class AccessTokenEntry : TokenEntry { }
+    public class RefreshTokenEntry : TokenEntry { }
+
+    public class JudgerTokenEntry : TokenBase {
+        public List<string> Tags { get; set; } = new List<string>();
+    }
 }
+

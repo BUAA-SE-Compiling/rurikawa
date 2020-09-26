@@ -53,12 +53,10 @@ namespace Karenia.Rurikawa.Models {
 
         }
 
-        static protected void AssignEntityTokenEntry<T>(ModelBuilder modelBuilder) where T : TokenEntry {
+        static protected void AssignEntityTokenEntry<T>(ModelBuilder modelBuilder) where T : TokenBase {
             modelBuilder.Entity<T>().HasKey(x => x.Token);
             modelBuilder.Entity<T>().HasIndex(x => x.Token).IsUnique();
             modelBuilder.Entity<T>().HasIndex(x => x.Expires);
-            modelBuilder.Entity<T>().HasIndex(x => x.Username);
-            modelBuilder.Entity<T>().HasIndex(x => x.TokenName);
         }
 
         protected override void OnModelCreating(ModelBuilder modelBuilder) {
@@ -79,17 +77,22 @@ namespace Karenia.Rurikawa.Models {
             modelBuilder.Entity<Job>().HasIndex(x => x.TestSuite);
             modelBuilder.Entity<JudgerEntry>().HasIndex(x => x.Id).IsUnique();
             modelBuilder.Entity<JudgerEntry>().HasIndex(x => x.Tags);
+            modelBuilder.Entity<JudgerEntry>().HasIndex(x => x.AcceptUntaggedJobs);
             modelBuilder.Entity<UserAccount>().HasIndex(x => x.Username).IsUnique();
             modelBuilder.Entity<UserAccount>().HasIndex(x => x.Kind);
             modelBuilder.Entity<Profile>().HasIndex(x => x.Username).IsUnique();
             modelBuilder.Entity<Profile>().HasIndex(x => x.Email);
-            modelBuilder.Entity<TestSuite>().HasIndex(x => x.Name).IsUnique();
+            modelBuilder.Entity<TestSuite>().HasIndex(x => x.Name);
             modelBuilder.Entity<TestSuite>().HasIndex(x => x.Id).IsUnique();
             modelBuilder.Entity<Announcement>().HasIndex(x => x.Id).IsUnique();
 
             AssignEntityTokenEntry<AccessTokenEntry>(modelBuilder);
             AssignEntityTokenEntry<RefreshTokenEntry>(modelBuilder);
             AssignEntityTokenEntry<JudgerTokenEntry>(modelBuilder);
+            modelBuilder.Entity<AccessTokenEntry>().HasIndex(x => x.Username);
+            modelBuilder.Entity<AccessTokenEntry>().HasIndex(x => x.TokenName);
+            modelBuilder.Entity<RefreshTokenEntry>().HasIndex(x => x.Username);
+            modelBuilder.Entity<RefreshTokenEntry>().HasIndex(x => x.TokenName);
 
             modelBuilder.Entity<Job>().Property(x => x.Id)
                 .HasConversion(flowSnakeConverter);
