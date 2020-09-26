@@ -8,11 +8,6 @@ pub mod net;
 
 pub const JUDGE_FILE_NAME: &str = "judge.toml";
 
-async fn get_judge_config(root_path: &Path) -> Result<crate::config::JudgeToml, std::io::Error> {
-    let judge_root_path = find_judge_root(root_path).await.unwrap();
-    todo!()
-}
-
 /// Remove a directory recursively.
 pub fn ensure_removed_dir(path: &Path) -> BoxFuture<Result<(), std::io::Error>> {
     async move {

@@ -173,12 +173,7 @@ impl SharedClientData {
     }
 
     pub async fn obtain_suite_lock(&self, suite_id: FlowSnake) -> Arc<Mutex<()>> {
-        let cur = self
-            .locked_test_suite
-            .read()
-            .await
-            .get(&suite_id)
-            .map(|pair| pair.clone());
+        let cur = self.locked_test_suite.read().await.get(&suite_id).cloned();
         if let Some(cur) = cur {
             cur
         } else {
@@ -313,7 +308,7 @@ pub async fn check_download_read_test_suite(
             fs::net::download_unzip(&endpoint, &suite_folder, &filename).await?;
         }
         log::info!("Suite downloaded");
-        cfg.suite_unlock(suite_id);
+        cfg.suite_unlock(suite_id).await;
     }
 
     let mut judger_conf_dir = suite_folder.clone();

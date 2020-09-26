@@ -28,7 +28,7 @@ use tokio::io::{AsyncReadExt, BufWriter};
 use super::utils::strsignal;
 
 #[cfg(not(unix))]
-fn strsignal(i: i32) -> String {
+fn strsignal(_i: i32) -> String {
     "".into()
 }
 
