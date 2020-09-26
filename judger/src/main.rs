@@ -2,12 +2,13 @@ use clap::Clap;
 use dirs::home_dir;
 use once_cell::sync::OnceCell;
 use rurikawa_judger::{
+    client::try_register,
     client::{client_loop, connect_to_coordinator, ClientConfig, SharedClientData},
     prelude::CancellationTokenHandle,
 };
-use std::process::exit;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
+use std::{path::Path, process::exit};
 
 mod opt;
 
@@ -41,20 +42,78 @@ async fn main() {
     }
 }
 
+async fn read_client_config(source_path: &Path) -> std::io::Result<Option<ClientConfig>> {
+    let mut config_path = source_path.to_owned();
+    config_path.push("config.toml");
+
+    let res = tokio::fs::read_to_string(&config_path).await;
+    let cfg = match res {
+        Ok(cfg) => cfg,
+        Err(e) => match e.kind() {
+            std::io::ErrorKind::NotFound => return Ok(None),
+            _ => return Err(e),
+        },
+    };
+
+    let cfg = toml::from_str::<ClientConfig>(&cfg)
+        .map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidData, e))?;
+    Ok(Some(cfg))
+}
+
+async fn update_client_config(source_path: &Path, cfg: &ClientConfig) -> std::io::Result<()> {
+    let mut config_path = source_path.to_owned();
+    config_path.push("config.toml");
+
+    let cfg_str = toml::to_string_pretty(cfg)
+        .map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidData, e))?;
+
+    tokio::fs::write(&config_path, cfg_str).await
+}
+
+fn override_config_using_cmd(cmd: &opt::ConnectSubCmd, cfg: &mut ClientConfig) {
+    if let Some(token) = cmd.access_token.clone() {
+        cfg.access_token = Some(token);
+    }
+    if let Some(token) = cmd.register_token.clone() {
+        cfg.register_token = Some(token);
+    }
+    if let Some(cnt) = cmd.concurrent_tasks {
+        cfg.max_concurrent_tasks = cnt;
+    }
+    if let Some(ssl) = cmd.ssl {
+        cfg.ssl = ssl;
+    }
+    if let Some(host) = cmd.host.clone() {
+        cfg.host = host;
+    }
+    if let Some(tags) = cmd.tag.clone() {
+        cfg.tags = Some(tags);
+    }
+}
+
 async fn client(cmd: opt::ConnectSubCmd) {
-    let cfg = SharedClientData::new(ClientConfig {
-        cache_folder: cmd.temp_folder_path.unwrap_or_else(|| {
+    let cache_folder = cmd.temp_folder_path.clone().unwrap_or_else(|| {
             let mut dir =
                 home_dir().expect("Failed to get home directory. Please provide a storage folder manually via `--temp-folder-path <path>`");
             dir.push(".rurikawa");
             dir
-        }),
-        ssl: cmd.ssl,
-        host: cmd.host,
-        max_concurrent_tasks:4,
-        access_token: cmd.access_token,
-        register_token: cmd.register_token,
-    });
+        });
+
+    let mut cfg = read_client_config(&cache_folder)
+        .await
+        .unwrap()
+        .unwrap_or_default();
+
+    override_config_using_cmd(&cmd, &mut cfg);
+
+    let mut cfg = SharedClientData::new(cfg);
+
+    try_register(&mut cfg, cmd.refresh).await.unwrap();
+
+    if !cmd.no_save {
+        update_client_config(&cache_folder, &cfg.cfg).await.unwrap();
+    }
+
     let client_config = Arc::new(cfg);
     let handle = client_config.cancel_handle.clone();
     ABORT_HANDLE.set(handle).unwrap();

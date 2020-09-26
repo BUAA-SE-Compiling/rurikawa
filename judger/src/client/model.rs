@@ -245,3 +245,11 @@ pub struct FailedJobOutputCacheFile {
     pub stdout_diff: Option<String>,
     pub message: Option<String>,
 }
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct JudgerRegisterMessage {
+    pub token: String,
+    pub alternate_name: Option<String>,
+    pub tags: Option<Vec<String>>,
+}
