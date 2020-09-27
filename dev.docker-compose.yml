@@ -21,6 +21,12 @@
 version: "3"
 
 services:
+  redis:
+    image: redis:6
+    restart: unless-stopped
+    networks:
+      - default
+
   psql:
     image: postgres:12
     restart: unless-stopped

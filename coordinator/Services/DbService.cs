@@ -10,6 +10,7 @@ using Karenia.Rurikawa.Models.Test;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using StackExchange.Redis;
 
 namespace Karenia.Rurikawa.Coordinator.Services {
     public class DbService {
@@ -110,6 +111,25 @@ namespace Karenia.Rurikawa.Coordinator.Services {
                         && x.LastUseTime.HasValue
                         && x.LastUseTime < nowMinusGracePeriod)))
                 .DeleteFromQueryAsync();
+        }
+    }
+
+    public class RedisService {
+        public RedisService(string redisConnectionString) {
+            this.redisConnectionString = redisConnectionString;
+        }
+
+        private readonly string redisConnectionString;
+        private ConnectionMultiplexer? redisConnection;
+
+        public async ValueTask<IDatabase> GetDatabase() {
+            return (await GetRedisConnection()).GetDatabase();
+        }
+
+        public async ValueTask<ConnectionMultiplexer> GetRedisConnection() {
+            if (this.redisConnection == null)
+                this.redisConnection = await ConnectionMultiplexer.ConnectAsync(this.redisConnectionString);
+            return this.redisConnection;
         }
     }
 }

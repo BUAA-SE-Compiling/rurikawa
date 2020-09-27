@@ -16,9 +16,11 @@ using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.IdentityModel.Tokens;
 using Npgsql;
+using StackExchange.Redis;
 
 namespace Karenia.Rurikawa.Coordinator.Services {
     public class AccountService {
@@ -343,40 +345,69 @@ namespace Karenia.Rurikawa.Coordinator.Services {
     public class JudgerAuthenticateService : AuthenticationHandler<AuthenticationSchemeOptions> {
         public JudgerAuthenticateService(
             ILogger<JudgerAuthenticateService> logger,
-            RurikawaDb db1,
-            AccountService accountService,
+            RedisService redis,
+            IServiceProvider serviceProvider,
             Microsoft.Extensions.Options.IOptionsMonitor<AuthenticationSchemeOptions> options,
             ILoggerFactory logger1,
             System.Text.Encodings.Web.UrlEncoder encoder,
             ISystemClock clock) : base(options, logger1, encoder, clock) {
             this.logger = logger;
-            this.db1 = db1;
-            this.accountService = accountService;
+            this.redis = redis;
+            this.serviceProvider = serviceProvider;
         }
 
         private readonly ILogger<JudgerAuthenticateService> logger;
-        private readonly RurikawaDb db1;
-        private readonly AccountService accountService;
+        private readonly RedisService redis;
+        private readonly IServiceProvider serviceProvider;
+        private static readonly TimeSpan redisKeyLifetime = TimeSpan.FromHours(2);
 
-        protected async Task<AuthenticateResult> _AuthenticateAsync() {
+        protected new async Task<AuthenticateResult> AuthenticateAsync() {
             KeyValuePair<string, Microsoft.Extensions.Primitives.StringValues> hdr;
             try {
                 hdr = this.Request.Headers.Where(h => h.Key.ToLower() == "authorization").Single();
             } catch {
                 return AuthenticateResult.Fail("No authorization header was found");
             }
-            var token = await this.db1.Judgers
-                .Where(judger => judger.Id == hdr.Value.First())
-                .SingleOrDefaultAsync();
+            string auth = hdr.Value.First();
 
-            if (token == null) {
+            string key = $"auth:judger:{auth}";
+
+            var redisDb = await redis.GetDatabase();
+            var res = await redisDb.StringGetAsync(key);
+            string? token;
+
+            if (res.IsNullOrEmpty) {
+                var db = serviceProvider.GetService<RurikawaDb>();
+                var valueExists = await db.Judgers.Where(judger => judger.Id == auth)
+                    .AnyAsync();
+                token = auth;
+
+                if (valueExists) {
+                    await redisDb.StringSetAsync(
+                        key,
+                        "1",
+                        expiry: redisKeyLifetime,
+                        flags: CommandFlags.FireAndForget);
+                } else {
+                    await redisDb.StringSetAsync(
+                        key,
+                        "0",
+                        expiry: redisKeyLifetime,
+                        flags: CommandFlags.FireAndForget);
+                }
+            } else {
+                if (res == "0") token = null;
+                else token = (string)res;
+            }
+
+            if (token != null) {
                 return AuthenticateResult.Fail("Unable to find token");
             }
             return AuthenticateResult.Success(new AuthenticationTicket(
                 new ClaimsPrincipal(new ClaimsIdentity[]{
                     new ClaimsIdentity(new Claim[]{
                         new Claim(ClaimTypes.Role, "judger"),
-                        new Claim(ClaimTypes.NameIdentifier, token.Id),
+                        new Claim(ClaimTypes.NameIdentifier, token),
                     })
                 }),
                 new AuthenticationProperties(),
@@ -385,7 +416,7 @@ namespace Karenia.Rurikawa.Coordinator.Services {
         }
 
         protected override Task<AuthenticateResult> HandleAuthenticateAsync() {
-            return _AuthenticateAsync();
+            return AuthenticateAsync();
         }
     }
 }

@@ -64,19 +64,22 @@ namespace Karenia.Rurikawa.Coordinator {
                 SigningKey = securityKey
             });
 
+            // Setup database stuff
             var pgsqlLinkParams = Configuration.GetValue<string>("pgsqlLink");
             var alwaysMigrate = Configuration.GetValue<bool>("alwaysMigrate");
             services.AddSingleton(_ => new DbOptions
             {
                 AlwaysMigrate = alwaysMigrate
             });
-
             var testStorageParams = new SingleBucketFileStorageService.Params();
             Configuration.GetSection("testStorage").Bind(testStorageParams);
-
             services.AddDbContextPool<Models.RurikawaDb>(options => {
                 options.UseNpgsql(pgsqlLinkParams);
             });
+
+            // Setup redis
+            var redisConnString = Configuration.GetValue<string>("redisLink");
+            services.AddSingleton(_ => new RedisService(redisConnString));
 
             services.AddSingleton(
                 svc => new SingleBucketFileStorageService(

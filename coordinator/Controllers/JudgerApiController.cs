@@ -12,7 +12,7 @@ using Microsoft.Extensions.Logging;
 
 namespace Karenia.Rurikawa.Coordinator.Controllers {
     [ApiController]
-    // [Authorize("judger")]
+    [Authorize("judger")]
     [Route("api/v1/judger/")]
     public class JudgerApiController : ControllerBase {
         private readonly ILogger<JudgerApiController> _logger;
