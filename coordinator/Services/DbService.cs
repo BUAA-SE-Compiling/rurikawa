@@ -104,13 +104,17 @@ namespace Karenia.Rurikawa.Coordinator.Services {
         private async Task VacuumTokens<T>(DbSet<T> tokenSet) where T : TokenBase {
             var now = DateTimeOffset.Now;
             var nowMinusGracePeriod = DateTimeOffset.Now - TokenBase.SingleUseTokenGracePeriod;
-            await tokenSet
+            var res = await tokenSet
                 .Where(x => (
                     x.Expires < now
                     || (x.IsSingleUse
                         && x.LastUseTime.HasValue
                         && x.LastUseTime < nowMinusGracePeriod)))
                 .DeleteFromQueryAsync();
+            logger.LogInformation(
+                "Vacuumed database table of type {0}: {1} removed.",
+                typeof(T).FullName,
+                res);
         }
     }
 
