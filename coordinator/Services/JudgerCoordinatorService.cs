@@ -303,7 +303,6 @@ namespace Karenia.Rurikawa.Coordinator.Services {
         protected async ValueTask<bool> TryDispatchJobFromDatabase(Judger judger) {
             using var scope = scopeProvider.CreateScope();
             var db = GetDb(scope);
-            Console.WriteLine("aaa");
             var job = await GetLastUndispatchedJobFromDatabase(db);
             if (job == null) return false;
             job.Stage = JobStage.Dispatched;
