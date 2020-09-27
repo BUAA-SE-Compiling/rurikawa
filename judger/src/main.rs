@@ -105,6 +105,7 @@ async fn client(cmd: opt::ConnectSubCmd) {
         .unwrap_or_default();
 
     override_config_using_cmd(&cmd, &mut cfg);
+    cfg.cache_folder = cache_folder.clone();
 
     let mut cfg = SharedClientData::new(cfg);
 

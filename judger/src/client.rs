@@ -73,7 +73,7 @@ where
     // }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ClientConfig {
     pub host: String,
     pub max_concurrent_tasks: usize,
@@ -83,6 +83,21 @@ pub struct ClientConfig {
     pub alternate_name: Option<String>,
     pub tags: Option<Vec<String>>,
     pub cache_folder: PathBuf,
+}
+
+impl Default for ClientConfig {
+    fn default() -> Self {
+        ClientConfig {
+            host: "".into(),
+            max_concurrent_tasks: 1,
+            ssl: false,
+            access_token: None,
+            register_token: None,
+            alternate_name: None,
+            tags: None,
+            cache_folder: PathBuf::new(),
+        }
+    }
 }
 
 #[derive(Debug)]
