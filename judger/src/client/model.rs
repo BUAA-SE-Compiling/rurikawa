@@ -94,6 +94,7 @@ pub enum JobResultKind {
 pub struct ResultUploadConfig {
     pub client: reqwest::Client,
     pub endpoint: String,
+    pub access_token: Option<String>,
     pub job_id: FlowSnake,
 }
 
@@ -177,9 +178,11 @@ pub async fn upload_test_result(
     upload_info: Arc<ResultUploadConfig>,
     test_id: &str,
 ) -> Option<String> {
-    let post = upload_info
-        .client
-        .post(&upload_info.endpoint)
+    let mut post = upload_info.client.post(&upload_info.endpoint);
+    if let Some(hdr) = upload_info.access_token.as_ref() {
+        post = post.header("authorization", hdr);
+    }
+    let post = post
         .query(&[
             ("jobId", upload_info.job_id.to_string().as_str()),
             ("testId", test_id),
@@ -244,4 +247,12 @@ pub struct FailedJobOutputCacheFile {
     pub output: Vec<crate::tester::ProcessInfo>,
     pub stdout_diff: Option<String>,
     pub message: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct JudgerRegisterMessage {
+    pub token: String,
+    pub alternate_name: Option<String>,
+    pub tags: Option<Vec<String>>,
 }

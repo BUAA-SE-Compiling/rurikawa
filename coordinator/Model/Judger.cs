@@ -30,9 +30,11 @@ namespace Karenia.Rurikawa.Models.Judger {
 
         public Judger(
             string id,
+            JudgerEntry dbJudgerEntry,
             JsonWebsocketWrapper<ClientMsg, ServerMsg> socket
         ) {
             Id = id;
+            DbJudgerEntry = dbJudgerEntry;
             Socket = socket;
         }
     }

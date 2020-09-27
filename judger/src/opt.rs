@@ -26,25 +26,47 @@ pub enum SubCmd {
 
 #[derive(Clap, Debug, Clone)]
 pub struct ConnectSubCmd {
-    /// The coordinator's uri (include port if needed)
-    #[clap(required = true)]
-    pub host: String,
+    /// The coordinator's address (include port if needed).
+    /// The previous host will be used if not supplied.
+    #[clap()]
+    pub host: Option<String>,
 
-    /// Enable SSL connection, if possible
+    /// Supply or override SSL settings
     #[clap(long, short)]
-    pub ssl: bool,
+    pub ssl: Option<bool>,
+
+    /// Max task count that can be runned concurrently.
+    #[clap(long, short)]
+    pub concurrent_tasks: Option<usize>,
 
     /// Path of temp folder, defaults to ~/.rurikawa/
     #[clap(long = "temp-folder", name = "path")]
     pub temp_folder_path: Option<PathBuf>,
 
-    /// Access token
-    #[clap(long, short)]
+    /// Supply or override existing access token
+    #[clap(long)]
     pub access_token: Option<String>,
 
-    /// Register token
+    /// Supply or override existing register token
     #[clap(long, short)]
     pub register_token: Option<String>,
+
+    /// Supply or override existing alternate name
+    #[clap(long)]
+    pub name: Option<String>,
+
+    /// Supply or override tags
+    #[clap(long, short)]
+    pub tag: Option<Vec<String>>,
+
+    /// Force refresh access token if possible. Supply this option to register
+    /// this judger as a new judger, and discard all previous data.
+    #[clap(long)]
+    pub refresh: bool,
+
+    /// Do not save updated data into config file.
+    #[clap(long)]
+    pub no_save: bool,
 }
 
 #[derive(Clap, Debug, Clone)]

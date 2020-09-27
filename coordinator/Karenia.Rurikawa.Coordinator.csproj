@@ -28,6 +28,7 @@
     <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="3.1.4" />
     <PackageReference Include="NSwag.AspNetCore" Version="13.7.0" />
     <PackageReference Include="SharpCompress" Version="0.26.0" />
+    <PackageReference Include="StackExchange.Redis" Version="2.1.58" />
     <PackageReference Include="System.IdentityModel.Tokens.Jwt" Version="6.7.1" />
     <PackageReference Include="System.Reactive" Version="4.4.1" />
     <PackageReference Include="Z.EntityFramework.Plus.EFCore" Version="3.0.60" />

@@ -13,12 +13,15 @@ using Karenia.Rurikawa.Models;
 using Karenia.Rurikawa.Models.Account;
 using Karenia.Rurikawa.Models.Auth;
 using Microsoft.AspNetCore.Authentication;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.IdentityModel.Tokens;
 using Npgsql;
+using StackExchange.Redis;
 
 namespace Karenia.Rurikawa.Coordinator.Services {
     public class AccountService {
@@ -161,6 +164,25 @@ namespace Karenia.Rurikawa.Coordinator.Services {
             return token;
         }
 
+        public async Task<string> CreateNewJudgerToken(
+            DateTimeOffset? expireAt,
+            bool isSingleUse,
+            List<string> tags) {
+            var token = GenerateToken();
+            db.JudgerRegisterTokens.Add(
+                new JudgerTokenEntry
+                {
+                    Token = token,
+                    IssuedTime = DateTimeOffset.Now,
+                    IsSingleUse = isSingleUse,
+                    Expires = expireAt,
+                    Tags = tags
+                }
+            );
+            await db.SaveChangesAsync();
+            return token;
+        }
+
         public string? VerifyShortLivingToken(string token) {
             token = token.Replace('_', '+');
             var timestamp = DateTimeOffset.Now;
@@ -247,7 +269,7 @@ namespace Karenia.Rurikawa.Coordinator.Services {
         /// </summary>
         /// <param name="token"></param>
         /// <returns>Token, null if not found</returns>
-        public async Task<TokenEntry?> GetJudgerRegisterToken(string token) {
+        public async Task<JudgerTokenEntry?> GetJudgerRegisterToken(string token) {
             return await GetToken(token, db.JudgerRegisterTokens);
         }
 
@@ -255,8 +277,9 @@ namespace Karenia.Rurikawa.Coordinator.Services {
         /// Find the token with token string as provided
         /// </summary>
         /// <param name="token"></param>
+        /// <param name="tokenSet"></param>
         /// <returns>Token, null if not found</returns>
-        public async Task<T?> GetToken<T>(string token, DbSet<T> tokenSet) where T : TokenEntry {
+        private async Task<T?> GetToken<T>(string token, DbSet<T> tokenSet) where T : TokenBase {
             var result = await tokenSet.Where(t => t.Token == token)
                 .SingleOrDefaultAsync();
             if (result != null && result.IsExpired()) {
@@ -320,43 +343,85 @@ namespace Karenia.Rurikawa.Coordinator.Services {
         }
     }
 
-    public class JudgerAuthenticateService : AuthenticationHandler<AuthenticationSchemeOptions> {
+    public class JudgerAuthenticateService {
+        private readonly RedisService redis;
+        private readonly IServiceProvider serviceProvider;
+        private static readonly TimeSpan redisKeyLifetime = TimeSpan.FromHours(2);
+
         public JudgerAuthenticateService(
-            ILogger<JudgerAuthenticateService> logger,
-            RurikawaDb db1,
-            AccountService accountService,
+            RedisService redis,
+            IServiceProvider serviceProvider
+        ) {
+            this.redis = redis;
+            this.serviceProvider = serviceProvider;
+        }
+
+        public async ValueTask<bool> AuthenticateAsync(string token) {
+            string key = $"auth:judger:{token}";
+
+            var redisDb = await redis.GetDatabase();
+            var res = await redisDb.StringGetAsync(key);
+
+            if (res.IsNullOrEmpty) {
+                var db = serviceProvider.GetService<RurikawaDb>();
+                var valueExists = await db.Judgers.Where(judger => judger.Id == token)
+                    .AnyAsync();
+
+                if (valueExists) {
+                    await redisDb.StringSetAsync(
+                        key,
+                        "1",
+                        expiry: redisKeyLifetime,
+                        flags: CommandFlags.FireAndForget);
+                } else {
+                    await redisDb.StringSetAsync(
+                        key,
+                        "0",
+                        expiry: redisKeyLifetime,
+                        flags: CommandFlags.FireAndForget);
+                }
+
+                return valueExists;
+            } else {
+                if (res == "0") return false;
+                else return true;
+            }
+        }
+    }
+
+    public class JudgerAuthenticateMiddleware : AuthenticationHandler<AuthenticationSchemeOptions> {
+        public JudgerAuthenticateMiddleware(
+            JudgerAuthenticateService service,
             Microsoft.Extensions.Options.IOptionsMonitor<AuthenticationSchemeOptions> options,
             ILoggerFactory logger1,
             System.Text.Encodings.Web.UrlEncoder encoder,
             ISystemClock clock) : base(options, logger1, encoder, clock) {
-            this.logger = logger;
-            this.db1 = db1;
-            this.accountService = accountService;
+            this.service = service;
         }
 
-        private readonly ILogger<JudgerAuthenticateService> logger;
-        private readonly RurikawaDb db1;
-        private readonly AccountService accountService;
+        private readonly JudgerAuthenticateService service;
 
-        protected async Task<AuthenticateResult> _AuthenticateAsync() {
-            KeyValuePair<string, Microsoft.Extensions.Primitives.StringValues> hdr;
-            try {
-                hdr = this.Request.Headers.Where(h => h.Key.ToLower() == "authorization").Single();
-            } catch {
+        protected new async Task<AuthenticateResult> AuthenticateAsync() {
+            var endpoint = Context.GetEndpoint();
+            if (endpoint?.Metadata?.GetMetadata<IAllowAnonymous>() != null) {
+                return AuthenticateResult.NoResult();
+            }
+
+            if (!this.Request.Headers.ContainsKey("Authorization")) {
                 return AuthenticateResult.Fail("No authorization header was found");
             }
-            var token = await this.db1.Judgers
-                .Where(judger => judger.Id == hdr.Value.First())
-                .SingleOrDefaultAsync();
+            var hdr = Request.Headers["Authorization"];
+            string auth = hdr.First();
 
-            if (token == null) {
+            if (!await this.service.AuthenticateAsync(auth)) {
                 return AuthenticateResult.Fail("Unable to find token");
             }
+
             return AuthenticateResult.Success(new AuthenticationTicket(
                 new ClaimsPrincipal(new ClaimsIdentity[]{
                     new ClaimsIdentity(new Claim[]{
                         new Claim(ClaimTypes.Role, "judger"),
-                        new Claim(ClaimTypes.NameIdentifier, token.Id),
+                        new Claim(ClaimTypes.NameIdentifier, auth),
                     })
                 }),
                 new AuthenticationProperties(),
@@ -365,7 +430,12 @@ namespace Karenia.Rurikawa.Coordinator.Services {
         }
 
         protected override Task<AuthenticateResult> HandleAuthenticateAsync() {
-            return _AuthenticateAsync();
+            return AuthenticateAsync();
+        }
+
+        protected override Task HandleChallengeAsync(AuthenticationProperties properties) {
+            this.Response.StatusCode = 401;
+            return base.HandleChallengeAsync(properties);
         }
     }
 }

@@ -50,7 +50,7 @@ namespace Karenia.Rurikawa.Coordinator {
                     ValidateIssuer = false,
                     ValidateAudience = false,
                 };
-            }).AddScheme<Microsoft.AspNetCore.Authentication.AuthenticationSchemeOptions, JudgerAuthenticateService>("judger", null);
+            }).AddScheme<Microsoft.AspNetCore.Authentication.AuthenticationSchemeOptions, JudgerAuthenticateMiddleware>("judger", null);
 
             services.AddAuthorization(opt => {
                 opt.AddPolicy("user", policy => policy.RequireRole("User", "Admin", "Root"));
@@ -64,19 +64,22 @@ namespace Karenia.Rurikawa.Coordinator {
                 SigningKey = securityKey
             });
 
+            // Setup database stuff
             var pgsqlLinkParams = Configuration.GetValue<string>("pgsqlLink");
             var alwaysMigrate = Configuration.GetValue<bool>("alwaysMigrate");
             services.AddSingleton(_ => new DbOptions
             {
                 AlwaysMigrate = alwaysMigrate
             });
-
             var testStorageParams = new SingleBucketFileStorageService.Params();
             Configuration.GetSection("testStorage").Bind(testStorageParams);
-
             services.AddDbContextPool<Models.RurikawaDb>(options => {
                 options.UseNpgsql(pgsqlLinkParams);
             });
+
+            // Setup redis
+            var redisConnString = Configuration.GetValue<string>("redisLink");
+            services.AddSingleton(_ => new RedisService(redisConnString));
 
             services.AddSingleton(
                 svc => new SingleBucketFileStorageService(
@@ -88,6 +91,7 @@ namespace Karenia.Rurikawa.Coordinator {
             services.AddScoped<AccountService>();
             services.AddScoped<JudgerService>();
             services.AddScoped<DbService>();
+            services.AddSingleton<DbVacuumingService>();
             services.AddSingleton<JsonSerializerOptions>(_ =>
                 SetupJsonSerializerOptions(new JsonSerializerOptions())
             );
@@ -191,7 +195,8 @@ namespace Karenia.Rurikawa.Coordinator {
             // pre-initialize long-running services
             var coordinator = svc.GetService<JudgerCoordinatorService>();
             // coordinator.RevertJobStatus().AsTask().Wait();
-
+            var vacuumingService = svc.GetService<DbVacuumingService>();
+            vacuumingService.StartVacuuming();
             var client = svc.GetService<SingleBucketFileStorageService>();
             client.Check().Wait();
 

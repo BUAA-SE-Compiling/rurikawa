@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
 using Karenia.Rurikawa.Coordinator.Services;
@@ -56,6 +57,20 @@ namespace Karenia.Rurikawa.Coordinator.Controllers {
                 Connected = connectedCount,
                 Running = runningCount
             };
+        }
+
+        public class CreateJudgerTokenRequest {
+            public DateTimeOffset ExpireAt { get; set; }
+            public bool IsSingleUse { get; set; }
+            public List<string> Tags { get; set; }
+        }
+
+        [HttpPost("judger/register-token")]
+        public async Task<string> GetJudgerRegisterToken(
+            [FromServices] AccountService accountService,
+            [FromBody] CreateJudgerTokenRequest req
+            ) {
+            return await accountService.CreateNewJudgerToken(req.ExpireAt, req.IsSingleUse, req.Tags);
         }
 
         [HttpGet("init")]

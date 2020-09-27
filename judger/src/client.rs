@@ -14,6 +14,7 @@ use futures::{
     stream::{SplitSink, SplitStream},
     FutureExt, Sink, SinkExt, StreamExt,
 };
+use http::Method;
 use model::*;
 use serde::{Deserialize, Serialize};
 use serde_json::from_slice;
@@ -79,13 +80,31 @@ pub struct ClientConfig {
     pub ssl: bool,
     pub access_token: Option<String>,
     pub register_token: Option<String>,
+    pub alternate_name: Option<String>,
+    pub tags: Option<Vec<String>>,
     pub cache_folder: PathBuf,
+}
+
+impl Default for ClientConfig {
+    fn default() -> Self {
+        ClientConfig {
+            host: "".into(),
+            max_concurrent_tasks: 1,
+            ssl: false,
+            access_token: None,
+            register_token: None,
+            alternate_name: None,
+            tags: None,
+            cache_folder: PathBuf::new(),
+        }
+    }
 }
 
 #[derive(Debug)]
 pub struct SharedClientData {
     pub cfg: ClientConfig,
     pub running_tests: AtomicUsize,
+    pub client: reqwest::Client,
     /// All test suites whose folder is being edited.
     pub locked_test_suite: RwLock<HashMap<FlowSnake, Arc<Mutex<()>>>>,
     pub running_job_handles: Mutex<HashMap<FlowSnake, (JoinHandle<()>, CancellationTokenHandle)>>,
@@ -97,6 +116,7 @@ impl SharedClientData {
     pub fn new(cfg: ClientConfig) -> SharedClientData {
         SharedClientData {
             cfg,
+            client: reqwest::Client::new(),
             running_tests: AtomicUsize::new(0),
             locked_test_suite: RwLock::new(HashMap::new()),
             running_job_handles: Mutex::new(HashMap::new()),
@@ -105,13 +125,41 @@ impl SharedClientData {
         }
     }
 
+    pub fn register_endpoint(&self) -> String {
+        let ssl = if self.cfg.ssl {
+            format_args!("https")
+        } else {
+            format_args!("http")
+        };
+
+        format!("{}://{}/api/v1/judger/register", ssl, self.cfg.host)
+    }
+
+    pub fn verify_endpoint(&self) -> String {
+        let ssl = if self.cfg.ssl {
+            format_args!("https")
+        } else {
+            format_args!("http")
+        };
+
+        format!("{}://{}/api/v1/judger/verify", ssl, self.cfg.host)
+    }
+
     pub fn websocket_endpoint(&self) -> String {
         let ssl = if self.cfg.ssl {
             format_args!("wss")
         } else {
             format_args!("ws")
         };
-        format!("{}://{}/api/v1/judger/ws", ssl, self.cfg.host)
+
+        if let Some(token) = &self.cfg.access_token {
+            format!(
+                "{}://{}/api/v1/judger/ws?token={}",
+                ssl, self.cfg.host, token
+            )
+        } else {
+            format!("{}://{}/api/v1/judger/ws", ssl, self.cfg.host)
+        }
     }
 
     pub fn test_suite_download_endpoint(&self, suite_id: FlowSnake) -> String {
@@ -202,7 +250,7 @@ impl SharedClientData {
 }
 
 #[derive(Debug)]
-pub enum ClientErr {
+pub enum JobExecErr {
     NoSuchFile(String),
     NoSuchConfig(String),
     Io(std::io::Error),
@@ -214,55 +262,118 @@ pub enum ClientErr {
     Any(anyhow::Error),
 }
 
-impl From<std::io::Error> for ClientErr {
+impl From<std::io::Error> for JobExecErr {
     fn from(e: std::io::Error) -> Self {
-        ClientErr::Io(e)
+        JobExecErr::Io(e)
     }
 }
 
-impl From<anyhow::Error> for ClientErr {
+impl From<anyhow::Error> for JobExecErr {
     fn from(e: anyhow::Error) -> Self {
-        ClientErr::Any(e)
+        JobExecErr::Any(e)
     }
 }
 
-impl From<crate::tester::ExecError> for ClientErr {
+impl From<crate::tester::ExecError> for JobExecErr {
     fn from(e: crate::tester::ExecError) -> Self {
-        ClientErr::Exec(e)
+        JobExecErr::Exec(e)
     }
 }
 
-impl From<serde_json::Error> for ClientErr {
+impl From<serde_json::Error> for JobExecErr {
     fn from(e: serde_json::Error) -> Self {
-        ClientErr::Json(e)
+        JobExecErr::Json(e)
     }
 }
 
-impl From<tungstenite::error::Error> for ClientErr {
+impl From<tungstenite::error::Error> for JobExecErr {
     fn from(e: tungstenite::error::Error) -> Self {
         match e {
-            tungstenite::Error::Io(e) => ClientErr::Io(e),
-            _ => ClientErr::Ws(e),
+            tungstenite::Error::Io(e) => JobExecErr::Io(e),
+            _ => JobExecErr::Ws(e),
         }
     }
 }
 
-impl From<toml::de::Error> for ClientErr {
+impl From<toml::de::Error> for JobExecErr {
     fn from(e: toml::de::Error) -> Self {
-        ClientErr::TomlDes(e)
+        JobExecErr::TomlDes(e)
     }
+}
+
+#[derive(Debug)]
+pub enum ClientConnectionErr {
+    Ws(tungstenite::Error),
+    BadAccessToken,
+    BadRegisterToken,
+}
+
+impl From<tungstenite::Error> for ClientConnectionErr {
+    fn from(x: tungstenite::Error) -> ClientConnectionErr {
+        ClientConnectionErr::Ws(x)
+    }
+}
+
+/// Try to register at the coordinator if no access token was specified.
+///
+/// Returns `Ok(true)` if register was success, `Ok(false)` if register is not
+/// needed or not applicable.
+pub async fn try_register(cfg: &mut SharedClientData, refresh: bool) -> anyhow::Result<bool> {
+    log::info!(
+        "Registering judger. Access token: {:?}; Register token: {:?}",
+        cfg.cfg.access_token,
+        cfg.cfg.register_token
+    );
+    if (!refresh && cfg.cfg.access_token.is_some()) || cfg.cfg.register_token.is_none() {
+        return Ok(false);
+    }
+
+    let req_body = JudgerRegisterMessage {
+        token: cfg.cfg.register_token.clone().unwrap(),
+        alternate_name: cfg.cfg.alternate_name.clone(),
+        tags: cfg.cfg.tags.clone(),
+    };
+    let endpoint = cfg.register_endpoint();
+    let client = &cfg.client;
+    let res = client
+        .request(Method::POST, &endpoint)
+        .json(&req_body)
+        .send()
+        .await?
+        .error_for_status()?
+        .text()
+        .await?;
+
+    log::info!("Got new access token: {}", res);
+    cfg.cfg.access_token = Some(res);
+
+    Ok(true)
+}
+
+/// Verify if the current registration is active.
+pub async fn verify_self(cfg: &SharedClientData) -> anyhow::Result<bool> {
+    log::info!("Verifying access token {:?}", cfg.cfg.access_token);
+    if cfg.cfg.access_token.is_none() {
+        return Ok(false);
+    }
+
+    let endpoint = cfg.verify_endpoint();
+    let res = cfg
+        .client
+        .request(Method::GET, &endpoint)
+        .header("authorization", cfg.cfg.access_token.as_ref().unwrap())
+        .send()
+        .await?
+        .status()
+        .is_success();
+    Ok(res)
 }
 
 pub async fn connect_to_coordinator(
     cfg: &SharedClientData,
-) -> Result<(WsSink, WsStream), tungstenite::Error> {
+) -> Result<(WsSink, WsStream), ClientConnectionErr> {
     let endpoint = cfg.websocket_endpoint();
-    let mut req = http::Request::builder().uri(&endpoint);
-    if let Some(token) = cfg.cfg.access_token.as_ref() {
-        req = req.header("Authorization", format!("Bearer {}", token));
-    } else {
-        req = req.header("Authorization", "");
-    }
+    let req = http::Request::builder().uri(&endpoint);
     log::info!("Connecting to {}", endpoint);
     let (client, _) = connect_async(req.body(()).unwrap()).await?;
     let (cli_sink, cli_stream) = client.split();
@@ -273,7 +384,7 @@ pub async fn connect_to_coordinator(
 pub async fn check_download_read_test_suite(
     suite_id: FlowSnake,
     cfg: &SharedClientData,
-) -> Result<JudgerPublicConfig, ClientErr> {
+) -> Result<JudgerPublicConfig, JobExecErr> {
     log::info!("Checking test suite {}", suite_id);
     let suite_folder_root = cfg.test_suite_folder_root();
     tokio::fs::create_dir_all(suite_folder_root).await?;
@@ -317,11 +428,11 @@ pub async fn check_download_read_test_suite(
         Ok(c) => c,
         Err(e) => match e.kind() {
             std::io::ErrorKind::NotFound => {
-                return Err(ClientErr::NoSuchFile(
+                return Err(JobExecErr::NoSuchFile(
                     judger_conf_dir.to_string_lossy().to_owned().to_string(),
                 ));
             }
-            _ => return Err(ClientErr::Io(e)),
+            _ => return Err(JobExecErr::Io(e)),
         },
     };
     let judger_conf = serde_json::from_slice::<JudgerPublicConfig>(&judger_conf)?;
@@ -352,27 +463,27 @@ pub async fn handle_job_wrapper(
         }
         Err(_err) => {
             let (err, msg) = match _err {
-                ClientErr::NoSuchFile(f) => (
+                JobExecErr::NoSuchFile(f) => (
                     JobResultKind::CompileError,
                     format!("Cannot find file: {}", f),
                 ),
-                ClientErr::NoSuchConfig(f) => (
+                JobExecErr::NoSuchConfig(f) => (
                     JobResultKind::CompileError,
                     format!("Cannot find config for {} in `judger.toml`", f),
                 ),
-                ClientErr::Io(e) => (JobResultKind::JudgerError, format!("IO error: {:?}", e)),
-                ClientErr::Ws(e) => (
+                JobExecErr::Io(e) => (JobResultKind::JudgerError, format!("IO error: {:?}", e)),
+                JobExecErr::Ws(e) => (
                     JobResultKind::JudgerError,
                     format!("Websocket error: {:?}", e),
                 ),
-                ClientErr::Cancelled => (JobResultKind::Aborted, "Job cancelled by user".into()),
-                ClientErr::Json(e) => (JobResultKind::JudgerError, format!("JSON error: {:?}", e)),
-                ClientErr::TomlDes(e) => (
+                JobExecErr::Cancelled => (JobResultKind::Aborted, "Job cancelled by user".into()),
+                JobExecErr::Json(e) => (JobResultKind::JudgerError, format!("JSON error: {:?}", e)),
+                JobExecErr::TomlDes(e) => (
                     JobResultKind::JudgerError,
                     format!("TOML deserialization error: {:?}", e),
                 ),
-                ClientErr::Exec(e) => (JobResultKind::PipelineError, format!("{:?}", e)),
-                ClientErr::Any(e) => (JobResultKind::OtherError, format!("{:?}", e)),
+                JobExecErr::Exec(e) => (JobResultKind::PipelineError, format!("{:?}", e)),
+                JobExecErr::Any(e) => (JobResultKind::OtherError, format!("{:?}", e)),
             };
             let send_res = send
                 .lock()
@@ -403,7 +514,7 @@ pub async fn handle_job(
     send: Arc<Mutex<WsSink>>,
     cancel: CancellationToken,
     cfg: Arc<SharedClientData>,
-) -> Result<JobResultMsg, ClientErr> {
+) -> Result<JobResultMsg, JobExecErr> {
     let job = job.job;
     let client = reqwest::Client::new();
 
@@ -412,7 +523,7 @@ pub async fn handle_job(
     let mut public_cfg = check_download_read_test_suite(job.test_suite, &*cfg)
         .with_cancel(cancel.clone())
         .await
-        .ok_or(ClientErr::Cancelled)??;
+        .ok_or(JobExecErr::Cancelled)??;
     public_cfg.binds.get_or_insert_with(Vec::new);
     log::info!("Job {}: got test suite", job.id);
 
@@ -457,7 +568,7 @@ pub async fn handle_job(
     let judge_job_cfg = judge_cfg
         .jobs
         .get(&public_cfg.name)
-        .ok_or_else(|| ClientErr::NoSuchConfig(public_cfg.name.to_owned()))?;
+        .ok_or_else(|| JobExecErr::NoSuchConfig(public_cfg.name.to_owned()))?;
 
     let image = judge_job_cfg.image.clone();
 
@@ -534,6 +645,7 @@ pub async fn handle_job(
     let upload_info = Arc::new(ResultUploadConfig {
         client,
         endpoint: cfg.result_upload_endpoint(),
+        access_token: cfg.cfg.access_token.clone(),
         job_id: job.id,
     });
 

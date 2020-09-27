@@ -67,7 +67,7 @@ namespace Karenia.Rurikawa.Coordinator.Services {
         /// <summary>
         /// A channel indicating finished judgers' Id.
         /// </summary>
-        private Queue<string> JudgerQueue { get; } = new Queue<string>();
+        private LinkedList<string> JudgerQueue { get; } = new LinkedList<string>();
 
         /// <summary>
         /// A mutex lock on judger queue.
@@ -94,15 +94,16 @@ namespace Karenia.Rurikawa.Coordinator.Services {
         ///     True if the websocket connection was made.
         /// </returns>
         public async ValueTask<bool> TryUseConnection(Microsoft.AspNetCore.Http.HttpContext ctx) {
-            if (ctx.Request.Headers.TryGetValue("Authorization", out var auth)) {
-                if (await CheckAuth(auth)) {
+            if (ctx.Request.Query.TryGetValue("token", out var auth)) {
+                var tokenEntry = await Authenticate(auth);
+                if (tokenEntry != null) {
                     var ws = await ctx.WebSockets.AcceptWebSocketAsync();
                     var wrapper = new JudgerWebsocketWrapperTy(
                         ws,
                         jsonSerializerOptions,
                         4096,
                         wsLogger);
-                    var judger = new Judger(auth, wrapper);
+                    var judger = new Judger(auth, tokenEntry, wrapper);
                     {
                         using var _ = await connectionLock.LockAsync();
                         connections.Add(auth, judger);
@@ -127,7 +128,18 @@ namespace Karenia.Rurikawa.Coordinator.Services {
                         logger.LogError(e, $"Aborted connection to judger {auth}");
                     }
                     logger.LogInformation($"Disconnected from judger {auth}");
-
+                    {
+                        using var __ = await queueLock.LockAsync();
+                        if (JudgerQueue.First != null) {
+                            var curr = JudgerQueue.First;
+                            while (curr != null) {
+                                if (curr.Value == auth) {
+                                    JudgerQueue.Remove(curr);
+                                }
+                                curr = curr.Next;
+                            }
+                        }
+                    }
                     {
                         using var _ = await connectionLock.LockAsync();
                         connections.Remove(auth);
@@ -179,7 +191,7 @@ namespace Karenia.Rurikawa.Coordinator.Services {
                     }
                 }
                 for (ulong i = 0; i < remainingDispatches; i++)
-                    JudgerQueue.Enqueue(clientId);
+                    JudgerQueue.AddLast(clientId);
                 // logger.LogInformation("Status::Judger: {0}", DEBUG_LogEnumerator(JudgerQueue));
             }
         }
@@ -246,14 +258,18 @@ namespace Karenia.Rurikawa.Coordinator.Services {
         /// <summary>
         /// Check if the authorization header is valid. 
         /// </summary>
-        ValueTask<bool> CheckAuth(string authHeader) {
-            return new ValueTask<bool>(true);
+        async ValueTask<JudgerEntry?> Authenticate(string tokenString) {
+            using var scope = scopeProvider.CreateScope();
+            var judgerService = scope.ServiceProvider.GetService<JudgerService>();
+            return await judgerService.GetJudgerByToken(tokenString);
         }
 
         private async Task<Judger?> TryGetNextUsableJudger(bool blockNewTasks) {
             using (await connectionLock.LockAsync()) {
-                while (JudgerQueue.TryDequeue(out var nextJudger)) {
-                    if (connections.TryGetValue(nextJudger, out var conn)) {
+                while (JudgerQueue.First != null) {
+                    var nextJudger = JudgerQueue.First;
+                    JudgerQueue.RemoveFirst();
+                    if (connections.TryGetValue(nextJudger.Value, out var conn)) {
                         if (conn.CanAcceptNewTask) {
                             // Change the status to false, until the judger reports
                             // it can accept new tasks again
@@ -287,7 +303,6 @@ namespace Karenia.Rurikawa.Coordinator.Services {
         protected async ValueTask<bool> TryDispatchJobFromDatabase(Judger judger) {
             using var scope = scopeProvider.CreateScope();
             var db = GetDb(scope);
-            Console.WriteLine("aaa");
             var job = await GetLastUndispatchedJobFromDatabase(db);
             if (job == null) return false;
             job.Stage = JobStage.Dispatched;
