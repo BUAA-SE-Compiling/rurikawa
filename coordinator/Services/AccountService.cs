@@ -6,6 +6,7 @@ using System.Linq;
 using System.Security.Claims;
 using System.Text;
 using System.Text.Json;
+using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 using BCrypt.Net;
 using Karenia.Rurikawa.Coordinator.Services;
@@ -41,10 +42,15 @@ namespace Karenia.Rurikawa.Coordinator.Services {
             this.logger = logger;
         }
 
+        private static readonly Regex usernameRestriction = new Regex("^[-_0-9a-zA-Z]{1,64}$");
+
         public async Task CreateAccount(
             string username,
             string password,
             AccountKind kind = AccountKind.User) {
+            if (!usernameRestriction.IsMatch(username))
+                throw new InvalidUsernameException(username);
+
             var hashedPassword = HashPasswordWithGeneratedSalt(password);
             var account = new UserAccount
             {
@@ -331,11 +337,24 @@ namespace Karenia.Rurikawa.Coordinator.Services {
 
         public class UsernameNotUniqueException : System.Exception {
             public UsernameNotUniqueException(string username)
-                : base($"Username {username}is not unique in database") {
+                : base($"Username {username} is not unique in database") {
                 Username = username;
             }
             public UsernameNotUniqueException(string username, System.Exception inner)
-                : base($"Username {username}is not unique in database", inner) {
+                : base($"Username {username} is not unique in database", inner) {
+                Username = username;
+            }
+
+            public string Username { get; }
+        }
+
+        public class InvalidUsernameException : System.Exception {
+            public InvalidUsernameException(string username)
+                : base($"Username {username} is invalid") {
+                Username = username;
+            }
+            public InvalidUsernameException(string username, System.Exception inner)
+                : base($"Username {username} is invalid", inner) {
                 Username = username;
             }
 

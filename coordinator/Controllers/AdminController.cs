@@ -90,6 +90,11 @@ namespace Karenia.Rurikawa.Coordinator.Controllers {
                     new ErrorResponse(
                         "already_initialzed",
                         "Root account is already initialized!"));
+            } catch (AccountService.InvalidUsernameException e) {
+                return BadRequest(new ErrorResponse(
+                    "invalid_username",
+                    $"Username '{e.Username}' must be 1 to 64 characters long, and must only contain letter, number, dash '-' and underscore '_'."
+                ));
             }
         }
 

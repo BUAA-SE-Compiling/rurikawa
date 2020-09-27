@@ -59,7 +59,12 @@ namespace Karenia.Rurikawa.Coordinator.Controllers {
             } catch (AccountService.UsernameNotUniqueException e) {
                 return BadRequest(new ErrorResponse(
                     "username_not_unique",
-                    $"Username {e.Username} is not unique inside database"));
+                    $"Username '{e.Username}' is not unique inside database"));
+            } catch (AccountService.InvalidUsernameException e) {
+                return BadRequest(new ErrorResponse(
+                    "invalid_username",
+                    $"Username '{e.Username}' must be 1 to 64 characters long, and must only contain letter, number, dash '-' and underscore '_'."
+                ));
             }
         }
 
