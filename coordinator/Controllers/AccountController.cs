@@ -49,17 +49,18 @@ namespace Karenia.Rurikawa.Coordinator.Controllers {
         /// </summary>
         [HttpPost("register")]
         public async Task<IActionResult> RegisterAccount(
-            [FromBody] AccountInfo msg
+            [FromBody] AccountInfo msg,
+            [FromServices] ProfileService profileService
         ) {
             try {
                 await accountService.CreateAccount(msg.Username, msg.Password);
+                await profileService.InitializeProfileIfNotExists(msg.Username);
+                return NoContent();
             } catch (AccountService.UsernameNotUniqueException e) {
                 return BadRequest(new ErrorResponse(
                     "username_not_unique",
                     $"Username {e.Username} is not unique inside database"));
             }
-            return NoContent();
-
         }
 
         private List<string> ParseScope(string scope) {
