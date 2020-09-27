@@ -50,7 +50,7 @@ namespace Karenia.Rurikawa.Coordinator {
                     ValidateIssuer = false,
                     ValidateAudience = false,
                 };
-            }).AddScheme<Microsoft.AspNetCore.Authentication.AuthenticationSchemeOptions, JudgerAuthenticateService>("judger", null);
+            }).AddScheme<Microsoft.AspNetCore.Authentication.AuthenticationSchemeOptions, JudgerAuthenticateMiddleware>("judger", null);
 
             services.AddAuthorization(opt => {
                 opt.AddPolicy("user", policy => policy.RequireRole("User", "Admin", "Root"));

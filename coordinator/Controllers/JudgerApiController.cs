@@ -37,7 +37,7 @@ namespace Karenia.Rurikawa.Coordinator.Controllers {
 #pragma warning restore
 
         [AllowAnonymous]
-        [Route("register")]
+        [HttpPost("register")]
         public async Task<IActionResult> RegisterJudgerSelf([FromBody] JudgerRegisterMessage msg) {
             try {
                 var result = await judgerService.RegisterJudger(msg.Token, msg.AlternateName, msg.Tags);
@@ -47,7 +47,12 @@ namespace Karenia.Rurikawa.Coordinator.Controllers {
             }
         }
 
-        [Route("upload")]
+        [HttpGet("verify")]
+        public ActionResult VerifyJudger() {
+            return NoContent();
+        }
+
+        [HttpPost("upload")]
         public async Task<IActionResult> UploadJudgerResult(
             [FromQuery] FlowSnake jobId,
             [FromQuery] string testId) {
@@ -59,7 +64,7 @@ namespace Karenia.Rurikawa.Coordinator.Controllers {
             return Ok(filename);
         }
 
-        [Route("download-suite/{suite}")]
+        [HttpGet("download-suite/{suite}")]
         public async Task<IActionResult> DownloadSuite(
             [FromRoute] FlowSnake suite,
             [FromServices] RurikawaDb db) {

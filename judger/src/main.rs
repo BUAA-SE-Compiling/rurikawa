@@ -2,8 +2,10 @@ use clap::Clap;
 use dirs::home_dir;
 use once_cell::sync::OnceCell;
 use rurikawa_judger::{
-    client::try_register,
-    client::{client_loop, connect_to_coordinator, ClientConfig, SharedClientData},
+    client::{
+        client_loop, connect_to_coordinator, try_register, verify_self, ClientConfig,
+        SharedClientData,
+    },
     prelude::CancellationTokenHandle,
 };
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -109,7 +111,27 @@ async fn client(cmd: opt::ConnectSubCmd) {
 
     let mut cfg = SharedClientData::new(cfg);
 
-    try_register(&mut cfg, cmd.refresh).await.unwrap();
+    let verify_res = verify_self(&cfg)
+        .await
+        .expect("Error when verifying judger status");
+
+    // retry register if not verified or force refresh
+    let refresh = !verify_res || cmd.refresh;
+    if refresh {
+        log::warn!("Verification failed. Registering.");
+        let register_res = try_register(&mut cfg, refresh)
+            .await
+            .expect("Error when registering judger");
+        if !register_res {
+            panic!("Judger cannot be registered. Please check your register token.");
+        }
+        if !verify_self(&cfg)
+            .await
+            .expect("Error when verifying judger status")
+        {
+            panic!("Judger cannot be verified with the latest access token! This might be a server issue.");
+        }
+    }
 
     if !cmd.no_save {
         update_client_config(&cache_folder, &cfg.cfg).await.unwrap();

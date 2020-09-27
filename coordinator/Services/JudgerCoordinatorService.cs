@@ -132,7 +132,7 @@ namespace Karenia.Rurikawa.Coordinator.Services {
                         using var __ = await queueLock.LockAsync();
                         if (JudgerQueue.First != null) {
                             var curr = JudgerQueue.First;
-                            while (curr.Next != null) {
+                            while (curr != null) {
                                 if (curr.Value == auth) {
                                     JudgerQueue.Remove(curr);
                                 }

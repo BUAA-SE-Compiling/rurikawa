@@ -135,6 +135,16 @@ impl SharedClientData {
         format!("{}://{}/api/v1/judger/register", ssl, self.cfg.host)
     }
 
+    pub fn verify_endpoint(&self) -> String {
+        let ssl = if self.cfg.ssl {
+            format_args!("https")
+        } else {
+            format_args!("http")
+        };
+
+        format!("{}://{}/api/v1/judger/verify", ssl, self.cfg.host)
+    }
+
     pub fn websocket_endpoint(&self) -> String {
         let ssl = if self.cfg.ssl {
             format_args!("wss")
@@ -304,9 +314,18 @@ impl From<tungstenite::Error> for ClientConnectionErr {
     }
 }
 
-pub async fn try_register(cfg: &mut SharedClientData, refresh: bool) -> anyhow::Result<()> {
+/// Try to register at the coordinator if no access token was specified.
+///
+/// Returns `Ok(true)` if register was success, `Ok(false)` if register is not
+/// needed or not applicable.
+pub async fn try_register(cfg: &mut SharedClientData, refresh: bool) -> anyhow::Result<bool> {
+    log::info!(
+        "Registering judger. Access token: {:?}; Register token: {:?}",
+        cfg.cfg.access_token,
+        cfg.cfg.register_token
+    );
     if (!refresh && cfg.cfg.access_token.is_some()) || cfg.cfg.register_token.is_none() {
-        return Ok(());
+        return Ok(false);
     }
 
     let req_body = JudgerRegisterMessage {
@@ -315,7 +334,7 @@ pub async fn try_register(cfg: &mut SharedClientData, refresh: bool) -> anyhow::
         tags: cfg.cfg.tags.clone(),
     };
     let endpoint = cfg.register_endpoint();
-    let client = reqwest::Client::new();
+    let client = &cfg.client;
     let res = client
         .request(Method::POST, &endpoint)
         .json(&req_body)
@@ -325,9 +344,29 @@ pub async fn try_register(cfg: &mut SharedClientData, refresh: bool) -> anyhow::
         .text()
         .await?;
 
+    log::info!("Got new access token: {}", res);
     cfg.cfg.access_token = Some(res);
 
-    Ok(())
+    Ok(true)
+}
+
+/// Verify if the current registration is active.
+pub async fn verify_self(cfg: &SharedClientData) -> anyhow::Result<bool> {
+    log::info!("Verifying access token {:?}", cfg.cfg.access_token);
+    if cfg.cfg.access_token.is_none() {
+        return Ok(false);
+    }
+
+    let endpoint = cfg.verify_endpoint();
+    let res = cfg
+        .client
+        .request(Method::GET, &endpoint)
+        .header("authorization", cfg.cfg.access_token.as_ref().unwrap())
+        .send()
+        .await?
+        .status()
+        .is_success();
+    Ok(res)
 }
 
 pub async fn connect_to_coordinator(
@@ -606,6 +645,7 @@ pub async fn handle_job(
     let upload_info = Arc::new(ResultUploadConfig {
         client,
         endpoint: cfg.result_upload_endpoint(),
+        access_token: cfg.cfg.access_token.clone(),
         job_id: job.id,
     });
 

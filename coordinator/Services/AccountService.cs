@@ -13,6 +13,7 @@ using Karenia.Rurikawa.Models;
 using Karenia.Rurikawa.Models.Account;
 using Karenia.Rurikawa.Models.Auth;
 using Microsoft.AspNetCore.Authentication;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -342,45 +343,29 @@ namespace Karenia.Rurikawa.Coordinator.Services {
         }
     }
 
-    public class JudgerAuthenticateService : AuthenticationHandler<AuthenticationSchemeOptions> {
-        public JudgerAuthenticateService(
-            ILogger<JudgerAuthenticateService> logger,
-            RedisService redis,
-            IServiceProvider serviceProvider,
-            Microsoft.Extensions.Options.IOptionsMonitor<AuthenticationSchemeOptions> options,
-            ILoggerFactory logger1,
-            System.Text.Encodings.Web.UrlEncoder encoder,
-            ISystemClock clock) : base(options, logger1, encoder, clock) {
-            this.logger = logger;
-            this.redis = redis;
-            this.serviceProvider = serviceProvider;
-        }
-
-        private readonly ILogger<JudgerAuthenticateService> logger;
+    public class JudgerAuthenticateService {
         private readonly RedisService redis;
         private readonly IServiceProvider serviceProvider;
         private static readonly TimeSpan redisKeyLifetime = TimeSpan.FromHours(2);
 
-        protected new async Task<AuthenticateResult> AuthenticateAsync() {
-            KeyValuePair<string, Microsoft.Extensions.Primitives.StringValues> hdr;
-            try {
-                hdr = this.Request.Headers.Where(h => h.Key.ToLower() == "authorization").Single();
-            } catch {
-                return AuthenticateResult.Fail("No authorization header was found");
-            }
-            string auth = hdr.Value.First();
+        public JudgerAuthenticateService(
+            RedisService redis,
+            IServiceProvider serviceProvider
+        ) {
+            this.redis = redis;
+            this.serviceProvider = serviceProvider;
+        }
 
-            string key = $"auth:judger:{auth}";
+        public async ValueTask<bool> AuthenticateAsync(string token) {
+            string key = $"auth:judger:{token}";
 
             var redisDb = await redis.GetDatabase();
             var res = await redisDb.StringGetAsync(key);
-            string? token;
 
             if (res.IsNullOrEmpty) {
                 var db = serviceProvider.GetService<RurikawaDb>();
-                var valueExists = await db.Judgers.Where(judger => judger.Id == auth)
+                var valueExists = await db.Judgers.Where(judger => judger.Id == token)
                     .AnyAsync();
-                token = auth;
 
                 if (valueExists) {
                     await redisDb.StringSetAsync(
@@ -395,19 +380,48 @@ namespace Karenia.Rurikawa.Coordinator.Services {
                         expiry: redisKeyLifetime,
                         flags: CommandFlags.FireAndForget);
                 }
+
+                return valueExists;
             } else {
-                if (res == "0") token = null;
-                else token = (string)res;
+                if (res == "0") return false;
+                else return true;
+            }
+        }
+    }
+
+    public class JudgerAuthenticateMiddleware : AuthenticationHandler<AuthenticationSchemeOptions> {
+        public JudgerAuthenticateMiddleware(
+            JudgerAuthenticateService service,
+            Microsoft.Extensions.Options.IOptionsMonitor<AuthenticationSchemeOptions> options,
+            ILoggerFactory logger1,
+            System.Text.Encodings.Web.UrlEncoder encoder,
+            ISystemClock clock) : base(options, logger1, encoder, clock) {
+            this.service = service;
+        }
+
+        private readonly JudgerAuthenticateService service;
+
+        protected new async Task<AuthenticateResult> AuthenticateAsync() {
+            var endpoint = Context.GetEndpoint();
+            if (endpoint?.Metadata?.GetMetadata<IAllowAnonymous>() != null) {
+                return AuthenticateResult.NoResult();
             }
 
-            if (token != null) {
+            if (!this.Request.Headers.ContainsKey("Authorization")) {
+                return AuthenticateResult.Fail("No authorization header was found");
+            }
+            var hdr = Request.Headers["Authorization"];
+            string auth = hdr.First();
+
+            if (!await this.service.AuthenticateAsync(auth)) {
                 return AuthenticateResult.Fail("Unable to find token");
             }
+
             return AuthenticateResult.Success(new AuthenticationTicket(
                 new ClaimsPrincipal(new ClaimsIdentity[]{
                     new ClaimsIdentity(new Claim[]{
                         new Claim(ClaimTypes.Role, "judger"),
-                        new Claim(ClaimTypes.NameIdentifier, token),
+                        new Claim(ClaimTypes.NameIdentifier, auth),
                     })
                 }),
                 new AuthenticationProperties(),
@@ -417,6 +431,11 @@ namespace Karenia.Rurikawa.Coordinator.Services {
 
         protected override Task<AuthenticateResult> HandleAuthenticateAsync() {
             return AuthenticateAsync();
+        }
+
+        protected override Task HandleChallengeAsync(AuthenticationProperties properties) {
+            this.Response.StatusCode = 401;
+            return base.HandleChallengeAsync(properties);
         }
     }
 }
