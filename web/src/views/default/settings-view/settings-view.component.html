@@ -1,0 +1,26 @@
+<app-navbar></app-navbar>
+<div class="title-spacer"></div>
+<div class="container">
+  <div class="wrapper">
+    <h1>设置</h1>
+    <div class="col" *ngIf="profile">
+      <textbox
+        caption="用户名"
+        [disabled]="true"
+        [value]="profile.username"
+      ></textbox>
+      <textbox caption="学号" [(value)]="profile.studentId"></textbox>
+      <textbox caption="邮箱" [(value)]="profile.email"></textbox>
+      <div class="caption">嗯，目前没有更多可以设置的东西</div>
+      <div class="row right">
+        <div
+          class="btn dark"
+          [ngClass]="{ disabled: sending }"
+          (click)="updateProfile()"
+        >
+          更新
+        </div>
+      </div>
+    </div>
+  </div>
+</div>

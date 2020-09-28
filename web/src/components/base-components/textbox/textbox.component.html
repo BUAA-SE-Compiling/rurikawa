@@ -1,4 +1,4 @@
-<div class="textbox" [ngClass]="style">
+<div class="textbox" [ngClass]="styleClass">
   <div class="caption">{{ caption }}</div>
   <div class="input input-wrapper" (click)="focus()">
     <ic-icon
@@ -10,6 +10,7 @@
     ></ic-icon>
     <input
       [type]="type"
+      [disabled]="disabled"
       [value]="value"
       (input)="valueChange.emit($event.target.value)"
       [placeholder]="placeholder"

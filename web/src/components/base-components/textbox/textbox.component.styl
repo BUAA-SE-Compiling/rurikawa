@@ -1,16 +1,15 @@
 @import '../../../styles/common.styl'
 
-.wrapper {
-  height: 100vh
-  width: 100%
-  // --background-color: var(--pal-base-0h)
-  --accent-color: var(--pal-base-03)
-  --accent-alt: var(--pal-base-03)
-  --alt-primary: var(--pal-base-04)
-  display: flex
-  flex-direction: column
-  align-items: stretch
-  background: var(--background-color)
+.textbox {
+  &.disabled {
+    --accent-color: var(--pal-base-01)
+    --this-accent-color: var(--pal-base-01)
+    --accent-dull: var(--pal-base-01)
+    --accent-alt: var(--pal-base-01)
+    --alt-primary: var(--pal-base-01)
+    --secondary-color: var(--pal-base-01)
+    --primary-color: var(--pal-base-04)
+  }
 }
 
 .login-wrapper {

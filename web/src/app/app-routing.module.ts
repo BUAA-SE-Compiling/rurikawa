@@ -16,6 +16,7 @@ import {
 } from 'src/services/account_service';
 import { AdminForbiddenPageComponent } from 'src/views/default/admin-forbidden-page/admin-forbidden-page.component';
 import { AboutPageComponent } from 'src/views/default/about-page/about-page.component';
+import { SettingsViewComponent } from 'src/views/default/settings-view/settings-view.component';
 
 const routes: Routes = [
   {
@@ -50,6 +51,10 @@ const routes: Routes = [
   {
     path: 'about',
     component: AboutPageComponent,
+  },
+  {
+    path: 'settings',
+    component: SettingsViewComponent,
   },
   {
     path: 'admin',

@@ -14,6 +14,7 @@ import { IconModule } from '@visurel/iconify-angular';
 import { MarkdownModule } from 'ngx-markdown';
 import { AdminForbiddenPageComponent } from './admin-forbidden-page/admin-forbidden-page.component';
 import { AboutPageComponent } from './about-page/about-page.component';
+import { SettingsViewComponent } from './settings-view/settings-view.component';
 
 @NgModule({
   declarations: [
@@ -26,6 +27,7 @@ import { AboutPageComponent } from './about-page/about-page.component';
     LoginPageComponent,
     RegisterPageComponent,
     AboutPageComponent,
+    SettingsViewComponent,
   ],
   imports: [
     CommonModule,
@@ -45,6 +47,7 @@ import { AboutPageComponent } from './about-page/about-page.component';
     LoginPageComponent,
     RegisterPageComponent,
     AboutPageComponent,
+    SettingsViewComponent,
   ],
 })
 export class DefaultModule {}

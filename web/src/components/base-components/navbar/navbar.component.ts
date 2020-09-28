@@ -33,7 +33,9 @@ export class NavbarComponent implements OnInit {
   constructor(
     public accountService: AccountService,
     private navbarHelper: NavbarHelper
-  ) {}
+  ) {
+    this.adminMode = false;
+  }
 
   @Input() set adminMode(val: boolean) {
     this.navbarHelper.isAdminMode = val;

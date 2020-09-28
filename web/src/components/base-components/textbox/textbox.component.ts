@@ -22,6 +22,7 @@ export class TextboxComponent implements OnInit {
   @Input() caption: string = '';
   @Input() placeholder: string = '';
   @Input() message: string = '';
+  @Input() disabled: boolean = false;
 
   @Input() value: string = '';
   @Input() icon: any | undefined;
@@ -33,6 +34,17 @@ export class TextboxComponent implements OnInit {
   @Output() keyUp = new EventEmitter<KeyboardEvent>();
 
   @ViewChild('input') input: ElementRef;
+
+  get styleClass() {
+    let styleClass: any = {};
+    if (this.style) {
+      styleClass[this.style] = true;
+    }
+    if (this.disabled) {
+      styleClass.disabled = true;
+    }
+    return styleClass;
+  }
 
   constructor() {}
 

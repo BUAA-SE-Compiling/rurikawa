@@ -4,6 +4,11 @@ export const endpoints = {
     register: 'account/register',
     wsToken: 'account/ws-token',
   },
+  profile: {
+    get: (id: string) => `profile/${id}`,
+    set: (id: string) => `profile/${id}`,
+    init: (id: string) => `profile/${id}/init`,
+  },
   admin: {
     readInitStatus: 'admin/init',
     setInitAccount: 'admin/init',
