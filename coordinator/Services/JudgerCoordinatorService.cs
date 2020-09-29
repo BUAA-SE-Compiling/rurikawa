@@ -29,12 +29,13 @@ namespace Karenia.Rurikawa.Coordinator.Services {
             JsonSerializerOptions jsonSerializerOptions,
             IServiceScopeFactory serviceProvider,
             FrontendUpdateService frontendService,
+            RedisService redis,
             ILogger<JudgerCoordinatorService> logger,
-            ILogger<JudgerWebsocketWrapperTy> wsLogger
-        ) {
+            ILogger<JudgerWebsocketWrapperTy> wsLogger) {
             this.jsonSerializerOptions = jsonSerializerOptions;
             this.scopeProvider = serviceProvider;
             this.frontendService = frontendService;
+            this.redis = redis;
             this.logger = logger;
             this.wsLogger = wsLogger;
         }
@@ -54,6 +55,7 @@ namespace Karenia.Rurikawa.Coordinator.Services {
         private readonly JsonSerializerOptions jsonSerializerOptions;
         private readonly IServiceScopeFactory scopeProvider;
         private readonly FrontendUpdateService frontendService;
+        private readonly RedisService redis;
         private readonly ILogger<JudgerCoordinatorService> logger;
         private readonly ILogger<JudgerWebsocketWrapperTy> wsLogger;
 
@@ -192,7 +194,7 @@ namespace Karenia.Rurikawa.Coordinator.Services {
                 }
                 for (ulong i = 0; i < remainingDispatches; i++)
                     JudgerQueue.AddLast(clientId);
-                // logger.LogInformation("Status::Judger: {0}", DEBUG_LogEnumerator(JudgerQueue));
+                logger.LogInformation("Status::Judger: {0}", DEBUG_LogEnumerator(JudgerQueue));
             }
         }
 

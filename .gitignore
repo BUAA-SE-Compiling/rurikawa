@@ -1,1 +1,4 @@
 .env
+docker-compose.yml
+redis.conf
+*.Caddyfile

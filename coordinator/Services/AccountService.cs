@@ -432,7 +432,9 @@ namespace Karenia.Rurikawa.Coordinator.Services {
             var hdr = Request.Headers["Authorization"];
             string auth = hdr.First();
 
+
             if (!await this.service.AuthenticateAsync(auth)) {
+                Logger.LogInformation("Auth failed with header {0}", auth);
                 return AuthenticateResult.Fail("Unable to find token");
             }
 
@@ -445,7 +447,6 @@ namespace Karenia.Rurikawa.Coordinator.Services {
                 }),
                 new AuthenticationProperties(),
                 this.Scheme.Name));
-            throw new NotImplementedException();
         }
 
         protected override Task<AuthenticateResult> HandleAuthenticateAsync() {

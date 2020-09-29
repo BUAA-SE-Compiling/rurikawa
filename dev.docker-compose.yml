@@ -31,8 +31,8 @@ services:
     image: postgres:12
     restart: unless-stopped
     env_file: .env
-    ports:
-      - 54321:5432
+    # ports:
+    #   - 54321:5432
     networks:
       - default
 
@@ -85,6 +85,6 @@ services:
       - ./Caddyfile:/etc/caddy/Caddyfile
     ports:
       # [^3.2]: This port binding
-      - 5000:80
+      - 65523:80
     depends_on:
       - coordinator
