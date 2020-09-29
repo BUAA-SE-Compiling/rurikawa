@@ -62,7 +62,7 @@ export class TestSuiteAndJobCache {
 
   private getWebsocketToken() {
     return this.httpClient.get(
-      environment.endpointBase + endpoints.account.wsToken,
+      environment.endpointBase() + endpoints.account.wsToken,
       { responseType: 'text' }
     );
   }
@@ -72,7 +72,7 @@ export class TestSuiteAndJobCache {
       next: (token) => {
         this.wsTracker = webSocket({
           url:
-            environment.websocketBase +
+            environment.websocketBase() +
             endpoints.testSuite.ws.replace(':token', token),
         });
         this.wsTracker.subscribe({
@@ -170,7 +170,7 @@ export class TestSuiteAndJobCache {
 
     return this.httpClient
       .get<Job[]>(
-        environment.endpointBase +
+        environment.endpointBase() +
           endpoints.testSuite.getJobs.replace(':id', opt.suiteId),
         {
           params: {
@@ -198,7 +198,9 @@ export class TestSuiteAndJobCache {
 
   public fetchJob(id: string, track: boolean) {
     return this.httpClient
-      .get<Job>(environment.endpointBase + endpoints.job.get.replace(':id', id))
+      .get<Job>(
+        environment.endpointBase() + endpoints.job.get.replace(':id', id)
+      )
       .pipe(
         tap({
           next: (v) => {

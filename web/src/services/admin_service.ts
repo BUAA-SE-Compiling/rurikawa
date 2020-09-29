@@ -11,7 +11,7 @@ export class AdminService {
 
   public isServerInitialized(): Observable<boolean> {
     return this.httpClient
-      .get<boolean>(environment.endpointBase + endpoints.admin.readInitStatus)
+      .get<boolean>(environment.endpointBase() + endpoints.admin.readInitStatus)
       .pipe(catchError((e) => of(false)));
   }
 
@@ -20,7 +20,7 @@ export class AdminService {
     password: string
   ): Observable<void> {
     return this.httpClient.post<void>(
-      environment.endpointBase + endpoints.admin.setInitAccount,
+      environment.endpointBase() + endpoints.admin.setInitAccount,
       {
         username,
         password,

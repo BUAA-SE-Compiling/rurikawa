@@ -28,7 +28,9 @@ export class DashBoardComponent implements OnInit {
     this.error = false;
     this.errorMessage = undefined;
     this.httpClient
-      .get<DashboardItem[]>(environment.endpointBase + endpoints.dashboard.get)
+      .get<DashboardItem[]>(
+        environment.endpointBase() + endpoints.dashboard.get
+      )
       .subscribe({
         next: (items) => {
           this.items = items;

@@ -24,19 +24,19 @@ export class SettingsViewComponent implements OnInit {
 
   initProfile() {
     return this.httpClient.post(
-      environment.endpointBase +
+      environment.endpointBase() +
         endpoints.profile.init(this.accountService.Username),
       undefined,
       { responseType: 'text' }
     );
   }
 
-  pullProfile() {
+  pullProfile(retry: boolean = false) {
     this.loading = true;
     console.log(this.accountService.Username);
     return this.httpClient
       .get<Profile>(
-        environment.endpointBase +
+        environment.endpointBase() +
           endpoints.profile.get(this.accountService.Username)
       )
       .pipe(
@@ -49,9 +49,9 @@ export class SettingsViewComponent implements OnInit {
           },
           error: (e) => {
             if (e instanceof HttpErrorResponse) {
-              if (e.status === 404) {
+              if (e.status === 404 && !retry) {
                 this.initProfile().subscribe({
-                  next: () => this.pullProfile(),
+                  next: () => this.pullProfile(true).subscribe(),
                   error: (err) => {
                     console.error(err);
                     this.loading = false;
@@ -71,7 +71,7 @@ export class SettingsViewComponent implements OnInit {
     this.sending = true;
     this.httpClient
       .put(
-        environment.endpointBase +
+        environment.endpointBase() +
           endpoints.profile.get(this.accountService.Username),
         this.profile
       )

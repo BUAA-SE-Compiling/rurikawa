@@ -55,7 +55,7 @@ export class AccountService {
   public login(username: string, password: string) {
     return this.httpClient
       .post<OAuth2Response>(
-        environment.endpointBase + endpoints.account.login,
+        environment.endpointBase() + endpoints.account.login,
         {
           grantType: 'password',
           scope: '',
@@ -88,7 +88,7 @@ export class AccountService {
     } else {
       return this.httpClient
         .post<OAuth2Response>(
-          environment.endpointBase + endpoints.account.login,
+          environment.endpointBase() + endpoints.account.login,
           {
             grantType: 'refresh_token',
             scope: '',
@@ -111,7 +111,7 @@ export class AccountService {
   public registerAndLogin(username: string, password: string) {
     return new Observable<OAuth2Response>((sub) => {
       this.httpClient
-        .post<void>(environment.endpointBase + endpoints.account.register, {
+        .post<void>(environment.endpointBase() + endpoints.account.register, {
           username,
           password,
         })

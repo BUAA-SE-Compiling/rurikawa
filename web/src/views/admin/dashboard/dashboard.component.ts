@@ -26,9 +26,12 @@ export class DashboardComponent implements OnInit {
 
   fetchTestSuites() {
     this.httpClient
-      .get<TestSuite[]>(environment.endpointBase + endpoints.testSuite.query, {
-        params: { take: '20' },
-      })
+      .get<TestSuite[]>(
+        environment.endpointBase() + endpoints.testSuite.query,
+        {
+          params: { take: '20' },
+        }
+      )
       .subscribe({
         next: (v) => (this.suite = v),
       });

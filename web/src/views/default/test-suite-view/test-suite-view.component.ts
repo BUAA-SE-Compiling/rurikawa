@@ -109,7 +109,7 @@ export class TestSuiteViewComponent implements OnInit {
   fetchTestSuite(id: string) {
     this.httpClient
       .get<TestSuite>(
-        environment.endpointBase + endpoints.testSuite.get.replace(':id', id)
+        environment.endpointBase() + endpoints.testSuite.get.replace(':id', id)
       )
       .subscribe({
         next: (suite) => {
@@ -204,7 +204,7 @@ export class TestSuiteViewComponent implements OnInit {
     };
 
     this.httpClient
-      .post(environment.endpointBase + endpoints.job.new, newJobMsg, {
+      .post(environment.endpointBase() + endpoints.job.new, newJobMsg, {
         responseType: 'text',
       })
       .subscribe({
