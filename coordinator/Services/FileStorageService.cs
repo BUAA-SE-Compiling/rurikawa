@@ -71,18 +71,23 @@ namespace Karenia.Rurikawa.Coordinator.Services {
         public async Task Check() {
             if (!await client.BucketExistsAsync(bucket)) {
                 await client.MakeBucketAsync(bucket);
-                await client.SetPolicyAsync(bucket, $@"{{
-                ""Version"":""2012-10-17"",
-                ""Statement"":[
-                    {{
-                    ""Sid"":""PublicRead"",
-                    ""Effect"":""Allow"",
-                    ""Principal"": ""*"",
-                    ""Action"":[""s3:GetObject"", ""s3:GetObjectVersion""],
-                    ""Resource"":[""arn:aws:s3:::{bucket}:/*""]
-                    }}
-                ]
-            }}
+                await client.SetPolicyAsync(bucket, $@"
+{{
+  ""Id"": ""ReadOnlyForEveryone"",
+  ""Version"": ""2012-10-17"",
+  ""Statement"": [
+    {{
+      ""Sid"": ""Stmt1601372292618"",
+      ""Action"": [
+        ""s3:GetObject"",
+        ""s3:GetObjectVersion""
+      ],
+      ""Effect"": ""Allow"",
+      ""Resource"": ""arn:aws:s3:::{bucket}/*"",
+      ""Principal"": ""*""
+    }}
+  ]
+}}
             ");
             }
         }
