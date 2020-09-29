@@ -2,6 +2,7 @@ pub mod exec;
 pub mod runner;
 pub mod utils;
 
+use err_derive::Error;
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Serialize, Deserialize, Eq, PartialEq)]
@@ -25,7 +26,13 @@ pub struct OutputMismatch {
     pub output: Vec<ProcessInfo>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, Eq, PartialEq)]
+#[derive(Debug, Clone, Serialize, Deserialize, Eq, PartialEq, Error)]
+#[error(
+    display = "Execution error in stage {}: {:?};\noutputs: {:?}",
+    stage,
+    kind,
+    output
+)]
 pub struct ExecError {
     pub stage: usize,
     pub kind: ExecErrorKind,

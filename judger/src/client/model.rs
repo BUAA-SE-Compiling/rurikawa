@@ -37,6 +37,19 @@ pub struct Job {
     pub results: HashMap<String, TestResult>,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TestSuite {
+    pub id: FlowSnake,
+    pub name: String,
+    pub title: String,
+    pub description: String,
+    pub tags: Option<Vec<String>>,
+    pub package_file_id: String,
+    pub time_limit: Option<i32>,
+    pub memory_limit: Option<i32>,
+}
+
 /// Message sent from client
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "_t")]

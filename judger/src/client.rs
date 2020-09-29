@@ -10,6 +10,7 @@ use crate::{
 use anyhow::Result;
 use async_trait::async_trait;
 use dashmap::DashMap;
+use err_derive::Error;
 use futures::{
     stream::{SplitSink, SplitStream},
     FutureExt, Sink, SinkExt, StreamExt,
@@ -174,6 +175,15 @@ impl SharedClientData {
         )
     }
 
+    pub fn test_suite_info_endpoint(&self, suite_id: FlowSnake) -> String {
+        let ssl = if self.cfg.ssl {
+            format_args!("https")
+        } else {
+            format_args!("http")
+        };
+        format!("{}://{}/api/v1/tests/{}", ssl, self.cfg.host, suite_id)
+    }
+
     pub fn result_upload_endpoint(&self) -> String {
         let ssl = if self.cfg.ssl {
             format_args!("https")
@@ -204,6 +214,12 @@ impl SharedClientData {
     pub fn test_suite_folder(&self, suite_id: FlowSnake) -> PathBuf {
         let mut test_suite_temp_folder = self.test_suite_folder_root();
         test_suite_temp_folder.push(suite_id.to_string());
+        test_suite_temp_folder
+    }
+
+    pub fn test_suite_folder_lockfile(&self, suite_id: FlowSnake) -> PathBuf {
+        let mut test_suite_temp_folder = self.test_suite_folder_root();
+        test_suite_temp_folder.push(format!("{}.lock", suite_id));
         test_suite_temp_folder
     }
 
@@ -249,41 +265,37 @@ impl SharedClientData {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Error)]
 pub enum JobExecErr {
+    #[error(display = "No such file: {}", _0)]
     NoSuchFile(String),
+
+    #[error(display = "No such config: {}", _0)]
     NoSuchConfig(String),
-    Io(std::io::Error),
-    Ws(tungstenite::Error),
-    Json(serde_json::Error),
-    TomlDes(toml::de::Error),
-    Exec(crate::tester::ExecError),
+
+    #[error(display = "IO error: {}", _0)]
+    Io(#[error(source)] std::io::Error),
+
+    #[error(display = "Web request error: {}", _0)]
+    Request(#[error(source)] reqwest::Error),
+
+    #[error(display = "Websocket error: {}", _0)]
+    Ws(#[error(source, no_from)] tungstenite::Error),
+
+    #[error(display = "JSON error: {}", _0)]
+    Json(#[error(source)] serde_json::Error),
+
+    #[error(display = "TOML error: {}", _0)]
+    TomlDes(#[error(source)] toml::de::Error),
+
+    #[error(display = "Execution error: {}", _0)]
+    Exec(#[error(source)] crate::tester::ExecError),
+
+    #[error(display = "Job was cancelled")]
     Cancelled,
-    Any(anyhow::Error),
-}
 
-impl From<std::io::Error> for JobExecErr {
-    fn from(e: std::io::Error) -> Self {
-        JobExecErr::Io(e)
-    }
-}
-
-impl From<anyhow::Error> for JobExecErr {
-    fn from(e: anyhow::Error) -> Self {
-        JobExecErr::Any(e)
-    }
-}
-
-impl From<crate::tester::ExecError> for JobExecErr {
-    fn from(e: crate::tester::ExecError) -> Self {
-        JobExecErr::Exec(e)
-    }
-}
-
-impl From<serde_json::Error> for JobExecErr {
-    fn from(e: serde_json::Error) -> Self {
-        JobExecErr::Json(e)
-    }
+    #[error(display = "Other error: {}", _0)]
+    Any(#[error(from)] anyhow::Error),
 }
 
 impl From<tungstenite::error::Error> for JobExecErr {
@@ -292,12 +304,6 @@ impl From<tungstenite::error::Error> for JobExecErr {
             tungstenite::Error::Io(e) => JobExecErr::Io(e),
             _ => JobExecErr::Ws(e),
         }
-    }
-}
-
-impl From<toml::de::Error> for JobExecErr {
-    fn from(e: toml::de::Error) -> Self {
-        JobExecErr::TomlDes(e)
     }
 }
 
@@ -381,6 +387,22 @@ pub async fn connect_to_coordinator(
     Ok((cli_sink, cli_stream))
 }
 
+async fn fetch_test_suite_data(
+    suite_id: FlowSnake,
+    cfg: &SharedClientData,
+) -> Result<TestSuite, JobExecErr> {
+    log::info!("Fetching data for test suite {}", suite_id);
+    let suite_endpoint = cfg.test_suite_info_endpoint(suite_id);
+    let res = cfg
+        .client
+        .get(&suite_endpoint)
+        .send()
+        .await?
+        .json::<TestSuite>()
+        .await?;
+    Ok(res)
+}
+
 pub async fn check_download_read_test_suite(
     suite_id: FlowSnake,
     cfg: &SharedClientData,
@@ -389,11 +411,15 @@ pub async fn check_download_read_test_suite(
     let suite_folder_root = cfg.test_suite_folder_root();
     tokio::fs::create_dir_all(suite_folder_root).await?;
     let suite_folder = cfg.test_suite_folder(suite_id);
-    {
+
+    let lock = cfg.obtain_suite_lock(suite_id);
+    lock.await.lock().await;
+
+    let download_section: Result<(), JobExecErr> = async {
         // Lock this specific test suite and let all other concurrent tasks to wait
         // until downloading completes
-        let lock = cfg.obtain_suite_lock(suite_id);
-        lock.await.lock().await;
+
+        let suite_data = fetch_test_suite_data(suite_id, cfg).await?;
 
         let dir_exists = {
             let create_dir = tokio::fs::create_dir(&suite_folder).await;
@@ -405,22 +431,69 @@ pub async fn check_download_read_test_suite(
                 },
             }
         };
-        if !dir_exists {
+
+        let lockfile_up_to_date = {
+            let lockfile = cfg.test_suite_folder_lockfile(suite_id);
+            let lockfile_data = tokio::fs::read_to_string(&lockfile).await;
+            let lockfile_data = match lockfile_data {
+                Ok(f) => Some(f),
+                Err(e) => match e.kind() {
+                    std::io::ErrorKind::NotFound => None,
+                    _ => return Err(e.into()),
+                },
+            };
+
+            let serialized = serde_json::to_string(&suite_data)?;
+            tokio::fs::write(&lockfile, &serialized).await?;
+
+            let suite_data_locked = lockfile_data
+                .as_deref()
+                .and_then(|x| serde_json::from_str::<TestSuite>(x).ok());
+
+            suite_data_locked
+                .map(|locked| locked.package_file_id == suite_data.package_file_id)
+                .unwrap_or(false)
+        };
+
+        if !dir_exists || !lockfile_up_to_date {
             let endpoint = cfg.test_suite_download_endpoint(suite_id);
             let filename = cfg.random_temp_file_path();
             let file_folder_root = cfg.temp_file_folder_root();
+
+            fs::ensure_removed_dir(&file_folder_root).await?;
             tokio::fs::create_dir_all(file_folder_root).await?;
             log::info!(
-                "Test suite does not exits. Initiating download of suite {} from {} to {:?}",
+                "Test suite does not exist. Initiating download of suite {} from {} to {:?}",
                 suite_id,
                 &endpoint,
                 &filename
             );
-            fs::net::download_unzip(&endpoint, &suite_folder, &filename).await?;
+            fs::net::download_unzip(
+                cfg.client.clone(),
+                cfg.client
+                    .get(&endpoint)
+                    .header("authorization", cfg.cfg.access_token.as_ref().unwrap())
+                    .build()?,
+                &suite_folder,
+                &filename,
+            )
+            .await?;
         }
         log::info!("Suite downloaded");
-        cfg.suite_unlock(suite_id).await;
+        Ok(())
     }
+    .await;
+
+    match download_section {
+        Ok(_) => {}
+        Err(e) => {
+            // cleanup!
+            let _ = fs::ensure_removed_dir(&cfg.test_suite_folder(suite_id)).await;
+            return Err(e);
+        }
+    }
+
+    cfg.suite_unlock(suite_id).await;
 
     let mut judger_conf_dir = suite_folder.clone();
     judger_conf_dir.push("testconf.json");
@@ -482,6 +555,10 @@ pub async fn handle_job_wrapper(
                     JobResultKind::JudgerError,
                     format!("TOML deserialization error: {:?}", e),
                 ),
+                JobExecErr::Request(e) => (
+                    JobResultKind::JudgerError,
+                    format!("Web request error: {:?}", e),
+                ),
                 JobExecErr::Exec(e) => (JobResultKind::PipelineError, format!("{:?}", e)),
                 JobExecErr::Any(e) => (JobResultKind::OtherError, format!("{:?}", e)),
             };
@@ -502,6 +579,8 @@ pub async fn handle_job_wrapper(
         }
     }
     flag_finished_job(send.clone(), cfg.clone()).await;
+
+    cfg.running_job_handles.lock().await.remove(&job_id);
 
     match fs::ensure_removed_dir(&cfg.job_folder(job_id)).await {
         Ok(_) => {}
