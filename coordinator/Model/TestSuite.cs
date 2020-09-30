@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations.Schema;
 using System.Text.RegularExpressions;
@@ -33,6 +34,12 @@ namespace Karenia.Rurikawa.Models.Test {
         public List<string>? Tags { get; set; }
 
         public string PackageFileId { get; set; }
+
+        public bool IsPublic { get; set; }
+
+        public DateTimeOffset? StartTime { get; set; }
+
+        public DateTimeOffset? EndTime { get; set; }
 
         public int? TimeLimit { get; set; }
 
