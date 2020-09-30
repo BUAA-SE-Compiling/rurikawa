@@ -51,7 +51,7 @@ namespace Karenia.Rurikawa.Coordinator.Controllers {
             if (startId == FlowSnake.MinValue) startId = FlowSnake.MaxValue;
 
             var suites = await db.TestSuites.AsQueryable()
-                .Where(suite => suite.StartTime <= DateTimeOffset.Now && suite.IsPublic)
+                .Where(suite => (!suite.StartTime.HasValue || suite.StartTime.Value <= DateTimeOffset.Now) && suite.IsPublic)
                 .Where(suite => suite.Id < startId)
                 .OrderByDescending(t => t.Id)
                 .Take(limit)
