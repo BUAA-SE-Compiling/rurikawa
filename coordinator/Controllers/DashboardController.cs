@@ -44,10 +44,15 @@ namespace Karenia.Rurikawa.Coordinator.Controllers {
 
         [HttpGet]
         [Authorize("user")]
-        public async Task<IList<Dashboard>> GetDashboard([FromQuery] int limit = 10) {
+        public async Task<IList<Dashboard>> GetDashboard(
+            [FromQuery] int limit = 10,
+            [FromQuery] FlowSnake startId = new FlowSnake()) {
             var username = AuthHelper.ExtractUsername(HttpContext.User);
+            if (startId == FlowSnake.MinValue) startId = FlowSnake.MaxValue;
 
             var suites = await db.TestSuites.AsQueryable()
+                .Where(suite => suite.StartTime <= DateTimeOffset.Now && suite.IsPublic)
+                .Where(suite => suite.Id < startId)
                 .OrderByDescending(t => t.Id)
                 .Take(limit)
                 .AsNoTracking()
