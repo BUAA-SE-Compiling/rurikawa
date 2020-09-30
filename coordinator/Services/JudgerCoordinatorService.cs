@@ -341,8 +341,12 @@ namespace Karenia.Rurikawa.Coordinator.Services {
             using var scope = scopeProvider.CreateScope();
             var db = GetDb(scope);
 
-            if (await db.TestSuites.AllAsync(d => d.Id != job.TestSuite)) {
+            var suite = await db.TestSuites.Where(x => x.Id == job.TestSuite).SingleOrDefaultAsync();
+            if (suite == null) {
                 throw new KeyNotFoundException();
+            } else if (suite.EndTime < DateTime.Now) {
+                // WARN: We don't check about submitting BEFORE active; this is intentional.
+                throw new OutOfActiveTimeException();
             }
 
             job.Stage = JobStage.Queued;
@@ -403,4 +407,6 @@ namespace Karenia.Rurikawa.Coordinator.Services {
             return result;
         }
     }
+
+    public class OutOfActiveTimeException : Exception { }
 }

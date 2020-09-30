@@ -85,7 +85,7 @@ namespace Karenia.Rurikawa.Coordinator.Controllers {
             try {
                 var result = await GetRevision(job);
                 if (result == null) {
-                    return BadRequest(new ErrorResponse("No such revision"));
+                    return BadRequest(new ErrorResponse("no_such_revision"));
                 } else {
                     job.Revision = result;
                 }
@@ -93,10 +93,13 @@ namespace Karenia.Rurikawa.Coordinator.Controllers {
                 await coordinatorService.ScheduleJob(job);
             } catch (KeyNotFoundException) {
                 logger.LogInformation("No such test suite {1} for job {0}", job.Id, job.TestSuite);
-                return BadRequest(new ErrorResponse("No such test suite"));
+                return BadRequest(new ErrorResponse("no_such_suite"));
             } catch (TaskCanceledException) {
                 logger.LogInformation("Fetching for job {0} timed out", job.Id);
-                return BadRequest(new ErrorResponse("Timed out fetching revision"));
+                return BadRequest(new ErrorResponse("revision_fetch_timeout"));
+            } catch (OutOfActiveTimeException) {
+                logger.LogInformation("Fetching for job {0} timed out", job.Id);
+                return BadRequest(new ErrorResponse("not_in_active_timespan"));
             }
             return Ok(id.ToString());
         }
@@ -119,7 +122,9 @@ namespace Karenia.Rurikawa.Coordinator.Controllers {
                 job.Branch??"HEAD",
                 "-q",
                 "--exit-code"
-            }).ExecuteBufferedAsync(cancel.Token);
+            })
+                .WithValidation(CommandResultValidation.ZeroExitCode)
+                .ExecuteBufferedAsync(cancel.Token);
 
             var stdout = res.StandardOutput;
             var exitCode = res.ExitCode;
