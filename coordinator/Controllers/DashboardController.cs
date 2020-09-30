@@ -50,8 +50,9 @@ namespace Karenia.Rurikawa.Coordinator.Controllers {
             var username = AuthHelper.ExtractUsername(HttpContext.User);
             if (startId == FlowSnake.MinValue) startId = FlowSnake.MaxValue;
 
+            var now = DateTimeOffset.Now;
             var suites = await db.TestSuites.AsQueryable()
-                .Where(suite => (!suite.StartTime.HasValue || suite.StartTime.Value <= DateTimeOffset.Now) && suite.IsPublic)
+                .Where(suite => (suite.StartTime == null || suite.StartTime <= now) && suite.IsPublic)
                 .Where(suite => suite.Id < startId)
                 .OrderByDescending(t => t.Id)
                 .Take(limit)
