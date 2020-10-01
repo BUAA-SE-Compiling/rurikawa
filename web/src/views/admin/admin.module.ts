@@ -10,6 +10,7 @@ import { InitDatabaseComponent } from './init-database/init-database.component';
 import { AdminTestSuiteViewComponent } from './admin-test-suite-view/admin-test-suite-view.component';
 import { AdminComponentsModule } from 'src/components/admin-components/admin-components.module';
 import { AdminCreateTestSuiteViewComponent } from './admin-create-test-suite-view/admin-create-test-suite-view.component';
+import { HttpClientModule } from '@angular/common/http';
 
 const routes: Routes = [
   {

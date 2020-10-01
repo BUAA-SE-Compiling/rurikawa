@@ -17,6 +17,8 @@ type style = undefined | 'success' | 'warn' | 'error';
   styleUrls: ['./textbox.component.styl'],
 })
 export class TextboxComponent implements OnInit {
+  @Input() multiline: boolean = false;
+
   @Input() type: string = 'text';
   @Input() style: style;
   @Input() caption: string = '';
@@ -24,7 +26,16 @@ export class TextboxComponent implements OnInit {
   @Input() message: string = '';
   @Input() disabled: boolean = false;
 
-  @Input() value: string = '';
+  _value: string = '';
+
+  @Input() set value(v) {
+    this._value = v;
+    this.valueChange.emit(this._value);
+  }
+  get value() {
+    return this._value;
+  }
+
   @Input() icon: any | undefined;
   @Input() iconSize: number = 16;
   @Output() valueChange = new EventEmitter<string>();

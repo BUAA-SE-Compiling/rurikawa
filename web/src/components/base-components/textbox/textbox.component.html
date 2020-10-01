@@ -9,10 +9,10 @@
       [align]="'center,bottom,slice'"
     ></ic-icon>
     <input
+      *ngIf="!multiline"
       [type]="type"
       [disabled]="disabled"
-      [value]="value"
-      (input)="valueChange.emit($event.target.value)"
+      [(ngModel)]="value"
       [placeholder]="placeholder"
       (keyup.enter)="enterKeyPress.emit($event)"
       (keypress)="keyPress.emit($event)"
@@ -20,6 +20,17 @@
       (keyup)="keyUp.emit($event)"
       #input
     />
+    <textarea
+      *ngIf="multiline"
+      [disabled]="disabled"
+      [(ngModel)]="value"
+      [placeholder]="placeholder"
+      (keyup.enter)="enterKeyPress.emit($event)"
+      (keypress)="keyPress.emit($event)"
+      (keydown)="keyDown.emit($event)"
+      (keyup)="keyUp.emit($event)"
+      #input
+    ></textarea>
   </div>
   <div class="message">{{ message }}</div>
 </div>

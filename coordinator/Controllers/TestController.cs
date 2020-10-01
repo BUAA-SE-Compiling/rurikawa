@@ -105,7 +105,7 @@ namespace Karenia.Rurikawa.Coordinator.Controllers {
         [Authorize("admin")]
         public async Task<IActionResult> ReplaceTestSuiteFile(
             [FromRoute] FlowSnake suiteId,
-            [FromHeader] string filename,
+            [FromQuery] string filename,
             [FromQuery] bool replaceDescription = true
             ) {
             var original = await db.TestSuites.Where(t => t.Id == suiteId).SingleOrDefaultAsync();
@@ -151,7 +151,7 @@ namespace Karenia.Rurikawa.Coordinator.Controllers {
         [HttpPost]
         [Authorize("admin")]
         public async Task<IActionResult> PostNewTestSuite(
-            [FromHeader] string filename
+            [FromQuery] string filename
             ) {
             if (!Request.ContentLength.HasValue) {
                 return BadRequest("Content length must be present in header");

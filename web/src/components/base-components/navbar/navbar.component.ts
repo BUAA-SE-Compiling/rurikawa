@@ -7,6 +7,7 @@ import {
   transition,
   animate,
 } from '@angular/animations';
+import { Router } from '@angular/router';
 
 @Injectable({ providedIn: 'root' })
 export class NavbarHelper {
@@ -32,7 +33,8 @@ export class NavbarHelper {
 export class NavbarComponent implements OnInit {
   constructor(
     public accountService: AccountService,
-    private navbarHelper: NavbarHelper
+    private navbarHelper: NavbarHelper,
+    private router: Router
   ) {
     this.adminMode = false;
   }
@@ -57,6 +59,7 @@ export class NavbarComponent implements OnInit {
   }
   logout() {
     this.accountService.logout();
+    this.router.navigate(['/']);
   }
 
   ngOnInit(): void {}

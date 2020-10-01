@@ -1,0 +1,66 @@
+<div class="wrapper">
+  <div
+    class="area-wrapper"
+    (dragover)="onDragOver($event)"
+    (dragleave)="onDragLeave($event)"
+    (drop)="onDrop($event)"
+    (click)="onClick()"
+    [ngClass]="wrapperClass"
+    [class.large]="large"
+    [class.single-file-waiting]="!multiple && !is_empty && status == 'waiting'"
+    [class.single-file-uploading]="
+      !multiple && !is_empty && status == 'uploading'
+    "
+    [class.single-file-succeeded]="
+      !multiple && !is_empty && status == 'success'
+    "
+    [class.single-file-failed]="!multiple && !is_empty && status == 'failed'"
+  >
+    <div id="drop-file" *ngIf="multiple || is_empty">
+      <div class="caption">点击或拖动文件到此处</div>
+      <div class="accepts-info">{{ acceptsInfo }}</div>
+    </div>
+    <div id="single-file-data" *ngIf="!multiple && !is_empty">
+      <div id="info-row">
+        <div id="info-col">
+          <div class="filename">{{ single_file.name }}</div>
+          <div class="">{{ fileSizeGenerator(single_file.size) }}</div>
+        </div>
+        <div class="close-btn-container">
+          <ic-icon
+            [icon]="closeIcon"
+            [size]="32"
+            (click)="clearFile($event)"
+          ></ic-icon>
+        </div>
+      </div>
+      <div
+        class="upload-btn"
+        (click)="startUpload($event)"
+        *ngIf="status === 'waiting'"
+      >
+        <ic-icon [icon]="uploadIcon" [size]="32"></ic-icon> 开始上传
+      </div>
+    </div>
+    <div
+      class="upload-background"
+      *ngIf="status === 'uploading'"
+      [style.width]="this.progress * 100 + '%'"
+    ></div>
+  </div>
+
+  <div class="uploaded-file" *ngIf="multiple && !is_empty">
+    <div *ngFor="let item of file">{{ item.name }}</div>
+  </div>
+
+  <input
+    #fileUpload
+    type="file"
+    name="file-upload"
+    id="file-upload"
+    class="file"
+    [multiple]="multiple"
+    [accept]="accept"
+    (change)="onFileChanged($event.target.files)"
+  />
+</div>

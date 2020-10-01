@@ -26,6 +26,7 @@
     "@visurel/iconify-angular": "^10.1.2",
     "compression-webpack-plugin": "^5.0.2",
     "dayjs": "^1.8.36",
+    "filesize": "^6.1.0",
     "lodash": "^4.17.20",
     "lost": "^8.3.1",
     "ngx-build-plus": "^10.1.1",

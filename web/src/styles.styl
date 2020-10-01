@@ -37,6 +37,8 @@
   --info-color: var(--pal-accent-dull)
   --gray-color: var(--pal-base-02)
   --disabled-color: var(--pal-base-01)
+  --inverted-highlight-color: #fff2
+  --normal-highlight-color: #0003
   --btn-round-corner: 2px
   --space-0: 0.25rem
   --space-1: 0.5rem
@@ -230,11 +232,14 @@ p {
 }
 
 h1 {
-  margin-bottom: var(--space-0)
+  margin-bottom: var(--space-1)
 }
 
 h2,
-h3,
+h3 {
+  margin-bottom: calc(((var(--space-1) + var(--space-2)) / 2))
+}
+
 h4,
 h5,
 h6 {

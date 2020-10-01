@@ -1,3 +1,11 @@
 <app-navbar [adminMode]="true"></app-navbar>
 
-<p>admin-create-test-suite-view works!</p>
+<div class="container">
+  <h1>创建题目</h1>
+  <app-file-upload-area
+    id="uploader"
+    accept="application/tar, .tar"
+    [large]="true"
+    [uploadFunction]="getUploadFileFunction()"
+  ></app-file-upload-area>
+</div>

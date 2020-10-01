@@ -18,7 +18,7 @@
 # - Edit judger configuration based on your setup. Manually connect judgers
 #   outside Docker if needed. Edit them at [^4].
 
-version: "3"
+version: '3'
 
 services:
   redis:
@@ -85,6 +85,6 @@ services:
       - ./Caddyfile:/etc/caddy/Caddyfile
     ports:
       # [^3.2]: This port binding
-      - 65523:80
+      - 5000:80
     depends_on:
       - coordinator
