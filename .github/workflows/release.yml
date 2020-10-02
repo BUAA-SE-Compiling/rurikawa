@@ -3,7 +3,7 @@ name: build-master
 on:
   push:
     tags:
-        - "*"
+      - '*'
 
 jobs:
   build-coordinator-image:
@@ -133,6 +133,11 @@ jobs:
           cd judger
           cargo fetch
           cargo build --frozen
+
+      - name: Install rust target
+        if: ${{ matrix.target_name != 0 }}
+        continue-on-error: true
+        run: rustup target add ${{ matrix.target_name }}
 
       - name: Build rust (targeted)
         if: ${{ matrix.target_name != 0 }}
