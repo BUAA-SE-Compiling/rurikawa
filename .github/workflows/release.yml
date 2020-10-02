@@ -27,7 +27,7 @@ jobs:
           # Docker repository to tag the image with
           repository: buaa-se-compiling/rurikawa/rurikawa-coordinator
           # Comma-delimited list of tags. These will be added to the registry/repository to form the image's tags
-          tags: lastest
+          tags: latest
           # Automatically tags the built image with the git reference as per the readme
           tag_with_ref: true
           # Automatically tags the built image with the git short SHA as per the readme
