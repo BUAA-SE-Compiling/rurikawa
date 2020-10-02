@@ -1,6 +1,9 @@
 name: build-master
 
-on: label
+on:
+  push:
+    tags:
+        - "*"
 
 jobs:
   build-coordinator-image:
