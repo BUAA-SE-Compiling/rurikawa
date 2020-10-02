@@ -1,4 +1,4 @@
-name: build-master
+name: release
 
 on:
   push:
@@ -150,7 +150,7 @@ jobs:
         uses: svenstaro/upload-release-action@v1-release
         with:
           repo_token: ${{ secrets.GITHUB_TOKEN }}
-          file: ${{ matrix.asset_name }}.tar.gz
-          asset_name: ${{ matrix.asset_name }}.tar.gz
+          file: target/release/${{ matrix.asset_name }}
+          asset_name: ${{ matrix.asset_name }}
           tag: ${{ github.ref }}
           overwrite: true
