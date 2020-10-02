@@ -1695,7 +1695,7 @@ dependencies = [
 
 [[package]]
 name = "rurikawa-judger"
-version = "0.1.0"
+version = "0.0.9-beta1"
 dependencies = [
  "anyhow",
  "async-compat",
