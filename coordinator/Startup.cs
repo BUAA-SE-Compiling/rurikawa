@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Reflection;
 using System.Security.Cryptography.X509Certificates;
 using System.Text.Encodings;
 using System.Text.Json;
@@ -132,6 +133,12 @@ namespace Karenia.Rurikawa.Coordinator {
 
         // This method gets called by the runtime. Use this method to configure the HTTP request pipeline.
         public void Configure(IApplicationBuilder app, IWebHostEnvironment env, IServiceProvider svc) {
+            var logger = svc.GetService<ILogger<Startup>>();
+            logger.LogInformation(
+                "Starting | {1}: Version {0}",
+                Assembly.GetEntryAssembly()?.GetName().Version?.ToString(),
+                Assembly.GetEntryAssembly()?.GetName().Name);
+
             if (env.IsDevelopment()) {
                 app.UseDeveloperExceptionPage();
             }
@@ -156,7 +163,6 @@ namespace Karenia.Rurikawa.Coordinator {
             app.UseAuthentication();
             app.UseAuthorization();
 
-            var logger = svc.GetService<ILogger<Startup>>();
             // Add websocket acceptor
             app.Use(async (ctx, next) => {
                 logger.LogInformation("{0}，{1}", ctx.Request.Path, ctx.WebSockets.IsWebSocketRequest);
