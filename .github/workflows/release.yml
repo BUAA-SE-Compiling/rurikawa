@@ -110,11 +110,11 @@ jobs:
           - os: ubuntu-latest
             artifact_name: rurikawa
             asset_name: rurikawa-linux-amd64-gnu
-            target_name: x86_64-unknown-linux-gnu
-          - os: ubuntu-latest
-            artifact_name: rurikawa
-            asset_name: rurikawa-linux-amd64-musl
-            target_name: x86_64-unknown-linux-musl
+            # target_name: x86_64-unknown-linux-gnu
+          # - os: ubuntu-latest
+          #   artifact_name: rurikawa
+          #   asset_name: rurikawa-linux-amd64-musl
+          #   target_name: x86_64-unknown-linux-musl
           - os: windows-latest
             artifact_name: rurikawa.exe
             asset_name: rurikawa-windows-amd64
