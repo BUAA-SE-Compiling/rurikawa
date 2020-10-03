@@ -1,15 +1,20 @@
 use clap::Clap;
 use dirs::home_dir;
+use futures::{SinkExt, StreamExt, TryStreamExt};
 use once_cell::sync::OnceCell;
 use rurikawa_judger::{
+    client::model::JobResultMsg,
     client::{
         client_loop, connect_to_coordinator, try_register, verify_self, ClientConfig,
         SharedClientData,
     },
     prelude::CancellationTokenHandle,
 };
-use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
+use std::{
+    collections::HashMap,
+    sync::atomic::{AtomicBool, Ordering},
+};
 use std::{path::Path, process::exit};
 
 mod opt;
@@ -141,15 +146,15 @@ async fn client(cmd: opt::ConnectSubCmd) {
     let handle = client_config.cancel_handle.clone();
     ABORT_HANDLE.set(handle).unwrap();
 
-    loop {
+    let sink = loop {
         let (sink, stream) = connect_to_coordinator(&client_config)
             .await
             .expect("Failed to connect");
-        client_loop(stream, sink, client_config.clone()).await;
+        let sink = client_loop(stream, sink, client_config.clone()).await;
         if client_config.cancel_handle.is_cancelled() {
-            break;
+            break sink;
         }
-    }
+    };
 
     let mut cancelling_guard = client_config.cancelling_job_handles.lock().await;
     let mut cancelling = cancelling_guard.drain().collect::<Vec<_>>();
@@ -157,6 +162,33 @@ async fn client(cmd: opt::ConnectSubCmd) {
     let mut running = running_guard.drain().collect::<Vec<_>>();
     drop(cancelling_guard);
     drop(running_guard);
+
+    {
+        let mut sink = sink.lock().await;
+        let res = sink
+            .send_all(&mut futures::stream::iter(
+                cancelling
+                    .iter()
+                    .map(|x| x.0)
+                    .chain(running.iter().map(|x| x.0))
+                    .map(|id| JobResultMsg {
+                        job_id: id,
+                        job_result: rurikawa_judger::client::model::JobResultKind::Aborted,
+                        results: HashMap::new(),
+                        message: Some("This job was aborted by judger".into()),
+                    })
+                    .map(|result| {
+                        Ok(tungstenite::Message::Text(
+                            serde_json::to_string(&result).unwrap(),
+                        ))
+                    }),
+            ))
+            .await;
+
+        if res.is_err() {
+            log::error!("Failed to send abort messages: {}", res.unwrap_err())
+        }
+    }
 
     let cancelling = cancelling.drain(..).map(|(id, fut)| {
         log::info!("Waiting for job {} to cancel...", id);

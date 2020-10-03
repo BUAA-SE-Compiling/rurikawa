@@ -670,7 +670,8 @@ pub async fn handle_job(
         .collect::<Vec<_>>();
     public_cfg.run = run;
 
-    let mut tests_path = job_path.clone();
+    let suite_root_path = cfg.test_suite_folder(job.test_suite);
+    let mut tests_path = suite_root_path.clone();
     tests_path.push(&public_cfg.mapped_dir.from);
     let private_cfg = JudgerPrivateConfig {
         test_root_dir: tests_path,
@@ -687,7 +688,7 @@ pub async fn handle_job(
 
     let mut suite = crate::tester::exec::TestSuite::from_config(
         image,
-        &job_path,
+        &suite_root_path,
         private_cfg,
         public_cfg,
         options,
@@ -826,7 +827,7 @@ pub async fn client_loop(
     mut ws_recv: WsStream,
     mut ws_send: WsSink,
     client_config: Arc<SharedClientData>,
-) {
+) -> Arc<Mutex<WsSink>> {
     // Request for max_concurrent_tasks jobs
     ws_send
         .send_msg(&ClientMsg::ClientStatus(ClientStatusMsg {
@@ -876,6 +877,6 @@ pub async fn client_loop(
         }
     }
 
-    ws_send.lock().await.close().await.unwrap();
     log::warn!("Disconnected!");
+    ws_send
 }
