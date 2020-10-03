@@ -91,6 +91,34 @@ namespace Karenia.Rurikawa.Coordinator.Controllers {
                 byUsername: username);
         }
 
+        [HttpPost("{suiteId}/visibility")]
+        public async Task<ActionResult> SetTestSuiteVisibility(
+            [FromRoute] FlowSnake suiteId,
+            [FromQuery] bool visible
+        ) {
+            var original = await db.TestSuites.Where(t => t.Id == suiteId).SingleOrDefaultAsync();
+            if (original == null) { return NotFound(new ErrorResponse("no_such_suite")); }
+
+            original.IsPublic = visible;
+            await db.SaveChangesAsync();
+
+            return NoContent();
+        }
+
+        [HttpPut("{suiteId}")]
+        public async Task<ActionResult> SetTestSuiteVisibility(
+            [FromRoute] FlowSnake suiteId,
+            [FromQuery] TestSuite.TestSuitePatch patch
+        ) {
+            var original = await db.TestSuites.Where(t => t.Id == suiteId).SingleOrDefaultAsync();
+            if (original == null) { return NotFound(new ErrorResponse("no_such_suite")); }
+
+            original.Patch(patch);
+            await db.SaveChangesAsync();
+
+            return NoContent();
+        }
+
         /// <summary>
         /// Accepts an uploaded file as a test suite archive, parse the test 
         /// spec inside this archive, saves this test suite spec into database,
@@ -107,7 +135,7 @@ namespace Karenia.Rurikawa.Coordinator.Controllers {
             [FromRoute] FlowSnake suiteId,
             [FromQuery] string filename,
             [FromQuery] bool replaceDescription = true
-            ) {
+        ) {
             var original = await db.TestSuites.Where(t => t.Id == suiteId).SingleOrDefaultAsync();
             if (original == null) { return NotFound(new ErrorResponse("no_such_suite")); }
 

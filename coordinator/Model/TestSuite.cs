@@ -80,8 +80,45 @@ namespace Karenia.Rurikawa.Models.Test {
             this.Title = other.Title;
             this.TestGroups = other.TestGroups;
             this.Tags = other.Tags;
+            this.StartTime = other.StartTime;
+            this.EndTime = other.EndTime;
             this.PackageFileId = other.PackageFileId;
             if (patchDescription) this.Description = other.Description;
+        }
+
+        public void Patch(TestSuitePatch patch) {
+            this.Name = patch.Name;
+            this.Title = patch.Title;
+            this.Description = patch.Description;
+            this.Tags = patch.Tags;
+            this.IsPublic = patch.IsPublic;
+            this.StartTime = patch.StartTime;
+            this.EndTime = patch.EndTime;
+            this.MemoryLimit = patch.MemoryLimit;
+            this.TimeLimit = patch.TimeLimit;
+        }
+
+        /// <summary>
+        /// A patch class to change various data of a test suite
+        /// </summary>
+        public class TestSuitePatch {
+            public string Name { get; set; }
+
+            public string Title { get; set; }
+
+            public string Description { get; set; }
+
+            public List<string>? Tags { get; set; }
+
+            public bool IsPublic { get; set; }
+
+            public DateTimeOffset? StartTime { get; set; }
+
+            public DateTimeOffset? EndTime { get; set; }
+
+            public int? TimeLimit { get; set; }
+
+            public int? MemoryLimit { get; set; }
         }
     }
 
