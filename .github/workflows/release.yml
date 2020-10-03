@@ -132,7 +132,7 @@ jobs:
         run: |
           cd judger
           cargo fetch
-          cargo build --frozen
+          cargo build --frozen --release
 
       - name: Install rust target
         if: ${{ matrix.target_name != 0 }}
@@ -144,7 +144,7 @@ jobs:
         run: |
           cd judger
           cargo fetch
-          cargo build --frozen --target=${{ matrix.target_name }}
+          cargo build --frozen --release --target=${{ matrix.target_name }}
 
       - name: Upload binaries to release
         uses: svenstaro/upload-release-action@v1-release
