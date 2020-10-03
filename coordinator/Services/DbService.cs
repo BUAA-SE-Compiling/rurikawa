@@ -20,12 +20,23 @@ namespace Karenia.Rurikawa.Coordinator.Services {
             this.db = db;
         }
 
-        public async Task<Job> GetJob(FlowSnake id) {
+        public async Task<Job?> GetJob(FlowSnake id) {
             return await db.Jobs.Where(j => j.Id == id).SingleOrDefaultAsync();
         }
 
-        public async Task<TestSuite> GetTestSuite(FlowSnake id) {
+        public async Task<TestSuite?> GetTestSuite(FlowSnake id) {
             return await db.TestSuites.Where(j => j.Id == id).SingleOrDefaultAsync();
+        }
+
+        public async Task<Announcement?> GetAnnouncement(FlowSnake id) {
+            return await db.Announcements.Where(a => a.Id == id).SingleOrDefaultAsync();
+        }
+
+        public async Task<FlowSnake> CreateAnnouncement(Announcement announcement) {
+            announcement.Id = FlowSnake.Generate();
+            db.Announcements.Add(announcement);
+            await db.SaveChangesAsync();
+            return announcement.Id;
         }
 
         public async Task<IList<Job>> GetJobs(
