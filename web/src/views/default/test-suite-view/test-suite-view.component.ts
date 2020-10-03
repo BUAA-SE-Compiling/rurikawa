@@ -8,6 +8,8 @@ import {
 
 import BranchIcon from '@iconify/icons-mdi/source-branch';
 import RepoIcon from '@iconify/icons-mdi/git';
+import DownArrowIcon from '@iconify/icons-mdi/chevron-down';
+import UpArrowIcon from '@iconify/icons-mdi/chevron-up';
 import { TestSuite, NewJobMessage } from 'src/models/server-types';
 import { HttpClient, HttpErrorResponse } from '@angular/common/http';
 import { environment } from 'src/environments/environment';
@@ -54,6 +56,8 @@ export class TestSuiteViewComponent implements OnInit {
 
   readonly repoIcon = RepoIcon;
   readonly branchIcon = BranchIcon;
+  readonly downArrowIcon = DownArrowIcon;
+  readonly upArrowIcon = UpArrowIcon;
 
   repo: string = '';
   branch: string = '';
@@ -73,6 +77,8 @@ export class TestSuiteViewComponent implements OnInit {
 
   submittingTest: boolean = false;
   allJobsFinished: boolean = false;
+
+  descCollapsed: boolean = false;
 
   get items(): JobItem[] | undefined {
     return this.jobs?.map(jobToJobItem);
@@ -121,7 +127,13 @@ export class TestSuiteViewComponent implements OnInit {
           }
         },
       });
-    this.fetchJobs(id).subscribe();
+    this.fetchJobs(id).subscribe({
+      next: () => {
+        if (this.jobs.length > 0) {
+          this.descCollapsed = true;
+        }
+      },
+    });
   }
 
   private initSubmit() {

@@ -1,3 +1,12 @@
 <app-navbar [adminMode]="true"></app-navbar>
-
-<p>admin-test-suite-view works!</p>
+<div class="container">
+  <div class="title-row">
+    <div class="id">
+      {{ suite?.name }}:{{ id }}
+      <a (click)="togglePublic()">
+        {{ suite.isPublic ? "公开" : "未公开" }}
+      </a>
+    </div>
+    <h1>{{ suite?.title }}</h1>
+  </div>
+</div>

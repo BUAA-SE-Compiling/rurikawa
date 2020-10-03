@@ -39,8 +39,21 @@
         </div>
       </div>
       <div id="section suite-desc">
-        <h2>测试描述</h2>
-        <markdown [data]="suite?.description"></markdown>
+        <div class="row">
+          <h2>测试描述</h2>
+          <div class="row-spacer"></div>
+          <ic-icon
+            (click)="descCollapsed = !descCollapsed"
+            [icon]="descCollapsed ? downArrowIcon : upArrowIcon"
+            [size]="32"
+          ></ic-icon>
+        </div>
+        <div
+          class="markdown-wrapper"
+          [style.max-height]="descCollapsed ? '0px' : ''"
+        >
+          <markdown [data]="suite?.description"></markdown>
+        </div>
       </div>
     </div>
     <div class="rblk" id="job-list" [@staggerLoadJobs]="items || items.length">
