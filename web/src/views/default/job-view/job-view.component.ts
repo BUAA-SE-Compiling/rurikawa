@@ -46,6 +46,10 @@ export class JobViewComponent implements OnInit {
     );
   }
 
+  get repo() {
+    return this.job.repo.replace(/(?<=\/\/).+:.+@/, '***@');
+  }
+
   get branch() {
     return this.job?.branch || 'HEAD';
   }

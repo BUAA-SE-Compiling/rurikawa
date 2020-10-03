@@ -4,19 +4,23 @@
     <div class="id">#{{ id }}</div>
     <div class="title">
       <h1>评测结果</h1>
-      <div class="row text" *ngIf="job">
-        <span class="job-info repo">
-          <ic-icon [icon]="repoIcon"></ic-icon>
-          {{ job.repo }}
-        </span>
-        <span class="job-info branch">
-          <ic-icon [icon]="branchIcon"></ic-icon>
-          {{ branch }}
-        </span>
-        <span class="job-info revision">
-          <ic-icon [icon]="commitIcon"></ic-icon>
-          {{ revision }}
-        </span>
+      <div class="repo-rows">
+        <div class="row text" *ngIf="job">
+          <span class="job-info repo">
+            <ic-icon [icon]="repoIcon"></ic-icon>
+            {{ repo }}
+          </span>
+        </div>
+        <div class="row text" *ngIf="job">
+          <span class="job-info branch">
+            <ic-icon [icon]="branchIcon"></ic-icon>
+            {{ branch }}
+          </span>
+          <span class="job-info revision">
+            <ic-icon [icon]="commitIcon"></ic-icon>
+            {{ revision }}
+          </span>
+        </div>
       </div>
     </div>
     <div class="before-title-spacer"></div>
