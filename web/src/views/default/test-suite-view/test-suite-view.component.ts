@@ -108,9 +108,7 @@ export class TestSuiteViewComponent implements OnInit {
 
   fetchTestSuite(id: string) {
     this.httpClient
-      .get<TestSuite>(
-        environment.endpointBase() + endpoints.testSuite.get.replace(':id', id)
-      )
+      .get<TestSuite>(environment.endpointBase() + endpoints.testSuite.get(id))
       .subscribe({
         next: (suite) => {
           this.suite = suite;

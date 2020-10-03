@@ -170,8 +170,7 @@ export class TestSuiteAndJobCache {
 
     return this.httpClient
       .get<Job[]>(
-        environment.endpointBase() +
-          endpoints.testSuite.getJobs.replace(':id', opt.suiteId),
+        environment.endpointBase() + endpoints.testSuite.getJobs(opt.suiteId),
         {
           params: {
             startId: opt.startId,
@@ -194,7 +193,11 @@ export class TestSuiteAndJobCache {
       );
   }
 
-  public fetchTestSuite(id: string) {}
+  public fetchTestSuite(id: string) {
+    return this.httpClient.get<TestSuite>(
+      environment.endpointBase() + endpoints.testSuite.get(id)
+    );
+  }
 
   public fetchJob(id: string, track: boolean) {
     return this.httpClient

@@ -18,8 +18,11 @@ export const endpoints = {
   },
   testSuite: {
     query: 'tests',
-    get: 'tests/:id',
-    getJobs: 'tests/:id/jobs',
+    get: (id: string) => `tests/${id}`,
+    getJobs: (id: string) => `tests/${id}/jobs`,
+    setFile: (id: string) => `tests/${id}/file`,
+    setVisibility: (id: string) => `tests/${id}/visibility`,
+    put: (id: string) => `tests/${id}`,
     post: 'tests',
     ws: 'tests/ws?token=:token',
   },

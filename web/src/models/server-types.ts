@@ -15,6 +15,9 @@ export interface TestSuite {
   packageFileId: string;
   timeLimit?: number;
   memoryLimit?: number;
+  isPublic: boolean;
+  startTime: Date;
+  endTime: Date;
   testGroups: { [key: string]: string[] };
 }
 
