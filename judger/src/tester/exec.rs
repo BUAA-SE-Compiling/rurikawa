@@ -12,6 +12,7 @@ use anyhow::Result;
 use async_compat::CompatExt;
 use bollard::models::Mount;
 use futures::stream::StreamExt;
+use once_cell::sync::Lazy;
 use path_absolutize::Absolutize;
 use path_slash::PathBufExt;
 use serde::{self, Deserialize, Serialize};
@@ -117,6 +118,8 @@ impl Step {
     }
 }
 
+static EOF_PATTERN: Lazy<regex::Regex> = Lazy::new(|| regex::Regex::new(r"\r?\n").unwrap());
+
 /// A particular multi-`Step` test.
 /// An I/O match test against `expected` is performed at the last `Step`
 #[derive(Default)]
@@ -199,11 +202,12 @@ impl Test {
                 // * Actually there is a test that should not have passed,
                 // * because the `.out` file is missing a `\n`.
                 // * We trim the result here anyway...
-                let got = info.stdout.trim();
-                let expected = expected.trim();
-                if got != expected {
+                let got = EOF_PATTERN.replace_all(info.stdout.trim(), "\n");
+                let expected = EOF_PATTERN.replace_all(expected.trim(), "\n");
+                let (different, diff_str) = diff(&got, &expected);
+                if different {
                     return Err(JobFailure::OutputMismatch(OutputMismatch {
-                        diff: diff(&got, &expected),
+                        diff: diff_str,
                         output,
                     }));
                 }
@@ -233,6 +237,13 @@ pub enum Image {
 }
 
 impl Image {
+    pub fn set_dockerfile_tag(&mut self, new_tag: String) {
+        match self {
+            Image::Image { .. } => {}
+            Image::Dockerfile { tag, .. } => *tag = new_tag,
+        }
+    }
+
     pub fn tag(&self) -> String {
         match &self {
             Image::Image { tag, .. } => tag.to_owned(),
@@ -587,7 +598,7 @@ impl TestSuite {
             .take()
             .expect("TestSuite instance not fully constructed");
         image.replace_with_absolute_dir(base_dir);
-        let image_tag = format!("{}_{:08x}", image.tag(), rnd_id);
+        image.set_dockerfile_tag(format!("{}_{:08x}", image.tag(), rnd_id));
         let runner = DockerCommandRunner::try_new(instance, image, {
             DockerCommandRunnerOptions {
                 mem_limit,
@@ -599,8 +610,7 @@ impl TestSuite {
                 ..Default::default()
             }
         })
-        .await
-        .unwrap_or_else(|e| panic!("Failed to create command runner `{}`: {}", &image_tag, e));
+        .await?;
 
         log::trace!("{:08x}: runner created", rnd_id);
 

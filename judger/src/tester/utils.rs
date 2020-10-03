@@ -4,22 +4,35 @@ use std::ffi::CStr;
 use std::str;
 
 /// Generate a diff String of two Strings.
-pub fn diff<'a>(got: &'a str, expected: &'a str) -> String {
-    let Changeset { diffs, .. } = Changeset::new(got, expected, "\n");
+pub fn diff<'a>(got: &'a str, expected: &'a str) -> (bool, String) {
+    let changeset = Changeset::new(got, expected, "\n");
+    let mut change_string = String::new();
+    let mut different = false;
 
-    fn make_diff_line(ln_diff: &Difference) -> String {
-        match ln_diff {
-            Difference::Same(ln) => "  ".to_owned() + ln,
-            Difference::Rem(ln) => "- ".to_owned() + ln,
-            Difference::Add(ln) => "+ ".to_owned() + ln,
+    let mut add_diff_ln = |ic: char, s: &str| {
+        for l in s.lines() {
+            change_string.push(ic);
+            change_string.push(' ');
+            change_string.push_str(l);
+            change_string.push('\n');
+        }
+    };
+
+    for diff in changeset.diffs {
+        match diff {
+            Difference::Same(s) => add_diff_ln(' ', &s),
+            Difference::Add(s) => {
+                add_diff_ln('+', &s);
+                different = true;
+            }
+            Difference::Rem(s) => {
+                add_diff_ln('-', &s);
+                different = true
+            }
         }
     }
 
-    diffs
-        .iter()
-        .map(make_diff_line)
-        .collect::<Vec<String>>()
-        .join("\n")
+    (different, change_string)
 }
 
 #[cfg(unix)]
@@ -50,11 +63,33 @@ mod tests {
         let d = diff(s1, s2);
         assert_eq!(
             dbg!(d),
-            "  \
-              Hello,\n\
-            + this cruel\n  \
-              world!\n\
-            - Hi!"
+            (
+                true,
+                "  \
+                Hello,\n\
+                + this cruel\n  \
+                world!\n\
+                - Hi!"
+                    .into()
+            )
+        );
+    }
+
+    #[test]
+    fn test_diff_again() {
+        let s1 = "Hello,\nworld!\nHi!";
+        let s2 = "Hello,\nworld!\nHi!";
+        let d = diff(s1, s2);
+        assert_eq!(
+            dbg!(d),
+            (
+                false,
+                "  \
+                Hello,\n  \
+                world!\n  \
+                Hi!\n"
+                    .into()
+            )
         );
     }
 
