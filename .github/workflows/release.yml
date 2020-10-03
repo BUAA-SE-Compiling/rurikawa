@@ -117,7 +117,7 @@ jobs:
           #   target_name: x86_64-unknown-linux-musl
           - os: windows-latest
             artifact_name: rurikawa.exe
-            asset_name: rurikawa-windows-amd64
+            asset_name: rurikawa-windows-amd64.exe
           - os: macos-latest
             artifact_name: rurikawa
             asset_name: rurikawa-macos-amd64
@@ -150,7 +150,7 @@ jobs:
         uses: svenstaro/upload-release-action@v1-release
         with:
           repo_token: ${{ secrets.GITHUB_TOKEN }}
-          file: target/release/${{ matrix.artifact_name }}
+          file: judger/target/release/${{ matrix.artifact_name }}
           asset_name: ${{ matrix.asset_name }}
           tag: ${{ github.ref }}
           overwrite: true
