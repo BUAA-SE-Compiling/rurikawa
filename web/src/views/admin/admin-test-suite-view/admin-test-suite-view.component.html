@@ -10,4 +10,10 @@
     </div>
     <h1>{{ suite?.title }}</h1>
   </div>
+  <div class="section">
+    <h2>替换题目</h2>
+    <app-file-upload-area
+      [uploadFunction]="getUploadFileFunction()"
+    ></app-file-upload-area>
+  </div>
 </div>
