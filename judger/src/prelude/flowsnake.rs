@@ -105,6 +105,12 @@ impl FlowSnake {
     }
 }
 
+impl From<u64> for FlowSnake{
+    fn from(i: u64) -> Self {
+        FlowSnake(i)
+    }
+}
+
 impl std::fmt::Display for FlowSnake {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         let mut s = [0u8; 13];

@@ -157,7 +157,6 @@ impl Test {
     where
         R: CommandRunner + Send,
     {
-        let expected = self.expected.expect("Run Failed: Expected String not set");
         let mut output: Vec<ProcessInfo> = vec![];
         let steps_len = self.steps.len();
         for (i, step) in self.steps.into_iter().enumerate() {
@@ -170,7 +169,7 @@ impl Test {
                         output,
                     }))
                 }
-                Err(e) => panic!("Run Failed: Cannot launch subprocess, {}", e),
+                Err(e) => return Err(JobFailure::InternalError(e.to_string())),
             };
 
             output.push(info.clone());
@@ -199,17 +198,19 @@ impl Test {
 
             // Special case for last step
             if i == steps_len - 1 {
-                // * Actually there is a test that should not have passed,
-                // * because the `.out` file is missing a `\n`.
-                // * We trim the result here anyway...
-                let got = EOF_PATTERN.replace_all(info.stdout.trim(), "\n");
-                let expected = EOF_PATTERN.replace_all(expected.trim(), "\n");
-                let (different, diff_str) = diff(&got, &expected);
-                if different {
-                    return Err(JobFailure::OutputMismatch(OutputMismatch {
-                        diff: diff_str,
-                        output,
-                    }));
+                if let Some(expected) = self.expected.as_ref() {
+                    // * Actually there is a test that should not have passed,
+                    // * because the `.out` file is missing a `\n`.
+                    // * We trim the result here anyway...
+                    let got = EOF_PATTERN.replace_all(info.stdout.trim(), "\n");
+                    let expected = EOF_PATTERN.replace_all(expected.trim(), "\n");
+                    let (different, diff_str) = diff(&got, &expected);
+                    if different {
+                        return Err(JobFailure::OutputMismatch(OutputMismatch {
+                            diff: diff_str,
+                            output,
+                        }));
+                    }
                 }
             }
         }
@@ -395,23 +396,25 @@ pub fn path_canonical_from(path: &Path, base_dir: &Path) -> PathBuf {
     from_base.absolutize().unwrap().into_owned()
 }
 
-/// Judger's public config, specific to a paticular repository,
-/// Maintained by the owner of the project to be tested.
-#[derive(Serialize, Deserialize, Debug, Clone)]
-pub struct JudgerPublicConfig {
-    pub name: String,
-    /// Variables and extensions of test files
-    /// (`$src`, `$bin`, `$stdin`, `$stdout`, etc...).
-    /// For example: `"$src" => "go"`.
-    pub vars: HashMap<String, String>,
-    /// Sequence of commands necessary to perform an IO check.
-    pub run: Vec<String>,
-    /// The path of test root directory to be mapped inside test container
-    pub mapped_dir: Bind,
-    /// `host-src:container-dest` volume bindings for the container.
-    /// For details see [here](https://docs.rs/bollard/0.7.2/bollard/service/struct.HostConfig.html#structfield.binds).
-    pub binds: Option<Vec<Bind>>,
-}
+pub type JudgerPublicConfig = crate::client::model::TestSuite;
+
+// /// Judger's public config, specific to a paticular repository,
+// /// Maintained by the owner of the project to be tested.
+// #[derive(Serialize, Deserialize, Debug, Clone)]
+// pub struct JudgerPublicConfig {
+//     pub name: String,
+//     /// Variables and extensions of test files
+//     /// (`$src`, `$bin`, `$stdin`, `$stdout`, etc...).
+//     /// For example: `"$src" => "go"`.
+//     pub vars: HashMap<String, String>,
+//     /// Sequence of commands necessary to perform an IO check.
+//     pub run: Vec<String>,
+//     /// The path of test root directory to be mapped inside test container
+//     pub mapped_dir: Bind,
+//     /// `host-src:container-dest` volume bindings for the container.
+//     /// For details see [here](https://docs.rs/bollard/0.7.2/bollard/service/struct.HostConfig.html#structfield.binds).
+//     pub binds: Option<Vec<Bind>>,
+// }
 
 /// Judger's private config, specific to a host machine.
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -1092,6 +1095,13 @@ mod test_suite {
                     .iter()
                     .map(|(k, v)| (k.to_string(), v.to_string()))
                     .collect(),
+                    id: FlowSnake(0),
+                    title: "".into(),
+                    description: "".into(),
+                    tags: None,
+                    package_file_id: "".into(),
+                    time_limit: None,
+                    memory_limit: None,
                 },
                 TestSuiteOptions {
                     tests: ["succ"].iter().map(|s| s.to_string()).collect(),
@@ -1159,6 +1169,14 @@ mod test_suite {
                     .iter()
                     .map(|(k, v)| (k.to_string(), v.to_string()))
                     .collect(),
+
+                    id: FlowSnake(0u64),
+                    title: "".into(),
+                    description: "".into(),
+                    tags: None,
+                    package_file_id: "".into(),
+                    time_limit: None,
+                    memory_limit: None,
                 },
                 TestSuiteOptions {
                     tests: ["succ"].iter().map(|s| s.to_string()).collect(), // private

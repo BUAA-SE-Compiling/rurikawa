@@ -1,4 +1,4 @@
-use crate::prelude::FlowSnake;
+use crate::{prelude::FlowSnake, tester::exec::Bind};
 use serde::{Deserialize, Serialize};
 use std::{collections::HashMap, sync::Arc};
 
@@ -48,6 +48,17 @@ pub struct TestSuite {
     pub package_file_id: String,
     pub time_limit: Option<i32>,
     pub memory_limit: Option<i32>,
+    /// Variables and extensions of test files
+    /// (`$src`, `$bin`, `$stdin`, `$stdout`, etc...).
+    /// For example: `"$src" => "go"`.
+    pub vars: HashMap<String, String>,
+    /// Sequence of commands necessary to perform an IO check.
+    pub run: Vec<String>,
+    /// The path of test root directory to be mapped inside test container
+    pub mapped_dir: Bind,
+    /// `host-src:container-dest` volume bindings for the container.
+    /// For details see [here](https://docs.rs/bollard/0.7.2/bollard/service/struct.HostConfig.html#structfield.binds).
+    pub binds: Option<Vec<Bind>>,
 }
 
 /// Message sent from client

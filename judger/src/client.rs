@@ -692,8 +692,8 @@ pub async fn handle_job(
 
     let options = crate::tester::exec::TestSuiteOptions {
         tests: job.tests.clone(),
-        time_limit: None,
-        mem_limit: None,
+        time_limit: public_cfg.time_limit.map(|x| x as usize),
+        mem_limit: public_cfg.memory_limit.map(|x| x as usize),
         build_image: true,
         remove_image: true,
     };

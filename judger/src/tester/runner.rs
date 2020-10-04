@@ -5,7 +5,7 @@ use crate::prelude::*;
 use anyhow::Result;
 use async_compat::CompatExt;
 use async_trait::async_trait;
-use bollard::{container::UploadToContainerOptions, models::Mount, Docker};
+use bollard::{container::UploadToContainerOptions, exec::StartExecResults, models::Mount, Docker};
 use futures::stream::StreamExt;
 use names::{Generator, Name};
 #[cfg(unix)]
@@ -371,6 +371,10 @@ impl DockerCommandRunner {
     }
 }
 
+// 2MiB
+// TODO: user-configurable output size
+static MAX_CONSOLE_FILE_SIZE: usize = 2 * 1024 * 1024;
+
 #[async_trait]
 impl CommandRunner for DockerCommandRunner {
     async fn run(&self, cmd: &[String]) -> PopenResult<ProcessInfo> {
@@ -398,45 +402,43 @@ impl CommandRunner for DockerCommandRunner {
             })?;
 
         // Start the Docker Exec
-        let start_res = self.instance.start_exec(
+        let mut start_res = self.instance.start_exec(
             &message.id,
             Some(bollard::exec::StartExecOptions { detach: false }),
         );
 
-        let messages: Vec<MessageKind> = start_res
-            .filter_map(|mres| async {
-                match mres {
-                    Ok(bollard::exec::StartExecResults::Attached { log }) => match log {
+        let mut stdout = String::new();
+        let mut stderr = String::new();
+
+        while let Some(msg) = start_res.next().await {
+            match msg {
+                Ok(r) => match r {
+                    StartExecResults::Attached { log } => match log {
                         bollard::container::LogOutput::StdOut { message } => {
-                            let message = String::from_utf8((*message).to_vec()).unwrap();
-                            Some(MessageKind::StdOut(message))
+                            let msg = String::from_utf8_lossy(&message);
+                            stdout.push_str(&msg);
+                            if (stdout.len() >= MAX_CONSOLE_FILE_SIZE) {
+                                stdout.push_str("\nStripped due to oversized stdout");
+                                break;
+                            }
                         }
                         bollard::container::LogOutput::StdErr { message } => {
-                            let message = String::from_utf8((*message).to_vec()).unwrap();
-                            Some(MessageKind::StdErr(message))
+                            let msg = String::from_utf8_lossy(&message);
+                            stderr.push_str(&msg);
+                            if (stderr.len() >= MAX_CONSOLE_FILE_SIZE) {
+                                stderr.push_str("\nStripped due to oversized stderr");
+                                break;
+                            }
                         }
-                        _ => None,
+                        _ => {}
                     },
-                    _ => None,
-                }
-            })
-            .collect()
-            .await;
+                    StartExecResults::Detached => {}
+                },
+                Err(e) => return Err(std::io::Error::new(std::io::ErrorKind::Other, e)),
+            }
+        }
 
-        let (stdout, stderr): (Vec<&MessageKind>, Vec<&MessageKind>) = messages
-            .iter()
-            .partition(|&i| matches!(i, &MessageKind::StdOut(_)));
-
-        let stdout = stdout
-            .iter()
-            .map(|&i| i.unwrap())
-            .collect::<Vec<String>>()
-            .join("");
-        let stderr = stderr
-            .iter()
-            .map(|&i| i.unwrap())
-            .collect::<Vec<String>>()
-            .join("");
+        drop(start_res);
 
         // Use inspect_exec to get exit code.
         let inspect_res = self.instance.inspect_exec(&message.id).await.map_err(|e| {
@@ -462,20 +464,5 @@ impl CommandRunner for DockerCommandRunner {
             stderr,
             ret_code,
         })
-    }
-}
-
-/// Helper enum for DockerCommandRunner
-enum MessageKind {
-    StdOut(String),
-    StdErr(String),
-}
-
-impl MessageKind {
-    fn unwrap(&self) -> String {
-        match self {
-            MessageKind::StdOut(s) => s.to_owned(),
-            MessageKind::StdErr(s) => s.to_owned(),
-        }
     }
 }
