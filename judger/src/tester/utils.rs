@@ -69,7 +69,7 @@ mod tests {
                 Hello,\n\
                 + this cruel\n  \
                 world!\n\
-                - Hi!"
+                - Hi!\n"
                     .into()
             )
         );
