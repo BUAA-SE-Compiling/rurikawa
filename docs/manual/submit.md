@@ -127,7 +127,7 @@ run = [
 
 首先，按照上面的方式填好仓库的地址和分支。
 
-然后，在你的仓库所在的平台申请一个 Access Token（访问令牌）。
+然后，在你的仓库所在的平台申请一个 Access Token（访问令牌）并将其记录下来。这个访问令牌相当于一个只能执行部分功能的密码，请妥善保管，并在必要的时候撤销（revoke）掉。当然，在撤销之前你可以任意次使用这个令牌。
 
 > GitHub 的用户可以访问 `Settings > Developer Settings > Personal access tokens`，点击 `Generate new token` 并生成一个有 `repo` 权限的令牌。
 
