@@ -21,8 +21,11 @@ use serde::{Deserialize, Serialize};
 use serde_json::from_slice;
 use std::{
     collections::HashMap,
+    error::Error,
     fmt::Debug,
     path::PathBuf,
+    sync::atomic::AtomicBool,
+    sync::atomic::Ordering,
     sync::{atomic::AtomicUsize, Arc},
 };
 use tokio::{net::TcpStream, sync::Mutex, sync::RwLock, task::JoinHandle};
@@ -105,6 +108,7 @@ impl Default for ClientConfig {
 pub struct SharedClientData {
     pub cfg: ClientConfig,
     pub running_tests: AtomicUsize,
+    pub aborting: AtomicBool,
     pub client: reqwest::Client,
     /// All test suites whose folder is being edited.
     pub locked_test_suite: RwLock<HashMap<FlowSnake, Arc<Mutex<()>>>>,
@@ -118,6 +122,7 @@ impl SharedClientData {
         SharedClientData {
             cfg,
             client: reqwest::Client::new(),
+            aborting: AtomicBool::new(false),
             running_tests: AtomicUsize::new(0),
             locked_test_suite: RwLock::new(HashMap::new()),
             running_job_handles: Mutex::new(HashMap::new()),
@@ -260,8 +265,10 @@ impl SharedClientData {
     }
 
     pub fn finish_job(&self) -> usize {
-        self.running_tests
-            .fetch_sub(1, std::sync::atomic::Ordering::SeqCst)
+        let res = self
+            .running_tests
+            .fetch_sub(1, std::sync::atomic::Ordering::SeqCst);
+        res - 1
     }
 }
 
@@ -432,8 +439,9 @@ pub async fn check_download_read_test_suite(
             }
         };
 
+        let lockfile = cfg.test_suite_folder_lockfile(suite_id);
+
         let lockfile_up_to_date = {
-            let lockfile = cfg.test_suite_folder_lockfile(suite_id);
             let lockfile_data = tokio::fs::read_to_string(&lockfile).await;
             let lockfile_data = match lockfile_data {
                 Ok(f) => Some(f),
@@ -442,9 +450,6 @@ pub async fn check_download_read_test_suite(
                     _ => return Err(e.into()),
                 },
             };
-
-            let serialized = serde_json::to_string(&suite_data)?;
-            tokio::fs::write(&lockfile, &serialized).await?;
 
             let suite_data_locked = lockfile_data
                 .as_deref()
@@ -460,7 +465,7 @@ pub async fn check_download_read_test_suite(
             let filename = cfg.random_temp_file_path();
             let file_folder_root = cfg.temp_file_folder_root();
 
-            fs::ensure_removed_dir(&file_folder_root).await?;
+            fs::ensure_removed_dir(&suite_folder).await?;
             tokio::fs::create_dir_all(file_folder_root).await?;
             log::info!(
                 "Test suite does not exist. Initiating download of suite {} from {} to {:?}",
@@ -479,6 +484,13 @@ pub async fn check_download_read_test_suite(
             )
             .await?;
         }
+
+        // Rewrite lockfile AFTER all data are saved
+        if !lockfile_up_to_date {
+            let serialized = serde_json::to_string(&suite_data)?;
+            tokio::fs::write(&lockfile, &serialized).await?;
+        }
+
         log::info!("Suite downloaded");
         Ok(())
     }
@@ -692,7 +704,8 @@ pub async fn handle_job(
         private_cfg,
         public_cfg,
         options,
-    )?;
+    )
+    .await?;
 
     log::info!("Job {}: options created", job.id);
     let (ch_send, ch_recv) = tokio::sync::mpsc::unbounded_channel();
@@ -756,26 +769,30 @@ pub async fn handle_job(
 
 pub async fn flag_new_job(send: Arc<Mutex<WsSink>>, client_config: Arc<SharedClientData>) {
     let job_count = client_config.new_job();
+    let can_accept_new_task =
+        client_config.running_tests.load(Ordering::SeqCst) < client_config.cfg.max_concurrent_tasks;
+
     let _ = send
         .lock()
         .await
         .send_msg(&ClientMsg::ClientStatus(ClientStatusMsg {
             active_task_count: job_count as i32,
             request_for_new_task: 0,
-            can_accept_new_task: job_count < client_config.cfg.max_concurrent_tasks,
+            can_accept_new_task,
         }))
         .await;
 }
 
 pub async fn flag_finished_job(send: Arc<Mutex<WsSink>>, client_config: Arc<SharedClientData>) {
     let job_count = client_config.finish_job();
+    let aborting = client_config.aborting.load(Ordering::SeqCst);
     let _ = send
         .lock()
         .await
         .send_msg(&ClientMsg::ClientStatus(ClientStatusMsg {
             active_task_count: job_count as i32,
-            request_for_new_task: 1,
-            can_accept_new_task: job_count < client_config.cfg.max_concurrent_tasks,
+            can_accept_new_task: !aborting,
+            request_for_new_task: if aborting { 0 } else { 1 },
         }))
         .await;
 }

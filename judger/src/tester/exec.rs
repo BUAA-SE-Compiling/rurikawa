@@ -11,7 +11,7 @@ use crate::{
 use anyhow::Result;
 use async_compat::CompatExt;
 use bollard::models::Mount;
-use futures::stream::StreamExt;
+use futures::{stream::StreamExt, Future};
 use once_cell::sync::Lazy;
 use path_absolutize::Absolutize;
 use path_slash::PathBufExt;
@@ -486,73 +486,86 @@ impl TestSuite {
         self.test_cases.push(case)
     }
 
-    pub fn from_config(
+    pub async fn from_config(
         image: Image,
         base_dir: &Path,
         private_cfg: JudgerPrivateConfig,
         public_cfg: JudgerPublicConfig,
         options: TestSuiteOptions,
     ) -> Result<Self> {
-        let test_cases = options
-            .tests
-            .iter()
-            .map(|name| -> Result<TestCase> {
-                let mut container_test_root = private_cfg.mapped_test_root_dir.clone();
-                let mut test_root = private_cfg.test_root_dir.clone();
-                test_root.push(name);
-                container_test_root.push(name);
-                let replacer: HashMap<String, _> = public_cfg
-                    .vars
-                    .iter()
-                    .map(|(var, ext)| {
-                        (var.to_owned(), {
-                            // Special case for `$stdout`:
-                            // These variables will point to files under `io_dir`,
-                            // while others to `src_dir`.
-                            let mut p = match var.as_ref() {
-                                "$stdout" => test_root.clone(),
-                                _ => container_test_root.clone(),
-                            };
-                            p.set_extension(ext);
-                            p.to_slash_lossy()
+        let container_test_root = private_cfg.mapped_test_root_dir.clone();
+        let test_root = private_cfg.test_root_dir.clone();
+
+        // TODO: Remove drain when this compiler issue gets repaired:
+        // https://github.com/rust-lang/rust/issues/64552
+        let mut test_cases = futures::stream::iter(options.tests.clone().drain(..))
+            .map(|name| {
+                let public_cfg = &public_cfg;
+                let mut test_root = test_root.clone();
+                let mut container_test_root = container_test_root.clone();
+                async move {
+                    test_root.push(&name);
+                    container_test_root.push(&name);
+
+                    let replacer: HashMap<String, _> = public_cfg
+                        .vars
+                        .iter()
+                        .map(|(var, ext)| {
+                            (var.to_owned(), {
+                                // Special case for `$stdout`:
+                                // These variables will point to files under `io_dir`,
+                                // while others to `src_dir`.
+                                let mut p = match var.as_ref() {
+                                    "$stdout" => test_root.clone(),
+                                    _ => container_test_root.clone(),
+                                };
+                                p.set_extension(ext);
+                                p.to_slash_lossy()
+                            })
                         })
-                    })
-                    .collect();
-                let exec: Vec<String> = public_cfg
-                    .run
-                    .iter()
-                    .map(|line| {
-                        replacer.iter().fold(line.to_owned(), |seed, (pat, rep)| {
-                            seed.replace(pat, &format!(r#""{}""#, rep))
+                        .collect();
+                    let exec: Vec<String> = public_cfg
+                        .run
+                        .iter()
+                        .map(|line| {
+                            replacer.iter().fold(line.to_owned(), |seed, (pat, rep)| {
+                                seed.replace(pat, &format!(r#""{}""#, rep))
+                            })
                         })
+                        .collect();
+                    let stdout_path = replacer.get("$stdout").ok_or_else(|| {
+                        io::Error::new(
+                            io::ErrorKind::NotFound,
+                            "Output verification failed, no `$stdout` in dictionary",
+                        )
+                    })?;
+                    // ? QUESTION: Now I'm reading `$stdout` in host, but the source file, etc. are handled in containers.
+                    // ? Is this desirable?
+
+                    let mut expected_out = Vec::new();
+
+                    let mut file = tokio::fs::File::open(stdout_path).await.map_err(|e| {
+                        io::Error::new(
+                            io::ErrorKind::NotFound,
+                            format!(
+                                "Output verification failed, failed to open `{:?}`: {}",
+                                stdout_path, e,
+                            ),
+                        )
+                    })?;
+                    file.read_to_end(&mut expected_out).await?;
+                    let expected_out = String::from_utf8_lossy(&expected_out).into_owned();
+                    Result::Ok(TestCase {
+                        name: name.to_owned(),
+                        exec,
+                        expected_out,
                     })
-                    .collect();
-                let mut expected_out = "".to_owned();
-                let stdout_path = replacer.get("$stdout").ok_or_else(|| {
-                    io::Error::new(
-                        io::ErrorKind::NotFound,
-                        "Output verification failed, no `$stdout` in dictionary",
-                    )
-                })?;
-                // ? QUESTION: Now I'm reading `$stdout` in host, but the source file, etc. are handled in containers.
-                // ? Is this desirable?
-                let mut file = fs::File::open(stdout_path).map_err(|e| {
-                    io::Error::new(
-                        io::ErrorKind::NotFound,
-                        format!(
-                            "Output verification failed, failed to open `{:?}`: {}",
-                            stdout_path, e,
-                        ),
-                    )
-                })?;
-                file.read_to_string(&mut expected_out)?;
-                Ok(TestCase {
-                    name: name.to_owned(),
-                    exec,
-                    expected_out,
-                })
+                }
             })
-            .collect::<Result<Vec<TestCase>>>()?;
+            .buffer_unordered(16)
+            .collect::<Vec<Result<TestCase>>>()
+            .await;
+        let test_cases = test_cases.drain(..).collect::<Result<Vec<_>>>()?;
         Ok(TestSuite {
             image: Some(image),
             test_cases,
@@ -1087,7 +1100,8 @@ mod test_suite {
                     build_image: true,
                     remove_image: true,
                 },
-            )?;
+            )
+            .await?;
 
             let instance = bollard::Docker::connect_with_local_defaults().unwrap();
             ts.run(
@@ -1153,7 +1167,8 @@ mod test_suite {
                     build_image: true,                                       // private
                     remove_image: true,                                      // private
                 },
-            )?;
+            )
+            .await?;
 
             let instance = bollard::Docker::connect_with_local_defaults().unwrap();
             ts.run(
