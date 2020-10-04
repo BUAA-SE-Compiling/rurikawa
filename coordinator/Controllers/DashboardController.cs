@@ -38,8 +38,13 @@ namespace Karenia.Rurikawa.Coordinator.Controllers {
         }
 
         public class Dashboard {
-            public TestSuite Suite { get; set; }
+            public PartialTestSuite Suite { get; set; }
             public Job? Job { get; set; }
+        }
+
+        public class PartialTestSuite {
+            public FlowSnake Id { get; set; }
+            public string Title { get; set; }
         }
 
         [HttpGet]
@@ -57,21 +62,26 @@ namespace Karenia.Rurikawa.Coordinator.Controllers {
                 .OrderByDescending(t => t.Id)
                 .Take(limit)
                 .AsNoTracking()
+                .Select(x => new PartialTestSuite { Id = x.Id, Title = x.Title })
                 .ToListAsync();
 
             var suiteIds = suites.Select(s => s.Id).ToList();
 
             var jobs = await db.Jobs.FromSqlInterpolated(
                 $@"
-                select
-                    distinct on (test_suite)
-                    * from (
-                        select * from jobs
-                        order by id desc
-                    ) as sub
-                where account = {username}
+                select distinct on (test_suite)
+                    * 
+                from 
+                    jobs
+                where 
+                    account = {username}
+                order by
+                    test_suite, id desc
                 "
-            ).Where(j => suiteIds.Contains(j.TestSuite)).AsNoTracking().ToListAsync();
+            )
+                .Where(j => suiteIds.Contains(j.TestSuite))
+                .AsNoTracking()
+                .ToListAsync();
 
             var dashboard = suites
                 .GroupJoin(
