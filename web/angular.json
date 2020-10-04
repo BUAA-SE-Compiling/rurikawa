@@ -24,8 +24,21 @@
             "tsConfig": "tsconfig.app.json",
             "aot": true,
             "assets": ["src/favicon.ico", "src/assets"],
-            "styles": ["src/styles.styl"],
-            "scripts": ["node_modules/marked/lib/marked.js"],
+            "styles": ["src/styles.styl", "src/styles/prism-ghcolors.css"],
+            "scripts": [
+              "node_modules/marked/lib/marked.js",
+              "node_modules/prismjs/components/prism-css.min.js",
+              "node_modules/prismjs/components/prism-csharp.min.js",
+              "node_modules/prismjs/components/prism-yaml.min.js",
+              "node_modules/prismjs/components/prism-toml.min.js",
+              "node_modules/prismjs/components/prism-javascript.min.js",
+              "node_modules/prismjs/components/prism-typescript.min.js",
+              "node_modules/prismjs/components/prism-docker.min.js",
+              "node_modules/prismjs/components/prism-java.min.js",
+              "node_modules/prismjs/components/prism-json.min.js",
+              "node_modules/prismjs/components/prism-ebnf.min.js",
+              "node_modules/prismjs/components/prism-lisp.min.js"
+            ],
             "extraWebpackConfig": "webpack.config.js"
           },
           "configurations": {

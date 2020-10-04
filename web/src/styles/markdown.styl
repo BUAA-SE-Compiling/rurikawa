@@ -1,0 +1,97 @@
+@import 'common.styl'
+
+markdown,
+.markdown {
+  line-height: 1.5
+
+  h1 {
+    margin-bottom: var(--space-2)
+  }
+
+  h2,
+  h3 {
+    margin-bottom: calc(((var(--space-1) + var(--space-2)) / 2))
+  }
+
+  h4,
+  h5,
+  h6 {
+    margin-bottom: var(--space-0)
+  }
+
+  h1 {
+    font-size: var(--font-size-large)
+    color: var(--alt-color)
+    font-weight: 700
+    margin-top: var(--space-3)
+  }
+
+  h2 {
+    font-size: calc(var(--font-size-large) / 2 + var(--font-size-larger) / 2)
+    color: var(--alt-color)
+    font-weight: 700
+  }
+
+  h3 {
+    font-size: var(--font-size-larger)
+    color: var(--alt-color)
+    font-weight: 500
+  }
+
+  h4 {
+    font-size: var(--font-size-base)
+    font-style: italic
+    font-weight: 700
+  }
+
+  h5 {
+    font-size: var(--font-size-base)
+    font-weight: 700
+  }
+
+  h6 {
+    font-size: var(--font-size-base)
+    font-style: italic
+    font-weight: 500
+  }
+
+  table {
+    border-radius: var(--space-0)
+    padding-y: var(--space-2)
+    align-self: center
+  }
+
+  th {
+    padding: var(--space-0)
+    text-align: left
+    font-size: var(--font-size-larger)
+    border-bottom: solid 2px var(--secondary-color)
+  }
+
+  tr {
+    border-bottom: solid 1px var(--secondary-color)
+  }
+
+  td {
+    padding: calc((var(--space-0) / 2))
+    border: none
+  }
+
+  pre {
+    font-size: var(--font-size-smaller)
+    padding: var(--space-1)
+    // border: 2px solid var(--secondary-color)
+    background: var(--alt-background)
+    line-height: 1.5
+    border-radius: var(--space-0)
+    overflow-x: auto
+  }
+
+  :not(pre) code {
+    font-size: var(--font-size-smaller)
+    padding: calc((var(--space-0) / 2))
+    // border: 2px solid var(--secondary-color)
+    background: var(--alt-background)
+    border-radius: var(--space-0)
+  }
+}
