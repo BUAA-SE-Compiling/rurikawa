@@ -6,6 +6,11 @@ export interface Profile {
   studentId: string | undefined;
 }
 
+export interface PartialTestSuite {
+  id: string;
+  title: string;
+}
+
 export interface TestSuite {
   id: string;
   name: string;
@@ -22,7 +27,7 @@ export interface TestSuite {
 }
 
 export interface DashboardItem {
-  suite: TestSuite;
+  suite: PartialTestSuite;
   job: Job;
 }
 

@@ -4,7 +4,7 @@ import {
   SliderItem,
   SliderItemKind,
 } from 'src/components/base-components/slider-view/slider-view.component';
-import { Dayjs} from 'dayjs'
+import { Dayjs } from 'dayjs';
 import { DashboardItem } from 'src/models/server-types';
 import { mapValues, groupBy, toPairs } from 'lodash';
 import { extractTime } from 'src/models/flowsnake';
@@ -55,11 +55,16 @@ export class DashboardItemComponentComponent implements OnInit {
     } else if (this.item.job.resultKind !== 'Accepted') {
       return this.item.job.resultKind;
     } else {
-      let totalItems = this._slider.reduce((p, v) => p + v.num, 0);
-      let finishedItems = this._slider.reduce(
-        (p, v) => (p + v.kind === 'accept' ? v.num : 0),
-        0
+      let values = toPairs(
+        mapValues(
+          groupBy(this.item.job.results, (result) => result.kind),
+          (i) => i.length
+        )
       );
+      let totalItems = values.reduce((p, c) => (p += c[1]), 0);
+      let finishedItems = values
+        .filter((v) => v[0] === 'Accepted')
+        .reduce((p, c) => (p += c[1]), 0);
       return `${finishedItems}/${totalItems}`;
     }
   }
