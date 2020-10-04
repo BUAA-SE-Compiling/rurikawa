@@ -18,7 +18,8 @@ export class DashboardComponent implements OnInit {
     private httpClient: HttpClient
   ) {}
 
-  suite: TestSuite[];
+  suite?: TestSuite[];
+  judgerStat?: { count: number; connected: number; running: number };
 
   navigateToSuite(id: string) {
     this.router.navigate(['admin', 'suite', id]);
@@ -36,6 +37,13 @@ export class DashboardComponent implements OnInit {
         next: (v) => (this.suite = v),
       });
   }
+  fetchJudgerStat() {
+    this.httpClient
+      .get<any>(environment.endpointBase() + endpoints.admin.getJudgerStat)
+      .subscribe({
+        next: (v) => (this.judgerStat = v),
+      });
+  }
 
   ngOnInit(): void {
     this.adminService.isServerInitialized().subscribe((v) => {
@@ -43,6 +51,7 @@ export class DashboardComponent implements OnInit {
         this.router.navigate(['/admin', 'init-db']);
       }
       this.fetchTestSuites();
+      this.fetchJudgerStat();
     });
   }
 }

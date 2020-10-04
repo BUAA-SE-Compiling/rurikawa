@@ -1,11 +1,12 @@
 <app-navbar [adminMode]="true"></app-navbar>
 <div class="container">
   <div class="title-row">
-    <div class="id">
-      {{ suite?.name }}:{{ id }}
+    <div class="row text">
+      <div class="id">{{ suite?.name }}:{{ id }}</div>
       <a (click)="togglePublic()">
         {{ suite.isPublic ? "公开" : "未公开" }}
       </a>
+      <a [routerLink]="'/suite/' + id">测试界面</a>
     </div>
     <h1>{{ suite?.title }}</h1>
   </div>

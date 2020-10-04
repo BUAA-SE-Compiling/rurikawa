@@ -12,6 +12,7 @@ export const endpoints = {
   admin: {
     readInitStatus: 'admin/init',
     setInitAccount: 'admin/init',
+    getJudgerStat: 'admin/judger/stat',
   },
   dashboard: {
     get: 'dashboard',

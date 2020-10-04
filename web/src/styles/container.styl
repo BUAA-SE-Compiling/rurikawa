@@ -22,6 +22,18 @@
   flex-direction: row
   align-items: flex-end
 
+  &>* {
+    margin-x: var(--space-1)
+
+    &:first-child {
+      margin-left: 0
+    }
+
+    &:last-child {
+      margin-right: 0
+    }
+  }
+
   &.left {
     justify-content: flex-start
   }
