@@ -44,4 +44,19 @@ namespace Karenia.Rurikawa.Models.WebsocketApi {
         /// </summary>
         public List<FlowSnake>? Suites { get; set; }
     }
+
+    /// <summary>
+    /// Subscribe on test output of specific jobs
+    /// </summary>
+    [JsonDiscriminator("sub_output_c")]
+    public class SubscribeOutputMsg : WsApiClientMsg {
+        /// <summary>
+        /// Whether to subscribe or unsubscribe
+        /// </summary>
+        public bool Sub { get; set; }
+        /// <summary>
+        /// Jobs to subscribe/unsubscribe
+        /// </summary>
+        public List<FlowSnake>? Jobs { get; set; }
+    }
 }

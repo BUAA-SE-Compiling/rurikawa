@@ -123,6 +123,7 @@ namespace Karenia.Rurikawa.Coordinator {
             dis.RegisterType<Models.WebsocketApi.NewJobUpdateMsg>();
             dis.RegisterType<Models.WebsocketApi.SubscribeMsg>();
             dis.RegisterType<Models.WebsocketApi.TestOutputUpdateMsg>();
+            dis.RegisterType<Models.WebsocketApi.SubscribeOutputMsg>();
             dis.DiscriminatorPolicy = DiscriminatorPolicy.Always;
 
             opt.IgnoreNullValues = true;
