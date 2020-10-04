@@ -2,7 +2,7 @@
 
   <PropertyGroup>
     <Product>RurikawaCoordinator</Product>
-    <Version>0.0.9-beta1</Version>
+    <Version>0.1.0</Version>
     <Authors>Rynco Maekawa; Rami3L Li</Authors>
 
     <TargetFramework>netcoreapp3.1</TargetFramework>
