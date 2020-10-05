@@ -241,6 +241,7 @@ namespace Karenia.Rurikawa.Coordinator.Services {
                 frontendService.OnJobStautsUpdate(msg.JobId, new Models.WebsocketApi.JobStatusUpdateMsg
                 {
                     JobId = msg.JobId,
+                    BuildOutputFile = buildResultFilename,
                     Stage = JobStage.Finished,
                     JobResult = msg.JobResult,
                     TestResult = msg.Results
@@ -274,6 +275,10 @@ namespace Karenia.Rurikawa.Coordinator.Services {
             var filename = $"job/{jobId}/build_output.json";
 
             await fileBucket.UploadFile(filename, new MemoryStream(stringified), stringified.LongLength);
+
+            await db.KeyDeleteAsync(
+                new RedisKey[] { FormatJobStdout(jobId), FormatJobError(jobId) },
+                flags: CommandFlags.FireAndForget);
 
             return filename;
         }
