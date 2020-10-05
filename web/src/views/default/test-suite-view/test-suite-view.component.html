@@ -56,9 +56,12 @@
         </div>
       </div>
     </div>
-    <div class="rblk" id="job-list" [@staggerLoadJobs]="items || items.length">
+    <div class="rblk" id="job-list" [@staggerLoadJobs]="items && items.length">
       <h2>评测记录</h2>
-      <ng-template [ngIf]="!items || items.length === 0" [ngIfElse]="jobLog">
+      <ng-template
+        [ngIf]="items === undefined || items.length === 0"
+        [ngIfElse]="jobLog"
+      >
         <div class="no-list">没有评测记录</div>
       </ng-template>
       <ng-template #jobLog>

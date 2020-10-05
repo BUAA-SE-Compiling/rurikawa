@@ -19,6 +19,7 @@ import RepoIcon from '@iconify/icons-mdi/git';
 import CommitIcon from '@iconify/icons-mdi/source-commit';
 import { TestSuiteAndJobCache } from 'src/services/test_suite_cacher';
 import { JobBuildOutput } from 'src/models/server-types';
+import stripAnsi from 'strip-ansi';
 
 @Component({
   selector: 'app-job-view',
@@ -28,7 +29,7 @@ import { JobBuildOutput } from 'src/models/server-types';
 export class JobViewComponent implements OnInit, OnChanges {
   constructor(
     private route: ActivatedRoute,
-    private httpClient: HttpClient,
+    private cleanHttpClient: HttpClient,
     private service: TestSuiteAndJobCache
   ) {}
 
@@ -48,6 +49,13 @@ export class JobViewComponent implements OnInit, OnChanges {
       this.job.stage === 'Finished' &&
       this.job.resultKind === 'Accepted'
     );
+  }
+
+  get jobOutputMessage() {
+    let msg = this.outputMessage?.output;
+    if (msg != null) {
+      return stripAnsi(this.outputMessage.output);
+    }
   }
 
   get repo() {
@@ -131,8 +139,19 @@ export class JobViewComponent implements OnInit, OnChanges {
     this.service.getJob(this.id, false, true).subscribe({
       next: (v) => {
         this.job = v;
+        this.fetchOutputIfNotExist();
       },
     });
+  }
+
+  downloadItem(key: string) {
+    let resultFileId = this.job?.results[key]?.resultFileId;
+    if (resultFileId !== undefined) {
+      window.open(
+        environment.endpointBase() + endpoints.file.get(resultFileId),
+        'blank'
+      );
+    }
   }
 
   fetchOutputIfNotExist() {
@@ -140,14 +159,18 @@ export class JobViewComponent implements OnInit, OnChanges {
       this.job?.buildOutputFile !== undefined &&
       this.outputMessage === undefined
     ) {
-      this.httpClient
+      this.cleanHttpClient
         .get<JobBuildOutput>(
           environment.endpointBase() +
-            endpoints.file.get(this.job.buildOutputFile)
+            endpoints.file.get(this.job.buildOutputFile),
+          { headers: { 'bypass-login': 'true' } }
         )
         .subscribe({
           next: (x) => {
             this.outputMessage = x;
+          },
+          error: () => {
+            this.outputMessage = {};
           },
         });
     }
@@ -163,6 +186,6 @@ export class JobViewComponent implements OnInit, OnChanges {
   }
 
   ngOnChanges(changes: SimpleChanges): void {
-    this.fetchOutputIfNotExist();
+    // this.fetchOutputIfNotExist();
   }
 }

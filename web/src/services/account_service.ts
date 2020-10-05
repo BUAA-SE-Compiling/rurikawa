@@ -226,6 +226,14 @@ export class LoginInformationInterceptor implements HttpInterceptor {
     req: HttpRequest<any>,
     next: HttpHandler
   ): Observable<HttpEvent<any>> {
+    if (
+      req.headers.get('bypass-login') !== null ||
+      !req.url.startsWith(environment.endpointBase())
+    ) {
+      return next.handle(
+        req.clone({ headers: req.headers.delete('bypass-login') })
+      );
+    }
     if (this.account.Token !== undefined) {
       req = req.clone({
         headers: req.headers.set('Authorization', this.account.Token),
