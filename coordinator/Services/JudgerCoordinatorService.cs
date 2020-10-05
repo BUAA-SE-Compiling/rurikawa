@@ -2,6 +2,7 @@ using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Dynamic;
+using System.IO;
 using System.Linq;
 using System.Text;
 using System.Text.Json;
@@ -16,6 +17,7 @@ using Karenia.Rurikawa.Models.Test;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using StackExchange.Redis;
 using Z.EntityFramework.Plus;
 
 namespace Karenia.Rurikawa.Coordinator.Services {
@@ -168,6 +170,8 @@ namespace Karenia.Rurikawa.Coordinator.Services {
                         OnPartialResultMessage(clientId, msg1); break;
                     case ClientStatusMsg msg1:
                         OnJudgerStatusUpdateMessage(clientId, msg1); break;
+                    case JobOutputMsg msg1:
+                        OnJobOutputMessage(clientId, msg1); break;
                     default:
                         logger.LogCritical("Unable to handle message type {0}", msg.GetType().Name);
                         break;
@@ -221,8 +225,11 @@ namespace Karenia.Rurikawa.Coordinator.Services {
             }
         }
 
-        async void OnJobResultMessage(string clientId, JobResultMsg msg) {
+        public async void OnJobResultMessage(string clientId, JobResultMsg msg) {
             using var scope = scopeProvider.CreateScope();
+
+            var buildResultFilename = await UploadJobBuildOutput(msg.JobId);
+
             var db = GetDb(scope);
             using (var tx = await db.Database.BeginTransactionAsync()) {
                 var job = await db.Jobs.Where(job => job.Id == msg.JobId).SingleOrDefaultAsync();
@@ -239,6 +246,7 @@ namespace Karenia.Rurikawa.Coordinator.Services {
                     TestResult = msg.Results
                 });
 
+                job.BuildOutputFile = buildResultFilename;
                 job.Results = msg.Results ?? new Dictionary<string, TestResult>();
                 job.Stage = JobStage.Finished;
                 job.ResultKind = msg.JobResult;
@@ -246,6 +254,28 @@ namespace Karenia.Rurikawa.Coordinator.Services {
                 await db.SaveChangesAsync();
                 await tx.CommitAsync();
             }
+        }
+
+        async Task<string> UploadJobBuildOutput(FlowSnake jobId) {
+            var db = await redis.GetDatabase();
+            // 2MiB
+            const int maxLength = 2 * 1024 * 1024;
+            string? buildOutput = await db.StringGetRangeAsync(FormatJobStdout(jobId), -maxLength, -1);
+            string? buildError = await db.StringGetRangeAsync(FormatJobStdout(jobId), -maxLength, -1);
+            var res = new JobBuildOutput
+            {
+                Output = buildOutput,
+                Error = buildError
+            };
+            var stringified = JsonSerializer.SerializeToUtf8Bytes(res, jsonSerializerOptions);
+            using var scope = scopeProvider.CreateScope();
+            var fileBucket = scope.ServiceProvider.GetService<SingleBucketFileStorageService>();
+
+            var filename = $"job/{jobId}/build_output.json";
+
+            await fileBucket.UploadFile(filename, new MemoryStream(stringified), stringified.LongLength);
+
+            return filename;
         }
 
         async void OnPartialResultMessage(string clientId, PartialResultMsg msg) {
@@ -256,6 +286,37 @@ namespace Karenia.Rurikawa.Coordinator.Services {
             job.Results.Add(msg.TestId, msg.TestResult);
             await db.SaveChangesAsync();
         }
+
+        async void OnJobOutputMessage(string clientId, JobOutputMsg msg) {
+            var db = await this.redis.GetDatabase();
+            var values = new List<NameValueEntry>();
+
+            if (msg.Stream != null)
+                await db.StringAppendAsync(
+                    FormatJobStdout(msg.JobId),
+                    msg.Stream,
+                    flags: CommandFlags.FireAndForget);
+
+            if (msg.Error != null)
+                await db.StringAppendAsync(
+                    FormatJobError(msg.JobId),
+                    msg.Error,
+                    flags: CommandFlags.FireAndForget);
+
+            if (msg.Stream != null)
+                values.Add(new NameValueEntry("stream", msg.Stream));
+            if (msg.Error != null)
+                values.Add(new NameValueEntry("error", msg.Error));
+
+            await db.StreamAddAsync(
+                FormatJobStdout(msg.JobId),
+                values.ToArray(),
+                maxLength: 2000,
+                flags: StackExchange.Redis.CommandFlags.FireAndForget);
+        }
+
+        public static string FormatJobError(FlowSnake id) => $"job:{id}:error";
+        public static string FormatJobStdout(FlowSnake id) => $"job:{id}:stream";
 
         /// <summary>
         /// Check if the authorization header is valid. 
@@ -288,6 +349,10 @@ namespace Karenia.Rurikawa.Coordinator.Services {
         /// Dispatch a single job to the given judger
         /// </summary>
         protected async Task DispatchJob(Judger judger, Job job) {
+            var redis = await this.redis.GetDatabase();
+            await redis.StringSetAsync(FormatJobStdout(job.Id), "", expiry: TimeSpan.FromHours(2), flags: CommandFlags.FireAndForget);
+            await redis.StringSetAsync(FormatJobError(job.Id), "", expiry: TimeSpan.FromHours(2), flags: CommandFlags.FireAndForget);
+
             await judger.Socket.SendMessage(new NewJobServerMsg()
             {
                 Job = job

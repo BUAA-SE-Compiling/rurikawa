@@ -118,6 +118,7 @@ namespace Karenia.Rurikawa.Coordinator {
             dis.RegisterType<Models.Judger.PartialResultMsg>();
             dis.RegisterType<Models.Judger.AbortJobServerMsg>();
             dis.RegisterType<Models.Judger.NewJobServerMsg>();
+            dis.RegisterType<Models.Judger.JobOutputMsg>();
             dis.RegisterType<Models.WebsocketApi.JobStatusUpdateMsg>();
             dis.RegisterType<Models.WebsocketApi.JudgerStatusUpdateMsg>();
             dis.RegisterType<Models.WebsocketApi.NewJobUpdateMsg>();

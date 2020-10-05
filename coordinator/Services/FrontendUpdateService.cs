@@ -16,6 +16,7 @@ using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using StackExchange.Redis;
 
 namespace Karenia.Rurikawa.Coordinator.Services {
     using FrontendWebsocketWrapperTy = JsonWebsocketWrapper<WsApiClientMsg, WsApiServerMsg>;
@@ -30,22 +31,26 @@ namespace Karenia.Rurikawa.Coordinator.Services {
         }
 
         public SemaphoreSlim SubscriptionLock { get; } = new SemaphoreSlim(1);
+        public Dictionary<FlowSnake, IDisposable> JobOutputSubscriptions { get; } = new Dictionary<FlowSnake, IDisposable>();
         public Dictionary<FlowSnake, IDisposable> JobSubscriptions { get; } = new Dictionary<FlowSnake, IDisposable>();
     }
 
     public class FrontendUpdateService {
         private readonly JsonSerializerOptions jsonSerializerOptions;
         private readonly IServiceScopeFactory scopeProvider;
+        private readonly RedisService redis;
         private readonly ILogger<FrontendUpdateService> logger;
         private readonly ILogger<FrontendWebsocketWrapperTy> wsLogger;
 
         public FrontendUpdateService(
             JsonSerializerOptions jsonSerializerOptions,
             IServiceScopeFactory serviceProvider,
+            RedisService redis,
             ILogger<FrontendUpdateService> logger,
             ILogger<FrontendWebsocketWrapperTy> wsLogger) {
             this.jsonSerializerOptions = jsonSerializerOptions;
             this.scopeProvider = serviceProvider;
+            this.redis = redis;
             this.logger = logger;
             this.wsLogger = wsLogger;
         }
@@ -167,6 +172,15 @@ namespace Karenia.Rurikawa.Coordinator.Services {
             });
             conn.JobSubscriptions.Add(id, subscripton);
         }
+
+        // public async Task SubscribeToJobOutput(FlowSnake id, ConnectionMultiplexer redis, FrontendConnection connection) {
+        //     var createGroupResult = await redis.GetDatabase().StreamCreateConsumerGroupAsync(
+        //         JudgerCoordinatorService.FormatJobStdout(id),
+        //         connection.Username,
+        //         createStream: false,
+        //         position: StreamPosition.Beginning);
+        //     // redis.GetSubscriber().SubscribeAsync()
+        // }
 
         public void OnJobStautsUpdate(FlowSnake id, JobStatusUpdateMsg msg) {
             if (jobUpdateListeners.TryGetValue(id, out var val)) {

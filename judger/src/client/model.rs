@@ -1,4 +1,4 @@
-use crate::{prelude::FlowSnake, tester::exec::Bind};
+use crate::prelude::FlowSnake;
 use serde::{Deserialize, Serialize};
 use std::{collections::HashMap, sync::Arc};
 
@@ -46,7 +46,6 @@ pub struct TestSuite {
     pub description: String,
     pub tags: Option<Vec<String>>,
     pub package_file_id: String,
-
 }
 
 /// Message sent from client
@@ -58,6 +57,9 @@ pub enum ClientMsg {
 
     #[serde(rename = "partial_result")]
     PartialResult(PartialResultMsg),
+
+    #[serde(rename = "job_output")]
+    JobOutput(JobOutputMsg),
 
     #[serde(rename = "job_result")]
     JobResult(JobResultMsg),
@@ -234,6 +236,14 @@ pub struct PartialResultMsg {
     pub job_id: FlowSnake,
     pub test_id: String,
     pub test_result: TestResult,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct JobOutputMsg {
+    pub job_id: FlowSnake,
+    pub stream: Option<String>,
+    pub error: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

@@ -71,7 +71,25 @@ namespace Karenia.Rurikawa.Models.Judger {
         /// Current stage of the job.
         /// </summary>
         public JobStage Stage { get; set; }
+    }
 
+    /// <summary>
+    /// Message that sends the output of a job in client
+    /// </summary>
+    [JsonDiscriminator("job_output")]
+    public class JobOutputMsg : ClientMsg {
+        public FlowSnake JobId { get; set; }
+
+        /// <summary>
+        /// output stream chunk
+        /// </summary>
+        public string? Stream { get; set; }
+
+        /// <summary>
+        /// output stream error
+        /// </summary>
+        /// <value></value>
+        public string? Error { get; set; }
     }
 
     /// <summary>

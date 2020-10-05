@@ -1,4 +1,4 @@
-use super::exec::Image;
+use super::exec::{BuildResultChannel, Image};
 use super::utils::convert_code;
 use super::{JobFailure, ProcessInfo};
 use crate::prelude::*;
@@ -8,12 +8,11 @@ use async_trait::async_trait;
 use bollard::{container::UploadToContainerOptions, exec::StartExecResults, models::Mount, Docker};
 use futures::stream::StreamExt;
 use names::{Generator, Name};
+use std::default::Default;
 #[cfg(unix)]
 use std::os::unix::process::ExitStatusExt;
 use std::process::ExitStatus;
-use std::{default::Default, path::PathBuf};
 use tokio::{io::BufWriter, process::Command};
-use tokio_util::codec::Decoder;
 
 /// An evaluation environment for commands.
 #[async_trait]
@@ -117,6 +116,7 @@ impl DockerCommandRunner {
         instance: Docker,
         image: Image,
         options: DockerCommandRunnerOptions,
+        partial_result_channel: Option<BuildResultChannel>,
     ) -> Result<Self> {
         let mut res = DockerCommandRunner {
             image,
@@ -131,7 +131,7 @@ impl DockerCommandRunner {
         // Build the image
         if res.options.build_image {
             res.image
-                .build(res.instance.clone(), cancel.clone())
+                .build(res.instance.clone(), partial_result_channel, cancel.clone())
                 .await?
         };
         let mut image_name = res.image.tag();

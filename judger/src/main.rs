@@ -1,13 +1,11 @@
 use clap::Clap;
 use dirs::home_dir;
-use futures::{SinkExt, StreamExt, TryStreamExt};
+use futures::SinkExt;
 use once_cell::sync::OnceCell;
 use rurikawa_judger::{
+    client::config::*,
     client::model::JobResultMsg,
-    client::{
-        client_loop, connect_to_coordinator, try_register, verify_self, ClientConfig,
-        SharedClientData,
-    },
+    client::{client_loop, connect_to_coordinator, try_register, verify_self},
     prelude::CancellationTokenHandle,
 };
 use std::sync::Arc;

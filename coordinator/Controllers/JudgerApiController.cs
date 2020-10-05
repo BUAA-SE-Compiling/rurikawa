@@ -5,6 +5,7 @@ using System.Threading.Tasks;
 using Karenia.Rurikawa.Coordinator.Services;
 using Karenia.Rurikawa.Helpers;
 using Karenia.Rurikawa.Models;
+using Karenia.Rurikawa.Models.Judger;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -62,6 +63,19 @@ namespace Karenia.Rurikawa.Coordinator.Controllers {
             var filename = $"results/{jobId}/{testId}.json";
             await fs.UploadFile(filename, Request.Body, Request.ContentLength.Value, true);
             return Ok(filename);
+        }
+
+        /// <summary>
+        /// This is a backup method for sending job results.
+        /// </summary>
+        /// <returns></returns>
+        [HttpPost("result")]
+        public ActionResult SendJobResult(
+            [FromBody] JobResultMsg resultMsg,
+            [FromServices] JudgerCoordinatorService coordinator) {
+            var judger = AuthHelper.ExtractUsername(HttpContext.User);
+            coordinator.OnJobResultMessage(judger!, resultMsg);
+            return NoContent();
         }
 
         [HttpGet("download-suite/{suite}")]

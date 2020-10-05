@@ -15,7 +15,7 @@ namespace Karenia.Rurikawa.Models.WebsocketApi {
     [JsonDiscriminator("job_status_s")]
     public class JobStatusUpdateMsg : WsApiServerMsg {
         public FlowSnake JobId { get; set; }
-        public string? BuildStream { get; set; }
+        public string? BuildOutputFile { get; set; }
         public JobStage? Stage { get; set; }
         public JobResultKind? JobResult { get; set; }
         public Dictionary<string, TestResult>? TestResult { get; set; }

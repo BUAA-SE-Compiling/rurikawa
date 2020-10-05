@@ -10,20 +10,17 @@ use crate::{
 };
 use anyhow::Result;
 use async_compat::CompatExt;
-use bollard::models::Mount;
-use futures::{stream::StreamExt, Future};
+use bollard::models::{BuildInfo, Mount};
+use futures::stream::StreamExt;
 use once_cell::sync::Lazy;
 use path_absolutize::Absolutize;
 use path_slash::PathBufExt;
 use serde::{self, Deserialize, Serialize};
+use std::path::Path;
 use std::time;
-use std::{collections::HashMap, path::PathBuf, string::String};
-use std::{fs, path::Path};
-use std::{
-    io::{self, prelude::*},
-    sync::Arc,
-};
+use std::{collections::HashMap, io, path::PathBuf, string::String, sync::Arc};
 use tokio::io::{AsyncReadExt, BufWriter};
+use tokio::sync::mpsc::UnboundedSender;
 
 #[cfg(unix)]
 use super::utils::strsignal;
@@ -219,6 +216,8 @@ impl Test {
     }
 }
 
+pub type BuildResultChannel = UnboundedSender<BuildInfo>;
+
 #[derive(Serialize, Deserialize, Debug, Clone)]
 #[serde(tag = "source")]
 #[serde(rename_all = "camelCase")]
@@ -272,6 +271,7 @@ impl Image {
     pub async fn build(
         &self,
         instance: bollard::Docker,
+        partial_result_channel: Option<BuildResultChannel>,
         cancel: CancellationToken,
     ) -> Result<(), BuildError> {
         match &self {
@@ -285,6 +285,10 @@ impl Image {
                         None,
                         None,
                     )
+                    .map(|x| match x {
+                        Ok(_) => Ok(()),
+                        Err(e) => Err(e),
+                    })
                     .collect::<Vec<_>>()
                     .with_cancel(cancel)
                     .await
@@ -310,7 +314,7 @@ impl Image {
                 };
 
                 let task = tokio::spawn(task);
-                instance
+                let mut res = instance
                     .build_image(
                         bollard::image::BuildImageOptions {
                             dockerfile: file
@@ -326,13 +330,26 @@ impl Image {
                         // Freeze `path` as a tar archive.
                         Some(hyper::Body::wrap_stream(frame)),
                     )
-                    .for_each(|x| async move {
+                    .map(|x| {
                         // TODO: wait for PR#107 to merge in bollard
-                        log::info!("{:?}", x);
+                        match x {
+                            Ok(info) => {
+                                if let Some(ch) = partial_result_channel.as_ref() {
+                                    let _ = ch.send(info);
+                                }
+                                Ok(())
+                            }
+                            Err(e) => Err(e),
+                        }
                     })
+                    .collect::<Vec<_>>()
                     .with_cancel(cancel.clone())
                     .await
                     .ok_or(BuildError::Cancelled)?;
+
+                res.drain(..)
+                    .collect::<Result<_, _>>()
+                    .map_err(|e| BuildError::Internal(e.to_string()))?;
 
                 task.await
                     .map_err(|e| BuildError::Internal(e.to_string()))?
@@ -595,6 +612,7 @@ impl TestSuite {
         &mut self,
         instance: bollard::Docker,
         base_dir: PathBuf,
+        build_result_channel: Option<BuildResultChannel>,
         result_channel: Option<tokio::sync::mpsc::UnboundedSender<(String, TestResult)>>,
         upload_info: Option<Arc<ResultUploadConfig>>,
         cancellation_token: CancellationToken,
@@ -617,17 +635,22 @@ impl TestSuite {
             .expect("TestSuite instance not fully constructed");
         image.replace_with_absolute_dir(base_dir);
         image.set_dockerfile_tag(format!("{}_{:08x}", image.tag(), rnd_id));
-        let runner = DockerCommandRunner::try_new(instance, image, {
-            DockerCommandRunnerOptions {
-                mem_limit,
-                build_image,
-                remove_image,
-                binds: self.binds.clone(),
-                copies: self.copies.clone(),
-                cancellation_token,
-                ..Default::default()
-            }
-        })
+        let runner = DockerCommandRunner::try_new(
+            instance,
+            image,
+            {
+                DockerCommandRunnerOptions {
+                    mem_limit,
+                    build_image,
+                    remove_image,
+                    binds: self.binds.clone(),
+                    copies: self.copies.clone(),
+                    cancellation_token,
+                    ..Default::default()
+                }
+            },
+            build_result_channel,
+        )
         .await?;
 
         log::trace!("{:08x}: runner created", rnd_id);
@@ -883,6 +906,7 @@ mod tests {
                         build_image: true,
                         ..Default::default()
                     },
+                    Option::<BuildResultChannel>::None,
                 )
                 .await
                 .unwrap();
@@ -1117,6 +1141,7 @@ mod test_suite {
                 std::env::current_dir().unwrap(),
                 None,
                 None,
+                None,
                 Default::default(),
             )
             .await?;
@@ -1185,6 +1210,7 @@ mod test_suite {
             ts.run(
                 instance,
                 std::env::current_dir().unwrap(),
+                None,
                 None,
                 None,
                 Default::default(),

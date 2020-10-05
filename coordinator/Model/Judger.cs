@@ -105,8 +105,18 @@ namespace Karenia.Rurikawa.Models.Judger {
         /// </summary>
         public string? ResultMessage { get; set; }
 
+        /// <summary>
+        /// File containing output of building this job
+        /// </summary>
+        public string? BuildOutputFile { get; set; }
+
         [Column(TypeName = "jsonb")]
         public Dictionary<string, TestResult> Results { get; set; } = new Dictionary<string, TestResult>();
+    }
+
+    public class JobBuildOutput {
+        public string Output { get; set; }
+        public string Error { get; set; }
     }
 
     /// <summary>
