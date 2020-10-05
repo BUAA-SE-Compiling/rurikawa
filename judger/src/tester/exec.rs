@@ -396,25 +396,27 @@ pub fn path_canonical_from(path: &Path, base_dir: &Path) -> PathBuf {
     from_base.absolutize().unwrap().into_owned()
 }
 
-pub type JudgerPublicConfig = crate::client::model::TestSuite;
+// pub type JudgerPublicConfig = crate::client::model::TestSuite;
 
-// /// Judger's public config, specific to a paticular repository,
-// /// Maintained by the owner of the project to be tested.
-// #[derive(Serialize, Deserialize, Debug, Clone)]
-// pub struct JudgerPublicConfig {
-//     pub name: String,
-//     /// Variables and extensions of test files
-//     /// (`$src`, `$bin`, `$stdin`, `$stdout`, etc...).
-//     /// For example: `"$src" => "go"`.
-//     pub vars: HashMap<String, String>,
-//     /// Sequence of commands necessary to perform an IO check.
-//     pub run: Vec<String>,
-//     /// The path of test root directory to be mapped inside test container
-//     pub mapped_dir: Bind,
-//     /// `host-src:container-dest` volume bindings for the container.
-//     /// For details see [here](https://docs.rs/bollard/0.7.2/bollard/service/struct.HostConfig.html#structfield.binds).
-//     pub binds: Option<Vec<Bind>>,
-// }
+/// Judger's public config, specific to a paticular repository,
+/// Maintained by the owner of the project to be tested.
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct JudgerPublicConfig {
+    pub time_limit: Option<i32>,
+    pub memory_limit: Option<i32>,
+    pub name: String,
+    /// Variables and extensions of test files
+    /// (`$src`, `$bin`, `$stdin`, `$stdout`, etc...).
+    /// For example: `"$src" => "go"`.
+    pub vars: HashMap<String, String>,
+    /// Sequence of commands necessary to perform an IO check.
+    pub run: Vec<String>,
+    /// The path of test root directory to be mapped inside test container
+    pub mapped_dir: Bind,
+    /// `host-src:container-dest` volume bindings for the container.
+    /// For details see [here](https://docs.rs/bollard/0.7.2/bollard/service/struct.HostConfig.html#structfield.binds).
+    pub binds: Option<Vec<Bind>>,
+}
 
 /// Judger's private config, specific to a host machine.
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -1095,11 +1097,7 @@ mod test_suite {
                     .iter()
                     .map(|(k, v)| (k.to_string(), v.to_string()))
                     .collect(),
-                    id: FlowSnake(0),
-                    title: "".into(),
-                    description: "".into(),
-                    tags: None,
-                    package_file_id: "".into(),
+
                     time_limit: None,
                     memory_limit: None,
                 },
@@ -1170,11 +1168,6 @@ mod test_suite {
                     .map(|(k, v)| (k.to_string(), v.to_string()))
                     .collect(),
 
-                    id: FlowSnake(0u64),
-                    title: "".into(),
-                    description: "".into(),
-                    tags: None,
-                    package_file_id: "".into(),
                     time_limit: None,
                     memory_limit: None,
                 },
