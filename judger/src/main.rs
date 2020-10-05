@@ -147,9 +147,12 @@ async fn client(cmd: opt::ConnectSubCmd) {
     ABORT_HANDLE.set(handle).unwrap();
 
     let sink = loop {
-        let (sink, stream) = connect_to_coordinator(&client_config)
-            .await
-            .expect("Failed to connect");
+        let (sink, stream) = match connect_to_coordinator(&client_config).await {
+            Ok(e) => e,
+            Err(e) => {
+                continue;
+            }
+        };
         let sink = client_loop(stream, sink, client_config.clone()).await;
         if client_config.cancel_handle.is_cancelled() {
             break sink;
