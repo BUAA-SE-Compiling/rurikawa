@@ -175,7 +175,8 @@ Dockerfile:
 
 ```dockerfile
 FROM alpine:3
-RUN add cmake gcc g++ libgcc build-base make --no-cache
+# RUN sed -i 's/dl-cdn.alpinelinux.org/mirrors.tuna.tsinghua.edu.cn/g' /etc/apk/repositories
+RUN apk add cmake gcc g++ libgcc build-base make --no-cache
 WORKDIR /app/
 COPY ./* ./
 WORKDIR /app/build
@@ -246,4 +247,8 @@ run = [
   "python program.py $input",
 ]
 ```
+
+### 其他项目
+
+https://hub.docker.com/r/lazymio/compilers-env
 
