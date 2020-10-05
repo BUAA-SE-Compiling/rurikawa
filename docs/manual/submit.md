@@ -69,6 +69,8 @@ RUN gcc my-program.c -o my-program
 
 以上就是指示 docker 构建你的程序的 dockerfile 内容。在通常情况下，我们还需要使用 `ENTRYPOINT` 指定运行镜像使用的命令；但是评测机不会直接运行镜像，所以我们就略过不讲了。
 
+唔……简单总结一下的话，就是说，你平常在命令行里编译的时候用到了哪些文件，就把他们 COPY 进去；你平常在命令行里执行了哪些命令，就用 RUN 来执行。
+
 在编写完你的 dockerfile 之后，就可以把它保存下来了。一般来说，使用文件名 `Dockerfile` 保存在源代码（或者编译器的配置文件）所在的目录就行。**请注意，评测姬只允许 dockerfile 的位置处在构建环境文件夹之内。**
 
 运行 `docker build .` 就可以使用当前目录和当前目录下的 `Dockerfile` 文件构建出一个包含你的程序的镜像。你可以将 `.` 替换成其他目录，或者使用 `-f <file>` 参数更改使用的 dockerfile。
@@ -220,6 +222,28 @@ run = [
 
 ### 使用 Maven 的 Java 项目
 
-> 讲道理，助教没用过 maven
+> 讲道理，助教没用过 maven…… 如果你用的是 IDE 的话应该可以生成带 Dockerfile 的项目吧？
 
 https://github.com/docker/labs/tree/master/developer-tools/java
+
+### 使用 Python 的项目
+
+```dockerfile
+# 换成你自己的版本
+FROM python:3
+WORKDIR /app/
+COPY ./* ./
+```
+
+judge.toml
+
+```toml
+[jobs.pascal_lex]
+
+image = { source = "dockerfile", path = ".", tag = "pascal-lex-example" }
+
+run = [
+  "python program.py $input",
+]
+```
+
