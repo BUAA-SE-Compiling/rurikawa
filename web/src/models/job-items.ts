@@ -111,13 +111,14 @@ export interface Job {
   id: string;
   account: string;
   repo: string;
-  branch: string | undefined;
+  branch?: string;
   revision: string;
   testSuite: string;
   tests: string[];
   stage: JobStage;
   resultKind: JobResultKind;
-  resultMessage: string | undefined;
+  resultMessage?: string;
+  buildOutputFile?: string;
   results: { [key: string]: TestResult };
 }
 

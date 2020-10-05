@@ -32,4 +32,7 @@ export const endpoints = {
     new: 'job',
     query: 'job',
   },
+  file: {
+    get: (filename: string) => `file/${filename}`,
+  },
 };

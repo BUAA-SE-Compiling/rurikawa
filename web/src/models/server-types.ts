@@ -61,3 +61,8 @@ export interface NewJobMessage {
   testSuite: string;
   tests: string[];
 }
+
+export interface JobBuildOutput {
+  output?: string;
+  error?: string;
+}

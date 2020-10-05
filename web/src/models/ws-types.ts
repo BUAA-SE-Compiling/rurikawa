@@ -21,7 +21,7 @@ export interface NewJobUpdateMsg extends WsApiMsg {
 export interface JobStatusUpdateMsg extends WsApiMsg {
   _t: 'job_status_s';
   jobId: string;
-  buildStream?: string;
+  buildOutputFile?: string;
   stage?: JobStage;
   jobResult?: JobResultKind;
   testResult?: Dictionary<TestResult>;

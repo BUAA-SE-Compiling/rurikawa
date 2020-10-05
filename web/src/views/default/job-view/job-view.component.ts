@@ -1,4 +1,4 @@
-import { Component, OnInit } from '@angular/core';
+import { Component, OnInit, OnChanges, SimpleChanges } from '@angular/core';
 import {
   Job,
   dashboardTypeToSlider,
@@ -18,15 +18,17 @@ import BranchIcon from '@iconify/icons-mdi/source-branch';
 import RepoIcon from '@iconify/icons-mdi/git';
 import CommitIcon from '@iconify/icons-mdi/source-commit';
 import { TestSuiteAndJobCache } from 'src/services/test_suite_cacher';
+import { JobBuildOutput } from 'src/models/server-types';
 
 @Component({
   selector: 'app-job-view',
   templateUrl: './job-view.component.html',
   styleUrls: ['./job-view.component.styl'],
 })
-export class JobViewComponent implements OnInit {
+export class JobViewComponent implements OnInit, OnChanges {
   constructor(
     private route: ActivatedRoute,
+    private httpClient: HttpClient,
     private service: TestSuiteAndJobCache
   ) {}
 
@@ -37,6 +39,8 @@ export class JobViewComponent implements OnInit {
   id: string;
 
   job?: Job = undefined;
+
+  outputMessage?: JobBuildOutput = undefined;
 
   get isFinished() {
     return (
@@ -131,6 +135,24 @@ export class JobViewComponent implements OnInit {
     });
   }
 
+  fetchOutputIfNotExist() {
+    if (
+      this.job?.buildOutputFile !== undefined &&
+      this.outputMessage === undefined
+    ) {
+      this.httpClient
+        .get<JobBuildOutput>(
+          environment.endpointBase() +
+            endpoints.file.get(this.job.buildOutputFile)
+        )
+        .subscribe({
+          next: (x) => {
+            this.outputMessage = x;
+          },
+        });
+    }
+  }
+
   ngOnInit(): void {
     this.route.paramMap.subscribe({
       next: (v) => {
@@ -138,5 +160,9 @@ export class JobViewComponent implements OnInit {
         this.fetchJob();
       },
     });
+  }
+
+  ngOnChanges(changes: SimpleChanges): void {
+    this.fetchOutputIfNotExist();
   }
 }
