@@ -15,14 +15,14 @@ use config::SharedClientData;
 use err_derive::Error;
 use futures::{
     stream::{SplitSink, SplitStream},
-     Sink, SinkExt, StreamExt,
+    Sink, SinkExt, StreamExt,
 };
 use http::Method;
 use model::*;
-use serde::{ Serialize};
+use serde::Serialize;
 use serde_json::from_slice;
 use std::{collections::HashMap, fmt::Debug, path::PathBuf, sync::atomic::Ordering, sync::Arc};
-use tokio::{net::TcpStream, sync::Mutex, };
+use tokio::{net::TcpStream, sync::Mutex};
 use tokio_tungstenite::{connect_async, tungstenite, MaybeTlsStream, WebSocketStream};
 use tungstenite::Message;
 
@@ -333,18 +333,8 @@ pub async fn handle_job_wrapper(
     // TODO: Handle failed cases and report
     let job_id = job.job.id;
     flag_new_job(send.clone(), cfg.clone()).await;
-    match handle_job(job, send.clone(), cancel, cfg.clone()).await {
-        Ok(_res) => {
-            let send_res = send
-                .lock()
-                .await
-                .send_msg(&ClientMsg::JobResult(_res))
-                .await;
-            match send_res {
-                Ok(_) => {}
-                Err(e) => log::error!("Error when sending job result mesage:\n{}", e),
-            }
-        }
+    let msg = match handle_job(job, send.clone(), cancel, cfg.clone()).await {
+        Ok(_res) => ClientMsg::JobResult(_res),
         Err(_err) => {
             let (err, msg) = match _err {
                 JobExecErr::NoSuchFile(f) => (
@@ -373,22 +363,28 @@ pub async fn handle_job_wrapper(
                 JobExecErr::Exec(e) => (JobResultKind::PipelineError, format!("{:?}", e)),
                 JobExecErr::Any(e) => (JobResultKind::OtherError, format!("{:?}", e)),
             };
-            let send_res = send
-                .lock()
-                .await
-                .send_msg(&ClientMsg::JobResult(JobResultMsg {
-                    job_id,
-                    results: HashMap::new(),
-                    job_result: err,
-                    message: Some(msg),
-                }))
-                .await;
-            match send_res {
-                Ok(_) => {}
-                Err(e) => log::error!("Error when sending job result mesage:\n{}", e),
-            }
+            let msg = ClientMsg::JobResult(JobResultMsg {
+                job_id,
+                results: HashMap::new(),
+                job_result: err,
+                message: Some(msg),
+            });
+
+            msg
         }
+    };
+
+    let mut req = cfg.client.post(&cfg.result_send_endpoint()).json(&msg);
+    if let Some(token) = &cfg.cfg.access_token {
+        req = req.header("authorization", token.as_str());
     }
+
+    let send_res = req.send().await.and_then(|x| x.error_for_status());
+    match send_res {
+        Ok(_) => {}
+        Err(e) => log::error!("Error when sending job result mesage:\n{}", e),
+    }
+
     flag_finished_job(send.clone(), cfg.clone()).await;
 
     cfg.running_job_handles.lock().await.remove(&job_id);

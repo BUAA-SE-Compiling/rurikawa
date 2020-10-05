@@ -262,7 +262,7 @@ namespace Karenia.Rurikawa.Coordinator.Services {
             // 2MiB
             const int maxLength = 2 * 1024 * 1024;
             string? buildOutput = await db.StringGetRangeAsync(FormatJobStdout(jobId), -maxLength, -1);
-            string? buildError = await db.StringGetRangeAsync(FormatJobStdout(jobId), -maxLength, -1);
+            string? buildError = await db.StringGetRangeAsync(FormatJobError(jobId), -maxLength, -1);
             var res = new JobBuildOutput
             {
                 Output = buildOutput,
@@ -294,7 +294,7 @@ namespace Karenia.Rurikawa.Coordinator.Services {
 
         async void OnJobOutputMessage(string clientId, JobOutputMsg msg) {
             var db = await this.redis.GetDatabase();
-            var values = new List<NameValueEntry>();
+            // var values = new List<NameValueEntry>();
 
             if (msg.Stream != null)
                 await db.StringAppendAsync(
@@ -308,16 +308,16 @@ namespace Karenia.Rurikawa.Coordinator.Services {
                     msg.Error,
                     flags: CommandFlags.FireAndForget);
 
-            if (msg.Stream != null)
-                values.Add(new NameValueEntry("stream", msg.Stream));
-            if (msg.Error != null)
-                values.Add(new NameValueEntry("error", msg.Error));
+            // if (msg.Stream != null)
+            //     values.Add(new NameValueEntry("stream", msg.Stream));
+            // if (msg.Error != null)
+            //     values.Add(new NameValueEntry("error", msg.Error));
 
-            await db.StreamAddAsync(
-                FormatJobStdout(msg.JobId),
-                values.ToArray(),
-                maxLength: 2000,
-                flags: StackExchange.Redis.CommandFlags.FireAndForget);
+            // await db.StreamAddAsync(
+            //     FormatJobStdout(msg.JobId),
+            //     values.ToArray(),
+            //     maxLength: 2000,
+            //     flags: StackExchange.Redis.CommandFlags.FireAndForget);
         }
 
         public static string FormatJobError(FlowSnake id) => $"job:{id}:error";
