@@ -140,3 +140,86 @@ run = [
 现在提交就好了。
 
 **我们保证只会读取你提交的那一个仓库的内容，且除了你和管理员以外任何人都看不见你的用户名和令牌。**
+
+## 一些例子
+
+### 简单的 C 语言项目
+
+Dockerfile: 
+
+```dockerfile
+FROM gcc:10
+WORKDIR /app/
+COPY ./* ./
+RUN gcc my-program.c -o program
+RUN chmod +x program
+```
+
+judge.toml
+
+```toml
+[jobs.pascal_lex]
+
+image = { source = "dockerfile", path = ".", tag = "pascal-lex-example" }
+
+run = [
+  "./program $input",
+]
+```
+
+### 使用 CMake 的项目
+
+Dockerfile: 
+
+```dockerfile
+FROM alpine:3
+RUN add cmake gcc g++ libgcc build-base make --no-cache
+WORKDIR /app/
+COPY ./* ./
+WORKDIR /app/build
+RUN cmake ..
+RUN make -j4
+RUN chmod +x program
+```
+
+judge.toml
+
+```toml
+[jobs.pascal_lex]
+
+image = { source = "dockerfile", path = ".", tag = "pascal-lex-example" }
+
+run = [
+  "./program $input",
+]
+```
+
+### 简单的 Java 项目
+
+Dockerfile: 
+
+```dockerfile
+# 换成你自己的版本
+FROM openjdk:12
+WORKDIR /app/
+COPY ./* ./
+RUN javac program.java
+```
+
+judge.toml
+
+```toml
+[jobs.pascal_lex]
+
+image = { source = "dockerfile", path = ".", tag = "pascal-lex-example" }
+
+run = [
+  "java program $input",
+]
+```
+
+### 使用 Maven 的 Java 项目
+
+> 讲道理，助教没用过 maven
+
+https://github.com/docker/labs/tree/master/developer-tools/java
