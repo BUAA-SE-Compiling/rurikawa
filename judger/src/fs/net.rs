@@ -66,7 +66,7 @@ pub async fn git_clone(dir: &Path, options: GitCloneOptions) -> std::io::Result<
 
     Command::new("git")
         .current_dir(dir)
-        .args(&["reset", "--hard", "FETCH_HEAD"])
+        .args(&["reset", "--hard", "FETCH_HEAD", "--"])
         .status()
         .await?;
 

@@ -218,8 +218,7 @@ pub async fn check_download_read_test_suite(
     tokio::fs::create_dir_all(suite_folder_root).await?;
     let suite_folder = cfg.test_suite_folder(suite_id);
 
-    let lock = cfg.obtain_suite_lock(suite_id);
-    lock.await.lock().await;
+    let handle = cfg.obtain_suite_lock(suite_id).await;
 
     let download_section: Result<(), JobExecErr> = async {
         // Lock this specific test suite and let all other concurrent tasks to wait
@@ -304,7 +303,10 @@ pub async fn check_download_read_test_suite(
         }
     }
 
-    cfg.suite_unlock(suite_id).await;
+    if let Some(h) = handle {
+        h.cancel();
+    }
+    cfg.suite_unlock(suite_id);
 
     let mut judger_conf_dir = suite_folder.clone();
     judger_conf_dir.push("testconf.json");

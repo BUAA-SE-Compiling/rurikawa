@@ -1,4 +1,4 @@
-use crate::prelude::{CancellationTokenHandle, FlowSnake};
+use crate::prelude::{CancellationToken, CancellationTokenHandle, FlowSnake};
 use serde::{Deserialize, Serialize};
 use std::{
     collections::HashMap, path::PathBuf, sync::atomic::AtomicBool, sync::atomic::AtomicUsize,
@@ -43,7 +43,7 @@ pub struct SharedClientData {
     pub aborting: AtomicBool,
     pub client: reqwest::Client,
     /// All test suites whose folder is being edited.
-    pub locked_test_suite: RwLock<HashMap<FlowSnake, Arc<Mutex<()>>>>,
+    pub locked_test_suite: dashmap::DashMap<FlowSnake, CancellationToken>,
     pub running_job_handles: Mutex<HashMap<FlowSnake, (JoinHandle<()>, CancellationTokenHandle)>>,
     pub cancelling_job_handles: Mutex<HashMap<FlowSnake, JoinHandle<()>>>,
     pub cancel_handle: CancellationTokenHandle,
@@ -56,7 +56,7 @@ impl SharedClientData {
             client: reqwest::Client::new(),
             aborting: AtomicBool::new(false),
             running_tests: AtomicUsize::new(0),
-            locked_test_suite: RwLock::new(HashMap::new()),
+            locked_test_suite: dashmap::DashMap::new(),
             running_job_handles: Mutex::new(HashMap::new()),
             cancelling_job_handles: Mutex::new(HashMap::new()),
             cancel_handle: CancellationTokenHandle::new(),
@@ -182,22 +182,24 @@ impl SharedClientData {
         root
     }
 
-    pub async fn obtain_suite_lock(&self, suite_id: FlowSnake) -> Arc<Mutex<()>> {
-        let cur = self.locked_test_suite.read().await.get(&suite_id).cloned();
-        if let Some(cur) = cur {
-            cur
+    pub async fn obtain_suite_lock(&self, suite_id: FlowSnake) -> Option<CancellationTokenHandle> {
+        let handle = CancellationTokenHandle::new();
+        let entry = self
+            .locked_test_suite
+            .entry(suite_id)
+            .or_insert_with(|| handle.get_token())
+            .clone();
+        if entry.is_token_of(&handle) {
+            Some(handle)
         } else {
-            let arc = Arc::new(Mutex::new(()));
-            self.locked_test_suite
-                .write()
-                .await
-                .insert(suite_id, arc.clone());
-            arc
+            entry.await;
+            None
         }
     }
 
-    pub async fn suite_unlock(&self, suite_id: FlowSnake) {
-        self.locked_test_suite.write().await.remove(&suite_id);
+    pub fn suite_unlock(&self, suite_id: FlowSnake) {
+        self.locked_test_suite.remove(&suite_id);
+        log::info!("Unlocked {}", suite_id);
     }
 
     pub fn new_job(&self) -> usize {

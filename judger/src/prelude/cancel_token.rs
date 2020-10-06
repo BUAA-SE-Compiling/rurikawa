@@ -196,6 +196,12 @@ impl CancellationToken {
             .map(|r| r.is_cancelled())
             .unwrap_or(false)
     }
+
+    pub fn is_token_of(&self, handle: &CancellationTokenHandle) -> bool {
+        handle.token_ref.as_ref().map_or(false, |r| {
+            self.token_ref.as_ref().map_or(false, |s| Arc::ptr_eq(r, s))
+        })
+    }
 }
 
 impl Clone for CancellationToken {
