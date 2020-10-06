@@ -198,17 +198,26 @@ impl DockerCommandRunner {
                         &container_name,
                         bollard::exec::CreateExecOptions {
                             cmd: Some(vec!["mkdir", "-p", to_path]),
+                            attach_stdout: Some(true),
+                            attach_stderr: Some(true),
                             ..Default::default()
                         },
                     )
                     .await?;
-                res.instance
+
+                let mut exec_res = res
+                    .instance
                     .start_exec(
                         &exec.id,
                         Some(bollard::exec::StartExecOptions { detach: false }),
                     )
+                    .map(|x| x.map(|_| ()))
                     .collect::<Vec<_>>()
                     .await;
+
+                exec_res
+                    .drain(..)
+                    .collect::<Result<Vec<_>, bollard::errors::Error>>()?;
 
                 let from_path = from_path.clone();
                 let (pipe_recv, pipe_send) = async_pipe::pipe();
