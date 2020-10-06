@@ -706,7 +706,7 @@ impl TestSuite {
                     (case.name.clone(), res)
                 }
             })
-            .buffer_unordered(16)
+            .buffered(1)
             .collect::<HashMap<_, _>>()
             .await;
 
