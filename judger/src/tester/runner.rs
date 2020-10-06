@@ -336,31 +336,30 @@ impl DockerCommandRunner {
     pub async fn kill(self) {
         let container_name = &self.options.container_name;
 
-        let res = self
+        let _res = self
             .instance
-            .kill_container(
+            .stop_container(
                 container_name,
-                None::<bollard::container::KillContainerOptions<String>>,
+                Some(bollard::container::StopContainerOptions { t: 15 }),
             )
             .await;
 
-        if res.is_ok() {
-            self.instance
-                .wait_container(
-                    container_name,
-                    None::<bollard::container::WaitContainerOptions<String>>,
-                )
-                .for_each(|_| async {})
-                .await;
+        let _res = self
+            .instance
+            .wait_container(
+                container_name,
+                None::<bollard::container::WaitContainerOptions<String>>,
+            )
+            .for_each(|_| async {})
+            .await;
 
-            let _res = self
-                .instance
-                .remove_container(
-                    container_name,
-                    None::<bollard::container::RemoveContainerOptions>,
-                )
-                .await;
-        }
+        let _res = self
+            .instance
+            .remove_container(
+                container_name,
+                None::<bollard::container::RemoveContainerOptions>,
+            )
+            .await;
 
         // Remove the image.
         if self.options.remove_image {

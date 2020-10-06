@@ -365,14 +365,13 @@ pub async fn handle_job_wrapper(
                 JobExecErr::Exec(e) => (JobResultKind::PipelineError, format!("{:?}", e)),
                 JobExecErr::Any(e) => (JobResultKind::OtherError, format!("{:?}", e)),
             };
-            let msg = ClientMsg::JobResult(JobResultMsg {
+
+            ClientMsg::JobResult(JobResultMsg {
                 job_id,
                 results: HashMap::new(),
                 job_result: err,
                 message: Some(msg),
-            });
-
-            msg
+            })
         }
     };
 
