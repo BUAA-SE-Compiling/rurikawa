@@ -145,7 +145,7 @@ namespace Karenia.Rurikawa.Coordinator.Controllers {
             }
         }
 
-        private struct GetRevisionResult {
+        public struct GetRevisionResult {
             public bool isSuccess;
             public string? message;
             public string? rev;
