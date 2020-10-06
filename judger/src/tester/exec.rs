@@ -379,6 +379,7 @@ impl Image {
 
 /// A Host-to-container volume binding for the container.
 #[derive(Serialize, Deserialize, Debug, Clone, Default)]
+#[serde(rename_all = "camelCase")]
 pub struct Bind {
     /// Absolute/Relative `from` path (in the host machine).
     pub from: PathBuf,
@@ -418,6 +419,7 @@ pub fn path_canonical_from(path: &Path, base_dir: &Path) -> PathBuf {
 /// Judger's public config, specific to a paticular repository,
 /// Maintained by the owner of the project to be tested.
 #[derive(Serialize, Deserialize, Debug, Clone)]
+#[serde(rename_all = "camelCase")]
 pub struct JudgerPublicConfig {
     pub time_limit: Option<i32>,
     pub memory_limit: Option<i32>,
@@ -458,6 +460,7 @@ pub struct TestCase {
 
 /// Initialization options for `Testsuite`.
 #[derive(Serialize, Deserialize, Debug, Clone)]
+#[serde(rename_all = "camelCase")]
 pub struct TestSuiteOptions {
     /// File names of tests.
     pub tests: Vec<String>,
@@ -645,7 +648,7 @@ impl TestSuite {
                     remove_image,
                     binds: self.binds.clone(),
                     copies: self.copies.clone(),
-                    cancellation_token,
+                    cancellation_token: cancellation_token.clone(),
                     ..Default::default()
                 }
             },
@@ -663,8 +666,14 @@ impl TestSuite {
                 let result_channel = result_channel.clone();
                 let runner = &runner;
                 let rnd_id = rnd_id;
+                let cancellation_token = cancellation_token.clone();
                 async move {
-                    log::trace!("{:08x}: started test: {}", rnd_id, case.name);
+                    log::info!(
+                        "{:08x}: started test: {}, timeout {:?}",
+                        rnd_id,
+                        case.name,
+                        time_limit
+                    );
 
                     result_channel.as_ref().map(|ch| {
                         ch.send((
@@ -686,7 +695,12 @@ impl TestSuite {
 
                     log::trace!("{:08x}: created test: {}", rnd_id, case.name);
 
-                    let res = t.run(runner).await;
+                    let res = t
+                        .run(runner)
+                        .with_cancel(cancellation_token)
+                        .await
+                        .ok_or(JobFailure::Cancelled)
+                        .and_then(|x| x);
 
                     log::trace!("{:08x}: runned: {}", rnd_id, case.name);
 
