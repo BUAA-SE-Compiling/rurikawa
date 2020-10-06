@@ -255,11 +255,11 @@ impl Image {
         match self {
             Image::Image { .. } => {}
             Image::Dockerfile { path, file, .. } => {
-                if let Some(file) = file {
-                    let mut file_base = base_dir.clone();
-                    file_base.push(&file);
-                    *file = file_base;
-                }
+                // if let Some(file) = file {
+                //     let mut file_base = base_dir.clone();
+                //     file_base.push(&file);
+                //     *file = file_base;
+                // }
                 let mut path_base = base_dir;
                 path_base.push(&path);
                 *path = path_base;
