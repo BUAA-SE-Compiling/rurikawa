@@ -84,10 +84,10 @@ namespace Karenia.Rurikawa.Coordinator.Controllers {
             };
             try {
                 var result = await GetRevision(job);
-                if (result == null) {
-                    return BadRequest(new ErrorResponse("no_such_revision"));
+                if (result.isSuccess) {
+                    job.Revision = result.rev!;
                 } else {
-                    job.Revision = result;
+                    return BadRequest(new ErrorResponse("no_such_revision", result.message));
                 }
                 logger.LogInformation("Scheduleing job {0}", job.Id);
                 await coordinatorService.ScheduleJob(job);
@@ -110,7 +110,7 @@ namespace Karenia.Rurikawa.Coordinator.Controllers {
         /// <param name="job"></param>
         /// <returns></returns>
         [OpenApiIgnore]
-        public async Task<string?> GetRevision(Job job) {
+        public async Task<GetRevisionResult> GetRevision(Job job) {
             var cancel = new CancellationTokenSource();
             cancel.CancelAfter(30_000);
 
@@ -123,7 +123,7 @@ namespace Karenia.Rurikawa.Coordinator.Controllers {
                 "-q",
                 "--exit-code"
             })
-                .WithValidation(CommandResultValidation.ZeroExitCode)
+                .WithValidation(CommandResultValidation.None)
                 .ExecuteBufferedAsync(cancel.Token);
 
             var stdout = res.StandardOutput;
@@ -131,10 +131,24 @@ namespace Karenia.Rurikawa.Coordinator.Controllers {
 
             if (exitCode == 0) {
                 var rev = stdout.Split('\t')[0];
-                return rev;
+                return new GetRevisionResult
+                {
+                    isSuccess = true,
+                    rev = rev
+                };
             } else {
-                return null;
+                return new GetRevisionResult
+                {
+                    isSuccess = false,
+                    message = stdout
+                };
             }
+        }
+
+        private struct GetRevisionResult {
+            public bool isSuccess;
+            public string? message;
+            public string? rev;
         }
     }
 }
