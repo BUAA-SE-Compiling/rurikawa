@@ -14,7 +14,7 @@ export function dashboardTypeToSlider(item: TestResultKind): SliderItemKind {
     case 'NotRunned':
       return 'cancel';
     case 'OtherError':
-      return 'disable';
+      return 'info-alt';
     case 'TimeLimitExceeded':
       return 'warn';
     case 'PipelineFailed':
@@ -123,6 +123,15 @@ export interface Job {
 }
 
 export function getStatus(job: Job): JobStatus[] {
+  if (job === undefined) {
+    return [{ status: 'Waiting', cnt: 1 }];
+    // } else if (job.stage !== 'Finished') {
+    //   return [{ status: 'Waiting', cnt: 1 }];
+  } else if (job.stage !== 'Finished') {
+    return [{ status: 'Waiting', cnt: 1 }];
+  } else if (job.resultKind !== 'Accepted') {
+    return [{ status: 'OtherError', cnt: 1 }];
+  }
   let res = toPairs(
     mapValues(
       groupBy(job.results, (result) => dashboardTypeToSlider(result.kind)),

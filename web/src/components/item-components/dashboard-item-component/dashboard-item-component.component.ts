@@ -23,12 +23,10 @@ export class DashboardItemComponentComponent implements OnInit {
   private _slider: SliderItem[] | undefined;
 
   getSlider(): SliderItem[] {
-    if (
-      this.item.job === undefined ||
-      this.item.job.stage !== 'Finished' ||
-      this.item.job.resultKind !== 'Accepted'
-    ) {
+    if (this.item.job === undefined || this.item.job.stage !== 'Finished') {
       return [{ kind: 'disable', num: 1 }];
+    } else if (this.item.job.resultKind !== 'Accepted') {
+      return [{ kind: 'error', num: 1 }];
     }
     let res = mapValues(
       groupBy(this.item.job.results, (result) =>

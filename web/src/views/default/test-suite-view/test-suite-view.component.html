@@ -3,6 +3,16 @@
   <div class="title-row">
     <div class="id">{{ suite?.name }}:{{ id }}</div>
     <h1>{{ suite?.title }}</h1>
+    <div class="row text" *ngIf="suite">
+      <span class="test-info">
+        <ic-icon [icon]="timeIcon"></ic-icon>
+        {{ suite.timeLimit ? suite.timeLimit + "s" : "∞" }}
+      </span>
+      <span class="test-info">
+        <ic-icon [icon]="memoryIcon"></ic-icon>
+        {{ suite.memoryLimit ? suite.memoryLimit : "∞" }}
+      </span>
+    </div>
   </div>
   <div class="row top">
     <div class="lblk">

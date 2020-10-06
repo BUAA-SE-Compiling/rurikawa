@@ -7,6 +7,26 @@
   flex-wrap: wrap
 }
 
+.test-info {
+  color: var(--secondary-color)
+  display: flex
+  flex-direction: row
+  align-items: center
+  margin-x: var(--space-2)
+
+  ic-icon {
+    margin-right: var(--space-0)
+  }
+
+  &:first-child {
+    margin-left: 0
+  }
+
+  &:last-child {
+    margin-right: 0
+  }
+}
+
 .submit-btn-row {
   justify-content: flex-end
 }

@@ -10,6 +10,8 @@ import BranchIcon from '@iconify/icons-mdi/source-branch';
 import RepoIcon from '@iconify/icons-mdi/git';
 import DownArrowIcon from '@iconify/icons-mdi/chevron-down';
 import UpArrowIcon from '@iconify/icons-mdi/chevron-up';
+import TimeIcon from '@iconify/icons-carbon/timer';
+import MemoryIcon from '@iconify/icons-carbon/chart-treemap';
 import { TestSuite, NewJobMessage } from 'src/models/server-types';
 import { HttpClient, HttpErrorResponse } from '@angular/common/http';
 import { environment } from 'src/environments/environment';
@@ -58,6 +60,8 @@ export class TestSuiteViewComponent implements OnInit {
   readonly branchIcon = BranchIcon;
   readonly downArrowIcon = DownArrowIcon;
   readonly upArrowIcon = UpArrowIcon;
+  readonly timeIcon = TimeIcon;
+  readonly memoryIcon = MemoryIcon;
 
   repo: string = '';
   branch: string = '';
