@@ -113,10 +113,9 @@ namespace Karenia.Rurikawa.Helpers {
         }
 
         public async Task SendMessage(TSendMessage message) {
-            await sendLock.WaitAsync();
+            using var lockHandle = await sendLock.LockAsync();
             var buffer = JsonSerializer.SerializeToUtf8Bytes<TSendMessage>(message, this.serializerOptions);
             await this.socket.SendAsync(buffer, WebSocketMessageType.Text, true, this.closeToken);
-            sendLock.Release();
         }
 
         public class UnexpectedBinaryMessageException : Exception { }

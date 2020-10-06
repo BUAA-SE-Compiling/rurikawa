@@ -353,16 +353,19 @@ namespace Karenia.Rurikawa.Coordinator.Services {
         /// <summary>
         /// Dispatch a single job to the given judger
         /// </summary>
-        protected async Task DispatchJob(Judger judger, Job job) {
+        protected async ValueTask<bool> DispatchJob(Judger judger, Job job) {
             var redis = await this.redis.GetDatabase();
             await redis.StringSetAsync(FormatJobStdout(job.Id), "", expiry: TimeSpan.FromHours(2), flags: CommandFlags.FireAndForget);
             await redis.StringSetAsync(FormatJobError(job.Id), "", expiry: TimeSpan.FromHours(2), flags: CommandFlags.FireAndForget);
 
-            await judger.Socket.SendMessage(new NewJobServerMsg()
-            {
-                Job = job
-            });
-            job.Stage = JobStage.Dispatched;
+            try {
+                await judger.Socket.SendMessage(new NewJobServerMsg()
+                {
+                    Job = job
+                });
+                job.Stage = JobStage.Dispatched;
+                return true;
+            } catch { return false; }
         }
 
         protected async Task<Job?> GetLastUndispatchedJobFromDatabase(RurikawaDb db) {
@@ -380,8 +383,7 @@ namespace Karenia.Rurikawa.Coordinator.Services {
             job.Stage = JobStage.Dispatched;
             await db.SaveChangesAsync();
             try {
-                await DispatchJob(judger, job);
-                return true;
+                return await DispatchJob(judger, job);
             } catch {
                 job.Stage = JobStage.Queued;
                 await db.SaveChangesAsync();
@@ -429,8 +431,7 @@ namespace Karenia.Rurikawa.Coordinator.Services {
                     var judger = await TryGetNextUsableJudger(true);
                     if (judger == null) break;
                     try {
-                        await DispatchJob(judger, job);
-                        success = true;
+                        success = await DispatchJob(judger, job);
                     } catch {
                         // If any exception occurs (including but not limited 
                         // to connection closed, web error, etc.), this try is 

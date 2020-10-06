@@ -95,7 +95,9 @@ namespace Karenia.Rurikawa.Coordinator.Services {
                 } catch (Exception) {
                 }
 
-                connectionHandles.TryRemove(conn, out _);
+
+                connectionHandles.TryRemove(conn, out var _);
+                await UnsubscribeAll(conn);
 
                 return true;
             } else {
@@ -168,7 +170,9 @@ namespace Karenia.Rurikawa.Coordinator.Services {
                 });
 
             var subscripton = sub.Item2.Subscribe(async (msg) => {
-                await conn.Conn.SendMessage(msg);
+                try {
+                    await conn.Conn.SendMessage(msg);
+                } catch (Exception e) { logger.LogError(e, "Failed to send message"); }
             });
             conn.JobSubscriptions.Add(id, subscripton);
         }
@@ -181,6 +185,16 @@ namespace Karenia.Rurikawa.Coordinator.Services {
         //         position: StreamPosition.Beginning);
         //     // redis.GetSubscriber().SubscribeAsync()
         // }
+
+        public async ValueTask UnsubscribeAll(FrontendConnection conn) {
+            using var locked = await conn.SubscriptionLock.LockAsync();
+            foreach (var a in conn.JobOutputSubscriptions) {
+                a.Value.Dispose();
+            }
+            foreach (var a in conn.JobSubscriptions) {
+                a.Value.Dispose();
+            }
+        }
 
         public void OnJobStautsUpdate(FlowSnake id, JobStatusUpdateMsg msg) {
             if (jobUpdateListeners.TryGetValue(id, out var val)) {
