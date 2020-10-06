@@ -658,77 +658,67 @@ impl TestSuite {
 
         log::trace!("{:08x}: runner created", rnd_id);
 
-        // TODO: Remove drain when this compiler issue gets repaired:
-        // https://github.com/rust-lang/rust/issues/64552
-        let res = futures::stream::iter(self.test_cases.drain(..))
-            .map(|case| {
-                let upload_info = upload_info.clone();
-                let result_channel = result_channel.clone();
-                let runner = &runner;
-                let rnd_id = rnd_id;
-                let cancellation_token = cancellation_token.clone();
-                async move {
-                    log::info!(
-                        "{:08x}: started test: {}, timeout {:?}",
-                        rnd_id,
-                        case.name,
-                        time_limit
-                    );
+        let mut result = HashMap::new();
 
-                    result_channel.as_ref().map(|ch| {
-                        ch.send((
-                            case.name.clone(),
-                            TestResult {
-                                kind: TestResultKind::Running,
-                                result_file_id: None,
-                            },
-                        ))
-                    });
-                    let mut t = Test::new();
-                    case.exec.iter().for_each(|step| {
-                        t.add_step(Step::new_with_timeout(
-                            Capturable::new(sh![step]),
-                            time_limit.map(|n| std::time::Duration::from_secs(n as u64)),
-                        ));
-                    });
-                    t.expected(&case.expected_out);
+        for case in &self.test_cases {
+            log::info!(
+                "{:08x}: started test: {}, timeout {:?}",
+                rnd_id,
+                case.name,
+                time_limit
+            );
 
-                    log::trace!("{:08x}: created test: {}", rnd_id, case.name);
+            result_channel.as_ref().map(|ch| {
+                ch.send((
+                    case.name.clone(),
+                    TestResult {
+                        kind: TestResultKind::Running,
+                        result_file_id: None,
+                    },
+                ))
+            });
+            let mut t = Test::new();
+            case.exec.iter().for_each(|step| {
+                t.add_step(Step::new_with_timeout(
+                    Capturable::new(sh![step]),
+                    time_limit.map(|n| std::time::Duration::from_secs(n as u64)),
+                ));
+            });
+            t.expected(&case.expected_out);
 
-                    let res = t
-                        .run(runner)
-                        .with_cancel(cancellation_token)
-                        .await
-                        .ok_or(JobFailure::Cancelled)
-                        .and_then(|x| x);
+            log::trace!("{:08x}: created test: {}", rnd_id, case.name);
 
-                    log::trace!("{:08x}: runned: {}", rnd_id, case.name);
+            let res = t
+                .run(&runner)
+                .with_cancel(cancellation_token.clone())
+                .await
+                .ok_or(JobFailure::Cancelled)
+                .and_then(|x| x);
 
-                    let (mut res, cache) = TestResult::from_failure(res);
-                    if let Some(cfg) = upload_info {
-                        if let Some(cache) = cache {
-                            let file = upload_test_result(cache, cfg, &case.name).await;
-                            res.result_file_id = file;
-                        }
-                    }
+            log::trace!("{:08x}: runned: {}", rnd_id, case.name);
 
-                    log::trace!("{:08x}: uploaded result: {}", rnd_id, case.name);
-
-                    result_channel
-                        .as_ref()
-                        .map(|ch| ch.send((case.name.clone(), res.clone())));
-                    (case.name.clone(), res)
+            let (mut res, cache) = TestResult::from_failure(res);
+            if let Some(cfg) = &upload_info {
+                if let Some(cache) = cache {
+                    let file = upload_test_result(cache, cfg.clone(), &case.name).await;
+                    res.result_file_id = file;
                 }
-            })
-            .buffered(1)
-            .collect::<HashMap<_, _>>()
-            .await;
+            }
+
+            log::trace!("{:08x}: uploaded result: {}", rnd_id, case.name);
+
+            result_channel
+                .as_ref()
+                .map(|ch| ch.send((case.name.clone(), res.clone())));
+
+            result.insert(case.name.clone(), res);
+        }
 
         runner.kill().await;
 
         log::trace!("{:08x}: finished", rnd_id);
 
-        Ok(res)
+        Ok(result)
     }
 }
 

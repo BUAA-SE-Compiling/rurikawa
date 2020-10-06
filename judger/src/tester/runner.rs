@@ -164,6 +164,7 @@ impl DockerCommandRunner {
                         tty: Some(true),
                         open_stdin: Some(true),
                         attach_stdin: Some(true),
+                        entrypoint: Some(vec!["sh".into()]),
                         ..Default::default()
                     },
                 )
@@ -284,6 +285,7 @@ impl DockerCommandRunner {
                         mounts: res.options.binds.clone(),
                         ..Default::default()
                     }),
+                    entrypoint: Some(vec!["sh".into()]),
                     ..Default::default()
                 },
             )
