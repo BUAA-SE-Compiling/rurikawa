@@ -1,5 +1,6 @@
 <app-navbar></app-navbar>
 <div class="container">
+  <app-back-btn></app-back-btn>
   <div class="blk title">
     <div class="id">#{{ id }}</div>
     <div class="title">
@@ -52,8 +53,13 @@
       </app-job-test-item>
     </div>
   </div>
-  <div class="blk messages" *ngIf="outputMessage?.output">
-    <h2>编译器输出</h2>
+  <app-collapse-box
+    class="blk messages"
+    *ngIf="job?.buildOutputFile"
+    [initialState]="true"
+    (loadContents)="fetchOutputIfNotExist()"
+    title="编译器输出"
+  >
     <pre>{{ jobOutputMessage }}</pre>
-  </div>
+  </app-collapse-box>
 </div>

@@ -1,5 +1,6 @@
 <app-navbar></app-navbar>
 <div class="container">
+  <app-back-btn></app-back-btn>
   <div class="title-row">
     <div class="id">{{ suite?.name }}:{{ id }}</div>
     <h1>{{ suite?.title }}</h1>
@@ -48,22 +49,15 @@
           </div>
         </div>
       </div>
-      <div id="section suite-desc">
-        <div class="row">
-          <h2>测试描述</h2>
-          <div class="row-spacer"></div>
-          <ic-icon
-            (click)="descCollapsed = !descCollapsed"
-            [icon]="descCollapsed ? downArrowIcon : upArrowIcon"
-            [size]="32"
-          ></ic-icon>
-        </div>
-        <div
-          class="markdown-wrapper"
-          [style.max-height]="descCollapsed ? '0px' : ''"
-        >
-          <markdown [data]="suite?.description"></markdown>
-        </div>
+      <div
+        id="section"
+        *ngIf="suite?.description !== undefined && jobs !== undefined"
+      >
+        <app-collapse-box title="测试描述" [initialState]="descCollapsed">
+          <div class="markdown-wrapper">
+            <markdown [data]="suite?.description"></markdown>
+          </div>
+        </app-collapse-box>
       </div>
     </div>
     <div class="rblk" id="job-list" [@staggerLoadJobs]="items && items.length">

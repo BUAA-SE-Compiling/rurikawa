@@ -7,6 +7,8 @@ import { TextboxComponent } from './textbox/textbox.component';
 import { IconModule } from '@visurel/iconify-angular';
 import { FileUploadAreaComponent } from './file-upload-area/file-upload-area.component';
 import { FormsModule } from '@angular/forms';
+import { CollapseBoxComponent } from './collapse-box/collapse-box.component';
+import { BackBtnComponent } from './back-btn/back-btn.component';
 
 @NgModule({
   declarations: [
@@ -14,6 +16,8 @@ import { FormsModule } from '@angular/forms';
     SliderViewComponent,
     TextboxComponent,
     FileUploadAreaComponent,
+    CollapseBoxComponent,
+    BackBtnComponent,
   ],
   imports: [CommonModule, RouterModule, IconModule, FormsModule],
   exports: [
@@ -21,6 +25,8 @@ import { FormsModule } from '@angular/forms';
     SliderViewComponent,
     TextboxComponent,
     FileUploadAreaComponent,
+    CollapseBoxComponent,
+    BackBtnComponent,
   ],
 })
 export class BaseComponentsModule {}

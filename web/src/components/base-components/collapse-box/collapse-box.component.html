@@ -1,0 +1,12 @@
+<div class="collapse-box">
+  <div class="title row text">
+    <h2>{{ title }}</h2>
+    <div class="row-spacer"></div>
+    <a class="expand-btn" (click)="toggle()">{{
+      collapsed ? "展开" : "折叠"
+    }}</a>
+  </div>
+  <div class="content" *ngIf="!collapsed">
+    <ng-content></ng-content>
+  </div>
+</div>

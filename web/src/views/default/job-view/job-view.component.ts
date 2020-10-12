@@ -9,7 +9,7 @@ import {
   SliderItem,
   SliderItemKind,
 } from 'src/components/base-components/slider-view/slider-view.component';
-import { ActivatedRoute } from '@angular/router';
+import { ActivatedRoute, Router } from '@angular/router';
 import { HttpClient } from '@angular/common/http';
 import { environment } from 'src/environments/environment';
 import { endpoints } from 'src/environments/endpoints';
@@ -17,6 +17,7 @@ import { endpoints } from 'src/environments/endpoints';
 import BranchIcon from '@iconify/icons-mdi/source-branch';
 import RepoIcon from '@iconify/icons-mdi/git';
 import CommitIcon from '@iconify/icons-mdi/source-commit';
+import LeftIcon from '@iconify/icons-carbon/arrow-left';
 import { TestSuiteAndJobCache } from 'src/services/test_suite_cacher';
 import { JobBuildOutput } from 'src/models/server-types';
 import stripAnsi from 'strip-ansi';
@@ -29,6 +30,7 @@ import stripAnsi from 'strip-ansi';
 export class JobViewComponent implements OnInit, OnChanges {
   constructor(
     private route: ActivatedRoute,
+    private router: Router,
     private cleanHttpClient: HttpClient,
     private service: TestSuiteAndJobCache
   ) {}
@@ -36,6 +38,7 @@ export class JobViewComponent implements OnInit, OnChanges {
   readonly branchIcon = BranchIcon;
   readonly repoIcon = RepoIcon;
   readonly commitIcon = CommitIcon;
+  readonly leftIcon = LeftIcon;
 
   id: string;
 
@@ -139,7 +142,6 @@ export class JobViewComponent implements OnInit, OnChanges {
     this.service.getJob(this.id, false, true).subscribe({
       next: (v) => {
         this.job = v;
-        this.fetchOutputIfNotExist();
       },
     });
   }
