@@ -1,5 +1,10 @@
 import { Component, OnInit, Input } from '@angular/core';
-import { JobItem, dashboardTypeToSlider } from 'src/models/job-items';
+import {
+  JobItem,
+  dashboardTypeToSlider,
+  Job,
+  JobToJobItem,
+} from 'src/models/job-items';
 import { SliderItem } from 'src/components/base-components/slider-view/slider-view.component';
 import { Dayjs } from 'dayjs';
 
@@ -9,10 +14,14 @@ import { Dayjs } from 'dayjs';
   styleUrls: ['./job-item.component.styl'],
 })
 export class JobItemComponent implements OnInit {
-  @Input() item: JobItem;
+  @Input() job: Job;
   @Input() compact: boolean = false;
 
   constructor() {}
+
+  public get item(): JobItem {
+    return JobToJobItem(this.job);
+  }
 
   public get slider(): SliderItem[] {
     return this.item.status.map<SliderItem>((st) => {

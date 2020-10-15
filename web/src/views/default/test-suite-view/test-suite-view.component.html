@@ -60,10 +60,10 @@
         </app-collapse-box>
       </div>
     </div>
-    <div class="rblk" id="job-list" [@staggerLoadJobs]="items && items.length">
+    <div class="rblk" id="job-list" [@staggerLoadJobs]="jobs && jobs.length">
       <h2>评测记录</h2>
       <ng-template
-        [ngIf]="items === undefined || items.length === 0"
+        [ngIf]="jobs === undefined || jobs.length === 0"
         [ngIfElse]="jobLog"
       >
         <div class="no-list">没有评测记录</div>
@@ -71,9 +71,9 @@
       <ng-template #jobLog>
         <app-job-item
           class="test-item"
-          *ngFor="let item of items; trackBy: trackBy"
-          [item]="item"
-          (click)="gotoJob(item.id)"
+          *ngFor="let job of jobs; trackBy: trackBy"
+          [job]="job"
+          (click)="gotoJob(job.id)"
         ></app-job-item>
         <div
           class="btn secondary"

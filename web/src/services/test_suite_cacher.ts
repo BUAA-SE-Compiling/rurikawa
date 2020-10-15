@@ -113,7 +113,10 @@ export class TestSuiteAndJobCache {
         job.stage = msg.stage;
       }
       if (msg.testResult !== undefined) {
-        assign(job.results, msg.testResult);
+        Object.assign(job.results, msg.testResult);
+      }
+      if (msg.buildOutputFile !== undefined) {
+        job.buildOutputFile = msg.buildOutputFile;
       }
     }
   }
@@ -182,11 +185,11 @@ export class TestSuiteAndJobCache {
       .pipe(
         tap({
           next: (jobs) => {
-            if (opt.tracking) {
-              this.startTrackingJob(...jobs.map((j) => j.id));
-            }
             if (opt.tracking || opt.cache) {
               jobs.forEach((j) => this.cacheJob(j));
+            }
+            if (opt.tracking) {
+              this.startTrackingJob(...jobs.map((j) => j.id));
             }
           },
         })

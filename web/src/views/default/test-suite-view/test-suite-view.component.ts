@@ -84,9 +84,6 @@ export class TestSuiteViewComponent implements OnInit {
 
   descCollapsed: boolean = false;
 
-  get items(): JobItem[] | undefined {
-    return this.jobs?.map(jobToJobItem);
-  }
   loadMore() {
     if (this.jobs === undefined || this.jobs.length === 0) {
       this.fetchJobs(this.id).subscribe();
