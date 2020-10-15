@@ -70,6 +70,18 @@ pub async fn git_clone(dir: &Path, options: GitCloneOptions) -> std::io::Result<
         .status()
         .await?;
 
+    Command::new("git")
+        .current_dir(dir)
+        .args(&["submodule", "init"])
+        .status()
+        .await?;
+
+    Command::new("git")
+        .current_dir(dir)
+        .args(&["submodule", "update"])
+        .status()
+        .await?;
+
     Ok(())
 }
 
