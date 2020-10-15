@@ -105,8 +105,7 @@ namespace Karenia.Rurikawa.Coordinator.Services {
                     var wrapper = new JudgerWebsocketWrapperTy(
                         ws,
                         jsonSerializerOptions,
-                        4096,
-                        wsLogger);
+                        4096, null1);
                     var judger = new Judger(auth, tokenEntry, wrapper);
                     {
                         using var _ = await connectionLock.LockAsync();
