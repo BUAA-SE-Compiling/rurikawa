@@ -14,6 +14,7 @@ use std::{
     sync::atomic::{AtomicBool, Ordering},
 };
 use std::{path::Path, process::exit};
+use tracing_subscriber::FmtSubscriber;
 
 mod opt;
 
@@ -28,20 +29,12 @@ async fn main() {
         .with_max_level(log::LevelFilter::Info)
         .init()
         .unwrap();
-    // fern::Dispatch::new()
-    //     .format(|out, message, record| {
-    //         out.finish(format_args!(
-    //             "{} [{}] [{}] {}",
-    //             chrono::Utc::now().to_rfc3339_opts(chrono::SecondsFormat::Millis, true),
-    //             record.level(),
-    //             record.target(),
-    //             message
-    //         ))
-    //     })
-    //     .level(log::LevelFilter::Info)
-    //     .chain(std::io::stdout())
-    //     .apply()
-    //     .expect("Failed to set up logger");
+
+    let subscriber = FmtSubscriber::builder()
+        .with_max_level(tracing::Level::INFO)
+        .finish();
+
+    tracing::subscriber::set_global_default(subscriber).expect("setting default subscriber failed");
 
     ctrlc::set_handler(handle_ctrl_c).expect("Failed to set termination handler!");
 
