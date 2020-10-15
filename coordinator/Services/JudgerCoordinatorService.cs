@@ -105,7 +105,7 @@ namespace Karenia.Rurikawa.Coordinator.Services {
                     var wrapper = new JudgerWebsocketWrapperTy(
                         ws,
                         jsonSerializerOptions,
-                        4096, null1);
+                        4096);
                     var judger = new Judger(auth, tokenEntry, wrapper);
                     {
                         using var _ = await connectionLock.LockAsync();
@@ -289,6 +289,16 @@ namespace Karenia.Rurikawa.Coordinator.Services {
             var job = await db.Jobs.Where(j => j.Id == msg.JobId).SingleAsync();
             job.Results.Add(msg.TestId, msg.TestResult);
             await db.SaveChangesAsync();
+
+            frontendService.OnJobStautsUpdate(msg.JobId, new Models.WebsocketApi.JobStatusUpdateMsg
+            {
+                JobId = msg.JobId,
+                Stage = JobStage.Running,
+                TestResult = new Dictionary<string, TestResult>()
+                {
+                    [msg.TestId] = msg.TestResult
+                }
+            });
         }
 
         async void OnJobOutputMessage(string clientId, JobOutputMsg msg) {
