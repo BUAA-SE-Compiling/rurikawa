@@ -78,7 +78,7 @@ pub async fn git_clone(dir: &Path, options: GitCloneOptions) -> std::io::Result<
 
     Command::new("git")
         .current_dir(dir)
-        .args(&["submodule", "update"])
+        .args(&["submodule", "update", "--recommend-shallow"])
         .status()
         .await?;
 
