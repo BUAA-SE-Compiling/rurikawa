@@ -19,6 +19,23 @@
   --pal-success-color: #2CD296
 }
 
+.inverted-palette {
+  --pal-base-00: #000
+  --pal-base-0h: #1b1b1b
+  --pal-base-01: #585858
+  --pal-base-02: #AFAFAF
+  --pal-base-03: #e4e4e4
+  --pal-base-04: #f0f0f0
+  --pal-base-05: #fff
+  --pal-accent: #7BE0DA
+  --pal-accent-alt: #80AAC8
+  --pal-accent-dull: #398994
+  --pal-error-color: #E74C5E
+  --pal-info-color: #80AAC8
+  --pal-warning-color: #E9C133
+  --pal-success-color: #2CD296
+}
+
 .default-theme {
   --font-family-sans: 'Work Sans', 'Sarasa Gothic', 'Sarasa UI', 'Noto Sans SC', 'Source Han Sans SC', 'Source Han Sans CN', 'MS Yahei UI', 'PingFang', Arial, 'Helvetica Neue', Helvetica, sans-serif
   --font-family-mono: 'IBM Plex Mono', 'Noto Sans SC', 'MS Yahei UI', 'PingFang', Consolas, 'Roboto Mono', monospace
@@ -182,7 +199,7 @@
 
 body {
   color: var(--primary-color)
-  background: solid var(--background-color)
+  background-color: var(--background-color)
   font-family: var(--font-family-sans)
   font-size: var(--font-size-base)
   margin: 0
