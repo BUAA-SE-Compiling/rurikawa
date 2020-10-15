@@ -108,6 +108,7 @@ namespace Karenia.Rurikawa.Coordinator {
             opt.Converters.Add(new FlowSnakeJsonConverter());
             opt.Converters.Add(new System.Text.Json.Serialization.JsonStringEnumConverter());
             opt.SetupExtensions();
+            opt.IgnoreNullValues = true;
 
             var dis = opt.GetDiscriminatorConventionRegistry();
             dis.ClearConventions();
