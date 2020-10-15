@@ -24,20 +24,24 @@ static ABORT_HANDLE: OnceCell<CancellationTokenHandle> = OnceCell::new();
 #[tokio::main]
 async fn main() {
     let opt = opt::Opts::parse();
-    fern::Dispatch::new()
-        .format(|out, message, record| {
-            out.finish(format_args!(
-                "{} [{}] [{}] {}",
-                chrono::Utc::now().to_rfc3339_opts(chrono::SecondsFormat::Millis, true),
-                record.level(),
-                record.target(),
-                message
-            ))
-        })
-        .level(log::LevelFilter::Info)
-        .chain(std::io::stdout())
-        .apply()
-        .expect("Failed to set up logger");
+    tracing_log::LogTracer::builder()
+        .with_max_level(log::LevelFilter::Info)
+        .init()
+        .unwrap();
+    // fern::Dispatch::new()
+    //     .format(|out, message, record| {
+    //         out.finish(format_args!(
+    //             "{} [{}] [{}] {}",
+    //             chrono::Utc::now().to_rfc3339_opts(chrono::SecondsFormat::Millis, true),
+    //             record.level(),
+    //             record.target(),
+    //             message
+    //         ))
+    //     })
+    //     .level(log::LevelFilter::Info)
+    //     .chain(std::io::stdout())
+    //     .apply()
+    //     .expect("Failed to set up logger");
 
     ctrlc::set_handler(handle_ctrl_c).expect("Failed to set termination handler!");
 
