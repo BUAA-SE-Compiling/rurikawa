@@ -24,6 +24,7 @@ use serde_json::from_slice;
 use std::{collections::HashMap, fmt::Debug, path::PathBuf, sync::atomic::Ordering, sync::Arc};
 use tokio::{net::TcpStream, sync::Mutex};
 use tokio_tungstenite::{connect_async, tungstenite, MaybeTlsStream, WebSocketStream};
+use tracing::{instrument, span};
 use tungstenite::Message;
 
 pub type WsDuplex = WebSocketStream<MaybeTlsStream<TcpStream>>;
@@ -52,7 +53,7 @@ where
 {
     type Error = T::Error;
     async fn send_msg(&mut self, msg: &M) -> Result<(), Self::Error> {
-        log::info!("sent: {:?}", msg);
+        tracing::info!("sent: {:?}", msg);
         let serialized = serde_json::to_string(msg).unwrap();
         let msg = Message::text(serialized);
         self.send(msg).await
@@ -131,7 +132,7 @@ impl From<tungstenite::Error> for ClientConnectionErr {
 /// Returns `Ok(true)` if register was success, `Ok(false)` if register is not
 /// needed or not applicable.
 pub async fn try_register(cfg: &mut SharedClientData, refresh: bool) -> anyhow::Result<bool> {
-    log::info!(
+    tracing::info!(
         "Registering judger. Access token: {:?}; Register token: {:?}",
         cfg.cfg.access_token,
         cfg.cfg.register_token
@@ -156,7 +157,7 @@ pub async fn try_register(cfg: &mut SharedClientData, refresh: bool) -> anyhow::
         .text()
         .await?;
 
-    log::info!("Got new access token: {}", res);
+    tracing::info!("Got new access token: {}", res);
     cfg.cfg.access_token = Some(res);
 
     Ok(true)
@@ -164,7 +165,7 @@ pub async fn try_register(cfg: &mut SharedClientData, refresh: bool) -> anyhow::
 
 /// Verify if the current registration is active.
 pub async fn verify_self(cfg: &SharedClientData) -> anyhow::Result<bool> {
-    log::info!("Verifying access token {:?}", cfg.cfg.access_token);
+    tracing::info!("Verifying access token {:?}", cfg.cfg.access_token);
     if cfg.cfg.access_token.is_none() {
         return Ok(false);
     }
@@ -186,10 +187,10 @@ pub async fn connect_to_coordinator(
 ) -> Result<(WsSink, WsStream), ClientConnectionErr> {
     let endpoint = cfg.websocket_endpoint();
     let req = http::Request::builder().uri(&endpoint);
-    log::info!("Connecting to {}", endpoint);
+    tracing::info!("Connecting to {}", endpoint);
     let (client, _) = connect_async(req.body(()).unwrap()).await?;
     let (cli_sink, cli_stream) = client.split();
-    log::info!("Connection success");
+    tracing::info!("Connection success");
     Ok((cli_sink, cli_stream))
 }
 
@@ -197,7 +198,7 @@ async fn fetch_test_suite_data(
     suite_id: FlowSnake,
     cfg: &SharedClientData,
 ) -> Result<TestSuite, JobExecErr> {
-    log::info!("Fetching data for test suite {}", suite_id);
+    tracing::info!("Fetching data for test suite {}", suite_id);
     let suite_endpoint = cfg.test_suite_info_endpoint(suite_id);
     let res = cfg
         .client
@@ -213,7 +214,7 @@ pub async fn check_download_read_test_suite(
     suite_id: FlowSnake,
     cfg: &SharedClientData,
 ) -> Result<JudgerPublicConfig, JobExecErr> {
-    log::info!("Checking test suite {}", suite_id);
+    tracing::info!("Checking test suite {}", suite_id);
     let suite_folder_root = cfg.test_suite_folder_root();
     tokio::fs::create_dir_all(suite_folder_root).await?;
     let suite_folder = cfg.test_suite_folder(suite_id);
@@ -265,7 +266,7 @@ pub async fn check_download_read_test_suite(
 
             fs::ensure_removed_dir(&suite_folder).await?;
             tokio::fs::create_dir_all(file_folder_root).await?;
-            log::info!(
+            tracing::info!(
                 "Test suite does not exist. Initiating download of suite {} from {} to {:?}",
                 suite_id,
                 &endpoint,
@@ -289,7 +290,7 @@ pub async fn check_download_read_test_suite(
             tokio::fs::write(&lockfile, &serialized).await?;
         }
 
-        log::info!("Suite downloaded");
+        tracing::info!("Suite downloaded");
         Ok(())
     }
     .await;
@@ -383,7 +384,7 @@ pub async fn handle_job_wrapper(
     let send_res = req.send().await.and_then(|x| x.error_for_status());
     match send_res {
         Ok(_) => {}
-        Err(e) => log::error!("Error when sending job result mesage:\n{}", e),
+        Err(e) => tracing::error!("Error when sending job result mesage:\n{}", e),
     }
 
     flag_finished_job(send.clone(), cfg.clone()).await;
@@ -392,10 +393,11 @@ pub async fn handle_job_wrapper(
 
     match fs::ensure_removed_dir(&cfg.job_folder(job_id)).await {
         Ok(_) => {}
-        Err(e) => log::error!("Failed to remove directory for job {}: {}", job_id, e),
+        Err(e) => tracing::error!("Failed to remove directory for job {}: {}", job_id, e),
     };
 }
 
+#[instrument(skip(send, cancel, cfg))]
 pub async fn handle_job(
     job: NewJob,
     send: Arc<Mutex<WsSink>>,
@@ -405,14 +407,14 @@ pub async fn handle_job(
     let job = job.job;
     let client = reqwest::Client::new();
 
-    log::info!("Job {}: created", job.id);
+    tracing::info!("created");
 
     let mut public_cfg = check_download_read_test_suite(job.test_suite, &*cfg)
         .with_cancel(cancel.clone())
         .await
         .ok_or(JobExecErr::Cancelled)??;
     public_cfg.binds.get_or_insert_with(Vec::new);
-    log::info!("Job {}: got test suite", job.id);
+    tracing::info!("got test suite");
 
     send.lock()
         .await
@@ -435,22 +437,18 @@ pub async fn handle_job(
     )
     .await?;
 
-    log::info!("Job {}: fetched", job.id);
+    tracing::info!("fetched");
 
     let job_path: PathBuf = fs::find_judge_root(&job_path).await?;
     let mut judge_cfg = job_path.clone();
     judge_cfg.push(JUDGE_FILE_NAME);
 
-    log::info!(
-        "Job {}: found job description file at {:?}",
-        job.id,
-        &judge_cfg
-    );
+    tracing::info!("found job description file at {:?}", &judge_cfg);
 
     let judge_cfg = tokio::fs::read(judge_cfg).await?;
     let judge_cfg = toml::from_slice::<JudgeToml>(&judge_cfg)?;
 
-    log::info!("Job {}: read job description file", job.id);
+    tracing::info!("read job description file");
 
     let judge_job_cfg = judge_cfg
         .jobs
@@ -459,7 +457,7 @@ pub async fn handle_job(
 
     let image = judge_job_cfg.image.clone();
 
-    log::info!("Job {}: prepare to run", job.id);
+    tracing::info!("prepare to run");
 
     send.lock()
         .await
@@ -503,7 +501,7 @@ pub async fn handle_job(
     )
     .await?;
 
-    log::info!("Job {}: options created", job.id);
+    tracing::info!("options created");
     let (ch_send, ch_recv) = tokio::sync::mpsc::unbounded_channel();
 
     let recv_handle = tokio::spawn({
@@ -512,7 +510,7 @@ pub async fn handle_job(
         let job_id = job.id;
         async move {
             while let Some((key, res)) = recv.next().await {
-                log::info!("Job {}: recv message for key={}", job_id, key);
+                tracing::info!("Job {}: recv message for key={}", job_id, key);
                 // Omit error; it doesn't matter
                 let _ = ws_send
                     .lock()
@@ -551,7 +549,7 @@ pub async fn handle_job(
 
     let docker = bollard::Docker::connect_with_local_defaults().unwrap();
 
-    log::info!("Job {}: started.", job.id);
+    tracing::info!("started.");
 
     let upload_info = Arc::new(ResultUploadConfig {
         client,
@@ -571,12 +569,12 @@ pub async fn handle_job(
         )
         .await?;
 
-    log::info!("Job {}: finished running", job.id);
+    tracing::info!("finished running");
 
     let _ = build_recv_handle.await;
     let _ = recv_handle.await;
 
-    log::info!("Job {}: finished", job.id);
+    tracing::info!("finished");
 
     let job_result = JobResultMsg {
         job_id: job.id,
@@ -622,7 +620,7 @@ pub async fn accept_job(
     send: Arc<Mutex<WsSink>>,
     client_config: Arc<SharedClientData>,
 ) {
-    log::info!("Received job {}", job.job.id);
+    tracing::info!("Received job {}", job.job.id);
     let job_id = job.job.id;
     let cancel_handle = client_config.cancel_handle.create_child();
     let cancel_token = cancel_handle.get_token();
@@ -648,8 +646,8 @@ async fn cancel_job(job_id: FlowSnake, client_config: Arc<SharedClientData>) {
     if let Some((handle, cancel)) = job {
         cancel.cancel();
         match handle.await {
-            Ok(_) => log::info!("Cancelled job {}", job_id),
-            Err(e) => log::warn!("Unable to cancel job {}: {}", job_id, e),
+            Ok(_) => tracing::info!("Cancelled job {}", job_id),
+            Err(e) => tracing::warn!("Unable to cancel job {}: {}", job_id, e),
         };
     }
     // remove self from cancelling job list
@@ -700,7 +698,7 @@ pub async fn client_loop(
                     }
                 },
                 Err(e) => {
-                    log::warn!(
+                    tracing::warn!(
                         "Unable to deserialize mesage: {}\nError: {:?}",
                         String::from_utf8_lossy(&payload),
                         e
@@ -710,10 +708,10 @@ pub async fn client_loop(
         } else if x.is_ping() {
             // Noop.
         } else {
-            log::warn!("Unsupported message: {:?}", x);
+            tracing::warn!("Unsupported message: {:?}", x);
         }
     }
 
-    log::warn!("Disconnected!");
+    tracing::warn!("Disconnected!");
     ws_send
 }

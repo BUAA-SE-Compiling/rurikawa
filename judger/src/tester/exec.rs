@@ -611,6 +611,14 @@ impl TestSuite {
         })
     }
 
+    #[tracing::instrument(skip(
+        self,
+        instance,
+        build_result_channel,
+        result_channel,
+        upload_info,
+        cancellation_token
+    ))]
     pub async fn run(
         &mut self,
         instance: bollard::Docker,

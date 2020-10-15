@@ -22,8 +22,7 @@ static CTRL_C: AtomicBool = AtomicBool::new(false);
 static CTRL_C_TWICE: AtomicBool = AtomicBool::new(false);
 static ABORT_HANDLE: OnceCell<CancellationTokenHandle> = OnceCell::new();
 
-#[tokio::main]
-async fn main() {
+fn main() {
     let opt = opt::Opts::parse();
     tracing_log::LogTracer::builder()
         .with_max_level(log::LevelFilter::Info)
@@ -38,6 +37,15 @@ async fn main() {
 
     ctrlc::set_handler(handle_ctrl_c).expect("Failed to set termination handler!");
 
+    let mut rt = tokio::runtime::Builder::new()
+        .threaded_scheduler()
+        .enable_all()
+        .build()
+        .expect("Failed to initialize runtime");
+    rt.block_on(async_main(opt));
+}
+
+async fn async_main(opt: opt::Opts) {
     match opt.cmd {
         opt::SubCmd::Connect(cmd) => client(cmd).await,
         opt::SubCmd::Run(_) => {}
@@ -154,6 +162,8 @@ async fn client(cmd: opt::ConnectSubCmd) {
         }
     };
 
+    tracing::warn!("Stopping jobs!");
+
     let mut cancelling_guard = client_config.cancelling_job_handles.lock().await;
     let mut cancelling = cancelling_guard.drain().collect::<Vec<_>>();
     let mut running_guard = client_config.running_job_handles.lock().await;
@@ -188,6 +198,8 @@ async fn client(cmd: opt::ConnectSubCmd) {
         }
     }
 
+    tracing::warn!("Abort messages sent");
+
     let cancelling = cancelling.drain(..).map(|(id, fut)| {
         log::info!("Waiting for job {} to cancel...", id);
         fut
@@ -197,6 +209,8 @@ async fn client(cmd: opt::ConnectSubCmd) {
         fut.0
     });
     futures::future::join_all(cancelling.chain(running)).await;
+
+    tracing::warn!("All things cancelled");
 }
 
 fn handle_ctrl_c() {
