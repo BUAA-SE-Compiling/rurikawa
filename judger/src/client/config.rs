@@ -43,7 +43,7 @@ pub struct SharedClientData {
     pub aborting: AtomicBool,
     pub client: reqwest::Client,
     /// All test suites whose folder is being edited.
-    pub locked_test_suite: dashmap::DashMap<FlowSnake, CancellationToken>,
+    pub locked_test_suite: dashmap::DashMap<FlowSnake, (u64, CancellationTokenHandle)>,
     pub running_job_handles: Mutex<HashMap<FlowSnake, (JoinHandle<()>, CancellationTokenHandle)>>,
     pub cancelling_job_handles: Mutex<HashMap<FlowSnake, JoinHandle<()>>>,
     pub cancel_handle: CancellationTokenHandle,
@@ -183,16 +183,17 @@ impl SharedClientData {
     }
 
     pub async fn obtain_suite_lock(&self, suite_id: FlowSnake) -> Option<CancellationTokenHandle> {
+        let state = rand::random();
         let handle = CancellationTokenHandle::new();
         let entry = self
             .locked_test_suite
             .entry(suite_id)
-            .or_insert_with(|| handle.get_token())
+            .or_insert_with(|| (state, handle.child_token()))
             .clone();
-        if entry.is_token_of(&handle) {
-            Some(handle)
+        if entry.0 == state {
+            Some(entry.1)
         } else {
-            entry.await;
+            (entry.1).cancelled().await;
             None
         }
     }

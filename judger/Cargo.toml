@@ -11,7 +11,6 @@ path = "src/main.rs"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 [dependencies]
 anyhow = "*"
-async-compat = "0.1"
 async-pipe = "0.1"
 async-tar = "0.3.0"
 async-trait = "0.1.41"
@@ -42,16 +41,19 @@ reqwest = {version = "0.10.8", features = ["json", "stream"]}
 serde = {version = "1.0.116", features = ["derive"]}
 serde_json = "1.0.58"
 tar = "0.4.30"
-tokio = {version = "0.2.22", features = [
+tokio = {version = "0.3.0", features = [
   "time",
   "io-util",
   "process",
   "stream",
-  "rt-threaded",
   "macros",
+  "sync",
+  "net",
+  "rt",
+  "fs",
 ]}
 tokio-tungstenite = {version = "0.11.0", features = ["tls"]}
-tokio-util = "0.3.1"
+tokio-util = {version = "0.4.0", features = ["codec", "compat"]}
 toml = "0.5.6"
 tracing = "0.1.21"
 tracing-futures = "0.2.4"

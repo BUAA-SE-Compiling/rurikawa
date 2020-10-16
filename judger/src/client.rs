@@ -114,17 +114,14 @@ impl From<tungstenite::error::Error> for JobExecErr {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Error)]
 pub enum ClientConnectionErr {
-    Ws(tungstenite::Error),
+    #[error(display = "Websocket Error")]
+    Ws(#[error(from)] tungstenite::Error),
+    #[error(display = "Bad Access Token")]
     BadAccessToken,
+    #[error(display = "Bad Register Token")]
     BadRegisterToken,
-}
-
-impl From<tungstenite::Error> for ClientConnectionErr {
-    fn from(x: tungstenite::Error) -> ClientConnectionErr {
-        ClientConnectionErr::Ws(x)
-    }
 }
 
 /// Try to register at the coordinator if no access token was specified.
@@ -330,7 +327,7 @@ pub async fn check_download_read_test_suite(
 pub async fn handle_job_wrapper(
     job: NewJob,
     send: Arc<Mutex<WsSink>>,
-    cancel: CancellationToken,
+    cancel: CancellationTokenHandle,
     cfg: Arc<SharedClientData>,
 ) {
     // TODO: Handle failed cases and report
@@ -401,7 +398,7 @@ pub async fn handle_job_wrapper(
 pub async fn handle_job(
     job: NewJob,
     send: Arc<Mutex<WsSink>>,
-    cancel: CancellationToken,
+    cancel: CancellationTokenHandle,
     cfg: Arc<SharedClientData>,
 ) -> Result<JobResultMsg, JobExecErr> {
     let job = job.job;

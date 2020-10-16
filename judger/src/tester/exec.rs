@@ -9,7 +9,6 @@ use crate::{
     prelude::*,
 };
 use anyhow::Result;
-use async_compat::CompatExt;
 use bollard::models::{BuildInfo, Mount};
 use futures::stream::StreamExt;
 use once_cell::sync::Lazy;
@@ -21,6 +20,7 @@ use std::time;
 use std::{collections::HashMap, io, path::PathBuf, string::String, sync::Arc};
 use tokio::io::{AsyncReadExt, BufWriter};
 use tokio::sync::mpsc::UnboundedSender;
+use tokio_util::compat::*;
 
 #[cfg(unix)]
 use super::utils::strsignal;
@@ -272,7 +272,7 @@ impl Image {
         &self,
         instance: bollard::Docker,
         partial_result_channel: Option<BuildResultChannel>,
-        cancel: CancellationToken,
+        cancel: CancellationTokenHandle,
     ) -> Result<(), BuildError> {
         match &self {
             Image::Image { tag } => {
@@ -626,7 +626,7 @@ impl TestSuite {
         build_result_channel: Option<BuildResultChannel>,
         result_channel: Option<tokio::sync::mpsc::UnboundedSender<(String, TestResult)>>,
         upload_info: Option<Arc<ResultUploadConfig>>,
-        cancellation_token: CancellationToken,
+        cancellation_token: CancellationTokenHandle,
     ) -> anyhow::Result<HashMap<String, TestResult>> {
         let rnd_id = rand::random::<u32>();
         let TestSuiteOptions {
