@@ -14,6 +14,7 @@ using Karenia.Rurikawa.Helpers;
 using Karenia.Rurikawa.Models;
 using Karenia.Rurikawa.Models.Judger;
 using Karenia.Rurikawa.Models.Test;
+using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
@@ -97,16 +98,35 @@ namespace Karenia.Rurikawa.Coordinator.Services {
         /// <returns>
         ///     True if the websocket connection was made.
         /// </returns>
-        public async ValueTask<bool> TryUseConnection(Microsoft.AspNetCore.Http.HttpContext ctx) {
+        public async ValueTask<bool> TryUseConnection(HttpContext ctx) {
             if (ctx.Request.Query.TryGetValue("token", out var auth)) {
                 var tokenEntry = await Authenticate(auth);
                 if (tokenEntry != null) {
+                    // A connection id is passed to ensure that the client can safely
+                    // replace a previous unfinished connection created by itself.
+                    ctx.Request.Query.TryGetValue("conn", out var connId_);
+                    var connId = connId_.First();
+
+                    var connLock = await connectionLock.LockAsync();
+                    if (connections.TryGetValue(auth, out var lastConn)) {
+                        if (lastConn.ConnectionId != null && connId != null && lastConn.ConnectionId == connId) {
+                            // replace this session
+                            await lastConn.Socket.Close(System.Net.WebSockets.WebSocketCloseStatus.PolicyViolation, "Duplicate connection", CancellationToken.None);
+                            connections.Remove(auth);
+                        } else {
+                            ctx.Response.StatusCode = StatusCodes.Status409Conflict;
+                            connLock.Dispose();
+                            return false;
+                        }
+                    }
+                    connLock.Dispose();
+
                     var ws = await ctx.WebSockets.AcceptWebSocketAsync();
                     var wrapper = new JudgerWebsocketWrapperTy(
                         ws,
                         jsonSerializerOptions,
                         4096);
-                    var judger = new Judger(auth, tokenEntry, wrapper);
+                    var judger = new Judger(auth, tokenEntry, wrapper, connId);
                     {
                         using var _ = await connectionLock.LockAsync();
                         connections.Add(auth, judger);

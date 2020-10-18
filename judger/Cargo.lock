@@ -1761,6 +1761,7 @@ name = "rurikawa-judger"
 version = "0.1.10"
 dependencies = [
  "anyhow",
+ "arc-swap",
  "async-compat",
  "async-pipe",
  "async-tar",

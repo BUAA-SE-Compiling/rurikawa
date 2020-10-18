@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Net.WebSockets;
 using System.Reflection;
 using System.Security.Cryptography.X509Certificates;
 using System.Text.Encodings;
@@ -160,7 +161,7 @@ namespace Karenia.Rurikawa.Coordinator {
             WebSocketOptions ws_opt = new WebSocketOptions();
             ws_opt.AllowedOrigins.Add("*");
             ws_opt.AllowedOrigins.Add("localhost");
-            ws_opt.KeepAliveInterval = new System.TimeSpan(0, 0, 60);
+            ws_opt.KeepAliveInterval = new System.TimeSpan(0, 0, 20);
             app.UseWebSockets(ws_opt);
 
             app.UseAuthentication();
