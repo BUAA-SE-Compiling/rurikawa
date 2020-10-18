@@ -1,6 +1,6 @@
 use super::{
     runner::{CommandRunner, DockerCommandRunner, DockerCommandRunnerOptions},
-    ExecError, ExecErrorKind, JobFailure, OutputMismatch, ProcessInfo,
+    ExecError, ExecErrorKind, JobFailure, OutputMismatch, ProcessInfo, ShouldFailFailure,
 };
 use super::{utils::diff, BuildError};
 use crate::{
@@ -124,6 +124,8 @@ pub struct Test {
     steps: Vec<Step>,
     /// The expected `stdout` content.
     expected: Option<String>,
+    /// Should this test fail?
+    should_fail: bool,
 }
 
 impl Test {
@@ -131,6 +133,7 @@ impl Test {
         Test {
             steps: vec![],
             expected: None,
+            should_fail: false,
         }
     }
 
@@ -156,6 +159,7 @@ impl Test {
     {
         let mut output: Vec<ProcessInfo> = vec![];
         let steps_len = self.steps.len();
+        let mut test_failed = false;
         for (i, step) in self.steps.into_iter().enumerate() {
             let info = match step.capture(runner).await {
                 Ok(res) => res,
@@ -173,12 +177,18 @@ impl Test {
             let code = info.ret_code;
             let is_unix = cfg!(unix);
             match () {
-                _ if code > 0 || (code < 0 && !is_unix) => {
-                    return Err(JobFailure::ExecError(ExecError {
-                        stage: i,
-                        kind: ExecErrorKind::ReturnCodeCheckFailed,
-                        output,
-                    }));
+                _ if (code > 0 || (code != 0 && !is_unix)) => {
+                    if self.should_fail {
+                        // bail out of test, but it's totally fine
+                        test_failed = true;
+                        break;
+                    } else {
+                        return Err(JobFailure::ExecError(ExecError {
+                            stage: i,
+                            kind: ExecErrorKind::ReturnCodeCheckFailed,
+                            output,
+                        }));
+                    }
                 }
                 _ if code < 0 && is_unix => {
                     return Err(JobFailure::ExecError(ExecError {
@@ -210,6 +220,11 @@ impl Test {
                     }
                 }
             }
+        }
+
+        // Tests that _should_ fail but did not should return error here
+        if self.should_fail && !test_failed {
+            return Err(JobFailure::ShouldFail(ShouldFailFailure { output }));
         }
 
         Ok(())

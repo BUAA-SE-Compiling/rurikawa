@@ -76,6 +76,7 @@ pub enum TestResultKind {
     PipelineFailed = 3,
     TimeLimitExceeded = 4,
     MemoryLimitExceeded = 5,
+    ShouldFail = 6,
     NotRunned = -1,
     Waiting = -2,
     Running = -3,
@@ -164,6 +165,7 @@ impl TestResult {
                             }),
                         )
                     }
+
                     crate::tester::JobFailure::InternalError(e) => (
                         TestResultKind::OtherError,
                         Some(FailedJobOutputCacheFile {
@@ -172,6 +174,16 @@ impl TestResult {
                             message: Some(e),
                         }),
                     ),
+
+                    crate::tester::JobFailure::ShouldFail(out) => (
+                        TestResultKind::ShouldFail,
+                        Some(FailedJobOutputCacheFile {
+                            output: out.output,
+                            stdout_diff: None,
+                            message: Some("Test should fail".into()),
+                        }),
+                    ),
+
                     crate::tester::JobFailure::Cancelled => (TestResultKind::NotRunned, None),
                 };
 
