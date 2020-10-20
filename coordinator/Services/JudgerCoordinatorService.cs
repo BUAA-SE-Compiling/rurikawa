@@ -105,7 +105,7 @@ namespace Karenia.Rurikawa.Coordinator.Services {
                     // A connection id is passed to ensure that the client can safely
                     // replace a previous unfinished connection created by itself.
                     ctx.Request.Query.TryGetValue("conn", out var connId_);
-                    var connId = connId_?.FirstOrDefault();
+                    var connId = connId_.FirstOrDefault();
 
                     var connLock = await connectionLock.LockAsync();
                     if (connections.TryGetValue(auth, out var lastConn)) {
