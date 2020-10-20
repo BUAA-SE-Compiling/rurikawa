@@ -3,6 +3,7 @@ import {
   Job,
   dashboardTypeToSlider,
   TestResultKind,
+  TestResult,
 } from 'src/models/job-items';
 import { groupBy, mapValues, toPairs, bindKey } from 'lodash';
 import {
@@ -58,6 +59,13 @@ export class JobViewComponent implements OnInit, OnChanges {
     let msg = this.outputMessage?.output;
     if (msg != null) {
       return stripAnsi(this.outputMessage.output);
+    }
+  }
+
+  get jobErrorMessage() {
+    let msg = this.outputMessage?.error;
+    if (msg != null) {
+      return stripAnsi(this.outputMessage.error);
     }
   }
 
@@ -154,6 +162,14 @@ export class JobViewComponent implements OnInit, OnChanges {
         'blank'
       );
     }
+  }
+
+  caseClickable(res: TestResult) {
+    return res.kind !== 'Accepted';
+  }
+
+  navigateToCase(key: string) {
+    this.router.navigate(['/job', this.id, 'case', key]);
   }
 
   fetchOutputIfNotExist() {

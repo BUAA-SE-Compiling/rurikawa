@@ -15,6 +15,7 @@ import { MarkdownModule } from 'ngx-markdown';
 import { AdminForbiddenPageComponent } from './admin-forbidden-page/admin-forbidden-page.component';
 import { AboutPageComponent } from './about-page/about-page.component';
 import { SettingsViewComponent } from './settings-view/settings-view.component';
+import { JobTestcaseViewComponent } from './job-testcase-view/job-testcase-view.component';
 
 @NgModule({
   declarations: [
@@ -28,6 +29,7 @@ import { SettingsViewComponent } from './settings-view/settings-view.component';
     RegisterPageComponent,
     AboutPageComponent,
     SettingsViewComponent,
+    JobTestcaseViewComponent,
   ],
   imports: [
     CommonModule,
@@ -48,6 +50,7 @@ import { SettingsViewComponent } from './settings-view/settings-view.component';
     RegisterPageComponent,
     AboutPageComponent,
     SettingsViewComponent,
+    JobTestcaseViewComponent,
   ],
 })
 export class DefaultModule {}
