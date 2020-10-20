@@ -2,6 +2,7 @@ export const endpoints = {
   account: {
     login: 'account/login',
     register: 'account/register',
+    editPassword: 'account/edit/password',
     wsToken: 'account/ws-token',
   },
   profile: {

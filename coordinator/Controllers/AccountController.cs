@@ -163,13 +163,18 @@ namespace Karenia.Rurikawa.Coordinator.Controllers {
             return await GenerateOAuth2Response(msg.Scope, account);
         }
 
+        public class EditPasswordMessage {
+            public string Original { get; set; }
+            public string New { get; set; }
+        }
+
         [HttpPost("edit/password")]
+        [HttpPut("edit/password")]
         [Authorize()]
         public async Task<IActionResult> EditPassword(
-            [FromQuery] string originalPassword,
-            [FromQuery] string newPassword) {
+            [FromBody] EditPasswordMessage msg) {
             var username = AuthHelper.ExtractUsername(User)!;
-            switch (await accountService.EditPassword(username, originalPassword, newPassword)) {
+            switch (await accountService.EditPassword(username, msg.Original, msg.New)) {
                 case AccountService.EditPasswordResult.Success:
                     return NoContent();
                 case AccountService.EditPasswordResult.Failure:
