@@ -221,11 +221,13 @@ impl DockerCommandRunner {
                     .collect::<Result<Vec<_>, bollard::errors::Error>>()?;
 
                 let from_path = from_path.clone();
-                let (pipe_recv, pipe_send) = async_pipe::pipe();
+                let (pipe_recv, pipe_send) = tokio::io::duplex(8192);
                 let read_codec = tokio_util::codec::BytesCodec::new();
-                let frame = tokio_util::codec::FramedRead::new(pipe_send.compat(), read_codec);
+                let frame = tokio_util::codec::FramedRead::new(pipe_send, read_codec);
                 let task = async move {
-                    let mut tar = async_tar::Builder::new(BufWriter::new(pipe_recv).compat());
+                    let mut tar = async_tar::Builder::new(futures::io::BufWriter::new(
+                        pipe_recv.compat_write(),
+                    ));
                     match tar.append_dir_all(".", from_path).await {
                         Ok(_) => tar.finish().await,
                         e @ Err(_) => e,
