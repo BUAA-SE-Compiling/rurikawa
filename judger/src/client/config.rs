@@ -38,14 +38,24 @@ impl Default for ClientConfig {
 
 #[derive(Debug)]
 pub struct SharedClientData {
+    /// Configuration of this client
     pub cfg: ClientConfig,
+    /// A unique id for all connection created by this client, similar to
+    /// what `state` does in OAuth
+    pub conn_id: u128,
+    /// Number of running tests
     pub running_tests: AtomicUsize,
+    /// Whether this client is aborting
     pub aborting: AtomicBool,
+    /// HTTP client
     pub client: reqwest::Client,
     /// All test suites whose folder is being edited.
     pub locked_test_suite: dashmap::DashMap<FlowSnake, (u64, CancellationTokenHandle)>,
+    /// Handle for all jobs currently running
     pub running_job_handles: Mutex<HashMap<FlowSnake, (JoinHandle<()>, CancellationTokenHandle)>>,
+    /// Handle for all jobs currently cancelling
     pub cancelling_job_handles: Mutex<HashMap<FlowSnake, JoinHandle<()>>>,
+    /// Global cancellation token handle
     pub cancel_handle: CancellationTokenHandle,
 }
 
@@ -53,6 +63,7 @@ impl SharedClientData {
     pub fn new(cfg: ClientConfig) -> SharedClientData {
         SharedClientData {
             cfg,
+            conn_id: rand::random(),
             client: reqwest::Client::new(),
             aborting: AtomicBool::new(false),
             running_tests: AtomicUsize::new(0),
@@ -92,11 +103,14 @@ impl SharedClientData {
 
         if let Some(token) = &self.cfg.access_token {
             format!(
-                "{}://{}/api/v1/judger/ws?token={}",
-                ssl, self.cfg.host, token
+                "{}://{}/api/v1/judger/ws?token={}&conn={:x}",
+                ssl, self.cfg.host, token, self.conn_id
             )
         } else {
-            format!("{}://{}/api/v1/judger/ws", ssl, self.cfg.host)
+            format!(
+                "{}://{}/api/v1/judger/ws?conn={:x}",
+                ssl, self.cfg.host, self.conn_id
+            )
         }
     }
 

@@ -48,7 +48,8 @@
         *ngFor="let res of results()"
         [item]="res[1]"
         [key]="res[0]"
-        (click)="downloadItem(res[0])"
+        [class.clickable]="caseClickable(res[1])"
+        (click)="navigateToCase(res[0])"
       >
       </app-job-test-item>
     </div>
@@ -60,6 +61,9 @@
     (loadContents)="fetchOutputIfNotExist()"
     title="编译器输出"
   >
+    <h3 *ngIf="this.outputMessage?.error">error</h3>
+    <pre *ngIf="this.outputMessage?.error">{{ jobErrorMessage }}</pre>
+    <h3>stdout</h3>
     <pre>{{ jobOutputMessage }}</pre>
   </app-collapse-box>
 </div>

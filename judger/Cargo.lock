@@ -72,6 +72,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "async-compat"
+version = "0.1.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "dba33560a6a8357944496e20d172468b0eb1f7f879877dce248e0993872b95e1"
+dependencies = [
+ "futures-core",
+ "futures-io",
+ "once_cell",
+ "pin-project-lite",
+ "tokio 0.2.22",
+ "tokio 0.3.0",
+]
+
+[[package]]
 name = "async-executor"
 version = "0.1.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1770,6 +1784,8 @@ name = "rurikawa-judger"
 version = "0.1.10"
 dependencies = [
  "anyhow",
+ "arc-swap",
+ "async-compat",
  "async-pipe",
  "async-tar",
  "async-trait",

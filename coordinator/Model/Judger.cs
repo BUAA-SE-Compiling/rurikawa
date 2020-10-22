@@ -15,6 +15,7 @@ namespace Karenia.Rurikawa.Models.Judger {
         public JsonWebsocketWrapper<ClientMsg, ServerMsg> Socket { get; }
         public JudgerEntry DbJudgerEntry { get; }
         public string Id { get; }
+        public string? ConnectionId { get; }
 
         /// <summary>
         /// Number of tasks (jobs) currently running on this judger.
@@ -31,11 +32,12 @@ namespace Karenia.Rurikawa.Models.Judger {
         public Judger(
             string id,
             JudgerEntry dbJudgerEntry,
-            JsonWebsocketWrapper<ClientMsg, ServerMsg> socket
-        ) {
+            JsonWebsocketWrapper<ClientMsg, ServerMsg> socket,
+            string? sessionId) {
             Id = id;
             DbJudgerEntry = dbJudgerEntry;
             Socket = socket;
+            ConnectionId = sessionId;
         }
     }
 

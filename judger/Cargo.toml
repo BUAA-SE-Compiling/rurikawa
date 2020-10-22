@@ -8,9 +8,16 @@ version = "0.1.10"
 name = "rurikawa"
 path = "src/main.rs"
 
+[profile.release]
+debug = 0
+lto = true
+opt-level = "z"
+
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 [dependencies]
 anyhow = "*"
+arc-swap = "0.4.7"
+async-compat = "0.1"
 async-pipe = "0.1"
 async-tar = "0.3.0"
 async-trait = "0.1.41"

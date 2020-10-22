@@ -1,24 +1,51 @@
 <app-navbar></app-navbar>
 <div class="title-spacer"></div>
 <div class="container">
+  <h1>设置</h1>
   <div class="wrapper">
-    <h1>设置</h1>
+    <h2>密码</h2>
     <div class="col" *ngIf="profile">
       <textbox
-        caption="用户名"
-        [disabled]="true"
-        [value]="profile.username"
+        caption="旧密码"
+        [(value)]="password.old"
+        type="password"
       ></textbox>
-      <textbox caption="学号" [(value)]="profile.studentId"></textbox>
-      <textbox caption="邮箱" [(value)]="profile.email"></textbox>
-      <div class="caption">嗯，目前没有更多可以设置的东西</div>
-      <div class="row right">
+      <textbox
+        caption="新密码"
+        [(value)]="password.new"
+        type="password"
+      ></textbox>
+      <div class="row right text">
+        <div class="message">{{ passwordMessage }}</div>
         <div
           class="btn dark"
           [ngClass]="{ disabled: sending }"
-          (click)="updateProfile()"
+          (click)="updatePassword()"
         >
           更新
+        </div>
+      </div>
+      <div class="wrapper">
+        <h2>个人信息</h2>
+        <div class="col" *ngIf="profile">
+          <textbox
+            caption="用户名"
+            [disabled]="true"
+            [value]="profile.username"
+          ></textbox>
+          <textbox caption="学号" [(value)]="profile.studentId"></textbox>
+          <textbox caption="邮箱" [(value)]="profile.email"></textbox>
+          <div class="caption">嗯，目前没有更多可以设置的东西</div>
+          <div class="row right text">
+            <div class="message">{{ profileMessage }}</div>
+            <div
+              class="btn dark"
+              [ngClass]="{ disabled: sending }"
+              (click)="updateProfile()"
+            >
+              更新
+            </div>
+          </div>
         </div>
       </div>
     </div>

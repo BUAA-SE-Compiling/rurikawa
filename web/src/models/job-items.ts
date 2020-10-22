@@ -122,6 +122,39 @@ export interface Job {
   results: { [key: string]: TestResult };
 }
 
+export interface ProcessInfo {
+  ret_code: number;
+  command: string;
+  stdout: string;
+  stderr: string;
+}
+
+export interface FailedTestcaseOutput {
+  output: ProcessInfo[];
+  stdoutDiff?: string;
+  message?: string;
+}
+
+export interface Diff {
+  kind: ' ' | '-' | '+';
+  line: string;
+}
+
+export function unDiff(input: string): Diff[] {
+  let lines = input.split('\n');
+  let arr = [];
+  for (let line of lines) {
+    if (line === '') {
+      continue;
+    }
+    let head = line[0];
+    let rest = line.substr(2);
+
+    arr.push({ kind: head, line: rest });
+  }
+  return arr;
+}
+
 export function getStatus(job: Job): JobStatus[] {
   if (job === undefined) {
     return [{ status: 'Waiting', cnt: 1 }];
