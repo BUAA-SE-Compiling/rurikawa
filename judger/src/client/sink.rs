@@ -5,10 +5,10 @@ use arc_swap::{ArcSwapAny, ArcSwapOption};
 use async_trait::async_trait;
 use futures::{
     stream::{SplitSink, SplitStream},
-    Sink, SinkExt, Stream, StreamExt, TryStream,
+    Sink, SinkExt, Stream, TryStream,
 };
 use serde::Serialize;
-use std::{collections::VecDeque, fmt::Debug, sync::Arc};
+use std::{fmt::Debug, sync::Arc};
 use tokio::{net::TcpStream, sync::Mutex};
 use tokio_tungstenite::{tungstenite, MaybeTlsStream, WebSocketStream};
 use tungstenite::Message;
@@ -39,8 +39,8 @@ impl WebsocketSink {
             // drop guard to avoid deadlock
             drop(sink);
             // wait for sink being connected
-            let handle = self.handle.load().create_child();
-            handle.get_token().await;
+            let handle = self.handle.load().child_token();
+            handle.cancelled().await;
             sink = self.sink.load();
         }
         sink.clone().unwrap().lock().await.send(msg).await
@@ -57,11 +57,14 @@ impl WebsocketSink {
             // drop guard to avoid deadlock
             drop(sink);
             // wait for sink being connected
-            let handle = self.handle.load().create_child();
-            handle.get_token().await;
+            let handle = self.handle.load().child_token();
+            handle.cancelled().await;
             sink = self.sink.load();
         }
-        sink.clone().unwrap().lock().await.send_all(msg).await
+        let sink = sink.clone().unwrap().lock().await;
+        let inner = &mut *sink;
+        inner.send_all(msg).await;
+        Ok(())
     }
 
     pub fn load_socket(&self, sink: RawWsSink) {
