@@ -1,4 +1,4 @@
-pub use crate::tester::exec::{Image, JudgerPrivateConfig, JudgerPublicConfig};
+pub use crate::tester::model::{Image, JudgerPrivateConfig, JudgerPublicConfig};
 use serde::{self, Deserialize, Serialize};
 use std::collections::HashMap;
 

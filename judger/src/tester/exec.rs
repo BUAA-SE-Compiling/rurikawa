@@ -1,3 +1,4 @@
+use super::model::*;
 use super::{
     runner::{CommandRunner, DockerCommandRunner, DockerCommandRunnerOptions},
     ExecError, ExecErrorKind, JobFailure, OutputMismatch, ProcessInfo, ShouldFailFailure,
@@ -13,7 +14,6 @@ use async_compat::CompatExt;
 use bollard::models::{BuildInfo, Mount};
 use futures::stream::StreamExt;
 use once_cell::sync::Lazy;
-use path_absolutize::Absolutize;
 use path_slash::PathBufExt;
 use serde::{self, Deserialize, Serialize};
 use std::path::Path;
@@ -233,24 +233,6 @@ impl Test {
 
 pub type BuildResultChannel = UnboundedSender<BuildInfo>;
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
-#[serde(tag = "source")]
-#[serde(rename_all = "camelCase")]
-pub enum Image {
-    /// An existing image.
-    Image { tag: String },
-    /// An image to be built with a Dockerfile.
-    Dockerfile {
-        /// Name to be assigned to the image.
-        tag: String,
-        /// Path of the context directory, relative to the context directory.
-        path: PathBuf,
-        /// Path of the dockerfile itself, relative to the context directory.
-        /// Leaving this value to None means using the default dockerfile: `path/Dockerfile`.
-        file: Option<PathBuf>,
-    },
-}
-
 impl Image {
     pub fn set_dockerfile_tag(&mut self, new_tag: String) {
         match self {
@@ -392,115 +374,7 @@ impl Image {
     }
 }
 
-/// A Host-to-container volume binding for the container.
-#[derive(Serialize, Deserialize, Debug, Clone, Default)]
-#[serde(rename_all = "camelCase")]
-pub struct Bind {
-    /// Absolute/Relative `from` path (in the host machine).
-    pub from: PathBuf,
-    /// Absolute `to` path (in the container).
-    pub to: PathBuf,
-    /// Extra options for this bind. Leave a new `String` for empty.
-    /// For details see [here](https://docs.rs/bollard/0.7.2/bollard/service/struct.HostConfig.html#structfield.binds).
-    pub readonly: bool,
-}
-
-impl Bind {
-    pub fn canonical_from(&mut self, base_dir: &Path) {
-        let mut from_base = base_dir.to_owned();
-        from_base.push(&self.from);
-        self.from = from_base.absolutize().unwrap().into_owned();
-    }
-
-    pub fn to_mount(&self) -> Mount {
-        Mount {
-            target: Some(self.to.display().to_string()),
-            source: Some(self.from.display().to_string()),
-            typ: Some(bollard::models::MountTypeEnum::BIND),
-            read_only: self.readonly.into(),
-            ..Default::default()
-        }
-    }
-}
-
-pub fn path_canonical_from(path: &Path, base_dir: &Path) -> PathBuf {
-    let mut from_base = base_dir.to_owned();
-    from_base.push(path);
-    from_base.absolutize().unwrap().into_owned()
-}
-
 // pub type JudgerPublicConfig = crate::client::model::TestSuite;
-
-/// Judger's public config, specific to a paticular repository,
-/// Maintained by the owner of the project to be tested.
-#[derive(Serialize, Deserialize, Debug, Clone)]
-#[serde(rename_all = "camelCase")]
-pub struct JudgerPublicConfig {
-    pub time_limit: Option<i32>,
-    pub memory_limit: Option<i32>,
-    pub name: String,
-    /// Variables and extensions of test files
-    /// (`$src`, `$bin`, `$stdin`, `$stdout`, etc...).
-    /// For example: `"$src" => "go"`.
-    pub vars: HashMap<String, String>,
-    /// Sequence of commands necessary to perform an IO check.
-    pub run: Vec<String>,
-    /// The path of test root directory to be mapped inside test container
-    pub mapped_dir: Bind,
-    /// `host-src:container-dest` volume bindings for the container.
-    /// For details see [here](https://docs.rs/bollard/0.7.2/bollard/service/struct.HostConfig.html#structfield.binds).
-    pub binds: Option<Vec<Bind>>,
-}
-
-/// Judger's private config, specific to a host machine.
-#[derive(Serialize, Deserialize, Debug, Clone)]
-pub struct JudgerPrivateConfig {
-    /// Directory of test sources files (including `stdin` and `stdout` files)
-    /// outside the container.
-    pub test_root_dir: PathBuf,
-    /// Directory of test sources files inside the container.
-    pub mapped_test_root_dir: PathBuf,
-}
-
-/// The public representation of a test.
-#[derive(Serialize, Deserialize, Debug, Clone)]
-pub struct TestCase {
-    /// File name of the test case.
-    pub name: String,
-    /// List of commands to be executed.
-    pub exec: Vec<String>,
-    /// Expected `stdout` of the last command.
-    pub expected_out: String,
-}
-
-/// Initialization options for `Testsuite`.
-#[derive(Serialize, Deserialize, Debug, Clone)]
-#[serde(rename_all = "camelCase")]
-pub struct TestSuiteOptions {
-    /// File names of tests.
-    pub tests: Vec<String>,
-    /// Time limit of a step, in seconds.
-    pub time_limit: Option<usize>,
-    // TODO: Use this field.
-    /// Memory limit of the contrainer, in bytes.
-    pub mem_limit: Option<usize>,
-    /// If the image needs to be built before run.
-    pub build_image: bool,
-    /// If the image needs to be removed after run.
-    pub remove_image: bool,
-}
-
-impl Default for TestSuiteOptions {
-    fn default() -> Self {
-        TestSuiteOptions {
-            tests: vec![],
-            time_limit: None,
-            mem_limit: None,
-            build_image: false,
-            remove_image: false,
-        }
-    }
-}
 
 /// A suite of `TestCase`s to be run.
 ///
@@ -595,10 +469,12 @@ impl TestSuite {
                     })?;
                     file.read_to_end(&mut expected_out).await?;
                     let expected_out = String::from_utf8_lossy(&expected_out).into_owned();
+
                     Result::Ok(TestCase {
                         name: name.to_owned(),
                         exec,
-                        expected_out,
+                        should_fail: false,
+                        expected_out: Some(expected_out),
                     })
                 }
             })
@@ -707,7 +583,9 @@ impl TestSuite {
                     time_limit.map(|n| std::time::Duration::from_secs(n as u64)),
                 ));
             });
-            t.expected(&case.expected_out);
+            if let Some(out) = case.expected_out.as_deref() {
+                t.expected(out);
+            }
 
             log::trace!("{:08x}: created test: {}", rnd_id, case.name);
 
@@ -1124,21 +1002,22 @@ mod test_suite {
                     mapped_test_root_dir: PathBuf::from(r"/golem/src"),
                 },
                 JudgerPublicConfig {
+                    time_limit: None,
+                    memory_limit: None,
                     name: "golem_no_volume".into(),
-                    mapped_dir: Bind {
-                        from: PathBuf::from(r"../golem/src"),
-                        to: PathBuf::from(r"../golem/src"),
-                        readonly: false,
+                    test_groups: {
+                        [(
+                            "default".to_owned(),
+                            vec![TestCaseDefinition {
+                                name: "succ".into(),
+                                should_fail: false,
+                                has_out: true,
+                            }],
+                        )]
+                        .iter()
+                        .cloned()
+                        .collect()
                     },
-                    binds: None,
-                    run: [
-                        // "cd golem",
-                        "python ./golemc.py $src -o $bin",
-                        "cat $stdin | python ./golem.py $bin",
-                    ]
-                    .iter()
-                    .map(|s| s.to_string())
-                    .collect(),
                     vars: [
                         ("$src", "py"),
                         ("$bin", "pyc"),
@@ -1148,9 +1027,21 @@ mod test_suite {
                     .iter()
                     .map(|(k, v)| (k.to_string(), v.to_string()))
                     .collect(),
+                    run: [
+                        // "cd golem",
+                        "python ./golemc.py $src -o $bin",
+                        "cat $stdin | python ./golem.py $bin",
+                    ]
+                    .iter()
+                    .map(|s| s.to_string())
+                    .collect(),
 
-                    time_limit: None,
-                    memory_limit: None,
+                    mapped_dir: Bind {
+                        from: PathBuf::from(r"../golem/src"),
+                        to: PathBuf::from(r"../golem/src"),
+                        readonly: false,
+                    },
+                    binds: None,
                 },
                 TestSuiteOptions {
                     tests: ["succ"].iter().map(|s| s.to_string()).collect(),
@@ -1195,21 +1086,22 @@ mod test_suite {
                     mapped_test_root_dir: PathBuf::from(r"/golem/src"),
                 },
                 JudgerPublicConfig {
+                    time_limit: None,
+                    memory_limit: None,
                     name: "golem".into(),
-                    binds: Some(vec![]),
-                    mapped_dir: Bind {
-                        from: PathBuf::from(r"../golem/src"),
-                        to: PathBuf::from(r"/golem/src"),
-                        readonly: false,
+                    test_groups: {
+                        [(
+                            "default".to_owned(),
+                            vec![TestCaseDefinition {
+                                name: "succ".into(),
+                                should_fail: false,
+                                has_out: true,
+                            }],
+                        )]
+                        .iter()
+                        .cloned()
+                        .collect()
                     },
-                    run: [
-                        // "cd golem",
-                        "python ./golemc.py $src -o $bin",
-                        "cat $stdin | python ./golem.py $bin",
-                    ] // public
-                    .iter()
-                    .map(|s| s.to_string())
-                    .collect(),
                     vars: [
                         ("$src", "py"),
                         ("$bin", "pyc"),
@@ -1219,9 +1111,21 @@ mod test_suite {
                     .iter()
                     .map(|(k, v)| (k.to_string(), v.to_string()))
                     .collect(),
+                    run: [
+                        // "cd golem",
+                        "python ./golemc.py $src -o $bin",
+                        "cat $stdin | python ./golem.py $bin",
+                    ] // public
+                    .iter()
+                    .map(|s| s.to_string())
+                    .collect(),
 
-                    time_limit: None,
-                    memory_limit: None,
+                    mapped_dir: Bind {
+                        from: PathBuf::from(r"../golem/src"),
+                        to: PathBuf::from(r"/golem/src"),
+                        readonly: false,
+                    },
+                    binds: Some(vec![]),
                 },
                 TestSuiteOptions {
                     tests: ["succ"].iter().map(|s| s.to_string()).collect(), // private

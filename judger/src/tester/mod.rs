@@ -1,4 +1,5 @@
 pub mod exec;
+pub mod model;
 pub mod runner;
 pub mod utils;
 
