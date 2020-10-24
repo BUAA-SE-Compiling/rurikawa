@@ -1,23 +1,11 @@
 use super::runner::CommandRunner;
-use super::{utils::diff, BuildError};
-use crate::{
-    client::model::ResultUploadConfig,
-    client::model::{upload_test_result, TestResult, TestResultKind},
-    prelude::*,
-};
 use anyhow::Result;
-use async_compat::CompatExt;
 use bollard::models::{BuildInfo, Mount};
-use futures::stream::StreamExt;
-use once_cell::sync::Lazy;
 use path_absolutize::Absolutize;
-use path_slash::PathBufExt;
-use serde::{self, Deserialize, Serialize};
-use std::path::Path;
-use std::time;
+use serde::de::Visitor;
+use serde::{self, Deserialize, Deserializer, Serialize};
 use std::{collections::HashMap, io, path::PathBuf, string::String, sync::Arc};
-use tokio::io::{AsyncReadExt, BufWriter};
-use tokio::sync::mpsc::UnboundedSender;
+use std::{path::Path, str::FromStr};
 
 /// A Host-to-container volume binding for the container.
 #[derive(Serialize, Deserialize, Debug, Clone, Default)]
@@ -75,12 +63,24 @@ pub enum Image {
 }
 
 /// The definition of a test case
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Serialize, Debug, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct TestCaseDefinition {
     pub name: String,
     pub should_fail: bool,
     pub has_out: bool,
+}
+
+impl FromStr for TestCaseDefinition {
+    type Err = crate::util::Void;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        Ok(TestCaseDefinition {
+            name: s.to_owned(),
+            should_fail: false,
+            has_out: true,
+        })
+    }
 }
 
 /// Judger's public config, specific to a paticular repository,
@@ -153,6 +153,93 @@ impl Default for TestSuiteOptions {
             mem_limit: None,
             build_image: false,
             remove_image: false,
+        }
+    }
+}
+
+mod de {
+    use super::TestCaseDefinition;
+    use serde::{
+        de::Deserializer,
+        de::MapAccess,
+        de::{self, Visitor},
+        Deserialize,
+    };
+    use std::str::FromStr;
+
+    macro_rules! set_field {
+        ($field:expr, $map:expr) => {{
+            if $field.is_some() {
+                return Err(de::Error::duplicate_field(stringify!(field)));
+            }
+            $field = Some($map.next_value()?);
+        }};
+    }
+
+    macro_rules! check_field {
+        ($field:expr) => {
+            $field.ok_or_else(|| de::Error::missing_field(stringify!($field)))?
+        };
+    }
+
+    #[derive(Deserialize)]
+    #[serde(field_identifier, rename_all = "lowercase")]
+    enum TestCaseFields {
+        Name,
+        ShouldFail,
+        HasOut,
+    }
+
+    struct TestCaseVisitor;
+
+    impl<'de> Visitor<'de> for TestCaseVisitor {
+        type Value = TestCaseDefinition;
+
+        fn expecting(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
+            write!(formatter, "string or test case definition")
+        }
+
+        fn visit_str<E>(self, v: &str) -> Result<Self::Value, E>
+        where
+            E: de::Error,
+        {
+            TestCaseDefinition::from_str(v).map_err(|_| de::Error::custom("never"))
+        }
+
+        fn visit_map<A>(self, mut map: A) -> Result<Self::Value, A::Error>
+        where
+            A: MapAccess<'de>,
+        {
+            let mut name = None;
+            let mut should_fail = None;
+            let mut has_out = None;
+
+            while let Some(key) = map.next_key::<TestCaseFields>()? {
+                match key {
+                    TestCaseFields::Name => set_field!(name, map),
+                    TestCaseFields::ShouldFail => set_field!(should_fail, map),
+                    TestCaseFields::HasOut => set_field!(has_out, map),
+                }
+            }
+
+            let name = check_field!(name);
+            let should_fail = check_field!(should_fail);
+            let has_out = check_field!(has_out);
+
+            Ok(TestCaseDefinition {
+                name,
+                should_fail,
+                has_out,
+            })
+        }
+    }
+
+    impl<'de> Deserialize<'de> for TestCaseDefinition {
+        fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+        where
+            D: Deserializer<'de>,
+        {
+            deserializer.deserialize_any(TestCaseVisitor)
         }
     }
 }
