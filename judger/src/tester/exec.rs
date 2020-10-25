@@ -410,6 +410,8 @@ impl TestSuite {
         let container_test_root = private_cfg.mapped_test_root_dir.clone();
         let test_root = private_cfg.test_root_dir.clone();
 
+        let index = construct_case_index(&public_cfg);
+
         // TODO: Remove drain when this compiler issue gets repaired:
         // https://github.com/rust-lang/rust/issues/64552
         let mut test_cases = futures::stream::iter(options.tests.clone().drain(..))
@@ -417,6 +419,7 @@ impl TestSuite {
                 let public_cfg = &public_cfg;
                 let mut test_root = test_root.clone();
                 let mut container_test_root = container_test_root.clone();
+                let case = index.get(&name).unwrap();
                 async move {
                     test_root.push(&name);
                     container_test_root.push(&name);
@@ -456,25 +459,28 @@ impl TestSuite {
                     // ? QUESTION: Now I'm reading `$stdout` in host, but the source file, etc. are handled in containers.
                     // ? Is this desirable?
 
-                    let mut expected_out = Vec::new();
-
-                    let mut file = tokio::fs::File::open(stdout_path).await.map_err(|e| {
-                        io::Error::new(
-                            io::ErrorKind::NotFound,
-                            format!(
-                                "Output verification failed, failed to open `{:?}`: {}",
-                                stdout_path, e,
-                            ),
-                        )
-                    })?;
-                    file.read_to_end(&mut expected_out).await?;
-                    let expected_out = String::from_utf8_lossy(&expected_out).into_owned();
+                    let expected_out = if case.has_out {
+                        let mut expected_out = Vec::new();
+                        let mut file = tokio::fs::File::open(stdout_path).await.map_err(|e| {
+                            io::Error::new(
+                                io::ErrorKind::NotFound,
+                                format!(
+                                    "Output verification failed, failed to open `{:?}`: {}",
+                                    stdout_path, e,
+                                ),
+                            )
+                        })?;
+                        file.read_to_end(&mut expected_out).await?;
+                        Some(String::from_utf8_lossy(&expected_out).into_owned())
+                    } else {
+                        None
+                    };
 
                     Result::Ok(TestCase {
                         name: name.to_owned(),
                         exec,
-                        should_fail: false,
-                        expected_out: Some(expected_out),
+                        expected_out,
+                        should_fail: case.should_fail,
                     })
                 }
             })
@@ -621,6 +627,18 @@ impl TestSuite {
 
         Ok(result)
     }
+}
+
+fn construct_case_index(pub_cfg: &JudgerPublicConfig) -> HashMap<String, &TestCaseDefinition> {
+    let mut idx = HashMap::new();
+
+    for (group_name, group) in &pub_cfg.test_groups {
+        for test_case in group {
+            idx.insert(test_case.name.clone(), test_case);
+        }
+    }
+
+    idx
 }
 
 #[cfg(test)]
