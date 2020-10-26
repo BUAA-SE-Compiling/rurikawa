@@ -197,34 +197,36 @@ namespace Karenia.Rurikawa.Models.Test {
             private TestCaseDefinition DeserializeFromMap(
                 ref Utf8JsonReader reader,
                 JsonSerializerOptions options) {
+                string propName_name = options.PropertyNamingPolicy.ConvertName(nameof(TestCaseDefinition.Name));
+                string propName_hasOut = options.PropertyNamingPolicy.ConvertName(nameof(TestCaseDefinition.HasOut));
+                string propName_shouldFail = options.PropertyNamingPolicy.ConvertName(nameof(TestCaseDefinition.ShouldFail));
+
                 string? name = null;
                 bool? hasOut = null;
                 bool? shouldFail = null;
+
                 while (reader.TokenType != JsonTokenType.EndObject) {
                     if (reader.TokenType != JsonTokenType.PropertyName) {
                         throw new JsonException("Expected Property Name");
                     }
                     var key = reader.GetString();
-                    switch (key) {
-                        case "name":
-                            if (name != null)
-                                throw new JsonException("Duplicate property 'name'");
-                            name = reader.GetString();
-                            break;
-                        case "hasOut":
-                            if (hasOut != null)
-                                throw new JsonException("Duplicate property 'hasOut'");
-                            hasOut = reader.GetBoolean();
-                            break;
-                        case "shouldFail":
-                            if (shouldFail != null)
-                                throw new JsonException("Duplicate property 'shouldFail'");
-                            shouldFail = reader.GetBoolean();
-                            break;
-                        default:
-                            throw new JsonException($"Unknown property {key}");
+                    if (key == propName_name) {
+                        if (name != null)
+                            throw new JsonException("Duplicate property 'name'");
+                        name = reader.GetString();
+                    } else if (key == propName_hasOut) {
+                        if (hasOut != null)
+                            throw new JsonException("Duplicate property 'hasOut'");
+                        hasOut = reader.GetBoolean();
+                    } else if (key == propName_shouldFail) {
+                        if (shouldFail != null)
+                            throw new JsonException("Duplicate property 'shouldFail'");
+                        shouldFail = reader.GetBoolean();
+                    } else {
+                        throw new JsonException($"Unknown property {key}");
                     }
                 }
+
                 if (name == null) throw new JsonException("Expected property 'name'");
                 return new TestCaseDefinition
                 {
