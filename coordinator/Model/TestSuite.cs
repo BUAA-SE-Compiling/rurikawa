@@ -52,7 +52,7 @@ namespace Karenia.Rurikawa.Models.Test {
         /// "default" group.
         /// </summary>
         [Column(TypeName = "jsonb")]
-        public Dictionary<string, List<string>> TestGroups { get; set; }
+        public Dictionary<string, List<TestCaseDefinition>> TestGroups { get; set; }
 
         /// <summary>
         /// Name of the default group in test groups
@@ -122,8 +122,23 @@ namespace Karenia.Rurikawa.Models.Test {
         }
     }
 
-    public class TestJob {
-
+    /*
+    /// The definition of a test case
+    #[derive(Serialize, Debug, Clone)]
+    #[serde(rename_all = "camelCase")]
+    pub struct TestCaseDefinition {
+        pub name: String,
+        pub should_fail: bool,
+        pub has_out: bool,
+    }
+    */
+    /// <summary>
+    /// The definition of a test case
+    /// </summary>
+    public class TestCaseDefinition {
+        public string Name { get; set; }
+        public bool HasOut { get; set; }
+        public bool ShouldFail { get; set; }
     }
 
     public enum TestResultKind {

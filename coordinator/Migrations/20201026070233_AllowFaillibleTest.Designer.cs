@@ -5,15 +5,17 @@ using Karenia.Rurikawa.Models;
 using Karenia.Rurikawa.Models.Test;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
 namespace Karenia.Rurikawa.Coordinator.Migrations
 {
     [DbContext(typeof(RurikawaDb))]
-    partial class RurikawaDbModelSnapshot : ModelSnapshot
+    [Migration("20201026070233_AllowFaillibleTest")]
+    partial class AllowFaillibleTest
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
