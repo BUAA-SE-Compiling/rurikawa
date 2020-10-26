@@ -1,11 +1,13 @@
 using System;
 using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations.Schema;
+using System.Text.Json;
+using System.Text.Json.Serialization;
 using System.Text.RegularExpressions;
 using Dahomey.Json.Attributes;
 using Karenia.Rurikawa.Helpers;
 
-#pragma warning disable CS8618  
+#pragma warning disable CS8618
 namespace Karenia.Rurikawa.Models.Test {
     public class TestSuite {
         /// <summary>
@@ -135,6 +137,7 @@ namespace Karenia.Rurikawa.Models.Test {
     /// <summary>
     /// The definition of a test case
     /// </summary>
+    [JsonConverter(typeof(SerDe.TestCaseDefinitionConverter))]
     public class TestCaseDefinition {
         public string Name { get; set; }
         public bool HasOut { get; set; }
@@ -168,5 +171,79 @@ namespace Karenia.Rurikawa.Models.Test {
     public class TestResult {
         public TestResultKind Kind { get; set; }
         public string? ResultFileId { get; set; }
+    }
+
+    namespace SerDe {
+        public class TestCaseDefinitionConverter : JsonConverter<TestCaseDefinition> {
+            public override TestCaseDefinition Read(
+                ref Utf8JsonReader reader,
+                Type typeToConvert,
+                JsonSerializerOptions options) {
+                if (reader.TokenType == JsonTokenType.String) {
+                    string name = reader.GetString();
+                    return new TestCaseDefinition()
+                    {
+                        Name = name,
+                        HasOut = true,
+                        ShouldFail = false
+                    };
+                } else if (reader.TokenType == JsonTokenType.StartObject) {
+                    return DeserializeFromMap(ref reader, options);
+                } else {
+                    throw new JsonException("Expected string or object");
+                }
+            }
+
+            private TestCaseDefinition DeserializeFromMap(
+                ref Utf8JsonReader reader,
+                JsonSerializerOptions options) {
+                string? name = null;
+                bool? hasOut = null;
+                bool? shouldFail = null;
+                while (reader.TokenType != JsonTokenType.EndObject) {
+                    if (reader.TokenType != JsonTokenType.PropertyName) {
+                        throw new JsonException("Expected Property Name");
+                    }
+                    var key = reader.GetString();
+                    switch (key) {
+                        case "name":
+                            if (name != null)
+                                throw new JsonException("Duplicate property 'name'");
+                            name = reader.GetString();
+                            break;
+                        case "hasOut":
+                            if (hasOut != null)
+                                throw new JsonException("Duplicate property 'hasOut'");
+                            hasOut = reader.GetBoolean();
+                            break;
+                        case "shouldFail":
+                            if (shouldFail != null)
+                                throw new JsonException("Duplicate property 'shouldFail'");
+                            shouldFail = reader.GetBoolean();
+                            break;
+                        default:
+                            throw new JsonException($"Unknown property {key}");
+                    }
+                }
+                if (name == null) throw new JsonException("Expected property 'name'");
+                return new TestCaseDefinition
+                {
+                    Name = name,
+                    HasOut = hasOut ?? true,
+                    ShouldFail = shouldFail ?? false,
+                };
+            }
+
+            public override void Write(
+                Utf8JsonWriter writer,
+                TestCaseDefinition value,
+                JsonSerializerOptions options) {
+                writer.WriteStartObject();
+                writer.WriteString("name", value.Name);
+                writer.WriteBoolean("hasOut", value.HasOut);
+                writer.WriteBoolean("shouldFail", value.ShouldFail);
+                writer.WriteEndObject();
+            }
+        }
     }
 }
