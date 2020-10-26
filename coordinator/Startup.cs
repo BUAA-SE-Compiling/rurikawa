@@ -98,6 +98,8 @@ namespace Karenia.Rurikawa.Coordinator {
             services.AddSingleton<JsonSerializerOptions>(_ =>
                 SetupJsonSerializerOptions(new JsonSerializerOptions())
             );
+            services.AddSingleton<GenericCacheService>();
+            services.AddSingleton<RurikawaCacheService>();
             services.AddSwaggerDocument();
             services.AddRouting(options => { options.LowercaseUrls = true; });
             services.AddControllers().AddJsonOptions(opt => SetupJsonSerializerOptions(opt.JsonSerializerOptions));
