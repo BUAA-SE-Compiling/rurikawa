@@ -223,8 +223,8 @@ mod de {
             }
 
             let name = check_field!(name);
-            let should_fail = check_field!(should_fail);
-            let has_out = check_field!(has_out);
+            let should_fail = should_fail.unwrap_or(false);
+            let has_out = has_out.unwrap_or(true);
 
             Ok(TestCaseDefinition {
                 name,
