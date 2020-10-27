@@ -13,8 +13,8 @@ set test_groups = (
         -- map $name => {name: $name, has_out: true, should_fail: false}
         select key, json_agg((select jsonb_build_object (
                 'name', val,
-                'has_out', true,
-                'should_fail', false
+                'hasOut', true,
+                'shouldFail', false
             ))) as value
         from (
             select 
@@ -24,7 +24,7 @@ set test_groups = (
         ) as elements
         group by key
     ) as sub
-)
+) || '{}'::jsonb
             ");
         }
 
