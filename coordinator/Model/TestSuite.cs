@@ -1,11 +1,13 @@
 using System;
 using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations.Schema;
+using System.Text.Json;
+using System.Text.Json.Serialization;
 using System.Text.RegularExpressions;
 using Dahomey.Json.Attributes;
 using Karenia.Rurikawa.Helpers;
 
-#pragma warning disable CS8618  
+#pragma warning disable CS8618
 namespace Karenia.Rurikawa.Models.Test {
     public class TestSuite {
         /// <summary>
@@ -52,7 +54,7 @@ namespace Karenia.Rurikawa.Models.Test {
         /// "default" group.
         /// </summary>
         [Column(TypeName = "jsonb")]
-        public Dictionary<string, List<string>> TestGroups { get; set; }
+        public Dictionary<string, List<TestCaseDefinition>> TestGroups { get; set; }
 
         /// <summary>
         /// Name of the default group in test groups
@@ -122,8 +124,24 @@ namespace Karenia.Rurikawa.Models.Test {
         }
     }
 
-    public class TestJob {
-
+    /*
+    /// The definition of a test case
+    #[derive(Serialize, Debug, Clone)]
+    #[serde(rename_all = "camelCase")]
+    pub struct TestCaseDefinition {
+        pub name: String,
+        pub should_fail: bool,
+        pub has_out: bool,
+    }
+    */
+    /// <summary>
+    /// The definition of a test case
+    /// </summary>
+    [JsonConverter(typeof(SerDe.TestCaseDefinitionConverter))]
+    public class TestCaseDefinition {
+        public string Name { get; set; }
+        public bool HasOut { get; set; }
+        public bool ShouldFail { get; set; }
     }
 
     public enum TestResultKind {
@@ -133,6 +151,7 @@ namespace Karenia.Rurikawa.Models.Test {
         PipelineFailed = 3,
         TimeLimitExceeded = 4,
         MemoryLimitExceeded = 5,
+        ShouldFail = 6,
         NotRunned = -1,
         Waiting = -2,
         Running = -3,
@@ -153,5 +172,87 @@ namespace Karenia.Rurikawa.Models.Test {
     public class TestResult {
         public TestResultKind Kind { get; set; }
         public string? ResultFileId { get; set; }
+    }
+
+    namespace SerDe {
+        public class TestCaseDefinitionConverter : JsonConverter<TestCaseDefinition> {
+            public override TestCaseDefinition Read(
+                ref Utf8JsonReader reader,
+                Type typeToConvert,
+                JsonSerializerOptions options) {
+                if (reader.TokenType == JsonTokenType.String) {
+                    string name = reader.GetString();
+                    return new TestCaseDefinition()
+                    {
+                        Name = name,
+                        HasOut = true,
+                        ShouldFail = false
+                    };
+                } else if (reader.TokenType == JsonTokenType.StartObject) {
+                    return DeserializeFromMap(ref reader, options);
+                } else {
+                    throw new JsonException("Expected string or object");
+                }
+            }
+
+            private TestCaseDefinition DeserializeFromMap(
+                ref Utf8JsonReader reader,
+                JsonSerializerOptions options) {
+                string propName_name = options.PropertyNamingPolicy?.ConvertName(nameof(TestCaseDefinition.Name)) ?? nameof(TestCaseDefinition.Name);
+                string propName_hasOut = options.PropertyNamingPolicy?.ConvertName(nameof(TestCaseDefinition.HasOut)) ?? nameof(TestCaseDefinition.HasOut);
+                string propName_shouldFail = options.PropertyNamingPolicy?.ConvertName(nameof(TestCaseDefinition.ShouldFail)) ?? nameof(TestCaseDefinition.ShouldFail);
+
+                string? name = null;
+                bool? hasOut = null;
+                bool? shouldFail = null;
+
+                while (reader.Read()) {
+                    if (reader.TokenType == JsonTokenType.EndObject) break;
+                    if (reader.TokenType != JsonTokenType.PropertyName) {
+                        throw new JsonException("Expected Property Name");
+                    }
+                    var key = reader.GetString();
+                    if (!reader.Read()) throw new JsonException("Expected value");
+                    if (key == propName_name) {
+                        if (name != null)
+                            throw new JsonException("Duplicate property 'name'");
+                        name = reader.GetString();
+                    } else if (key == propName_hasOut) {
+                        if (hasOut != null)
+                            throw new JsonException("Duplicate property 'hasOut'");
+                        hasOut = reader.GetBoolean();
+                    } else if (key == propName_shouldFail) {
+                        if (shouldFail != null)
+                            throw new JsonException("Duplicate property 'shouldFail'");
+                        shouldFail = reader.GetBoolean();
+                    } else {
+                        throw new JsonException($"Unknown property '{key}'");
+                    }
+                }
+
+                if (name == null) throw new JsonException("Expected property 'name'");
+                return new TestCaseDefinition
+                {
+                    Name = name,
+                    HasOut = hasOut ?? true,
+                    ShouldFail = shouldFail ?? false,
+                };
+            }
+
+            public override void Write(
+                Utf8JsonWriter writer,
+                TestCaseDefinition value,
+                JsonSerializerOptions options) {
+                string propName_name = options.PropertyNamingPolicy?.ConvertName(nameof(TestCaseDefinition.Name)) ?? nameof(TestCaseDefinition.Name);
+                string propName_hasOut = options.PropertyNamingPolicy?.ConvertName(nameof(TestCaseDefinition.HasOut)) ?? nameof(TestCaseDefinition.HasOut);
+                string propName_shouldFail = options.PropertyNamingPolicy?.ConvertName(nameof(TestCaseDefinition.ShouldFail)) ?? nameof(TestCaseDefinition.ShouldFail);
+
+                writer.WriteStartObject();
+                writer.WriteString(propName_name, value.Name);
+                writer.WriteBoolean(propName_hasOut, value.HasOut);
+                writer.WriteBoolean(propName_shouldFail, value.ShouldFail);
+                writer.WriteEndObject();
+            }
+        }
     }
 }

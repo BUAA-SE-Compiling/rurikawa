@@ -205,7 +205,7 @@ export class TestSuiteViewComponent implements OnInit {
       branch = undefined;
     }
 
-    let tests = flatMap(this.suite.testGroups, (v) => v);
+    let tests = flatMap(this.suite.testGroups, (v) => v).map((v) => v.name);
 
     let newJobMsg: NewJobMessage = {
       repo,

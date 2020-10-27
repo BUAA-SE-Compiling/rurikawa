@@ -1,6 +1,7 @@
+use super::model::*;
 use super::{
     runner::{CommandRunner, DockerCommandRunner, DockerCommandRunnerOptions},
-    ExecError, ExecErrorKind, JobFailure, OutputMismatch, ProcessInfo,
+    ExecError, ExecErrorKind, JobFailure, OutputMismatch, ProcessInfo, ShouldFailFailure,
 };
 use super::{utils::diff, BuildError};
 use crate::{
@@ -13,7 +14,6 @@ use async_compat::CompatExt;
 use bollard::models::{BuildInfo, Mount};
 use futures::stream::StreamExt;
 use once_cell::sync::Lazy;
-use path_absolutize::Absolutize;
 use path_slash::PathBufExt;
 use serde::{self, Deserialize, Serialize};
 use std::path::Path;
@@ -124,6 +124,8 @@ pub struct Test {
     steps: Vec<Step>,
     /// The expected `stdout` content.
     expected: Option<String>,
+    /// Should this test fail?
+    should_fail: bool,
 }
 
 impl Test {
@@ -131,6 +133,7 @@ impl Test {
         Test {
             steps: vec![],
             expected: None,
+            should_fail: false,
         }
     }
 
@@ -156,6 +159,7 @@ impl Test {
     {
         let mut output: Vec<ProcessInfo> = vec![];
         let steps_len = self.steps.len();
+        let mut test_failed = false;
         for (i, step) in self.steps.into_iter().enumerate() {
             let info = match step.capture(runner).await {
                 Ok(res) => res,
@@ -173,12 +177,18 @@ impl Test {
             let code = info.ret_code;
             let is_unix = cfg!(unix);
             match () {
-                _ if code > 0 || (code < 0 && !is_unix) => {
-                    return Err(JobFailure::ExecError(ExecError {
-                        stage: i,
-                        kind: ExecErrorKind::ReturnCodeCheckFailed,
-                        output,
-                    }));
+                _ if (code > 0 || (code != 0 && !is_unix)) => {
+                    if self.should_fail {
+                        // bail out of test, but it's totally fine
+                        test_failed = true;
+                        break;
+                    } else {
+                        return Err(JobFailure::ExecError(ExecError {
+                            stage: i,
+                            kind: ExecErrorKind::ReturnCodeCheckFailed,
+                            output,
+                        }));
+                    }
                 }
                 _ if code < 0 && is_unix => {
                     return Err(JobFailure::ExecError(ExecError {
@@ -212,29 +222,16 @@ impl Test {
             }
         }
 
+        // Tests that _should_ fail but did not should return error here
+        if self.should_fail && !test_failed {
+            return Err(JobFailure::ShouldFail(ShouldFailFailure { output }));
+        }
+
         Ok(())
     }
 }
 
 pub type BuildResultChannel = UnboundedSender<BuildInfo>;
-
-#[derive(Serialize, Deserialize, Debug, Clone)]
-#[serde(tag = "source")]
-#[serde(rename_all = "camelCase")]
-pub enum Image {
-    /// An existing image.
-    Image { tag: String },
-    /// An image to be built with a Dockerfile.
-    Dockerfile {
-        /// Name to be assigned to the image.
-        tag: String,
-        /// Path of the context directory, relative to the context directory.
-        path: PathBuf,
-        /// Path of the dockerfile itself, relative to the context directory.
-        /// Leaving this value to None means using the default dockerfile: `path/Dockerfile`.
-        file: Option<PathBuf>,
-    },
-}
 
 impl Image {
     pub fn set_dockerfile_tag(&mut self, new_tag: String) {
@@ -377,115 +374,7 @@ impl Image {
     }
 }
 
-/// A Host-to-container volume binding for the container.
-#[derive(Serialize, Deserialize, Debug, Clone, Default)]
-#[serde(rename_all = "camelCase")]
-pub struct Bind {
-    /// Absolute/Relative `from` path (in the host machine).
-    pub from: PathBuf,
-    /// Absolute `to` path (in the container).
-    pub to: PathBuf,
-    /// Extra options for this bind. Leave a new `String` for empty.
-    /// For details see [here](https://docs.rs/bollard/0.7.2/bollard/service/struct.HostConfig.html#structfield.binds).
-    pub readonly: bool,
-}
-
-impl Bind {
-    pub fn canonical_from(&mut self, base_dir: &Path) {
-        let mut from_base = base_dir.to_owned();
-        from_base.push(&self.from);
-        self.from = from_base.absolutize().unwrap().into_owned();
-    }
-
-    pub fn to_mount(&self) -> Mount {
-        Mount {
-            target: Some(self.to.display().to_string()),
-            source: Some(self.from.display().to_string()),
-            typ: Some(bollard::models::MountTypeEnum::BIND),
-            read_only: self.readonly.into(),
-            ..Default::default()
-        }
-    }
-}
-
-pub fn path_canonical_from(path: &Path, base_dir: &Path) -> PathBuf {
-    let mut from_base = base_dir.to_owned();
-    from_base.push(path);
-    from_base.absolutize().unwrap().into_owned()
-}
-
 // pub type JudgerPublicConfig = crate::client::model::TestSuite;
-
-/// Judger's public config, specific to a paticular repository,
-/// Maintained by the owner of the project to be tested.
-#[derive(Serialize, Deserialize, Debug, Clone)]
-#[serde(rename_all = "camelCase")]
-pub struct JudgerPublicConfig {
-    pub time_limit: Option<i32>,
-    pub memory_limit: Option<i32>,
-    pub name: String,
-    /// Variables and extensions of test files
-    /// (`$src`, `$bin`, `$stdin`, `$stdout`, etc...).
-    /// For example: `"$src" => "go"`.
-    pub vars: HashMap<String, String>,
-    /// Sequence of commands necessary to perform an IO check.
-    pub run: Vec<String>,
-    /// The path of test root directory to be mapped inside test container
-    pub mapped_dir: Bind,
-    /// `host-src:container-dest` volume bindings for the container.
-    /// For details see [here](https://docs.rs/bollard/0.7.2/bollard/service/struct.HostConfig.html#structfield.binds).
-    pub binds: Option<Vec<Bind>>,
-}
-
-/// Judger's private config, specific to a host machine.
-#[derive(Serialize, Deserialize, Debug, Clone)]
-pub struct JudgerPrivateConfig {
-    /// Directory of test sources files (including `stdin` and `stdout` files)
-    /// outside the container.
-    pub test_root_dir: PathBuf,
-    /// Directory of test sources files inside the container.
-    pub mapped_test_root_dir: PathBuf,
-}
-
-/// The public representation of a test.
-#[derive(Serialize, Deserialize, Debug, Clone)]
-pub struct TestCase {
-    /// File name of the test case.
-    pub name: String,
-    /// List of commands to be executed.
-    pub exec: Vec<String>,
-    /// Expected `stdout` of the last command.
-    pub expected_out: String,
-}
-
-/// Initialization options for `Testsuite`.
-#[derive(Serialize, Deserialize, Debug, Clone)]
-#[serde(rename_all = "camelCase")]
-pub struct TestSuiteOptions {
-    /// File names of tests.
-    pub tests: Vec<String>,
-    /// Time limit of a step, in seconds.
-    pub time_limit: Option<usize>,
-    // TODO: Use this field.
-    /// Memory limit of the contrainer, in bytes.
-    pub mem_limit: Option<usize>,
-    /// If the image needs to be built before run.
-    pub build_image: bool,
-    /// If the image needs to be removed after run.
-    pub remove_image: bool,
-}
-
-impl Default for TestSuiteOptions {
-    fn default() -> Self {
-        TestSuiteOptions {
-            tests: vec![],
-            time_limit: None,
-            mem_limit: None,
-            build_image: false,
-            remove_image: false,
-        }
-    }
-}
 
 /// A suite of `TestCase`s to be run.
 ///
@@ -521,6 +410,8 @@ impl TestSuite {
         let container_test_root = private_cfg.mapped_test_root_dir.clone();
         let test_root = private_cfg.test_root_dir.clone();
 
+        let index = construct_case_index(&public_cfg);
+
         // TODO: Remove drain when this compiler issue gets repaired:
         // https://github.com/rust-lang/rust/issues/64552
         let mut test_cases = futures::stream::iter(options.tests.clone().drain(..))
@@ -528,6 +419,7 @@ impl TestSuite {
                 let public_cfg = &public_cfg;
                 let mut test_root = test_root.clone();
                 let mut container_test_root = container_test_root.clone();
+                let case = index.get(&name).unwrap();
                 async move {
                     test_root.push(&name);
                     container_test_root.push(&name);
@@ -558,32 +450,39 @@ impl TestSuite {
                             })
                         })
                         .collect();
-                    let stdout_path = replacer.get("$stdout").ok_or_else(|| {
-                        io::Error::new(
-                            io::ErrorKind::NotFound,
-                            "Output verification failed, no `$stdout` in dictionary",
-                        )
-                    })?;
+
                     // ? QUESTION: Now I'm reading `$stdout` in host, but the source file, etc. are handled in containers.
                     // ? Is this desirable?
 
-                    let mut expected_out = Vec::new();
+                    let expected_out = if case.has_out && !case.should_fail {
+                        let stdout_path = replacer.get("$stdout").ok_or_else(|| {
+                            io::Error::new(
+                                io::ErrorKind::NotFound,
+                                "Output verification failed, no `$stdout` in dictionary",
+                            )
+                        })?;
 
-                    let mut file = tokio::fs::File::open(stdout_path).await.map_err(|e| {
-                        io::Error::new(
-                            io::ErrorKind::NotFound,
-                            format!(
-                                "Output verification failed, failed to open `{:?}`: {}",
-                                stdout_path, e,
-                            ),
-                        )
-                    })?;
-                    file.read_to_end(&mut expected_out).await?;
-                    let expected_out = String::from_utf8_lossy(&expected_out).into_owned();
+                        let mut expected_out = Vec::new();
+                        let mut file = tokio::fs::File::open(stdout_path).await.map_err(|e| {
+                            io::Error::new(
+                                io::ErrorKind::NotFound,
+                                format!(
+                                    "Output verification failed, failed to open `{:?}`: {}",
+                                    stdout_path, e,
+                                ),
+                            )
+                        })?;
+                        file.read_to_end(&mut expected_out).await?;
+                        Some(String::from_utf8_lossy(&expected_out).into_owned())
+                    } else {
+                        None
+                    };
+
                     Result::Ok(TestCase {
                         name: name.to_owned(),
                         exec,
                         expected_out,
+                        should_fail: case.should_fail,
                     })
                 }
             })
@@ -686,13 +585,16 @@ impl TestSuite {
                 ))
             });
             let mut t = Test::new();
+            t.should_fail = case.should_fail;
             case.exec.iter().for_each(|step| {
                 t.add_step(Step::new_with_timeout(
                     Capturable::new(sh![step]),
                     time_limit.map(|n| std::time::Duration::from_secs(n as u64)),
                 ));
             });
-            t.expected(&case.expected_out);
+            if let Some(out) = case.expected_out.as_deref() {
+                t.expected(out);
+            }
 
             log::trace!("{:08x}: created test: {}", rnd_id, case.name);
 
@@ -728,6 +630,18 @@ impl TestSuite {
 
         Ok(result)
     }
+}
+
+fn construct_case_index(pub_cfg: &JudgerPublicConfig) -> HashMap<String, &TestCaseDefinition> {
+    let mut idx = HashMap::new();
+
+    for group in pub_cfg.test_groups.values() {
+        for test_case in group {
+            idx.insert(test_case.name.clone(), test_case);
+        }
+    }
+
+    idx
 }
 
 #[cfg(test)]
@@ -1109,21 +1023,22 @@ mod test_suite {
                     mapped_test_root_dir: PathBuf::from(r"/golem/src"),
                 },
                 JudgerPublicConfig {
+                    time_limit: None,
+                    memory_limit: None,
                     name: "golem_no_volume".into(),
-                    mapped_dir: Bind {
-                        from: PathBuf::from(r"../golem/src"),
-                        to: PathBuf::from(r"../golem/src"),
-                        readonly: false,
+                    test_groups: {
+                        [(
+                            "default".to_owned(),
+                            vec![TestCaseDefinition {
+                                name: "succ".into(),
+                                should_fail: false,
+                                has_out: true,
+                            }],
+                        )]
+                        .iter()
+                        .cloned()
+                        .collect()
                     },
-                    binds: None,
-                    run: [
-                        // "cd golem",
-                        "python ./golemc.py $src -o $bin",
-                        "cat $stdin | python ./golem.py $bin",
-                    ]
-                    .iter()
-                    .map(|s| s.to_string())
-                    .collect(),
                     vars: [
                         ("$src", "py"),
                         ("$bin", "pyc"),
@@ -1133,9 +1048,21 @@ mod test_suite {
                     .iter()
                     .map(|(k, v)| (k.to_string(), v.to_string()))
                     .collect(),
+                    run: [
+                        // "cd golem",
+                        "python ./golemc.py $src -o $bin",
+                        "cat $stdin | python ./golem.py $bin",
+                    ]
+                    .iter()
+                    .map(|s| s.to_string())
+                    .collect(),
 
-                    time_limit: None,
-                    memory_limit: None,
+                    mapped_dir: Bind {
+                        from: PathBuf::from(r"../golem/src"),
+                        to: PathBuf::from(r"../golem/src"),
+                        readonly: false,
+                    },
+                    binds: None,
                 },
                 TestSuiteOptions {
                     tests: ["succ"].iter().map(|s| s.to_string()).collect(),
@@ -1180,21 +1107,22 @@ mod test_suite {
                     mapped_test_root_dir: PathBuf::from(r"/golem/src"),
                 },
                 JudgerPublicConfig {
+                    time_limit: None,
+                    memory_limit: None,
                     name: "golem".into(),
-                    binds: Some(vec![]),
-                    mapped_dir: Bind {
-                        from: PathBuf::from(r"../golem/src"),
-                        to: PathBuf::from(r"/golem/src"),
-                        readonly: false,
+                    test_groups: {
+                        [(
+                            "default".to_owned(),
+                            vec![TestCaseDefinition {
+                                name: "succ".into(),
+                                should_fail: false,
+                                has_out: true,
+                            }],
+                        )]
+                        .iter()
+                        .cloned()
+                        .collect()
                     },
-                    run: [
-                        // "cd golem",
-                        "python ./golemc.py $src -o $bin",
-                        "cat $stdin | python ./golem.py $bin",
-                    ] // public
-                    .iter()
-                    .map(|s| s.to_string())
-                    .collect(),
                     vars: [
                         ("$src", "py"),
                         ("$bin", "pyc"),
@@ -1204,9 +1132,21 @@ mod test_suite {
                     .iter()
                     .map(|(k, v)| (k.to_string(), v.to_string()))
                     .collect(),
+                    run: [
+                        // "cd golem",
+                        "python ./golemc.py $src -o $bin",
+                        "cat $stdin | python ./golem.py $bin",
+                    ] // public
+                    .iter()
+                    .map(|s| s.to_string())
+                    .collect(),
 
-                    time_limit: None,
-                    memory_limit: None,
+                    mapped_dir: Bind {
+                        from: PathBuf::from(r"../golem/src"),
+                        to: PathBuf::from(r"/golem/src"),
+                        readonly: false,
+                    },
+                    binds: Some(vec![]),
                 },
                 TestSuiteOptions {
                     tests: ["succ"].iter().map(|s| s.to_string()).collect(), // private

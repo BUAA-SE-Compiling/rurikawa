@@ -1,5 +1,7 @@
 using System;
 using System.Collections.Generic;
+using System.IO;
+using System.Linq;
 using System.Threading.Tasks;
 using Karenia.Rurikawa.Coordinator.Services;
 using Karenia.Rurikawa.Helpers;
@@ -9,6 +11,7 @@ using Karenia.Rurikawa.Models.Judger;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using NReco.Csv;
 using static Karenia.Rurikawa.Coordinator.Controllers.AccountController;
 
 namespace Karenia.Rurikawa.Coordinator.Controllers {
@@ -25,7 +28,7 @@ namespace Karenia.Rurikawa.Coordinator.Controllers {
         }
 
         [HttpGet]
-        [Route("suite/{id}/jobs")]
+        [Route("suite/{suiteId}/jobs")]
         public async Task<IList<Job>> GetJobsFromSuite(
             [FromRoute] FlowSnake suiteId,
             [FromQuery] FlowSnake startId = new FlowSnake(),
@@ -37,6 +40,82 @@ namespace Karenia.Rurikawa.Coordinator.Controllers {
                 take: take,
                 asc: asc,
                 bySuite: suiteId);
+        }
+
+        [HttpGet]
+        [Route("suite/{suiteId}/dump_jobs")]
+        public async Task<ActionResult> DumpSuiteJobs(
+            [FromRoute] FlowSnake suiteId,
+            [FromServices] RurikawaDb db) {
+            var suite = await dbService.GetTestSuite(suiteId);
+            if (suite == null) return NotFound();
+
+            var columns = suite.TestGroups
+                    .SelectMany(group => group.Value.Select(value => value.Name))
+                    .ToList();
+
+            var ptr = db.Jobs.FromSqlInterpolated($@"
+            select
+                distinct on (account)
+                *
+            from jobs
+            where test_suite = {suiteId.Num}
+            order by account, id desc
+            ").AsAsyncEnumerable();
+
+            Response.StatusCode = 200;
+            Response.ContentType = "application/csv";
+
+            const int flushInterval = 100;
+
+            // write to body of response
+            var sw = new StreamWriter(Response.Body);
+            var csvWriter = new CsvWriter(sw);
+            csvWriter.QuoteAllFields = true;
+
+            csvWriter.WriteField("id");
+            csvWriter.WriteField("account");
+            csvWriter.WriteField("repo");
+            csvWriter.WriteField("revision");
+            csvWriter.WriteField("stage");
+            csvWriter.WriteField("result_kind");
+            foreach (var col in columns) {
+                csvWriter.WriteField(col);
+            }
+            csvWriter.NextRecord();
+
+            int counter = 0;
+            await foreach (var val in ptr) {
+                if (counter % flushInterval == 0) {
+                    await sw.FlushAsync();
+                }
+                WriteJobInfo(csvWriter, val, columns);
+                counter++;
+            }
+            await sw.FlushAsync();
+            return new EmptyResult();
+        }
+
+        private void WriteJobInfo(CsvWriter csv, Job job, IList<string> columns) {
+            csv.WriteField(job.Id.ToString());
+            csv.WriteField(job.Account);
+            csv.WriteField(job.Repo);
+            csv.WriteField(job.Revision);
+            csv.WriteField(job.Stage.ToString());
+            csv.WriteField(job.ResultKind.ToString());
+
+            foreach (var column in columns) {
+                if (job.Results.TryGetValue(column, out var colResult)) {
+                    if (colResult.Kind == Models.Test.TestResultKind.Accepted) {
+                        csv.WriteField("1");
+                    } else {
+                        csv.WriteField("0");
+                    }
+                } else {
+                    csv.WriteField("0");
+                }
+            }
+            csv.NextRecord();
         }
 
         public class JudgerStat {

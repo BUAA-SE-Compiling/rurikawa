@@ -7,7 +7,8 @@ use crate::{
     config::{JudgeToml, JudgerPublicConfig},
     fs::{self, JUDGE_FILE_NAME},
     prelude::*,
-    tester::exec::JudgerPrivateConfig,
+    tester::model::JudgerPrivateConfig,
+    tester::model::TestSuiteOptions,
 };
 use anyhow::Result;
 use async_trait::async_trait;
@@ -294,8 +295,10 @@ pub async fn handle_job_wrapper(
     flag_new_job(send.clone(), cfg.clone()).await;
     let msg = match handle_job(job, send.clone(), cancel, cfg.clone()).await {
         Ok(_res) => ClientMsg::JobResult(_res),
-        Err(_err) => {
-            let (err, msg) = match _err {
+        Err(err) => {
+            tracing::warn!("job {} aborted because of error: {:?}", job_id, &err);
+
+            let (err, msg) = match err {
                 JobExecErr::NoSuchFile(f) => (
                     JobResultKind::CompileError,
                     format!("Cannot find file: {}", f),
@@ -436,7 +439,7 @@ pub async fn handle_job(
         mapped_test_root_dir: public_cfg.mapped_dir.to.clone(),
     };
 
-    let options = crate::tester::exec::TestSuiteOptions {
+    let options = TestSuiteOptions {
         tests: job.tests.clone(),
         time_limit: public_cfg.time_limit.map(|x| x as usize),
         mem_limit: public_cfg.memory_limit.map(|x| x as usize),

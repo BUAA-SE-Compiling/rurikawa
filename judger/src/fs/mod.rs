@@ -71,7 +71,10 @@ pub fn find_judge_root(path: &Path) -> BoxFuture<Result<PathBuf, std::io::Error>
                 }
             }
         }
-        Err(std::io::ErrorKind::NotFound.into())
+        Err(std::io::Error::new(
+            std::io::ErrorKind::NotFound,
+            "Cannot find any folder that contains `judge.toml`.",
+        ))
     }
     .boxed()
 }

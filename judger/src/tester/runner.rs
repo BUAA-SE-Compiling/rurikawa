@@ -1,4 +1,5 @@
-use super::exec::{BuildResultChannel, Image};
+use super::exec::BuildResultChannel;
+use super::model::*;
 use super::utils::convert_code;
 use super::{JobFailure, ProcessInfo};
 use crate::prelude::*;
