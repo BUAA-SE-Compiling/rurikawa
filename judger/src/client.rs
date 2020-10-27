@@ -295,8 +295,10 @@ pub async fn handle_job_wrapper(
     flag_new_job(send.clone(), cfg.clone()).await;
     let msg = match handle_job(job, send.clone(), cancel, cfg.clone()).await {
         Ok(_res) => ClientMsg::JobResult(_res),
-        Err(_err) => {
-            let (err, msg) = match _err {
+        Err(err) => {
+            tracing::warn!("job {} aborted because of error: {:?}", job_id, &err);
+
+            let (err, msg) = match err {
                 JobExecErr::NoSuchFile(f) => (
                     JobResultKind::CompileError,
                     format!("Cannot find file: {}", f),

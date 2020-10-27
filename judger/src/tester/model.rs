@@ -183,7 +183,7 @@ mod de {
     }
 
     #[derive(Deserialize)]
-    #[serde(field_identifier, rename_all = "lowercase")]
+    #[serde(field_identifier, rename_all = "camelCase")]
     enum TestCaseFields {
         Name,
         ShouldFail,

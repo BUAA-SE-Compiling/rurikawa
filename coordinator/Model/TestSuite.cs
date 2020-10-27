@@ -151,6 +151,7 @@ namespace Karenia.Rurikawa.Models.Test {
         PipelineFailed = 3,
         TimeLimitExceeded = 4,
         MemoryLimitExceeded = 5,
+        ShouldFail = 6,
         NotRunned = -1,
         Waiting = -2,
         Running = -3,
@@ -197,19 +198,21 @@ namespace Karenia.Rurikawa.Models.Test {
             private TestCaseDefinition DeserializeFromMap(
                 ref Utf8JsonReader reader,
                 JsonSerializerOptions options) {
-                string propName_name = options.PropertyNamingPolicy.ConvertName(nameof(TestCaseDefinition.Name));
-                string propName_hasOut = options.PropertyNamingPolicy.ConvertName(nameof(TestCaseDefinition.HasOut));
-                string propName_shouldFail = options.PropertyNamingPolicy.ConvertName(nameof(TestCaseDefinition.ShouldFail));
+                string propName_name = options.PropertyNamingPolicy?.ConvertName(nameof(TestCaseDefinition.Name)) ?? nameof(TestCaseDefinition.Name);
+                string propName_hasOut = options.PropertyNamingPolicy?.ConvertName(nameof(TestCaseDefinition.HasOut)) ?? nameof(TestCaseDefinition.HasOut);
+                string propName_shouldFail = options.PropertyNamingPolicy?.ConvertName(nameof(TestCaseDefinition.ShouldFail)) ?? nameof(TestCaseDefinition.ShouldFail);
 
                 string? name = null;
                 bool? hasOut = null;
                 bool? shouldFail = null;
 
-                while (reader.TokenType != JsonTokenType.EndObject) {
+                while (reader.Read()) {
+                    if (reader.TokenType == JsonTokenType.EndObject) break;
                     if (reader.TokenType != JsonTokenType.PropertyName) {
                         throw new JsonException("Expected Property Name");
                     }
                     var key = reader.GetString();
+                    if (!reader.Read()) throw new JsonException("Expected value");
                     if (key == propName_name) {
                         if (name != null)
                             throw new JsonException("Duplicate property 'name'");
@@ -223,7 +226,7 @@ namespace Karenia.Rurikawa.Models.Test {
                             throw new JsonException("Duplicate property 'shouldFail'");
                         shouldFail = reader.GetBoolean();
                     } else {
-                        throw new JsonException($"Unknown property {key}");
+                        throw new JsonException($"Unknown property '{key}'");
                     }
                 }
 
@@ -240,10 +243,14 @@ namespace Karenia.Rurikawa.Models.Test {
                 Utf8JsonWriter writer,
                 TestCaseDefinition value,
                 JsonSerializerOptions options) {
+                string propName_name = options.PropertyNamingPolicy?.ConvertName(nameof(TestCaseDefinition.Name)) ?? nameof(TestCaseDefinition.Name);
+                string propName_hasOut = options.PropertyNamingPolicy?.ConvertName(nameof(TestCaseDefinition.HasOut)) ?? nameof(TestCaseDefinition.HasOut);
+                string propName_shouldFail = options.PropertyNamingPolicy?.ConvertName(nameof(TestCaseDefinition.ShouldFail)) ?? nameof(TestCaseDefinition.ShouldFail);
+
                 writer.WriteStartObject();
-                writer.WriteString("name", value.Name);
-                writer.WriteBoolean("hasOut", value.HasOut);
-                writer.WriteBoolean("shouldFail", value.ShouldFail);
+                writer.WriteString(propName_name, value.Name);
+                writer.WriteBoolean(propName_hasOut, value.HasOut);
+                writer.WriteBoolean(propName_shouldFail, value.ShouldFail);
                 writer.WriteEndObject();
             }
         }

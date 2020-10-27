@@ -450,16 +450,18 @@ impl TestSuite {
                             })
                         })
                         .collect();
-                    let stdout_path = replacer.get("$stdout").ok_or_else(|| {
-                        io::Error::new(
-                            io::ErrorKind::NotFound,
-                            "Output verification failed, no `$stdout` in dictionary",
-                        )
-                    })?;
+
                     // ? QUESTION: Now I'm reading `$stdout` in host, but the source file, etc. are handled in containers.
                     // ? Is this desirable?
 
-                    let expected_out = if case.has_out {
+                    let expected_out = if case.has_out && !case.should_fail {
+                        let stdout_path = replacer.get("$stdout").ok_or_else(|| {
+                            io::Error::new(
+                                io::ErrorKind::NotFound,
+                                "Output verification failed, no `$stdout` in dictionary",
+                            )
+                        })?;
+
                         let mut expected_out = Vec::new();
                         let mut file = tokio::fs::File::open(stdout_path).await.map_err(|e| {
                             io::Error::new(
@@ -583,6 +585,7 @@ impl TestSuite {
                 ))
             });
             let mut t = Test::new();
+            t.should_fail = case.should_fail;
             case.exec.iter().for_each(|step| {
                 t.add_step(Step::new_with_timeout(
                     Capturable::new(sh![step]),
@@ -632,7 +635,7 @@ impl TestSuite {
 fn construct_case_index(pub_cfg: &JudgerPublicConfig) -> HashMap<String, &TestCaseDefinition> {
     let mut idx = HashMap::new();
 
-    for (group_name, group) in &pub_cfg.test_groups {
+    for group in pub_cfg.test_groups.values() {
         for test_case in group {
             idx.insert(test_case.name.clone(), test_case);
         }
