@@ -23,6 +23,8 @@ export function dashboardTypeToSlider(item: TestResultKind): SliderItemKind {
       return 'info';
     case 'RuntimeError':
       return 'warn';
+    case 'ShouldFail':
+      return 'error';
     case 'Waiting':
       return 'disable';
     default:
@@ -97,6 +99,7 @@ export type TestResultKind =
   | 'PipelineFailed'
   | 'TimeLimitExceeded'
   | 'MemoryLimitExceeded'
+  | 'ShouldFail'
   | 'NotRunned'
   | 'Waiting'
   | 'Running'

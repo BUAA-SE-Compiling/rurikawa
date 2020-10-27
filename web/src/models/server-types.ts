@@ -23,7 +23,13 @@ export interface TestSuite {
   isPublic: boolean;
   startTime: Date;
   endTime: Date;
-  testGroups: { [key: string]: string[] };
+  testGroups: { [key: string]: TestCaseDefinition[] };
+}
+
+export interface TestCaseDefinition {
+  name: string;
+  hasOut: boolean;
+  shouldFail: boolean;
 }
 
 export interface DashboardItem {
