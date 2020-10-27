@@ -39,7 +39,7 @@ export class JobTestItemComponent implements OnInit {
       case 'WrongAnswer':
         return 'WA';
       case 'ShouldFail':
-        return 'FE';
+        return 'SFE';
     }
   }
 
