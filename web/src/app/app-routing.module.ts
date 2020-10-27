@@ -17,6 +17,7 @@ import {
 import { AdminForbiddenPageComponent } from 'src/views/default/admin-forbidden-page/admin-forbidden-page.component';
 import { AboutPageComponent } from 'src/views/default/about-page/about-page.component';
 import { SettingsViewComponent } from 'src/views/default/settings-view/settings-view.component';
+import { JobTestcaseViewComponent } from 'src/views/default/job-testcase-view/job-testcase-view.component';
 
 const routes: Routes = [
   {
@@ -38,6 +39,11 @@ const routes: Routes = [
   {
     path: 'job/:id',
     component: JobViewComponent,
+    canActivate: [LoginGuard],
+  },
+  {
+    path: 'job/:id/case/:case',
+    component: JobTestcaseViewComponent,
     canActivate: [LoginGuard],
   },
   {

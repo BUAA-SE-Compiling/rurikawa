@@ -1,5 +1,6 @@
 pub mod config;
 pub mod model;
+pub mod sink;
 
 use crate::{
     client::model::JobResultKind,
@@ -22,56 +23,14 @@ use http::Method;
 use model::*;
 use serde::Serialize;
 use serde_json::from_slice;
+use sink::*;
 use std::{collections::HashMap, fmt::Debug, path::PathBuf, sync::atomic::Ordering, sync::Arc};
 use tokio::{net::TcpStream, sync::Mutex};
 use tokio_tungstenite::{connect_async, tungstenite, MaybeTlsStream, WebSocketStream};
 use tracing::{instrument, span};
 use tungstenite::Message;
 
-pub type WsDuplex = WebSocketStream<MaybeTlsStream<TcpStream>>;
-pub type WsSink = SplitSink<WsDuplex, Message>;
-pub type RawWsSink = SplitSink<WsDuplex, Message>;
-pub type WsStream = SplitStream<WsDuplex>;
-
-#[async_trait]
-pub trait SendJsonMessage<M>
-where
-    M: Serialize,
-{
-    type Error;
-    async fn send_msg(&mut self, msg: &M) -> Result<(), Self::Error>;
-    // async fn send_msg_all<'a, I>(&mut self, msgs: I) -> Result<(), Self::Error>
-    // where
-    //     I: Stream<Item = &'a M> + Unpin + Send + Sync,
-    //     M: 'a;
-}
-
-#[async_trait]
-impl<M, T> SendJsonMessage<M> for T
-where
-    T: Sink<Message> + Unpin + Send + Sync,
-    M: Serialize + Sync + Debug,
-{
-    type Error = T::Error;
-    async fn send_msg(&mut self, msg: &M) -> Result<(), Self::Error> {
-        tracing::info!("sent: {:?}", msg);
-        let serialized = serde_json::to_string(msg).unwrap();
-        let msg = Message::text(serialized);
-        self.send(msg).await
-    }
-
-    // async fn send_msg_all<'a, I>(&mut self, msgs: I) -> Result<(), Self::Error>
-    // where
-    //     I: Stream<Item = &'a M> + Unpin + Send + Sync,
-    //     M: 'a,
-    // {
-    //     self.send_all(&mut msgs.filter_map(|x| async {
-    //         let serialized = serde_json::to_string(x).ok()?;
-    //         Some(Message::text(serialized))
-    //     }))
-    //     .await
-    // }
-}
+// Arc<Mutex<WsSink>>==>>Arc<WsSink>
 
 #[derive(Debug, Error)]
 pub enum JobExecErr {
@@ -115,17 +74,14 @@ impl From<tungstenite::error::Error> for JobExecErr {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Error)]
 pub enum ClientConnectionErr {
-    Ws(tungstenite::Error),
+    #[error(display = "Websocket error: {}", _0)]
+    Ws(#[error(from)] tungstenite::Error),
+    #[error(display = "Bad access token")]
     BadAccessToken,
+    #[error(display = "Bad register token")]
     BadRegisterToken,
-}
-
-impl From<tungstenite::Error> for ClientConnectionErr {
-    fn from(x: tungstenite::Error) -> ClientConnectionErr {
-        ClientConnectionErr::Ws(x)
-    }
 }
 
 /// Try to register at the coordinator if no access token was specified.
@@ -185,7 +141,7 @@ pub async fn verify_self(cfg: &SharedClientData) -> anyhow::Result<bool> {
 
 pub async fn connect_to_coordinator(
     cfg: &SharedClientData,
-) -> Result<(WsSink, WsStream), ClientConnectionErr> {
+) -> Result<(RawWsSink, WsStream), ClientConnectionErr> {
     let endpoint = cfg.websocket_endpoint();
     let req = http::Request::builder().uri(&endpoint);
     tracing::info!("Connecting to {}", endpoint);
@@ -330,7 +286,7 @@ pub async fn check_download_read_test_suite(
 
 pub async fn handle_job_wrapper(
     job: NewJob,
-    send: Arc<Mutex<WsSink>>,
+    send: Arc<WsSink>,
     cancel: CancellationToken,
     cfg: Arc<SharedClientData>,
 ) {
@@ -401,7 +357,7 @@ pub async fn handle_job_wrapper(
 #[instrument(skip(send, cancel, cfg))]
 pub async fn handle_job(
     job: NewJob,
-    send: Arc<Mutex<WsSink>>,
+    send: Arc<WsSink>,
     cancel: CancellationToken,
     cfg: Arc<SharedClientData>,
 ) -> Result<JobResultMsg, JobExecErr> {
@@ -417,13 +373,11 @@ pub async fn handle_job(
     public_cfg.binds.get_or_insert_with(Vec::new);
     tracing::info!("got test suite");
 
-    send.lock()
-        .await
-        .send_msg(&ClientMsg::JobProgress(JobProgressMsg {
-            job_id: job.id,
-            stage: JobStage::Fetching,
-        }))
-        .await?;
+    send.send_msg(&ClientMsg::JobProgress(JobProgressMsg {
+        job_id: job.id,
+        stage: JobStage::Fetching,
+    }))
+    .await?;
 
     // Clone the repo specified in job
     let job_path = cfg.job_folder(job.id);
@@ -460,13 +414,11 @@ pub async fn handle_job(
 
     tracing::info!("prepare to run");
 
-    send.lock()
-        .await
-        .send_msg(&ClientMsg::JobProgress(JobProgressMsg {
-            job_id: job.id,
-            stage: JobStage::Running,
-        }))
-        .await?;
+    send.send_msg(&ClientMsg::JobProgress(JobProgressMsg {
+        job_id: job.id,
+        stage: JobStage::Running,
+    }))
+    .await?;
 
     // Set run script
     let run = judge_job_cfg
@@ -514,8 +466,6 @@ pub async fn handle_job(
                 tracing::info!("Job {}: recv message for key={}", job_id, key);
                 // Omit error; it doesn't matter
                 let _ = ws_send
-                    .lock()
-                    .await
                     .send_msg(&ClientMsg::PartialResult(PartialResultMsg {
                         job_id,
                         test_id: key,
@@ -536,8 +486,6 @@ pub async fn handle_job(
         async move {
             while let Some(res) = recv.next().await {
                 let _ = ws_send
-                    .lock()
-                    .await
                     .send_msg(&ClientMsg::JobOutput(JobOutputMsg {
                         job_id,
                         stream: res.stream,
@@ -586,14 +534,12 @@ pub async fn handle_job(
     Ok(job_result)
 }
 
-pub async fn flag_new_job(send: Arc<Mutex<WsSink>>, client_config: Arc<SharedClientData>) {
+pub async fn flag_new_job(send: Arc<WsSink>, client_config: Arc<SharedClientData>) {
     let job_count = client_config.new_job();
     let can_accept_new_task =
         client_config.running_tests.load(Ordering::SeqCst) < client_config.cfg.max_concurrent_tasks;
 
     let _ = send
-        .lock()
-        .await
         .send_msg(&ClientMsg::ClientStatus(ClientStatusMsg {
             active_task_count: job_count as i32,
             request_for_new_task: 0,
@@ -602,12 +548,10 @@ pub async fn flag_new_job(send: Arc<Mutex<WsSink>>, client_config: Arc<SharedCli
         .await;
 }
 
-pub async fn flag_finished_job(send: Arc<Mutex<WsSink>>, client_config: Arc<SharedClientData>) {
+pub async fn flag_finished_job(send: Arc<WsSink>, client_config: Arc<SharedClientData>) {
     let job_count = client_config.finish_job();
     let aborting = client_config.aborting.load(Ordering::SeqCst);
     let _ = send
-        .lock()
-        .await
         .send_msg(&ClientMsg::ClientStatus(ClientStatusMsg {
             active_task_count: job_count as i32,
             can_accept_new_task: !aborting,
@@ -616,11 +560,7 @@ pub async fn flag_finished_job(send: Arc<Mutex<WsSink>>, client_config: Arc<Shar
         .await;
 }
 
-pub async fn accept_job(
-    job: NewJob,
-    send: Arc<Mutex<WsSink>>,
-    client_config: Arc<SharedClientData>,
-) {
+pub async fn accept_job(job: NewJob, send: Arc<WsSink>, client_config: Arc<SharedClientData>) {
     tracing::info!("Received job {}", job.job.id);
     let job_id = job.job.id;
     let cancel_handle = client_config.cancel_handle.create_child();
@@ -661,9 +601,9 @@ async fn cancel_job(job_id: FlowSnake, client_config: Arc<SharedClientData>) {
 
 pub async fn client_loop(
     mut ws_recv: WsStream,
-    mut ws_send: WsSink,
+    ws_send: Arc<WsSink>,
     client_config: Arc<SharedClientData>,
-) -> Arc<Mutex<WsSink>> {
+) -> Arc<WsSink> {
     // Request for max_concurrent_tasks jobs
     ws_send
         .send_msg(&ClientMsg::ClientStatus(ClientStatusMsg {
@@ -674,7 +614,6 @@ pub async fn client_loop(
         .await
         .unwrap();
 
-    let ws_send = Arc::new(Mutex::new(ws_send));
     while let Some(Some(Ok(x))) = ws_recv
         .next()
         .with_cancel(client_config.cancel_handle.get_token())
@@ -712,6 +651,7 @@ pub async fn client_loop(
             tracing::warn!("Unsupported message: {:?}", x);
         }
     }
+    ws_send.clear_socket();
 
     tracing::warn!("Disconnected!");
     ws_send

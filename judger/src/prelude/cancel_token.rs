@@ -123,6 +123,8 @@ impl InnerCToken {
 
     pub fn new_with_parent(parent: Arc<InnerCToken>) -> Arc<Self> {
         let this = Arc::new(Self::new());
+        this.cancelled
+            .store(parent.cancelled.load(Ordering::SeqCst), Ordering::SeqCst);
         let child_id = parent.store_child(&this);
         let this_ptr = Arc::into_raw(this.clone());
         unsafe {

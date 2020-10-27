@@ -5,15 +5,15 @@ use once_cell::sync::OnceCell;
 use rurikawa_judger::{
     client::config::*,
     client::model::JobResultMsg,
-    client::{client_loop, connect_to_coordinator, try_register, verify_self},
+    client::{client_loop, connect_to_coordinator, sink::WsSink, try_register, verify_self},
     prelude::CancellationTokenHandle,
 };
-use std::sync::Arc;
 use std::{
     collections::HashMap,
     sync::atomic::{AtomicBool, Ordering},
 };
 use std::{path::Path, process::exit};
+use std::{sync::Arc, time::Duration};
 use tracing_subscriber::FmtSubscriber;
 
 mod opt;
@@ -149,18 +149,31 @@ async fn client(cmd: opt::ConnectSubCmd) {
     let handle = client_config.cancel_handle.clone();
     ABORT_HANDLE.set(handle).unwrap();
 
-    let sink = loop {
+    const START_WAIT_TIME: Duration = Duration::from_millis(250);
+    const MAX_WAIT_TIME: Duration = Duration::from_secs(256);
+    let mut wait_time = START_WAIT_TIME;
+
+    let client_sink = Arc::new(WsSink::new());
+
+    loop {
         let (sink, stream) = match connect_to_coordinator(&client_config).await {
             Ok(e) => e,
             Err(e) => {
+                // Exponential wait time
+                tracing::warn!("Failed to connect: {}", e);
+                tokio::time::delay_for(wait_time).await;
+                wait_time = std::cmp::min(wait_time.mul_f64(1.6), MAX_WAIT_TIME);
                 continue;
             }
         };
-        let sink = client_loop(stream, sink, client_config.clone()).await;
+        wait_time = START_WAIT_TIME;
+        client_sink.load_socket(sink);
+
+        client_loop(stream, client_sink.clone(), client_config.clone()).await;
         if client_config.cancel_handle.is_cancelled() {
-            break sink;
+            break;
         }
-    };
+    }
 
     tracing::warn!("Stopping jobs!");
 
@@ -172,8 +185,7 @@ async fn client(cmd: opt::ConnectSubCmd) {
     drop(running_guard);
 
     {
-        let mut sink = sink.lock().await;
-        let res = sink
+        let res = client_sink
             .send_all(&mut futures::stream::iter(
                 cancelling
                     .iter()

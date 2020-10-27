@@ -1,16 +1,18 @@
 # Rurikawa
 
+![Rurikawa Header pic](res/header-pic.png)
+
 Rurikawa is a simple Docker-based build & judge system for complex multi-file projects.
 
 Rurikawa 是一个简易的自动评测系统，主要面向多文件项目和较为复杂的构建、评测步骤。
 
-# 运行
+## 运行
 
 - 阅读 `dev.docker-compose.yml` 并进行相应修改
 
 - `docker-compose -f dev.docker-compose.yml up`
 
-## Coordinator
+### Coordinator
 
 运行（或购买相关服务）：
 
@@ -49,7 +51,7 @@ Rurikawa 是一个简易的自动评测系统，主要面向多文件项目和�
 $ dotnet run
 ```
 
-## Judger
+### Judger
 
 构建。
 

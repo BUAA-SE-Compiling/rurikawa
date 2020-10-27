@@ -16,11 +16,14 @@ export class SettingsViewComponent implements OnInit {
     private httpClient: HttpClient,
     private accountService: AccountService
   ) {}
+  password = { old: '', new: '' };
+  passwordMessage = undefined;
 
   profile: Profile | undefined = undefined;
 
   loading = false;
   sending = false;
+  profileMessage = undefined;
 
   initProfile() {
     return this.httpClient.post(
@@ -65,10 +68,15 @@ export class SettingsViewComponent implements OnInit {
   }
 
   updateProfile() {
-    if (this.profile === undefined || this.sending) {
+    if (this.sending) {
+      return;
+    }
+    if (this.profile === undefined) {
+      this.profileMessage = '你没填信息';
       return;
     }
     this.sending = true;
+    this.profileMessage = undefined;
     this.httpClient
       .put(
         environment.endpointBase() +
@@ -81,7 +89,45 @@ export class SettingsViewComponent implements OnInit {
         },
         error: (e) => {
           this.sending = false;
-          console.error(e);
+          if (e instanceof HttpErrorResponse) {
+            this.profileMessage = e.message;
+          }
+        },
+      });
+  }
+
+  updatePassword() {
+    if (this.sending) {
+      return;
+    }
+    if (this.password.old === '' || this.password.new === '') {
+      this.passwordMessage = '你没填密码';
+      return;
+    }
+    this.sending = true;
+    this.passwordMessage = undefined;
+    this.httpClient
+      .put(environment.endpointBase() + endpoints.account.editPassword, {
+        original: this.password.old,
+        new: this.password.new,
+      })
+      .subscribe({
+        next: () => {
+          this.sending = false;
+        },
+        error: (e) => {
+          this.sending = false;
+          if (e instanceof HttpErrorResponse) {
+            if (e.status === 404) {
+              this.passwordMessage = '找不到用户';
+            } else if (e.status === 400) {
+              this.passwordMessage = '密码错误';
+            } else {
+              this.passwordMessage = e.message;
+            }
+          } else {
+            console.error(e);
+          }
         },
       });
   }

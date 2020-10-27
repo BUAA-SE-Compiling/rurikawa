@@ -17,6 +17,8 @@
   --pal-info-color: #80AAC8
   --pal-warning-color: #E9C133
   --pal-success-color: #2CD296
+  --pal-diff-plus-bg: #2CD29644
+  --pal-diff-minus-bg: #E74C5E44
 }
 
 .inverted-palette {
@@ -34,6 +36,8 @@
   --pal-info-color: #80AAC8
   --pal-warning-color: #E9C133
   --pal-success-color: #2CD296
+  --pal-diff-plus-bg: #2CD29644
+  --pal-diff-minus-bg: #E74C5E44
 }
 
 .default-theme {
@@ -55,6 +59,8 @@
   --info-color: var(--pal-accent-dull)
   --gray-color: var(--pal-base-02)
   --disabled-color: var(--pal-base-01)
+  --diff-plus-bg: var(--pal-diff-plus-bg)
+  --diff-minus-bg: var(--pal-diff-minus-bg)
   --inverted-highlight-color: #fff2
   --normal-highlight-color: #0003
   --btn-round-corner: 2px
@@ -234,6 +240,10 @@ p {
 pre,
 code {
   font-family: var(--font-family-mono)
+}
+
+pre {
+  white-space: pre-wrap
 }
 
 a {
