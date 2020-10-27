@@ -192,6 +192,17 @@ namespace Karenia.Rurikawa.Coordinator.Controllers {
             return Ok(original);
         }
 
+        [HttpDelete("{suiteId}")]
+        [Authorize("admin")]
+        public async Task<ActionResult> DeleteTestSuite([FromRoute] FlowSnake suiteId) {
+            if (!await db.TestSuites.Where(suite => suite.Id == suiteId).AnyAsync()) {
+                return NotFound();
+            }
+            await db.Jobs.Where(job => job.TestSuite == suiteId).DeleteFromQueryAsync();
+            await db.TestSuites.Where(suite => suite.Id == suiteId).DeleteFromQueryAsync();
+            return NoContent();
+        }
+
         /// <summary>
         /// Accepts an uploaded file as a test suite archive, parse the test 
         /// spec inside this archive, saves this test suite spec into database,
@@ -223,6 +234,8 @@ namespace Karenia.Rurikawa.Coordinator.Controllers {
                 testSuite.Id = id;
             } catch (EndOfStreamException e) {
                 return BadRequest(e.Message);
+            } catch (JsonException e) {
+                return BadRequest(e.ToString());
             }
             logger.LogInformation("End uploading");
             await db.TestSuites.AddAsync(testSuite);
@@ -245,10 +258,12 @@ namespace Karenia.Rurikawa.Coordinator.Controllers {
             using (var split2 = baseStream.GetForwardReadOnlyStream()) {
                 logger.LogInformation("Splitting streams");
                 await baseStream.StartReadAhead();
+
                 var res = await Task.WhenAll(
                     UploadTestSuiteWrapped(split1, filename, len),
                     Task.Run(() => ParseTestSuiteWrapped(split2, id))
                 );
+
                 logger.LogInformation("Finished");
                 var addr = (string)res[0];
                 var suite = (TestSuite)res[1];
@@ -302,8 +317,8 @@ namespace Karenia.Rurikawa.Coordinator.Controllers {
                 }
             }
             if (suite == null) {
-                logger.LogInformation("Parse failed");
-                throw new EndOfStreamException("No test suite were found after reading the whole package!");
+                logger.LogInformation("Cannot find test configuration");
+                throw new EndOfStreamException("Cannot find test configuration");
             }
             suite.Description = desc;
             logger.LogInformation("Parse succeeded");

@@ -12,9 +12,9 @@ set test_groups = (
     ) from (
         -- map $name => {name: $name, has_out: true, should_fail: false}
         select key, json_agg((select jsonb_build_object (
-                'name', val,
-                'hasOut', true,
-                'shouldFail', false
+                'Name', val,
+                'HasOut', true,
+                'ShouldFail', false
             ))) as value
         from (
             select 
@@ -37,7 +37,7 @@ set test_groups = (
 		value
 	) from (
         -- map {name: $name, ..} => $name
-		select key, json_agg(val->'name') as value
+		select key, json_agg(val->'Name') as value
 		from (
 			select 
 				key, 
