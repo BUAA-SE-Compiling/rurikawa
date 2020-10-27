@@ -56,11 +56,11 @@ namespace Karenia.Rurikawa.Coordinator.Controllers {
 
             var ptr = db.Jobs.FromSqlInterpolated($@"
             select
-                distinct on (username)
+                distinct on (account)
                 *
             from jobs
-            where test_suite = {suiteId}
-            order by username, id desc
+            where test_suite = {suiteId.Num}
+            order by account, id desc
             ").AsAsyncEnumerable();
 
             Response.StatusCode = 200;
@@ -71,6 +71,7 @@ namespace Karenia.Rurikawa.Coordinator.Controllers {
             // write to body of response
             var sw = new StreamWriter(Response.Body);
             var csvWriter = new CsvWriter(sw);
+            csvWriter.QuoteAllFields = true;
 
             csvWriter.WriteField("id");
             csvWriter.WriteField("account");
@@ -81,6 +82,7 @@ namespace Karenia.Rurikawa.Coordinator.Controllers {
             foreach (var col in columns) {
                 csvWriter.WriteField(col);
             }
+            csvWriter.NextRecord();
 
             int counter = 0;
             await foreach (var val in ptr) {
@@ -113,6 +115,7 @@ namespace Karenia.Rurikawa.Coordinator.Controllers {
                     csv.WriteField("0");
                 }
             }
+            csv.NextRecord();
         }
 
         public class JudgerStat {
