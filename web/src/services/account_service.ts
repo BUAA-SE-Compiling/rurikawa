@@ -226,7 +226,6 @@ export class LoginInformationInterceptor implements HttpInterceptor {
     req: HttpRequest<any>,
     next: HttpHandler
   ): Observable<HttpEvent<any>> {
-    console.error(req.url);
     if (
       req.headers.get('bypass-login') !== null ||
       !req.url.startsWith(environment.endpointBase())

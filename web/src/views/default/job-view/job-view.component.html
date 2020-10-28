@@ -59,11 +59,12 @@
     *ngIf="job?.buildOutputFile"
     [initialState]="true"
     (loadContents)="fetchOutputIfNotExist()"
-    title="编译器输出"
   >
-    <h3 *ngIf="this.outputMessage?.error">error</h3>
-    <pre *ngIf="this.outputMessage?.error">{{ jobErrorMessage }}</pre>
-    <h3>stdout</h3>
-    <pre>{{ jobOutputMessage }}</pre>
+    <h2 title>编译器输出</h2>
+
+    <h3 body *ngIf="this.outputMessage?.error">error</h3>
+    <pre body *ngIf="this.outputMessage?.error">{{ jobErrorMessage }}</pre>
+    <h3 body>stdout</h3>
+    <pre body>{{ jobOutputMessage }}</pre>
   </app-collapse-box>
 </div>
