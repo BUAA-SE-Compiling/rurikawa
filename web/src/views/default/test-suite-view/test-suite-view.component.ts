@@ -138,9 +138,26 @@ export class TestSuiteViewComponent implements OnInit, OnDestroy {
     if (this.suite === undefined) {
       return;
     }
-    // tslint:disable-next-line: forin
-    for (let key in this.suite.testGroups) {
-      this.usingTestGroup.add(key);
+    if (this.jobs.length === 0) {
+      // tslint:disable-next-line: forin
+      for (let key in this.suite.testGroups) {
+        this.usingTestGroup.add(key);
+      }
+    } else {
+      let groupMap = new Map<string, string>();
+      // tslint:disable-next-line: forin
+      for (let key in this.suite.testGroups) {
+        for (let test of this.suite.testGroups[key]) {
+          groupMap.set(test.name, key);
+        }
+      }
+      let lastJob = this.jobs[0];
+      for (let test of lastJob.tests) {
+        const group = groupMap.get(test);
+        if (group !== undefined) {
+          this.usingTestGroup.add(group);
+        }
+      }
     }
   }
 
@@ -160,6 +177,7 @@ export class TestSuiteViewComponent implements OnInit, OnDestroy {
           this.suite = suite;
           this.testGroups = this.getTestGroups();
           this.determineLastTestGroup();
+
           this.title.setTitle(`${suite.title} - Rurikawa`, 'test-suite');
         },
         error: (e) => {
@@ -175,6 +193,7 @@ export class TestSuiteViewComponent implements OnInit, OnDestroy {
         if (this.jobs.length > 0) {
           this.descCollapsed = true;
         }
+        this.determineLastTestGroup();
       },
     });
   }
