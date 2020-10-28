@@ -97,7 +97,11 @@
   padding-y: var(--space-2)
   padding-x: var(--space-4)
   background: var(--accent-color)
+  border-color: var(--accent-color)
   color: var(--accent-primary)
+  border-radius: var(--btn-round-corner)
+  border-style: solid
+  border-width: 2px
   border-radius: var(--btn-round-corner)
   width: auto
   font-weight: 500
@@ -105,12 +109,15 @@
   flex-direction: row
   align-items: center
   justify-content: center
+  box-sizing: border-box
 
   &:hover {
+    border-color: var(--accent-alt)
     background-color: var(--accent-alt)
   }
 
   &.disabled {
+    border-color: var(--secondary-color)
     background-color: var(--secondary-color)
   }
 }
@@ -130,6 +137,7 @@
   align-items: center
   justify-content: center
   font-weight: 500
+  box-sizing: border-box
 
   &:hover {
     color: var(--accent-alt)
@@ -272,6 +280,7 @@ h3 {
 h4,
 h5,
 h6 {
+  margin-top: calc(((var(--space-1) + var(--space-0)) / 2))
   margin-bottom: var(--space-0)
 }
 
