@@ -38,7 +38,7 @@
             [(value)]="branch"
           ></textbox>
         </div>
-        <div class="section" *ngIf="testGroups.length > 1">
+        <div class="section" *ngIf="testGroups?.length > 1">
           <h3>参与的测试组</h3>
           <div class="row">
             <div class="group" *ngFor="let group of testGroups">

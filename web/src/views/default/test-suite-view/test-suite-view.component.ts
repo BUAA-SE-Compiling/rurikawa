@@ -138,7 +138,7 @@ export class TestSuiteViewComponent implements OnInit, OnDestroy {
     if (this.suite === undefined) {
       return;
     }
-    if (this.jobs.length === 0) {
+    if (this.jobs === undefined || this.jobs.length === 0) {
       // tslint:disable-next-line: forin
       for (let key in this.suite.testGroups) {
         this.usingTestGroup.add(key);
