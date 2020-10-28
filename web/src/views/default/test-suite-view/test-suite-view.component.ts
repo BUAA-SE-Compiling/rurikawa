@@ -28,6 +28,7 @@ import {
 import { tap } from 'rxjs/operators';
 import { TestSuiteAndJobCache } from 'src/services/test_suite_cacher';
 import { Subscription } from 'rxjs';
+import { TitleService } from 'src/services/title_service';
 
 @Component({
   selector: 'app-test-suite-view',
@@ -48,12 +49,13 @@ import { Subscription } from 'rxjs';
     ]),
   ],
 })
-export class TestSuiteViewComponent implements OnInit {
+export class TestSuiteViewComponent implements OnInit, OnDestroy {
   constructor(
     private route: ActivatedRoute,
     private httpClient: HttpClient,
     private service: TestSuiteAndJobCache,
-    private router: Router
+    private router: Router,
+    private title: TitleService
   ) {}
 
   readonly repoIcon = RepoIcon;
@@ -119,6 +121,7 @@ export class TestSuiteViewComponent implements OnInit {
       .subscribe({
         next: (suite) => {
           this.suite = suite;
+          this.title.setTitle(`${suite.title} - Rurikawa`, 'test-suite');
         },
         error: (e) => {
           if (e instanceof HttpErrorResponse) {
@@ -237,7 +240,12 @@ export class TestSuiteViewComponent implements OnInit {
       next: (map) => {
         this.id = map.get('id');
         this.fetchTestSuite(this.id);
+        this.title.setTitle(`${this.id} - Test Suite - Rurikawa`, 'test-suite');
       },
     });
+  }
+
+  ngOnDestroy() {
+    this.title.revertTitle('test-suite');
   }
 }

@@ -1,4 +1,4 @@
-import { Component, OnInit } from '@angular/core';
+import { Component, OnInit, OnDestroy } from '@angular/core';
 import { ActivatedRoute, Router } from '@angular/router';
 import { HttpClient } from '@angular/common/http';
 import { TestSuiteAndJobCache } from 'src/services/test_suite_cacher';
@@ -13,18 +13,21 @@ import { endpoints } from 'src/environments/endpoints';
 
 import JobIcon from '@iconify/icons-carbon/list-checked';
 import ReportIcon from '@iconify/icons-carbon/report';
+import { Title } from '@angular/platform-browser';
+import { TitleService } from 'src/services/title_service';
 
 @Component({
   selector: 'app-job-testcase-view',
   templateUrl: './job-testcase-view.component.html',
   styleUrls: ['./job-testcase-view.component.styl'],
 })
-export class JobTestcaseViewComponent implements OnInit {
+export class JobTestcaseViewComponent implements OnInit, OnDestroy {
   constructor(
     private route: ActivatedRoute,
     private router: Router,
     private cleanHttpClient: HttpClient,
-    private service: TestSuiteAndJobCache
+    private service: TestSuiteAndJobCache,
+    private title: TitleService
   ) {}
 
   jobIcon = JobIcon;
@@ -93,7 +96,15 @@ export class JobTestcaseViewComponent implements OnInit {
         this.jobId = x.get('id');
         this.testCaseKey = x.get('case');
         this.fetchTestCase();
+        this.title.setTitle(
+          `${this.testCaseKey}: Job ${this.jobId} - Rurikawa`,
+          'job-case'
+        );
       },
     });
+  }
+
+  ngOnDestroy(): void {
+    this.title.revertTitle('job-case');
   }
 }
