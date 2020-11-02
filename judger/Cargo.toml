@@ -2,7 +2,7 @@
 authors = ["Rynco Maekawa <lynzrand@outlook.com>", "Rami3L Li <rami3l@>"]
 edition = "2018"
 name = "rurikawa-judger"
-version = "0.2.0-beta.3"
+version = "0.2.0-beta.4"
 
 [[bin]]
 name = "rurikawa"
