@@ -417,13 +417,10 @@ impl TestSuite {
         let mut test_cases = futures::stream::iter(options.tests.clone().drain(..))
             .map(|name| {
                 let public_cfg = &public_cfg;
-                let mut test_root = test_root.clone();
-                let mut container_test_root = container_test_root.clone();
+                let test_root = &test_root;
+                let container_test_root = &container_test_root;
                 let case = index.get(&name).unwrap();
                 async move {
-                    test_root.push(&name);
-                    container_test_root.push(&name);
-
                     let replacer: HashMap<String, _> = public_cfg
                         .vars
                         .iter()
@@ -436,7 +433,7 @@ impl TestSuite {
                                     "$stdout" => test_root.clone(),
                                     _ => container_test_root.clone(),
                                 };
-                                p.set_extension(ext);
+                                p.push(format!("{}.{}", name, ext));
                                 p.to_slash_lossy()
                             })
                         })

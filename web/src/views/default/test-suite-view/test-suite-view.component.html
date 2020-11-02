@@ -38,6 +38,19 @@
             [(value)]="branch"
           ></textbox>
         </div>
+        <div class="section" *ngIf="testGroups?.length > 1">
+          <h3>参与的测试组</h3>
+          <div class="row">
+            <div class="group" *ngFor="let group of testGroups">
+              <app-toggle-button
+                [active]="usingTestGroup.has(group.key)"
+                (activeChanged)="changeGroupActivation(group.key, $event)"
+              >
+                {{ group.key }}
+              </app-toggle-button>
+            </div>
+          </div>
+        </div>
         <div class="row submit-btn-row text">
           <!-- <div class="ghost-btn">添加 Webhook</div> -->
           <div
@@ -53,8 +66,9 @@
         id="section"
         *ngIf="suite?.description !== undefined && jobs !== undefined"
       >
-        <app-collapse-box title="测试描述" [initialState]="descCollapsed">
-          <div class="markdown-wrapper">
+        <app-collapse-box [initialState]="descCollapsed">
+          <h2 title>测试描述</h2>
+          <div body class="markdown-wrapper">
             <markdown [data]="suite?.description"></markdown>
           </div>
         </app-collapse-box>
