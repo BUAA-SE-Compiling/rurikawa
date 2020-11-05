@@ -152,7 +152,7 @@ Dockerfile:
 ```dockerfile
 FROM gcc:10
 WORKDIR /app/
-COPY ./* ./
+COPY <你的代码文件> ./
 RUN gcc my-program.c -o program
 RUN chmod +x program
 ```
@@ -178,7 +178,7 @@ FROM alpine:3
 # RUN sed -i 's/dl-cdn.alpinelinux.org/mirrors.tuna.tsinghua.edu.cn/g' /etc/apk/repositories
 RUN apk add cmake gcc g++ libgcc build-base make --no-cache
 WORKDIR /app/
-COPY ./* ./
+COPY <你的代码文件> ./
 WORKDIR /app/build
 RUN cmake ..
 RUN make -j4
@@ -205,7 +205,7 @@ Dockerfile:
 # 换成你自己的版本
 FROM openjdk:12
 WORKDIR /app/
-COPY ./* ./
+COPY <源代码> ./
 RUN javac program.java
 ```
 
@@ -233,7 +233,7 @@ https://github.com/docker/labs/tree/master/developer-tools/java
 # 换成你自己的版本
 FROM python:3
 WORKDIR /app/
-COPY ./* ./
+COPY <源代码> ./
 ```
 
 judge.toml
