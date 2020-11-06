@@ -59,17 +59,19 @@ namespace Karenia.Rurikawa.Coordinator.Controllers {
                 distinct on (account)
                 *
             from jobs
-            where test_suite = {suiteId.Num}
             order by account, id desc
-            ").AsAsyncEnumerable();
+            ").Where((job) => job.TestSuite == suiteId)
+            .AsAsyncEnumerable();
 
-            Response.StatusCode = 200;
+            const int flushInterval = 50;
+
             Response.ContentType = "application/csv";
-
-            const int flushInterval = 100;
+            Response.StatusCode = 200;
+            await Response.StartAsync();
 
             // write to body of response
-            var sw = new StreamWriter(Response.Body);
+            using var sw = new StreamWriter(Response.Body);
+            await using var swGuard = sw.ConfigureAwait(false);
             var csvWriter = new CsvWriter(sw);
             csvWriter.QuoteAllFields = true;
 
@@ -93,6 +95,7 @@ namespace Karenia.Rurikawa.Coordinator.Controllers {
                 counter++;
             }
             await sw.FlushAsync();
+
             return new EmptyResult();
         }
 
