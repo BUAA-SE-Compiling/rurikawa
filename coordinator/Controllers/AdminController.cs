@@ -71,7 +71,7 @@ namespace Karenia.Rurikawa.Coordinator.Controllers {
 
             await Task.Run(async () => {
                 // write to body of response
-                using var sw = new StreamWriter(Response.Body);
+                using var sw = new StreamWriter(new StreamAsyncAdaptor(Response.Body));
                 await using var swGuard = sw.ConfigureAwait(false);
                 var csvWriter = new CsvWriter(sw);
                 csvWriter.QuoteAllFields = true;
