@@ -69,33 +69,34 @@ namespace Karenia.Rurikawa.Coordinator.Controllers {
             Response.StatusCode = 200;
             await Response.StartAsync();
 
-            // write to body of response
-            using var sw = new StreamWriter(Response.Body);
-            await using var swGuard = sw.ConfigureAwait(false);
-            var csvWriter = new CsvWriter(sw);
-            csvWriter.QuoteAllFields = true;
+            await Task.Run(async () => {
+                // write to body of response
+                using var sw = new StreamWriter(new StreamAsyncAdaptor(Response.Body));
+                await using var swGuard = sw.ConfigureAwait(false);
+                var csvWriter = new CsvWriter(sw);
+                csvWriter.QuoteAllFields = true;
 
-            csvWriter.WriteField("id");
-            csvWriter.WriteField("account");
-            csvWriter.WriteField("repo");
-            csvWriter.WriteField("revision");
-            csvWriter.WriteField("stage");
-            csvWriter.WriteField("result_kind");
-            foreach (var col in columns) {
-                csvWriter.WriteField(col);
-            }
-            csvWriter.NextRecord();
-
-            int counter = 0;
-            await foreach (var val in ptr) {
-                if (counter % flushInterval == 0) {
-                    await sw.FlushAsync();
+                csvWriter.WriteField("id");
+                csvWriter.WriteField("account");
+                csvWriter.WriteField("repo");
+                csvWriter.WriteField("revision");
+                csvWriter.WriteField("stage");
+                csvWriter.WriteField("result_kind");
+                foreach (var col in columns) {
+                    csvWriter.WriteField(col);
                 }
-                WriteJobInfo(csvWriter, val, columns);
-                counter++;
-            }
-            await sw.FlushAsync();
+                csvWriter.NextRecord();
 
+                int counter = 0;
+                await foreach (var val in ptr) {
+                    if (counter % flushInterval == 0) {
+                        await sw.FlushAsync();
+                    }
+                    WriteJobInfo(csvWriter, val, columns);
+                    counter++;
+                }
+                await sw.FlushAsync();
+            });
             return new EmptyResult();
         }
 
