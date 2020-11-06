@@ -25,7 +25,7 @@ namespace Karenia.Rurikawa.Helpers {
         public Stream Underlying { get; }
 
         public override void Flush() {
-            Task.Run(() => FlushAsync(CancellationToken.None)).RunSynchronously();
+            Task.Run(() => FlushAsync(CancellationToken.None)).GetAwaiter().GetResult();
         }
 
         public override Task FlushAsync(CancellationToken cancellationToken) {
@@ -53,7 +53,7 @@ namespace Karenia.Rurikawa.Helpers {
         }
 
         public override void Write(byte[] buffer, int offset, int count) {
-            Task.Run(() => Underlying.WriteAsync(buffer, offset, count)).RunSynchronously();
+            Task.Run(() => Underlying.WriteAsync(buffer, offset, count)).GetAwaiter().GetResult();
         }
 
         public override ValueTask WriteAsync(ReadOnlyMemory<byte> buffer, CancellationToken cancellationToken = default) {
