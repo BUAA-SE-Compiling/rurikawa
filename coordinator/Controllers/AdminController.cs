@@ -60,6 +60,7 @@ namespace Karenia.Rurikawa.Coordinator.Controllers {
                     csvWriter.WriteField(val.Username);
                     csvWriter.WriteField(val.StudentId);
                     csvWriter.WriteField(val.Email);
+                    csvWriter.NextRecord();
 
                     counter++;
                 }
