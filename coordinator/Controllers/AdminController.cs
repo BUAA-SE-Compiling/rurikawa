@@ -28,6 +28,48 @@ namespace Karenia.Rurikawa.Coordinator.Controllers {
         }
 
         [HttpGet]
+        [Route("profile/dump")]
+        public async Task<ActionResult> DumpProfiles([FromServices] RurikawaDb db) {
+            var ptr = db.Profiles.AsAsyncEnumerable();
+
+            Response.ContentType = "application/csv";
+            Response.StatusCode = 200;
+            await Response.StartAsync();
+
+            int flushInterval = 50;
+
+            await Task.Run(async () => {
+                // write to body of response
+                using var sw = new StreamWriter(new StreamAsyncAdaptor(Response.Body));
+                await using var swGuard = sw.ConfigureAwait(false);
+                var csvWriter = new CsvWriter(sw);
+                csvWriter.QuoteAllFields = true;
+
+                csvWriter.WriteField("username");
+                csvWriter.WriteField("studentId");
+                csvWriter.WriteField("email");
+
+                csvWriter.NextRecord();
+
+                int counter = 0;
+                await foreach (var val in ptr) {
+                    if (counter % flushInterval == 0) {
+                        await sw.FlushAsync();
+                    }
+
+                    csvWriter.WriteField(val.Username);
+                    csvWriter.WriteField(val.StudentId);
+                    csvWriter.WriteField(val.Email);
+
+                    counter++;
+                }
+                await sw.FlushAsync();
+            });
+
+            return new EmptyResult();
+        }
+
+        [HttpGet]
         [Route("suite/{suiteId}/jobs")]
         public async Task<IList<Job>> GetJobsFromSuite(
             [FromRoute] FlowSnake suiteId,
@@ -40,6 +82,18 @@ namespace Karenia.Rurikawa.Coordinator.Controllers {
                 take: take,
                 asc: asc,
                 bySuite: suiteId);
+        }
+
+        [HttpGet]
+        [Route("suite/{suiteId}/est_dump_jobs")]
+        public async Task<ActionResult> EstimateDumpSuiteJobDumpCount(
+            [FromRoute] FlowSnake suiteId,
+            [FromServices] RurikawaDb db) {
+            var res = await db.Jobs.Where(x => x.TestSuite == suiteId)
+                .Select(x => x.Account)
+                .Distinct()
+                .CountAsync();
+            return Ok(res);
         }
 
         [HttpGet]
@@ -68,7 +122,36 @@ namespace Karenia.Rurikawa.Coordinator.Controllers {
             Response.ContentType = "application/csv";
             Response.StatusCode = 200;
             await Response.StartAsync();
+            await WriteJobResults(columns, ptr, flushInterval);
+            return new EmptyResult();
+        }
 
+        [HttpGet]
+        [Route("suite/{suiteId}/dump_all_jobs")]
+        public async Task<ActionResult> DumpSuiteAllJobs(
+            [FromRoute] FlowSnake suiteId,
+            [FromServices] RurikawaDb db) {
+            var suite = await dbService.GetTestSuite(suiteId);
+            if (suite == null) return NotFound();
+
+            var columns = suite.TestGroups
+                    .SelectMany(group => group.Value.Select(value => value.Name))
+                    .ToList();
+
+            var ptr = db.Jobs
+                .Where((job) => job.TestSuite == suiteId)
+                .AsAsyncEnumerable();
+
+            const int flushInterval = 50;
+
+            Response.ContentType = "application/csv";
+            Response.StatusCode = 200;
+            await Response.StartAsync();
+            await WriteJobResults(columns, ptr, flushInterval);
+            return new EmptyResult();
+        }
+
+        private async Task WriteJobResults(List<string> columns, IAsyncEnumerable<Job> ptr, int flushInterval) {
             await Task.Run(async () => {
                 // write to body of response
                 using var sw = new StreamWriter(new StreamAsyncAdaptor(Response.Body));
@@ -97,7 +180,6 @@ namespace Karenia.Rurikawa.Coordinator.Controllers {
                 }
                 await sw.FlushAsync();
             });
-            return new EmptyResult();
         }
 
         private void WriteJobInfo(CsvWriter csv, Job job, IList<string> columns) {
