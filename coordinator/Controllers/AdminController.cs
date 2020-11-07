@@ -77,7 +77,6 @@ namespace Karenia.Rurikawa.Coordinator.Controllers {
             [FromQuery] FlowSnake startId = new FlowSnake(),
             [FromQuery] int take = 20,
             [FromQuery] bool asc = false) {
-            var username = AuthHelper.ExtractUsername(HttpContext.User);
             return await dbService.GetJobs(
                 startId: startId,
                 take: take,
@@ -90,10 +89,15 @@ namespace Karenia.Rurikawa.Coordinator.Controllers {
         public async Task<ActionResult> EstimateDumpSuiteJobDumpCount(
             [FromRoute] FlowSnake suiteId,
             [FromServices] RurikawaDb db) {
-            var res = await db.Jobs.Where(x => x.TestSuite == suiteId)
-                .Select(x => x.Account)
-                .Distinct()
+            var res = await db.Jobs.FromSqlInterpolated($@"
+                select
+                    distinct on (account)
+                    *
+                from jobs
+                order by account, id desc
+                ").Where((job) => job.TestSuite == suiteId)
                 .CountAsync();
+
             return Ok(res);
         }
 
@@ -109,13 +113,21 @@ namespace Karenia.Rurikawa.Coordinator.Controllers {
                     .SelectMany(group => group.Value.Select(value => value.Name))
                     .ToList();
 
+            var suiteIdNum = suiteId.Num;
             var ptr = db.Jobs.FromSqlInterpolated($@"
             select
                 distinct on (account)
                 *
             from jobs
+            where test_suite = {suiteIdNum}
             order by account, id desc
-            ").Where((job) => job.TestSuite == suiteId)
+            ")
+            .Join(
+                db.Profiles,
+                (job) => job.Account,
+                (profile) => profile.Username,
+                (job, profile) =>
+                    new JobDumpEntry { Job = job, StudentId = profile.StudentId })
             .AsAsyncEnumerable();
 
             const int flushInterval = 50;
@@ -141,6 +153,12 @@ namespace Karenia.Rurikawa.Coordinator.Controllers {
 
             var ptr = db.Jobs
                 .Where((job) => job.TestSuite == suiteId)
+                .Join(
+                    db.Profiles,
+                    (job) => job.Account,
+                    (profile) => profile.Username,
+                    (job, profile) =>
+                        new JobDumpEntry { Job = job, StudentId = profile.StudentId })
                 .AsAsyncEnumerable();
 
             const int flushInterval = 50;
@@ -152,7 +170,10 @@ namespace Karenia.Rurikawa.Coordinator.Controllers {
             return new EmptyResult();
         }
 
-        private async Task WriteJobResults(List<string> columns, IAsyncEnumerable<Job> ptr, int flushInterval) {
+        private async Task WriteJobResults(
+            List<string> columns,
+            IAsyncEnumerable<JobDumpEntry> ptr,
+            int flushInterval) {
             await Task.Run(async () => {
                 // write to body of response
                 using var sw = new StreamWriter(new StreamAsyncAdaptor(Response.Body));
@@ -162,6 +183,7 @@ namespace Karenia.Rurikawa.Coordinator.Controllers {
 
                 csvWriter.WriteField("id");
                 csvWriter.WriteField("account");
+                csvWriter.WriteField("student_id");
                 csvWriter.WriteField("repo");
                 csvWriter.WriteField("revision");
                 csvWriter.WriteField("stage");
@@ -183,9 +205,16 @@ namespace Karenia.Rurikawa.Coordinator.Controllers {
             });
         }
 
-        private void WriteJobInfo(CsvWriter csv, Job job, IList<string> columns) {
+        private class JobDumpEntry {
+            public string? StudentId { get; set; }
+            public Job Job { get; set; }
+        }
+
+        private void WriteJobInfo(CsvWriter csv, JobDumpEntry jobEntry, IList<string> columns) {
+            var job = jobEntry.Job;
             csv.WriteField(job.Id.ToString());
             csv.WriteField(job.Account);
+            csv.WriteField(jobEntry.StudentId ?? "");
             csv.WriteField(job.Repo);
             csv.WriteField(job.Revision);
             csv.WriteField(job.Stage.ToString());
