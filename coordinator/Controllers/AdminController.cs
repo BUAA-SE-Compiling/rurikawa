@@ -234,25 +234,7 @@ namespace Karenia.Rurikawa.Coordinator.Controllers {
             csv.NextRecord();
         }
 
-        public class JudgerStat {
-            public int Count { get; set; }
-            public int Connected { get; set; }
-            public int Running { get; set; }
-        }
 
-        [HttpGet("judger/stat")]
-        public async Task<JudgerStat> GetJudgerStat(
-            [FromServices] JudgerCoordinatorService coordinatorService,
-            [FromServices] RurikawaDb db) {
-            var judgerCount = await db.Judgers.CountAsync();
-            var (connectedCount, runningCount) = await coordinatorService.GetConnectedJudgerInfo();
-            return new JudgerStat
-            {
-                Count = judgerCount,
-                Connected = connectedCount,
-                Running = runningCount
-            };
-        }
 
         public class CreateJudgerTokenRequest {
             public DateTimeOffset ExpireAt { get; set; }

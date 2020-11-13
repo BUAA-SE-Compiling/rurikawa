@@ -72,3 +72,9 @@ export interface JobBuildOutput {
   output?: string;
   error?: string;
 }
+
+export interface JudgerStatus {
+  count: number;
+  connected: number;
+  running: number;
+}

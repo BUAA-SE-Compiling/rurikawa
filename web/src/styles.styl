@@ -249,9 +249,7 @@ body {
 }
 
 html,
-body,
-app-root,
-router-outlet {
+body {
   min-height: 100vh
 }
 
@@ -260,8 +258,19 @@ html {
 }
 
 app-root {
-  display: block
+  display: flex
+  flex-direction: column
+  align-items: stretch
   min-height: 100vh
+  justify-content: stretch
+}
+
+router-outlet + * {
+  flex-grow: 1
+  display: flex
+  flex-direction: column
+  align-items: stretch
+  justify-content: stretch
 }
 
 p,
@@ -397,4 +406,11 @@ ic-icon {
   display: flex
   justify-content: center
   align-items: center
+}
+
+.footer {
+  padding-y: var(--space-2)
+  background: var(--alt-background)
+  font-size: var(--font-size-smaller)
+  color: var(--secondary-color)
 }

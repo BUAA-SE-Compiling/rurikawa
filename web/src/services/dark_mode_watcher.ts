@@ -44,27 +44,37 @@ const darkModeAssets = {
 };
 
 function onLightMode() {
-  document.getElementsByTagName('body')[0].classList.add('default-palette');
-  document.getElementsByTagName('body')[0].classList.remove('inverted-palette');
-  (document.getElementById('apple-touch-icon') as HTMLLinkElement).href =
-    lightModeAssets.appleTouchIcon;
-  (document.getElementById('icon-32') as HTMLLinkElement).href =
-    lightModeAssets['icon32'];
-  (document.getElementById('icon-16') as HTMLLinkElement).href =
-    lightModeAssets['icon16'];
-  (document.getElementById('icon-ico') as HTMLLinkElement).href =
-    lightModeAssets['iconIco'];
+  try {
+    document.getElementsByTagName('body')[0].classList.add('default-palette');
+    document
+      .getElementsByTagName('body')[0]
+      .classList.remove('inverted-palette');
+    (document.getElementById('apple-touch-icon') as HTMLLinkElement).href =
+      lightModeAssets.appleTouchIcon;
+    (document.getElementById('icon-32') as HTMLLinkElement).href =
+      lightModeAssets['icon32'];
+    (document.getElementById('icon-16') as HTMLLinkElement).href =
+      lightModeAssets['icon16'];
+    (document.getElementById('icon-ico') as HTMLLinkElement).href =
+      lightModeAssets['iconIco'];
+  } catch (e) {
+    console.error(e);
+  }
 }
 
 function onDarkMode() {
-  document.getElementsByTagName('body')[0].classList.remove('default-palette');
-  document.getElementsByTagName('body')[0].classList.add('inverted-palette');
-  (document.getElementById('apple-touch-icon') as HTMLLinkElement).href =
-    darkModeAssets.appleTouchIcon;
-  (document.getElementById('icon-32') as HTMLLinkElement).href =
-    darkModeAssets['icon32'];
-  (document.getElementById('icon-16') as HTMLLinkElement).href =
-    darkModeAssets['icon16'];
-  (document.getElementById('icon-ico') as HTMLLinkElement).href =
-    darkModeAssets['iconIco'];
+  try {
+    document.body.classList.remove('default-palette');
+    document.body.classList.add('inverted-palette');
+    (document.getElementById('apple-touch-icon') as HTMLLinkElement).href =
+      darkModeAssets.appleTouchIcon;
+    (document.getElementById('icon-32') as HTMLLinkElement).href =
+      darkModeAssets['icon32'];
+    (document.getElementById('icon-16') as HTMLLinkElement).href =
+      darkModeAssets['icon16'];
+    (document.getElementById('icon-ico') as HTMLLinkElement).href =
+      darkModeAssets['iconIco'];
+  } catch (e) {
+    console.error(e);
+  }
 }
