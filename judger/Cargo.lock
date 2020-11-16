@@ -1948,7 +1948,7 @@ dependencies = [
  "tokio 0.3.3",
  "tokio-test",
  "tokio-tungstenite",
- "tokio-util 0.4.0",
+ "tokio-util 0.5.0",
  "toml",
  "tracing",
  "tracing-futures",
@@ -2421,12 +2421,12 @@ dependencies = [
 
 [[package]]
 name = "tokio-native-tls"
-version = "0.1.0"
+version = "0.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "cd608593a919a8e05a7d1fc6df885e40f6a88d3a70a3a7eff23ff27964eda069"
+checksum = "501c8252b73bd01379aaae1521523c2629ff1bc6ea46c29e0baff515cee60f1b"
 dependencies = [
  "native-tls",
- "tokio 0.2.23",
+ "tokio 0.3.3",
 ]
 
 [[package]]
@@ -2464,15 +2464,15 @@ dependencies = [
 
 [[package]]
 name = "tokio-tungstenite"
-version = "0.11.0"
+version = "0.12.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6d9e878ad426ca286e4dcae09cbd4e1973a7f8987d97570e2469703dd7f5720c"
+checksum = "0381c1e6e08908317cee104781ca48afe03f37cc857792b85f01f9828fb55ba3"
 dependencies = [
  "futures-util",
  "log",
  "native-tls",
- "pin-project 0.4.27",
- "tokio 0.2.23",
+ "pin-project 1.0.1",
+ "tokio 0.3.3",
  "tokio-native-tls",
  "tungstenite",
 ]
@@ -2493,11 +2493,11 @@ dependencies = [
 
 [[package]]
 name = "tokio-util"
-version = "0.4.0"
+version = "0.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "24793699f4665ba0416ed287dc794fe6b11a4aa5e4e95b58624f45f6c46b97d4"
+checksum = "73af76301319bcacf00d26d3c75534ef248dcad7ceaf36d93ec902453c3b1706"
 dependencies = [
- "bytes 0.5.6",
+ "bytes 0.6.0",
  "futures-core",
  "futures-io",
  "futures-sink",
