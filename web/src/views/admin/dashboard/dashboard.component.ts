@@ -4,7 +4,8 @@ import { Router } from '@angular/router';
 import { HttpClient } from '@angular/common/http';
 import { environment } from 'src/environments/environment';
 import { endpoints } from 'src/environments/endpoints';
-import { TestSuite } from 'src/models/server-types';
+import { TestSuite, JudgerStatus } from 'src/models/server-types';
+import { JudgerStatusService } from 'src/services/judger_status_service';
 
 @Component({
   selector: 'app-dashboard',
@@ -15,11 +16,12 @@ export class DashboardComponent implements OnInit {
   constructor(
     private adminService: AdminService,
     private router: Router,
-    private httpClient: HttpClient
+    private httpClient: HttpClient,
+    private judgerStatusService: JudgerStatusService
   ) {}
 
   suite?: TestSuite[];
-  judgerStat?: { count: number; connected: number; running: number };
+  judgerStat?: JudgerStatus;
 
   navigateToSuite(id: string) {
     this.router.navigate(['admin', 'suite', id]);
@@ -37,12 +39,9 @@ export class DashboardComponent implements OnInit {
         next: (v) => (this.suite = v),
       });
   }
+
   fetchJudgerStat() {
-    this.httpClient
-      .get<any>(environment.endpointBase() + endpoints.admin.getJudgerStat)
-      .subscribe({
-        next: (v) => (this.judgerStat = v),
-      });
+    this.judgerStatusService.getData().then((v) => (this.judgerStat = v));
   }
 
   ngOnInit(): void {

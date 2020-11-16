@@ -12,11 +12,15 @@ import DownArrowIcon from '@iconify/icons-mdi/chevron-down';
 import UpArrowIcon from '@iconify/icons-mdi/chevron-up';
 import TimeIcon from '@iconify/icons-carbon/timer';
 import MemoryIcon from '@iconify/icons-carbon/chart-treemap';
-import { TestSuite, NewJobMessage } from 'src/models/server-types';
+import {
+  TestSuite,
+  NewJobMessage,
+  TestCaseDefinition,
+} from 'src/models/server-types';
 import { HttpClient, HttpErrorResponse } from '@angular/common/http';
 import { environment } from 'src/environments/environment';
 import { endpoints } from 'src/environments/endpoints';
-import { flatMap } from 'lodash';
+import { flatMap, toPairs } from 'lodash';
 import {
   trigger,
   transition,
@@ -28,6 +32,7 @@ import {
 import { tap } from 'rxjs/operators';
 import { TestSuiteAndJobCache } from 'src/services/test_suite_cacher';
 import { Subscription } from 'rxjs';
+import { TitleService } from 'src/services/title_service';
 
 @Component({
   selector: 'app-test-suite-view',
@@ -48,12 +53,13 @@ import { Subscription } from 'rxjs';
     ]),
   ],
 })
-export class TestSuiteViewComponent implements OnInit {
+export class TestSuiteViewComponent implements OnInit, OnDestroy {
   constructor(
     private route: ActivatedRoute,
     private httpClient: HttpClient,
     private service: TestSuiteAndJobCache,
-    private router: Router
+    private router: Router,
+    private title: TitleService
   ) {}
 
   readonly repoIcon = RepoIcon;
@@ -84,6 +90,21 @@ export class TestSuiteViewComponent implements OnInit {
 
   descCollapsed: boolean = false;
 
+  testGroups: { key: string; values: TestCaseDefinition[] }[];
+  usingTestGroup: Set<string> = new Set();
+
+  getTestGroups() {
+    if (this.suite === undefined) {
+      return [];
+    }
+    return toPairs(this.suite.testGroups).map(([k, v]) => {
+      return {
+        key: k,
+        values: v,
+      };
+    });
+  }
+
   loadMore() {
     if (this.jobs === undefined || this.jobs.length === 0) {
       this.fetchJobs(this.id).subscribe();
@@ -113,12 +134,51 @@ export class TestSuiteViewComponent implements OnInit {
     return item.id;
   }
 
+  determineLastTestGroup() {
+    if (this.suite === undefined) {
+      return;
+    }
+    if (this.jobs === undefined || this.jobs.length === 0) {
+      // tslint:disable-next-line: forin
+      for (let key in this.suite.testGroups) {
+        this.usingTestGroup.add(key);
+      }
+    } else {
+      let groupMap = new Map<string, string>();
+      // tslint:disable-next-line: forin
+      for (let key in this.suite.testGroups) {
+        for (let test of this.suite.testGroups[key]) {
+          groupMap.set(test.name, key);
+        }
+      }
+      let lastJob = this.jobs[0];
+      for (let test of lastJob.tests) {
+        const group = groupMap.get(test);
+        if (group !== undefined) {
+          this.usingTestGroup.add(group);
+        }
+      }
+    }
+  }
+
+  changeGroupActivation(name: string, active: boolean) {
+    if (active) {
+      this.usingTestGroup.add(name);
+    } else {
+      this.usingTestGroup.delete(name);
+    }
+  }
+
   fetchTestSuite(id: string) {
     this.httpClient
       .get<TestSuite>(environment.endpointBase() + endpoints.testSuite.get(id))
       .subscribe({
         next: (suite) => {
           this.suite = suite;
+          this.testGroups = this.getTestGroups();
+          this.determineLastTestGroup();
+
+          this.title.setTitle(`${suite.title} - Rurikawa`, 'test-suite');
         },
         error: (e) => {
           if (e instanceof HttpErrorResponse) {
@@ -133,6 +193,7 @@ export class TestSuiteViewComponent implements OnInit {
         if (this.jobs.length > 0) {
           this.descCollapsed = true;
         }
+        this.determineLastTestGroup();
       },
     });
   }
@@ -196,16 +257,24 @@ export class TestSuiteViewComponent implements OnInit {
     let repo = this.repo;
 
     if (!repo) {
-      this.repoMessage = '请填写仓库地址！';
+      this.repoMessage = '请填写仓库地址';
       return;
     }
+
+    if (this.usingTestGroup.size === 0) {
+      this.repoMessage = '请至少选择一个测试';
+      return;
+    }
+
     this.submittingTest = true;
 
     if (!branch) {
       branch = undefined;
     }
 
-    let tests = flatMap(this.suite.testGroups, (v) => v);
+    let tests = flatMap(this.suite.testGroups, (v, k) =>
+      this.usingTestGroup.has(k) ? v : []
+    ).map((v) => v.name);
 
     let newJobMsg: NewJobMessage = {
       repo,
@@ -237,7 +306,12 @@ export class TestSuiteViewComponent implements OnInit {
       next: (map) => {
         this.id = map.get('id');
         this.fetchTestSuite(this.id);
+        this.title.setTitle(`${this.id} - Test Suite - Rurikawa`, 'test-suite');
       },
     });
+  }
+
+  ngOnDestroy() {
+    this.title.revertTitle('test-suite');
   }
 }

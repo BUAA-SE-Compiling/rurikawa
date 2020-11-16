@@ -1,20 +1,21 @@
-import { Component, OnInit } from '@angular/core';
+import { Component, OnInit, OnDestroy } from '@angular/core';
 import { Profile } from 'src/models/server-types';
 import { HttpClient, HttpErrorResponse } from '@angular/common/http';
 import { environment } from 'src/environments/environment';
 import { endpoints } from 'src/environments/endpoints';
 import { tap } from 'rxjs/operators';
 import { AccountService } from 'src/services/account_service';
+import { TitleService } from 'src/services/title_service';
 
 @Component({
   selector: 'app-settings-view',
   templateUrl: './settings-view.component.html',
   styleUrls: ['./settings-view.component.styl'],
 })
-export class SettingsViewComponent implements OnInit {
+export class SettingsViewComponent implements OnInit ,OnDestroy{
   constructor(
     private httpClient: HttpClient,
-    private accountService: AccountService
+    private accountService: AccountService,private title: TitleService
   ) {}
   password = { old: '', new: '' };
   passwordMessage = undefined;
@@ -134,5 +135,10 @@ export class SettingsViewComponent implements OnInit {
 
   ngOnInit(): void {
     this.pullProfile().subscribe();
+    this.title.setTitle("设置 - Rurikawa")
+  }
+
+  ngOnDestroy() {
+    this.title.revertTitle();
   }
 }

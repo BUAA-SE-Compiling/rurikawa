@@ -1,0 +1,118 @@
+/**
+ * GHColors theme by Avi Aryan (http://aviaryan.in)
+ * Inspired by Github syntax coloring
+ */
+code[class*='language-'],
+pre[class*='language-'] {
+  color: var(--primary-color)
+  direction: ltr
+  text-align: left
+  white-space: pre
+  word-spacing: normal
+  word-break: normal
+  -moz-tab-size: 4
+  -o-tab-size: 4
+  tab-size: 4
+  -webkit-hyphens: none
+  -moz-hyphens: none
+  -ms-hyphens: none
+  hyphens: none
+}
+
+pre > code[class*='language-'] {
+  font-size: 1em
+}
+
+pre[class*='language-']::-moz-selection,
+pre[class*='language-'] ::-moz-selection,
+code[class*='language-']::-moz-selection,
+code[class*='language-'] ::-moz-selection {
+  background: var(--selection-bg)
+}
+
+pre[class*='language-']::selection,
+pre[class*='language-'] ::selection,
+code[class*='language-']::selection,
+code[class*='language-'] ::selection {
+  background: var(--selection-bg)
+}
+
+/* Code blocks */
+pre[class*='language-'] {
+  padding: 1em
+  margin: 0.5em 0
+  overflow: auto
+  background-color: var(--alt-background)
+}
+
+/* Inline code */
+:not(pre) > code[class*='language-'] {
+  padding: 0.2em
+  padding-top: 1px
+  padding-bottom: 1px
+  background: var(--alt-background)
+}
+
+.token.comment,
+.token.prolog,
+.token.doctype,
+.token.cdata {
+  color: var(--secondary-color)
+  font-style: italic
+}
+
+.token.namespace {
+  opacity: 0.7
+}
+
+.token.string,
+.token.attr-value {
+  color: var(--text-success-color)
+}
+
+.token.punctuation,
+.token.operator {
+  color: var(--secondary-color) /* no highlight */
+}
+
+.token.entity,
+.token.url,
+.token.symbol,
+.token.number,
+.token.boolean,
+.token.variable,
+.token.constant,
+.token.property,
+.token.regex,
+.token.inserted {
+  color: var(--text-accent-color)
+}
+
+.token.atrule,
+.token.keyword,
+.token.attr-name,
+.language-autohotkey .token.selector {
+  color: var(--text-accent-alt)
+}
+
+.token.function,
+.token.deleted,
+.language-autohotkey .token.tag {
+  color: var(--text-error-color)
+}
+
+.token.tag,
+.token.selector,
+.language-autohotkey .token.keyword {
+  color: var(--text-accent-color)
+}
+
+.token.important,
+.token.function,
+.token.bold {
+  font-weight: bold
+}
+
+.token.italic {
+  font-style: italic
+}

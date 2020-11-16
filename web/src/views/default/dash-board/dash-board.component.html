@@ -1,11 +1,11 @@
 <app-navbar></app-navbar>
-<div class="container">
+<div class="container body-container">
   <div class="row text">
     <h1>作业</h1>
     <div class="space"></div>
     <!-- <div class="ghost-btn">添加</div> -->
   </div>
-  <div class="wrapper" id="test-suites">
+  <div class="test-suite-wrapper">
     <ng-template #isLoading> 在加载了在加载了 </ng-template>
     <ng-template [ngIf]="!loading" [ngIfElse]="isLoading">
       <div class="empty" *ngIf="!error && (!items || items.length == 0)">
@@ -18,5 +18,11 @@
         (click)="gotoJudgeSuite(i.suite.id)"
       ></app-dashboard-item-component>
     </ng-template>
+  </div>
+</div>
+<div class="judger-status footer">
+  <div class="container" *ngIf="judgerStat">
+    <strong>评测机:</strong>
+    {{ judgerStat.connected }} 已连接 / {{ judgerStat.running }} 有任务
   </div>
 </div>

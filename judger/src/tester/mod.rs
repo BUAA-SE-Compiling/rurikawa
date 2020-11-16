@@ -1,4 +1,5 @@
 pub mod exec;
+pub mod model;
 pub mod runner;
 pub mod utils;
 
@@ -39,6 +40,11 @@ pub struct ExecError {
     pub output: Vec<ProcessInfo>,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize, Eq, PartialEq)]
+pub struct ShouldFailFailure {
+    pub output: Vec<ProcessInfo>,
+}
+
 #[derive(Debug, Serialize, Deserialize)]
 pub enum BuildError {
     ImagePullFailure(String),
@@ -61,6 +67,7 @@ pub enum JobFailure {
     OutputMismatch(OutputMismatch),
     ExecError(ExecError),
     InternalError(String),
+    ShouldFail(ShouldFailFailure),
     Cancelled,
 }
 

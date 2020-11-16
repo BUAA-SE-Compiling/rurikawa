@@ -9,6 +9,7 @@ import { FileUploadAreaComponent } from './file-upload-area/file-upload-area.com
 import { FormsModule } from '@angular/forms';
 import { CollapseBoxComponent } from './collapse-box/collapse-box.component';
 import { BackBtnComponent } from './back-btn/back-btn.component';
+import { ToggleButtonComponent } from './toggle-button/toggle-button.component';
 
 @NgModule({
   declarations: [
@@ -18,6 +19,7 @@ import { BackBtnComponent } from './back-btn/back-btn.component';
     FileUploadAreaComponent,
     CollapseBoxComponent,
     BackBtnComponent,
+    ToggleButtonComponent,
   ],
   imports: [CommonModule, RouterModule, IconModule, FormsModule],
   exports: [
@@ -27,6 +29,7 @@ import { BackBtnComponent } from './back-btn/back-btn.component';
     FileUploadAreaComponent,
     CollapseBoxComponent,
     BackBtnComponent,
+    ToggleButtonComponent,
   ],
 })
 export class BaseComponentsModule {}

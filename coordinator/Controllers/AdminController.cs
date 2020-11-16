@@ -1,5 +1,7 @@
 using System;
 using System.Collections.Generic;
+using System.IO;
+using System.Linq;
 using System.Threading.Tasks;
 using Karenia.Rurikawa.Coordinator.Services;
 using Karenia.Rurikawa.Helpers;
@@ -9,6 +11,7 @@ using Karenia.Rurikawa.Models.Judger;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using NReco.Csv;
 using static Karenia.Rurikawa.Coordinator.Controllers.AccountController;
 
 namespace Karenia.Rurikawa.Coordinator.Controllers {
@@ -25,13 +28,55 @@ namespace Karenia.Rurikawa.Coordinator.Controllers {
         }
 
         [HttpGet]
-        [Route("suite/{id}/jobs")]
+        [Route("profile/dump")]
+        public async Task<ActionResult> DumpProfiles([FromServices] RurikawaDb db) {
+            var ptr = db.Profiles.AsAsyncEnumerable();
+
+            Response.ContentType = "application/csv";
+            Response.StatusCode = 200;
+            await Response.StartAsync();
+
+            int flushInterval = 50;
+
+            await Task.Run(async () => {
+                // write to body of response
+                using var sw = new StreamWriter(new StreamAsyncAdaptor(Response.Body));
+                await using var swGuard = sw.ConfigureAwait(false);
+                var csvWriter = new CsvWriter(sw);
+                csvWriter.QuoteAllFields = true;
+
+                csvWriter.WriteField("username");
+                csvWriter.WriteField("studentId");
+                csvWriter.WriteField("email");
+
+                csvWriter.NextRecord();
+
+                int counter = 0;
+                await foreach (var val in ptr) {
+                    if (counter % flushInterval == 0) {
+                        await sw.FlushAsync();
+                    }
+
+                    csvWriter.WriteField(val.Username);
+                    csvWriter.WriteField(val.StudentId);
+                    csvWriter.WriteField(val.Email);
+                    csvWriter.NextRecord();
+
+                    counter++;
+                }
+                await sw.FlushAsync();
+            });
+
+            return new EmptyResult();
+        }
+
+        [HttpGet]
+        [Route("suite/{suiteId}/jobs")]
         public async Task<IList<Job>> GetJobsFromSuite(
             [FromRoute] FlowSnake suiteId,
             [FromQuery] FlowSnake startId = new FlowSnake(),
             [FromQuery] int take = 20,
             [FromQuery] bool asc = false) {
-            var username = AuthHelper.ExtractUsername(HttpContext.User);
             return await dbService.GetJobs(
                 startId: startId,
                 take: take,
@@ -39,25 +84,157 @@ namespace Karenia.Rurikawa.Coordinator.Controllers {
                 bySuite: suiteId);
         }
 
-        public class JudgerStat {
-            public int Count { get; set; }
-            public int Connected { get; set; }
-            public int Running { get; set; }
+        [HttpGet]
+        [Route("suite/{suiteId}/est_dump_jobs")]
+        public async Task<ActionResult> EstimateDumpSuiteJobDumpCount(
+            [FromRoute] FlowSnake suiteId,
+            [FromServices] RurikawaDb db) {
+            var res = await db.Jobs.FromSqlInterpolated($@"
+                select
+                    distinct on (account)
+                    *
+                from jobs
+                order by account, id desc
+                ").Where((job) => job.TestSuite == suiteId)
+                .CountAsync();
+
+            return Ok(res);
         }
 
-        [HttpGet("judger/stat")]
-        public async Task<JudgerStat> GetJudgerStat(
-            [FromServices] JudgerCoordinatorService coordinatorService,
+        [HttpGet]
+        [Route("suite/{suiteId}/dump_jobs")]
+        public async Task<ActionResult> DumpSuiteJobs(
+            [FromRoute] FlowSnake suiteId,
             [FromServices] RurikawaDb db) {
-            var judgerCount = await db.Judgers.CountAsync();
-            var (connectedCount, runningCount) = await coordinatorService.GetConnectedJudgerInfo();
-            return new JudgerStat
-            {
-                Count = judgerCount,
-                Connected = connectedCount,
-                Running = runningCount
-            };
+            var suite = await dbService.GetTestSuite(suiteId);
+            if (suite == null) return NotFound();
+
+            var columns = suite.TestGroups
+                    .SelectMany(group => group.Value.Select(value => value.Name))
+                    .ToList();
+
+            var suiteIdNum = suiteId.Num;
+            var ptr = db.Jobs.FromSqlInterpolated($@"
+            select
+                distinct on (account)
+                *
+            from jobs
+            where test_suite = {suiteIdNum}
+            order by account, id desc
+            ")
+            .Join(
+                db.Profiles,
+                (job) => job.Account,
+                (profile) => profile.Username,
+                (job, profile) =>
+                    new JobDumpEntry { Job = job, StudentId = profile.StudentId })
+            .AsAsyncEnumerable();
+
+            const int flushInterval = 50;
+
+            Response.ContentType = "application/csv";
+            Response.StatusCode = 200;
+            await Response.StartAsync();
+            await WriteJobResults(columns, ptr, flushInterval);
+            return new EmptyResult();
         }
+
+        [HttpGet]
+        [Route("suite/{suiteId}/dump_all_jobs")]
+        public async Task<ActionResult> DumpSuiteAllJobs(
+            [FromRoute] FlowSnake suiteId,
+            [FromServices] RurikawaDb db) {
+            var suite = await dbService.GetTestSuite(suiteId);
+            if (suite == null) return NotFound();
+
+            var columns = suite.TestGroups
+                    .SelectMany(group => group.Value.Select(value => value.Name))
+                    .ToList();
+
+            var ptr = db.Jobs
+                .Where((job) => job.TestSuite == suiteId)
+                .Join(
+                    db.Profiles,
+                    (job) => job.Account,
+                    (profile) => profile.Username,
+                    (job, profile) =>
+                        new JobDumpEntry { Job = job, StudentId = profile.StudentId })
+                .AsAsyncEnumerable();
+
+            const int flushInterval = 50;
+
+            Response.ContentType = "application/csv";
+            Response.StatusCode = 200;
+            await Response.StartAsync();
+            await WriteJobResults(columns, ptr, flushInterval);
+            return new EmptyResult();
+        }
+
+        private async Task WriteJobResults(
+            List<string> columns,
+            IAsyncEnumerable<JobDumpEntry> ptr,
+            int flushInterval) {
+            await Task.Run(async () => {
+                // write to body of response
+                using var sw = new StreamWriter(new StreamAsyncAdaptor(Response.Body));
+                await using var swGuard = sw.ConfigureAwait(false);
+                var csvWriter = new CsvWriter(sw);
+                csvWriter.QuoteAllFields = true;
+
+                csvWriter.WriteField("id");
+                csvWriter.WriteField("account");
+                csvWriter.WriteField("student_id");
+                csvWriter.WriteField("repo");
+                csvWriter.WriteField("revision");
+                csvWriter.WriteField("stage");
+                csvWriter.WriteField("result_kind");
+                foreach (var col in columns) {
+                    csvWriter.WriteField(col);
+                }
+                csvWriter.NextRecord();
+
+                int counter = 0;
+                await foreach (var val in ptr) {
+                    if (counter % flushInterval == 0) {
+                        await sw.FlushAsync();
+                    }
+                    WriteJobInfo(csvWriter, val, columns);
+                    counter++;
+                }
+                await sw.FlushAsync();
+            });
+        }
+
+        private class JobDumpEntry {
+            public string? StudentId { get; set; }
+            public Job Job { get; set; }
+        }
+
+        private void WriteJobInfo(CsvWriter csv, JobDumpEntry jobEntry, IList<string> columns) {
+            var job = jobEntry.Job;
+            csv.WriteField(job.Id.ToString());
+            csv.WriteField(job.Account);
+            csv.WriteField(jobEntry.StudentId ?? "");
+            csv.WriteField(job.Repo);
+            csv.WriteField(job.Revision);
+            csv.WriteField(job.Stage.ToString());
+            csv.WriteField(job.ResultKind.ToString());
+
+            foreach (var column in columns) {
+                if (job.Results.TryGetValue(column, out var colResult)) {
+                    if (colResult.Kind == Models.Test.TestResultKind.Accepted) {
+                        csv.WriteField("1");
+                    } else {
+                        csv.WriteField("0");
+                    }
+                } else {
+                    csv.WriteField("0");
+                }
+            }
+            csv.NextRecord();
+        }
+
+
 
         public class CreateJudgerTokenRequest {
             public DateTimeOffset ExpireAt { get; set; }

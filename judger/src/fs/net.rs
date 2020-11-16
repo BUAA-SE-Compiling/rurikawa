@@ -1,5 +1,6 @@
 //! Functions to download stuff into destinations
 use futures::{SinkExt, StreamExt};
+use std::fmt::Write;
 use std::path::Path;
 use std::str::FromStr;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
@@ -24,6 +25,27 @@ impl Default for GitCloneOptions {
     }
 }
 
+macro_rules! do_command {
+    ($($dir:expr,)? [ $cmd:expr, $($arg:expr),*]) => {
+
+        let cmd = Command::new($cmd)
+            $(.current_dir($dir))?
+            .args(&[$($arg),*])
+            .status()
+            .await?;
+
+        if !cmd.success(){
+            let mut format_string = String::new();
+            write!(format_string, "Command failed: `{}",$cmd).unwrap();
+            $(
+                write!(format_string, " {}",$arg).unwrap();
+            )*
+            write!(format_string, "` returned {:?}",cmd.code()).unwrap();
+            return Err(std::io::Error::new(std::io::ErrorKind::InvalidInput, format_string))
+        }
+    };
+}
+
 pub async fn git_clone(dir: &Path, options: GitCloneOptions) -> std::io::Result<()> {
     // This clone procedure follows
     // https://stackoverflow.com/questions/3489173/how-to-clone-git-repository-with-specific-revision-changeset
@@ -46,41 +68,15 @@ pub async fn git_clone(dir: &Path, options: GitCloneOptions) -> std::io::Result<
 
     tokio::fs::create_dir_all(dir).await?;
 
-    Command::new("git")
-        .current_dir(dir)
-        .arg("init")
-        .status()
-        .await?;
-
-    Command::new("git")
-        .current_dir(dir)
-        .args(&["remote", "add", "origin", &options.repo])
-        .status()
-        .await?;
-
-    Command::new("git")
-        .current_dir(dir)
-        .args(&["fetch", "origin", &options.revision, "--depth", "1"])
-        .status()
-        .await?;
-
-    Command::new("git")
-        .current_dir(dir)
-        .args(&["reset", "--hard", "FETCH_HEAD", "--"])
-        .status()
-        .await?;
-
-    Command::new("git")
-        .current_dir(dir)
-        .args(&["submodule", "init"])
-        .status()
-        .await?;
-
-    Command::new("git")
-        .current_dir(dir)
-        .args(&["submodule", "update", "--recommend-shallow"])
-        .status()
-        .await?;
+    do_command!(dir, ["git", "init"]);
+    do_command!(dir, ["git", "remote", "add", "origin", &options.repo]);
+    do_command!(
+        dir,
+        ["git", "fetch", "origin", &options.revision, "--depth", "1"]
+    );
+    do_command!(dir, ["git", "reset", "--hard", "FETCH_HEAD", "--"]);
+    do_command!(dir, ["git", "submodule", "init"]);
+    do_command!(dir, ["git", "submodule", "update", "--recommend-shallow"]);
 
     Ok(())
 }

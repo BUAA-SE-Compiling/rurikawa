@@ -18,7 +18,7 @@ namespace Karenia.Rurikawa.Coordinator.Migrations
 #pragma warning disable 612, 618
             modelBuilder
                 .HasAnnotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.IdentityByDefaultColumn)
-                .HasAnnotation("ProductVersion", "3.1.7")
+                .HasAnnotation("ProductVersion", "3.1.9")
                 .HasAnnotation("Relational:MaxIdentifierLength", 63);
 
             modelBuilder.Entity("Karenia.Rurikawa.Models.Account.AccessTokenEntry", b =>
@@ -424,7 +424,7 @@ namespace Karenia.Rurikawa.Coordinator.Migrations
                         .HasColumnName("tags")
                         .HasColumnType("text[]");
 
-                    b.Property<Dictionary<string, List<string>>>("TestGroups")
+                    b.Property<Dictionary<string, List<TestCaseDefinition>>>("TestGroups")
                         .IsRequired()
                         .HasColumnName("test_groups")
                         .HasColumnType("jsonb");

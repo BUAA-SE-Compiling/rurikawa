@@ -1,0 +1,9 @@
+<div
+  class="toggle-btn btn"
+  [class.secondary]="!active"
+  [class.dark]="!active"
+  [class.info]="active"
+  (click)="toggle()"
+>
+  <ng-content></ng-content>
+</div>

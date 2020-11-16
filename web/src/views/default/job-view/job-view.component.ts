@@ -1,4 +1,10 @@
-import { Component, OnInit, OnChanges, SimpleChanges } from '@angular/core';
+import {
+  Component,
+  OnInit,
+  OnChanges,
+  SimpleChanges,
+  OnDestroy,
+} from '@angular/core';
 import {
   Job,
   dashboardTypeToSlider,
@@ -22,18 +28,20 @@ import LeftIcon from '@iconify/icons-carbon/arrow-left';
 import { TestSuiteAndJobCache } from 'src/services/test_suite_cacher';
 import { JobBuildOutput } from 'src/models/server-types';
 import stripAnsi from 'strip-ansi';
+import { TitleService } from 'src/services/title_service';
 
 @Component({
   selector: 'app-job-view',
   templateUrl: './job-view.component.html',
   styleUrls: ['./job-view.component.styl'],
 })
-export class JobViewComponent implements OnInit, OnChanges {
+export class JobViewComponent implements OnInit, OnChanges, OnDestroy {
   constructor(
     private route: ActivatedRoute,
     private router: Router,
     private cleanHttpClient: HttpClient,
-    private service: TestSuiteAndJobCache
+    private service: TestSuiteAndJobCache,
+    private title: TitleService
   ) {}
 
   readonly branchIcon = BranchIcon;
@@ -198,6 +206,7 @@ export class JobViewComponent implements OnInit, OnChanges {
     this.route.paramMap.subscribe({
       next: (v) => {
         this.id = v.get('id');
+        this.title.setTitle(`Job ${this.id} - Rurikawa`, 'job');
         this.fetchJob();
       },
     });
@@ -205,5 +214,9 @@ export class JobViewComponent implements OnInit, OnChanges {
 
   ngOnChanges(changes: SimpleChanges): void {
     // this.fetchOutputIfNotExist();
+  }
+
+  ngOnDestroy() {
+    this.title.revertTitle('job');
   }
 }

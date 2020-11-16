@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Net.Mime;
 using System.Text.Json;
 using System.Text.Unicode;
 using System.Threading;
@@ -23,25 +24,28 @@ using SharpCompress.Readers;
 namespace Karenia.Rurikawa.Coordinator.Controllers {
     [ApiController]
     [Route("api/v1/tests/")]
-    public class TestApiController : ControllerBase {
+    public class TestSuiteController : ControllerBase {
         private readonly ILogger<JudgerApiController> logger;
         private readonly RurikawaDb db;
         private readonly DbService dbService;
         private readonly SingleBucketFileStorageService fs;
         private readonly JsonSerializerOptions? jsonOptions;
+        private readonly RurikawaCacheService cacheService;
         public static readonly string TestSuiteBaseDir = "test/";
 
-        public TestApiController(
+        public TestSuiteController(
             ILogger<JudgerApiController> logger,
             RurikawaDb db,
             DbService dbService,
             SingleBucketFileStorageService fs,
-            JsonSerializerOptions? jsonOptions) {
+            JsonSerializerOptions? jsonOptions,
+            RurikawaCacheService cacheService) {
             this.logger = logger;
             this.db = db;
             this.dbService = dbService;
             this.fs = fs;
             this.jsonOptions = jsonOptions;
+            this.cacheService = cacheService;
         }
 
         /// <summary>
@@ -66,10 +70,23 @@ namespace Karenia.Rurikawa.Coordinator.Controllers {
         /// <returns>the test suite</returns>
         [HttpGet("{id}")]
         [ProducesErrorResponseType(typeof(void))]
-        public async Task<ActionResult<TestSuite>> GetTestSuite([FromRoute] FlowSnake id) {
+        public async Task<ActionResult<TestSuite>> GetTestSuite(
+            [FromRoute] FlowSnake id) {
+            var cached = await cacheService.GetCachedTestSuiteString(id);
+            if (cached != null) {
+                return new ContentResult()
+                {
+                    StatusCode = 200,
+                    Content = cached,
+                    ContentType = "application/json"
+                };
+            }
             var res = await db.TestSuites.Where(t => t.Id == id).SingleOrDefaultAsync();
             if (res == null) return NotFound();
-            else return res;
+            else {
+                await cacheService.SetTestSuite(res);
+                return res;
+            }
         }
 
         [HttpGet]
@@ -102,11 +119,13 @@ namespace Karenia.Rurikawa.Coordinator.Controllers {
             original.IsPublic = visible;
             await db.SaveChangesAsync();
 
+            await cacheService.PurgeSuite(suiteId);
+
             return NoContent();
         }
 
         [HttpPut("{suiteId}")]
-        public async Task<ActionResult> SetTestSuiteVisibility(
+        public async Task<ActionResult> PatchTestSuite(
             [FromRoute] FlowSnake suiteId,
             [FromQuery] TestSuite.TestSuitePatch patch
         ) {
@@ -115,6 +134,8 @@ namespace Karenia.Rurikawa.Coordinator.Controllers {
 
             original.Patch(patch);
             await db.SaveChangesAsync();
+
+            await cacheService.PurgeSuite(suiteId);
 
             return NoContent();
         }
@@ -165,8 +186,21 @@ namespace Karenia.Rurikawa.Coordinator.Controllers {
             original.Patch(newSuite, replaceDescription);
             await db.SaveChangesAsync();
             logger.LogInformation("DB updated");
+
+            await cacheService.PurgeSuite(suiteId);
+
             return Ok(original);
-            // throw new NotImplementedException();
+        }
+
+        [HttpDelete("{suiteId}")]
+        [Authorize("admin")]
+        public async Task<ActionResult> DeleteTestSuite([FromRoute] FlowSnake suiteId) {
+            if (!await db.TestSuites.Where(suite => suite.Id == suiteId).AnyAsync()) {
+                return NotFound();
+            }
+            await db.Jobs.Where(job => job.TestSuite == suiteId).DeleteFromQueryAsync();
+            await db.TestSuites.Where(suite => suite.Id == suiteId).DeleteFromQueryAsync();
+            return NoContent();
         }
 
         /// <summary>
@@ -200,13 +234,14 @@ namespace Karenia.Rurikawa.Coordinator.Controllers {
                 testSuite.Id = id;
             } catch (EndOfStreamException e) {
                 return BadRequest(e.Message);
+            } catch (JsonException e) {
+                return BadRequest(e.ToString());
             }
             logger.LogInformation("End uploading");
             await db.TestSuites.AddAsync(testSuite);
             await db.SaveChangesAsync();
             logger.LogInformation("DB updated");
             return Ok(testSuite);
-            // throw new NotImplementedException();
         }
 
         /// <summary>
@@ -223,10 +258,12 @@ namespace Karenia.Rurikawa.Coordinator.Controllers {
             using (var split2 = baseStream.GetForwardReadOnlyStream()) {
                 logger.LogInformation("Splitting streams");
                 await baseStream.StartReadAhead();
+
                 var res = await Task.WhenAll(
                     UploadTestSuiteWrapped(split1, filename, len),
                     Task.Run(() => ParseTestSuiteWrapped(split2, id))
                 );
+
                 logger.LogInformation("Finished");
                 var addr = (string)res[0];
                 var suite = (TestSuite)res[1];
@@ -280,8 +317,8 @@ namespace Karenia.Rurikawa.Coordinator.Controllers {
                 }
             }
             if (suite == null) {
-                logger.LogInformation("Parse failed");
-                throw new EndOfStreamException("No test suite were found after reading the whole package!");
+                logger.LogInformation("Cannot find test configuration");
+                throw new EndOfStreamException("Cannot find test configuration");
             }
             suite.Description = desc;
             logger.LogInformation("Parse succeeded");

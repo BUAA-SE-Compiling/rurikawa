@@ -37,7 +37,6 @@ export class DashboardItemComponentComponent implements OnInit {
     let res1 = toPairs(res).map(([x, y]) => {
       return { kind: x as SliderItemKind, num: y };
     });
-    console.log(res1);
     return res1;
   }
 

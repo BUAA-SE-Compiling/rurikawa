@@ -2,11 +2,11 @@
 
   <PropertyGroup>
     <Product>RurikawaCoordinator</Product>
-    <Version>0.1.10</Version>
+    <Version>0.2.0</Version>
     <Authors>Rynco Maekawa; Rami3L Li</Authors>
 
     <TargetFramework>netcoreapp3.1</TargetFramework>
-    <LangVersion>8.0</LangVersion>
+    <LangVersion>9.0</LangVersion>
     <Nullable>enable</Nullable>
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
     <NoWarn>1591</NoWarn>
@@ -21,15 +21,16 @@
     <PackageReference Include="Marques.EFCorev3.0.SnakeCase" Version="1.0.13" />
     <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="3.1.7" />
     <!-- <PackageReference Include="MicroKnights.IO.SplitStream" Version="1.0.0" /> -->
-    <PackageReference Include="Microsoft.EntityFrameworkCore" Version="3.1.7" />
-    <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="3.1.7">
+    <PackageReference Include="Microsoft.EntityFrameworkCore" Version="3.1.9" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="3.1.9">
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
       <PrivateAssets>all</PrivateAssets>
     </PackageReference>
     <PackageReference Include="MimeMapping" Version="1.0.1.30" />
     <PackageReference Include="Minio" Version="3.1.13" />
-    <PackageReference Include="Npgsql" Version="4.1.4" />
+    <PackageReference Include="Npgsql" Version="4.1.5" />
     <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="3.1.4" />
+    <PackageReference Include="NReco.Csv" Version="1.0.0" />
     <PackageReference Include="NSwag.AspNetCore" Version="13.7.0" />
     <PackageReference Include="SharpCompress" Version="0.26.0" />
     <PackageReference Include="StackExchange.Redis" Version="2.1.58" />

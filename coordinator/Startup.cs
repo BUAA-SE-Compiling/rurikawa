@@ -11,6 +11,7 @@ using Dahomey.Json.Serialization.Conventions;
 using Karenia.Rurikawa.Coordinator.Services;
 using Karenia.Rurikawa.Helpers;
 using Karenia.Rurikawa.Models;
+using Karenia.Rurikawa.Models.Test.SerDe;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
@@ -99,6 +100,8 @@ namespace Karenia.Rurikawa.Coordinator {
             services.AddSingleton<JsonSerializerOptions>(_ =>
                 SetupJsonSerializerOptions(new JsonSerializerOptions())
             );
+            services.AddSingleton<GenericCacheService>();
+            services.AddSingleton<RurikawaCacheService>();
             services.AddSwaggerDocument();
             services.AddRouting(options => { options.LowercaseUrls = true; });
             services.AddControllers().AddJsonOptions(opt => SetupJsonSerializerOptions(opt.JsonSerializerOptions));
@@ -108,6 +111,7 @@ namespace Karenia.Rurikawa.Coordinator {
             opt.PropertyNamingPolicy = JsonNamingPolicy.CamelCase;
             opt.Converters.Add(new FlowSnakeJsonConverter());
             opt.Converters.Add(new System.Text.Json.Serialization.JsonStringEnumConverter());
+            opt.Converters.Add(new TestCaseDefinitionConverter());
             opt.SetupExtensions();
             opt.IgnoreNullValues = true;
 
