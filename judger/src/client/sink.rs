@@ -61,7 +61,8 @@ impl WebsocketSink {
             handle.cancelled().await;
             sink = self.sink.load();
         }
-        let sink = sink.clone().unwrap().lock().await;
+        let sink = sink.clone().unwrap();
+        let mut sink = sink.lock().await;
         let inner = &mut *sink;
         inner.send_all(msg).await;
         Ok(())

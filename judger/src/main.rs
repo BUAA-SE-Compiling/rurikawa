@@ -37,7 +37,7 @@ fn main() {
 
     ctrlc::set_handler(handle_ctrl_c).expect("Failed to set termination handler!");
 
-    let mut rt = tokio::runtime::Builder::new()
+    let mut rt = tokio::runtime::Builder::new_multi_thread()
         .threaded_scheduler()
         .enable_all()
         .build()

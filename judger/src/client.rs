@@ -570,8 +570,8 @@ pub async fn flag_finished_job(send: Arc<WsSink>, client_config: Arc<SharedClien
 pub async fn accept_job(job: NewJob, send: Arc<WsSink>, client_config: Arc<SharedClientData>) {
     tracing::info!("Received job {}", job.job.id);
     let job_id = job.job.id;
-    let cancel_handle = client_config.cancel_handle.create_child();
-    let cancel_token = cancel_handle.get_token();
+    let cancel_handle = client_config.cancel_handle.child_token();
+    let cancel_token = cancel_handle.child_token();
     let handle = tokio::spawn(handle_job_wrapper(
         job,
         send,
@@ -625,7 +625,7 @@ pub async fn client_loop(
 
     while let Some(Some(Ok(x))) = ws_recv
         .next()
-        .with_cancel(client_config.cancel_handle.get_token())
+        .with_cancel(client_config.cancel_handle.child_token())
         .await
     {
         let x: Message = x;

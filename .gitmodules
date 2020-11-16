@@ -8,3 +8,6 @@
 [submodule "judger/3rd_party/bollard"]
 	path = judger/3rd_party/bollard
 	url = https://github.com/fussybeaver/bollard.git
+[submodule "judger/3rd_party/hyper"]
+	path = judger/3rd_party/hyper
+	url = https://github.com/hyperium/hyper.git

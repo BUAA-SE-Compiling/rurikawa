@@ -23,7 +23,7 @@ async-tar = "0.3.0"
 async-trait = "0.1.41"
 bollard = {path = "3rd_party/bollard"}
 broadcaster = {version = "1.0.0", features = ["default-channels"]}
-bytes = "*"
+bytes = "0.5"
 chrono = "0.4.19"
 clap = "3.0.0-beta.1"
 ctrlc = "3.1.7"
@@ -71,3 +71,6 @@ tungstenite = "0.11.1"
 [dev-dependencies]
 pretty_assertions = "0.6.1"
 tokio-test = "0.3.0"
+
+[patch.crates-io]
+hyper = {path = "3rd_party/hyper"}

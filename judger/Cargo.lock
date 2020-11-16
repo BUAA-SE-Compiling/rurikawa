@@ -1919,7 +1919,7 @@ dependencies = [
  "async-trait",
  "bollard",
  "broadcaster",
- "bytes 0.6.0",
+ "bytes 0.5.6",
  "chrono",
  "clap",
  "ctrlc",
@@ -2936,3 +2936,7 @@ checksum = "244c3741f4240ef46274860397c7c74e50eb23624996930e484c16679633a54c"
 dependencies = [
  "libc",
 ]
+
+[[patch.unused]]
+name = "hyper"
+version = "0.14.0-dev"
