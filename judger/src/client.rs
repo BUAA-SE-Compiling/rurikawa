@@ -345,12 +345,17 @@ pub async fn handle_job_wrapper(
 
     flag_finished_job(send.clone(), cfg.clone()).await;
 
-    cfg.running_job_handles.lock().await.remove(&job_id);
+    tracing::info!("{}: Result message sent", job_id);
+
+    {
+        cfg.running_job_handles.lock().await.remove(&job_id);
+    }
 
     match fs::ensure_removed_dir(&cfg.job_folder(job_id)).await {
         Ok(_) => {}
         Err(e) => tracing::error!("Failed to remove directory for job {}: {}", job_id, e),
     };
+    tracing::info!("{}: cleanup complete", job_id);
 }
 
 #[instrument(skip(send, cancel, cfg))]
@@ -578,11 +583,13 @@ pub async fn accept_job(job: NewJob, send: Arc<WsSink>, client_config: Arc<Share
 }
 
 async fn cancel_job(job_id: FlowSnake, client_config: Arc<SharedClientData>) {
-    let job = client_config
-        .running_job_handles
-        .lock()
-        .await
-        .remove(&job_id);
+    let job = {
+        client_config
+            .running_job_handles
+            .lock()
+            .await
+            .remove(&job_id)
+    };
     if let Some((handle, cancel)) = job {
         cancel.cancel();
         match handle.await {

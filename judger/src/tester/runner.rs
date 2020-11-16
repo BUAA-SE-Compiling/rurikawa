@@ -241,7 +241,7 @@ impl DockerCommandRunner {
                             path: to_path.clone(),
                             ..Default::default()
                         }),
-                        hyper::Body::wrap_stream(frame.map(|x| x.map(bytes::BytesMut::freeze))),
+                        hyper::Body::wrap_stream(frame.map(|x| x.map(|x| x.freeze()))),
                     )
                     .await?;
                 task.await??;
