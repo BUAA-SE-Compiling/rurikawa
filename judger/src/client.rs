@@ -601,6 +601,26 @@ async fn cancel_job(job_id: FlowSnake, client_config: Arc<SharedClientData>) {
         .remove(&job_id);
 }
 
+async fn keepalive(
+    client_config: Arc<SharedClientData>,
+    ws: Arc<WsSink>,
+    interval: std::time::Duration,
+) {
+    while tokio::time::delay_for(interval)
+        .with_cancel(client_config.cancel_handle.get_token())
+        .await
+        .is_some()
+    {
+        match ws.send(tungstenite::Message::Ping(vec![])).await {
+            Ok(_) => {}
+            Err(e) => {
+                tracing::error!("Server disconnected!");
+                break;
+            }
+        };
+    }
+}
+
 pub async fn client_loop(
     mut ws_recv: WsStream,
     ws_send: Arc<WsSink>,
@@ -615,6 +635,12 @@ pub async fn client_loop(
         }))
         .await
         .unwrap();
+
+    let keepalive_handle = tokio::spawn(keepalive(
+        client_config.clone(),
+        ws_send.clone(),
+        std::time::Duration::from_secs(30),
+    ));
 
     while let Some(Some(Ok(x))) = ws_recv
         .next()
@@ -654,6 +680,8 @@ pub async fn client_loop(
         }
     }
     ws_send.clear_socket();
+
+    let _ = keepalive_handle.await;
 
     tracing::warn!("Disconnected!");
     ws_send
