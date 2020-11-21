@@ -8,6 +8,7 @@ using Karenia.Rurikawa.Helpers;
 using Karenia.Rurikawa.Models;
 using Karenia.Rurikawa.Models.Account;
 using Karenia.Rurikawa.Models.Judger;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -17,7 +18,7 @@ using static Karenia.Rurikawa.Coordinator.Controllers.AccountController;
 namespace Karenia.Rurikawa.Coordinator.Controllers {
     [ApiController]
     [Route("api/v1/admin")]
-    [Authorize("admin")]
+    [Authorize("admin", AuthenticationSchemes = JwtBearerDefaults.AuthenticationScheme + "," + "token")]
     public class AdminController : ControllerBase {
         private readonly DbService dbService;
         private readonly AccountService accountService;
@@ -68,6 +69,17 @@ namespace Karenia.Rurikawa.Coordinator.Controllers {
             });
 
             return new EmptyResult();
+        }
+
+        [HttpPost]
+        [Route("code")]
+        public async Task<string> GetCode([FromServices] TemporaryTokenAuthService tokenAuthService) {
+            var token = AccountService.GenerateToken();
+            await tokenAuthService.AddToken(
+                token,
+                new System.Security.Claims.ClaimsIdentity(HttpContext.User.Claims),
+                TimeSpan.FromMinutes(5));
+            return token;
         }
 
         [HttpGet]
@@ -134,6 +146,8 @@ namespace Karenia.Rurikawa.Coordinator.Controllers {
 
             Response.ContentType = "application/csv";
             Response.StatusCode = 200;
+            Response.Headers.Add("Content-Disposition", $"inline; filename=\"{suiteId}.jobs.csv\"");
+
             await Response.StartAsync();
             await WriteJobResults(columns, ptr, flushInterval);
             return new EmptyResult();
@@ -165,6 +179,8 @@ namespace Karenia.Rurikawa.Coordinator.Controllers {
 
             Response.ContentType = "application/csv";
             Response.StatusCode = 200;
+            Response.Headers.Add("Content-Disposition", $"inline; filename=\"{suiteId}.all-jobs.csv\"");
+
             await Response.StartAsync();
             await WriteJobResults(columns, ptr, flushInterval);
             return new EmptyResult();
@@ -234,8 +250,6 @@ namespace Karenia.Rurikawa.Coordinator.Controllers {
             csv.NextRecord();
         }
 
-
-
         public class CreateJudgerTokenRequest {
             public DateTimeOffset ExpireAt { get; set; }
             public bool IsSingleUse { get; set; }
@@ -284,7 +298,7 @@ namespace Karenia.Rurikawa.Coordinator.Controllers {
 #pragma warning restore CS8618
 
         /// <summary>
-        /// Create a new account with given username, nickname and password. 
+        /// Create a new account with given username, nickname and password.
         /// A result of <i>204 No Content</i> means the account is created successfully
         /// and the end-user may log in using the provided pair of username
         /// and password.

@@ -26,7 +26,7 @@ namespace Karenia.Rurikawa.Coordinator.Services {
             if (judgerToken == null)
                 throw new KeyNotFoundException("No such token was found");
 
-            var judgerAccessToken = accountService.GenerateToken();
+            var judgerAccessToken = AccountService.GenerateToken();
             var judger = new JudgerEntry
             {
                 Id = judgerAccessToken,

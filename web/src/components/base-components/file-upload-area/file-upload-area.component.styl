@@ -7,6 +7,7 @@
 }
 
 .area-wrapper {
+  position: relative
   display: flex
   flex-grow: 1
   flex-direction: column
@@ -15,6 +16,7 @@
   border-radius: var(--space-0)
   transition: all 100ms ease-in-out
   color: var(--secondary-color)
+  overflow: hidden
 
   &.large {
     min-height: 25vh
@@ -30,28 +32,28 @@
 .single-file-waiting {
   color: var(--background-color)
   border: none
-  background-color: var(--accent-alt)
+  background-color: var(--text-accent-alt)
 }
 
 .single-file-uploading {
   color: var(--background-color)
   border: none
-  background-color: var(--secondary-color)
+  background-color: var(--text-secondary-color)
 }
 
 .single-file-failed {
   color: var(--background-color)
   border: none
-  background-color: var(--error-color)
+  background-color: var(--text-error-color)
 }
 
 .single-file-succeeded {
   color: var(--background-color)
   border: none
-  background-color: var(--success-color)
+  background-color: var(--text-success-color)
 }
 
-#drop-file {
+.drop-file {
   display: flex
   flex-grow: 1
   flex-direction: column
@@ -60,7 +62,7 @@
   user-select: none
 }
 
-#single-file-data {
+.single-file-data {
   display: flex
   flex-grow: 1
   flex-direction: column
@@ -68,16 +70,16 @@
   align-items: stretch
   user-select: none
   z-index: 1
-  margin-bottom: var(--space-4)
 
-  #info-row {
+  .info-row {
     display: flex
     flex-direction: row
     justify-content: stretch
     align-items: flex-start
     flex-grow: 1
+    margin-bottom: var(--space-4)
 
-    #info-col {
+    .info-col {
       flex-grow: 1
     }
   }
@@ -133,12 +135,12 @@
   font-size: var(--font-size-smaller)
 }
 
-#file-upload {
+.file-upload {
   display: none
 }
 
 .upload-background {
-  background: var(--background-color)
+  background: var(--text-success-color)
   position: absolute
   left: 0
   top: 0

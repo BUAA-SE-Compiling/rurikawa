@@ -2,12 +2,14 @@ using System;
 using System.Buffers.Text;
 using System.Collections.Generic;
 using System.IdentityModel.Tokens.Jwt;
+using System.IO;
 using System.Linq;
 using System.Security.Claims;
 using System.Text;
 using System.Text.Json;
 using System.Text.RegularExpressions;
 using System.Threading.Tasks;
+using AsyncPrimitives;
 using BCrypt.Net;
 using Karenia.Rurikawa.Coordinator.Services;
 using Karenia.Rurikawa.Models;
@@ -122,7 +124,7 @@ namespace Karenia.Rurikawa.Coordinator.Services {
         static readonly char[] TOKEN_ALPHABET = "0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ_-.=".ToCharArray();
 
 
-        public string GenerateToken() {
+        public static string GenerateToken() {
             var sb = new StringBuilder(TOKEN_LENGTH);
             for (int i = 0; i < TOKEN_LENGTH; i++) {
                 sb.Append(TOKEN_ALPHABET[System.Security.Cryptography.RandomNumberGenerator.GetInt32(TOKEN_ALPHABET.Length)]);
@@ -447,6 +449,98 @@ namespace Karenia.Rurikawa.Coordinator.Services {
                 }),
                 new AuthenticationProperties(),
                 this.Scheme.Name));
+        }
+
+        protected override Task<AuthenticateResult> HandleAuthenticateAsync() {
+            return AuthenticateAsync();
+        }
+
+        protected override Task HandleChallengeAsync(AuthenticationProperties properties) {
+            this.Response.StatusCode = 401;
+            return base.HandleChallengeAsync(properties);
+        }
+    }
+
+    public class TemporaryTokenAuthService {
+        private readonly RedisService redis;
+        private readonly ILogger<TemporaryTokenAuthService> logger;
+        private readonly IServiceProvider serviceProvider;
+        private static readonly TimeSpan redisKeyLifetime = TimeSpan.FromHours(2);
+
+        public TemporaryTokenAuthService(
+            RedisService redis,
+            ILogger<TemporaryTokenAuthService> logger,
+            IServiceProvider serviceProvider
+        ) {
+            this.redis = redis;
+            this.logger = logger;
+            this.serviceProvider = serviceProvider;
+        }
+
+        private static string GetKey(string token) => $"auth:temp:{token}";
+
+        public async Task AddToken(string token, ClaimsIdentity identity, TimeSpan expiry) {
+            string key = GetKey(token);
+            var redisDb = await redis.GetDatabase();
+            var stream = new MemoryStream();
+            var writer = new BinaryWriter(stream);
+            identity.WriteTo(writer);
+            stream.Seek(0, SeekOrigin.Begin);
+            byte[] value = stream.ReadToEnd();
+            await redisDb.StringSetAsync(key, value, expiry: expiry);
+        }
+
+        public async ValueTask<ClaimsIdentity?> AuthenticateAsync(string token) {
+            string key = GetKey(token);
+
+            var redisDb = await redis.GetDatabase();
+            var res = await redisDb.StringGetAsync(key);
+
+            if (res.IsNullOrEmpty) {
+                return null;
+            } else {
+                var resAsBytes = (byte[])res;
+                var reader = new BinaryReader(new MemoryStream(resAsBytes));
+                var identity = new ClaimsIdentity(reader);
+                return identity;
+            }
+        }
+    }
+
+    public class TemporaryTokenAuthMiddleware : AuthenticationHandler<AuthenticationSchemeOptions> {
+        public TemporaryTokenAuthMiddleware(
+            TemporaryTokenAuthService service,
+            Microsoft.Extensions.Options.IOptionsMonitor<AuthenticationSchemeOptions> options,
+            ILoggerFactory logger1,
+            System.Text.Encodings.Web.UrlEncoder encoder,
+            ISystemClock clock) : base(options, logger1, encoder, clock) {
+            this.service = service;
+        }
+
+        private readonly TemporaryTokenAuthService service;
+
+        protected new async Task<AuthenticateResult> AuthenticateAsync() {
+            var endpoint = Context.GetEndpoint();
+            if (endpoint?.Metadata?.GetMetadata<IAllowAnonymous>() != null) {
+                return AuthenticateResult.NoResult();
+            }
+
+            if (!this.Request.Query.ContainsKey("auth")) {
+                return AuthenticateResult.Fail("No auth query header can be found");
+            }
+            var query = Request.Query["auth"];
+            string auth = query.First();
+            Logger.LogInformation($"auth token: {auth}");
+
+            var res = await this.service.AuthenticateAsync(auth);
+            if (res == null) {
+                return AuthenticateResult.Fail("No such token was found");
+            } else {
+                return AuthenticateResult.Success(new AuthenticationTicket(
+                    new ClaimsPrincipal(res),
+                    new AuthenticationProperties(),
+                    this.Scheme.Name));
+            }
         }
 
         protected override Task<AuthenticateResult> HandleAuthenticateAsync() {

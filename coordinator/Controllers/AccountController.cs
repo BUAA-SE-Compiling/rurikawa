@@ -185,7 +185,6 @@ namespace Karenia.Rurikawa.Coordinator.Controllers {
             }
         }
 
-
         [HttpGet("ws-token")]
         [Authorize()]
         public ActionResult<string> GetWebsocketToken() {

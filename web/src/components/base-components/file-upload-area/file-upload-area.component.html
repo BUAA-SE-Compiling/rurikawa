@@ -16,13 +16,13 @@
     "
     [class.single-file-failed]="!multiple && !is_empty && status == 'failed'"
   >
-    <div id="drop-file" *ngIf="multiple || is_empty">
+    <div class="drop-file" *ngIf="multiple || is_empty">
       <div class="caption">点击或拖动文件到此处</div>
       <div class="accepts-info">{{ acceptsInfo }}</div>
     </div>
-    <div id="single-file-data" *ngIf="!multiple && !is_empty">
-      <div id="info-row">
-        <div id="info-col">
+    <div class="single-file-data" *ngIf="!multiple && !is_empty">
+      <div class="info-row">
+        <div class="info-col">
           <div class="filename">{{ single_file.name }}</div>
           <div class="">{{ fileSizeGenerator(single_file.size) }}</div>
         </div>
@@ -57,8 +57,7 @@
     #fileUpload
     type="file"
     name="file-upload"
-    id="file-upload"
-    class="file"
+    class="file-upload file"
     [multiple]="multiple"
     [accept]="accept"
     (change)="onFileChanged($event.target.files)"

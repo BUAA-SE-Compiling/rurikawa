@@ -14,6 +14,9 @@ export const endpoints = {
     readInitStatus: 'admin/init',
     setInitAccount: 'admin/init',
     getJudgerStat: 'status/judger',
+    getCode: 'admin/code',
+    dumpSuiteJobs: (id: string) => `admin/suite/${id}/dump_jobs`,
+    dumpSuiteAllJobs: (id: string) => `admin/suite/${id}/dump_all_jobs`,
   },
   dashboard: {
     get: 'dashboard',
