@@ -97,12 +97,14 @@ export class TestSuiteViewComponent implements OnInit, OnDestroy {
     if (this.suite === undefined) {
       return [];
     }
-    return toPairs(this.suite.testGroups).map(([k, v]) => {
-      return {
-        key: k,
-        values: v,
-      };
-    });
+    return toPairs(this.suite.testGroups)
+      .map(([k, v]) => {
+        return {
+          key: k,
+          values: v,
+        };
+      })
+      .sort((o1, o2) => o1.key.localeCompare(o2.key));
   }
 
   loadMore() {
