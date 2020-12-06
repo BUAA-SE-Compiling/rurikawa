@@ -107,20 +107,21 @@ jobs:
     strategy:
       matrix:
         include:
-          - os: ubuntu-latest
-            artifact_name: rurikawa
-            asset_name: rurikawa-linux-amd64-gnu
-            # target_name: x86_64-unknown-linux-gnu
           # - os: ubuntu-latest
           #   artifact_name: rurikawa
-          #   asset_name: rurikawa-linux-amd64-musl
-          #   target_name: x86_64-unknown-linux-musl
+          #   asset_name: rurikawa-linux-amd64-gnu
+          #   # target_name: x86_64-unknown-linux-gnu
+          - os: ubuntu-latest
+            artifact_name: rurikawa
+            asset_name: rurikawa-linux-amd64-musl
+            target_name: x86_64-unknown-linux-musl
           - os: windows-latest
             artifact_name: rurikawa.exe
             asset_name: rurikawa-windows-amd64.exe
           - os: macos-latest
             artifact_name: rurikawa
             asset_name: rurikawa-macos-amd64
+
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v2
@@ -129,10 +130,14 @@ jobs:
 
       - name: Build rust
         if: ${{ matrix.target_name == 0 }}
+        working-directory: judger
         run: |
-          cd judger
           cargo fetch
           cargo build --frozen --release
+
+      - name: install musl tools
+        if: ${{ matrix.target_name == 'x86_64-unknown-linux-musl' }}
+        run: sudo apt update && sudo apt install musl musl-dev musl-tools
 
       - name: Install rust target
         if: ${{ matrix.target_name != 0 }}
@@ -141,16 +146,23 @@ jobs:
 
       - name: Build rust (targeted)
         if: ${{ matrix.target_name != 0 }}
+        working-directory: judger
         run: |
-          cd judger
           cargo fetch
-          cargo build --frozen --release --target=${{ matrix.target_name }}
+          cargo build --frozen --release --target ${{ matrix.target_name }}
+
+      - uses: haya14busa/action-cond@v1
+        id: condval
+        with:
+          cond: ${{ matrix.target_name != 0 }}
+          if_true: judger/target/${{matrix.target_name}}/release
+          if_false: judger/target/release
 
       - name: Upload binaries to release
         uses: svenstaro/upload-release-action@v1-release
         with:
           repo_token: ${{ secrets.GITHUB_TOKEN }}
-          file: judger/target/release/${{ matrix.artifact_name }}
+          file: ${{ steps.condval.outputs.value }}/${{ matrix.artifact_name }}
           asset_name: ${{ matrix.asset_name }}
           tag: ${{ github.ref }}
           overwrite: true
