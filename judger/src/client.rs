@@ -27,7 +27,8 @@ use sink::*;
 use std::{collections::HashMap, fmt::Debug, path::PathBuf, sync::atomic::Ordering, sync::Arc};
 use tokio::{net::TcpStream, sync::Mutex};
 use tokio_tungstenite::{connect_async, tungstenite, MaybeTlsStream, WebSocketStream};
-use tracing::{instrument, span};
+use tracing::info_span;
+use tracing_futures::Instrument;
 use tungstenite::Message;
 
 // Arc<Mutex<WsSink>>==>>Arc<WsSink>
@@ -293,7 +294,10 @@ pub async fn handle_job_wrapper(
     // TODO: Handle failed cases and report
     let job_id = job.job.id;
     flag_new_job(send.clone(), cfg.clone()).await;
-    let msg = match handle_job(job, send.clone(), cancel, cfg.clone()).await {
+    let msg = match handle_job(job, send.clone(), cancel, cfg.clone())
+        .instrument(tracing::info_span!("handle_job", %job_id))
+        .await
+    {
         Ok(_res) => ClientMsg::JobResult(_res),
         Err(err) => {
             tracing::warn!("job {} aborted because of error: {:?}", job_id, &err);
@@ -356,7 +360,6 @@ pub async fn handle_job_wrapper(
     };
 }
 
-#[instrument(skip(send, cancel, cfg))]
 pub async fn handle_job(
     job: NewJob,
     send: Arc<WsSink>,
@@ -370,6 +373,7 @@ pub async fn handle_job(
 
     let mut public_cfg = check_download_read_test_suite(job.test_suite, &*cfg)
         .with_cancel(cancel.clone())
+        .instrument(info_span!("download_test_suites", %job.test_suite))
         .await
         .ok_or(JobExecErr::Cancelled)??;
     public_cfg.binds.get_or_insert_with(Vec::new);
@@ -518,6 +522,7 @@ pub async fn handle_job(
             Some(upload_info),
             cancel.clone(),
         )
+        .instrument(info_span!("run_job"))
         .await?;
 
     tracing::info!("finished running");
