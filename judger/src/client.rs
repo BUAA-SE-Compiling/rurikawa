@@ -344,11 +344,10 @@ pub async fn handle_job_wrapper(
         req = req.header("authorization", token.as_str());
     }
 
-    let send_res = req.send().await.and_then(|x| x.error_for_status());
-    match send_res {
-        Ok(_) => {}
-        Err(e) => tracing::error!("Error when sending job result mesage:\n{}", e),
-    }
+   while let Err(e) = req.send().await.and_then(|x| x.error_for_status()){
+
+        tracing::error!("Error when sending job result mesage:\n{}", e)
+   }
 
     flag_finished_job(send.clone(), cfg.clone()).await;
 
