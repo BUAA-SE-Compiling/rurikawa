@@ -9,10 +9,10 @@ use async_trait::async_trait;
 use bollard::{container::UploadToContainerOptions, exec::StartExecResults, models::Mount, Docker};
 use futures::stream::StreamExt;
 use names::{Generator, Name};
-use std::default::Default;
 #[cfg(unix)]
 use std::os::unix::process::ExitStatusExt;
 use std::process::ExitStatus;
+use std::{default::Default, time::Duration};
 use tokio::{io::BufWriter, process::Command};
 
 /// An evaluation environment for commands.
@@ -382,9 +382,9 @@ impl DockerCommandRunner {
     }
 }
 
-// 2MiB
+// 100kB
 // TODO: user-configurable output size
-static MAX_CONSOLE_FILE_SIZE: usize = 2 * 1024 * 1024;
+static MAX_CONSOLE_FILE_SIZE: usize = 100 * 1024;
 
 #[async_trait]
 impl CommandRunner for DockerCommandRunner {
@@ -429,7 +429,7 @@ impl CommandRunner for DockerCommandRunner {
                             let msg = String::from_utf8_lossy(&message);
                             stdout.push_str(&msg);
                             if (stdout.len() >= MAX_CONSOLE_FILE_SIZE) {
-                                stdout.push_str("\nStripped due to oversized stdout");
+                                stdout.push_str("\n--- ERROR: Max output length exceeded");
                                 break;
                             }
                         }
@@ -437,7 +437,7 @@ impl CommandRunner for DockerCommandRunner {
                             let msg = String::from_utf8_lossy(&message);
                             stderr.push_str(&msg);
                             if (stderr.len() >= MAX_CONSOLE_FILE_SIZE) {
-                                stderr.push_str("\nStripped due to oversized stderr");
+                                stderr.push_str("\n--- ERROR: Max output length exceeded");
                                 break;
                             }
                         }
@@ -458,16 +458,10 @@ impl CommandRunner for DockerCommandRunner {
                 format!("Failed to inspect Docker Exec: {:?}", e),
             )
         })?;
-
         let ret_code = inspect_res
             .exit_code
             .map(|x| convert_code(x as i32))
-            .ok_or_else(|| {
-                std::io::Error::new(
-                    std::io::ErrorKind::Other,
-                    "Failed to fetch Docker Exec exit code",
-                )
-            })?;
+            .unwrap_or(-1);
 
         Ok(ProcessInfo {
             command: cmd_str,
