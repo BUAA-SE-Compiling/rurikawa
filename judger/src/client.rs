@@ -339,15 +339,16 @@ pub async fn handle_job_wrapper(
         }
     };
 
-    let mut req = cfg.client.post(&cfg.result_send_endpoint()).json(&msg);
-    if let Some(token) = &cfg.cfg.access_token {
-        req = req.header("authorization", token.as_str());
-    }
-
-   while let Err(e) = req.send().await.and_then(|x| x.error_for_status()){
-
+    while let Err(e) = {
+        // Ah yes, do-while pattern
+        let mut req = cfg.client.post(&cfg.result_send_endpoint()).json(&msg);
+        if let Some(token) = &cfg.cfg.access_token {
+            req = req.header("authorization", token.as_str());
+        }
+        req.send().await.and_then(|x| x.error_for_status())
+    } {
         tracing::error!("Error when sending job result mesage:\n{}", e)
-   }
+    }
 
     flag_finished_job(send.clone(), cfg.clone()).await;
 
