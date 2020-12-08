@@ -650,7 +650,7 @@ pub async fn client_loop(
         client_config.clone(),
         keepalive_token,
         ws_send.clone(),
-        std::time::Duration::from_secs(30),
+        std::time::Duration::from_secs(20),
     ));
 
     while let Some(Some(Ok(x))) = ws_recv
@@ -685,7 +685,9 @@ pub async fn client_loop(
                 }
             }
         } else if x.is_ping() {
-            // Noop.
+            tracing::info!("Client gets pinged! {:?}", x);
+        } else if x.is_pong() {
+            tracing::info!("Client is still alive: {:?}", x);
         } else {
             tracing::warn!("Unsupported message: {:?}", x);
         }
