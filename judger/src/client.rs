@@ -110,10 +110,21 @@ pub async fn try_register(cfg: &mut SharedClientData, refresh: bool) -> anyhow::
         .request(Method::POST, &endpoint)
         .json(&req_body)
         .send()
-        .await?
-        .error_for_status()?
-        .text()
         .await?;
+
+    let status = res.status().as_u16();
+    if status >= 300 {
+        let headers = res.headers();
+        tracing::error!("Failed to register judger. Status: {}", status);
+        tracing::error!("Headers: {:#?}", headers);
+        let body = res.text().await?;
+        tracing::error!("body: {}", body);
+        return Err(anyhow::Error::msg(format!(
+            "Failed to register judger: status code {}",
+            status
+        )));
+    }
+    let res = res.text().await?;
 
     tracing::info!("Got new access token: {}", res);
     cfg.cfg.access_token = Some(res);
@@ -617,11 +628,14 @@ async fn keepalive(
         .await
         .is_some()
     {
-        match ws.send(tungstenite::Message::Ping(vec![])).await {
-            Ok(_) => {}
+        tracing::info!("Sending ping");
+        match { ws.send_conf(tungstenite::Message::Ping(vec![]), true).await } {
+            Ok(_) => {
+                tracing::info!("ping sent");
+            }
             Err(e) => {
                 keepalive_token.cancel();
-                tracing::error!("Server disconnected!");
+                tracing::error!("Server disconnected: {}", e);
                 break;
             }
         };
