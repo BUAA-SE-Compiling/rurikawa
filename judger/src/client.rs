@@ -188,95 +188,113 @@ pub async fn check_download_read_test_suite(
     tokio::fs::create_dir_all(suite_folder_root).await?;
     let suite_folder = cfg.test_suite_folder(suite_id);
 
-    let handle = cfg.obtain_suite_lock(suite_id).await;
+    // My fault - The cancellation token should automagically cancel itself when
+    // dropped in this case - If download fails then it won't cancel.
 
-    let download_section: Result<(), JobExecErr> = async {
-        // Lock this specific test suite and let all other concurrent tasks to wait
-        // until downloading completes
+    /// This struct automatically releases the test suite inside it if dropped.
+    ///
+    /// TODO: Move this struct inside `SharedClientData`.
+    struct AutoReleaseToken<'a>(CancellationTokenHandle, &'a SharedClientData, FlowSnake);
+    impl<'a> Drop for AutoReleaseToken<'a> {
+        fn drop(&mut self) {
+            self.0.cancel();
+            self.1.suite_unlock(self.2);
+        }
+    }
 
-        let suite_data = fetch_test_suite_data(suite_id, cfg).await?;
+    tracing::debug!("Folder created: {:?}", suite_folder);
+    let handle = cfg
+        .obtain_suite_lock(suite_id)
+        .instrument(info_span!("suite_lock", %suite_id))
+        .await
+        .map(|x| AutoReleaseToken(x, cfg, suite_id));
 
-        let dir_exists = {
-            let create_dir = tokio::fs::create_dir(&suite_folder).await;
-            match create_dir {
-                Ok(()) => false,
-                Err(e) => match e.kind() {
-                    std::io::ErrorKind::AlreadyExists => true,
-                    _ => return Err(e.into()),
-                },
-            }
+    // Lock this specific test suite and let all other concurrent tasks to wait
+    // until downloading completes
+
+    let suite_data = fetch_test_suite_data(suite_id, cfg).await?;
+
+    let dir_exists = {
+        let create_dir = tokio::fs::create_dir(&suite_folder).await;
+        match create_dir {
+            Ok(()) => false,
+            Err(e) => match e.kind() {
+                std::io::ErrorKind::AlreadyExists => true,
+                _ => return Err(e.into()),
+            },
+        }
+    };
+
+    let lockfile = cfg.test_suite_folder_lockfile(suite_id);
+
+    let lockfile_up_to_date = {
+        let lockfile_data = tokio::fs::read_to_string(&lockfile).await;
+        let lockfile_data = match lockfile_data {
+            Ok(f) => Some(f),
+            Err(e) => match e.kind() {
+                std::io::ErrorKind::NotFound => None,
+                _ => return Err(e.into()),
+            },
         };
 
-        let lockfile = cfg.test_suite_folder_lockfile(suite_id);
+        let suite_data_locked = lockfile_data
+            .as_deref()
+            .and_then(|x| serde_json::from_str::<TestSuite>(x).ok());
 
-        let lockfile_up_to_date = {
-            let lockfile_data = tokio::fs::read_to_string(&lockfile).await;
-            let lockfile_data = match lockfile_data {
-                Ok(f) => Some(f),
-                Err(e) => match e.kind() {
-                    std::io::ErrorKind::NotFound => None,
-                    _ => return Err(e.into()),
-                },
-            };
+        suite_data_locked
+            .map(|locked| locked.package_file_id == suite_data.package_file_id)
+            .unwrap_or(false)
+    };
 
-            let suite_data_locked = lockfile_data
-                .as_deref()
-                .and_then(|x| serde_json::from_str::<TestSuite>(x).ok());
+    if !dir_exists || !lockfile_up_to_date {
+        let endpoint = cfg.test_suite_download_endpoint(suite_id);
+        let filename = cfg.random_temp_file_path();
+        let file_folder_root = cfg.temp_file_folder_root();
 
-            suite_data_locked
-                .map(|locked| locked.package_file_id == suite_data.package_file_id)
-                .unwrap_or(false)
-        };
-
-        if !dir_exists || !lockfile_up_to_date {
-            let endpoint = cfg.test_suite_download_endpoint(suite_id);
-            let filename = cfg.random_temp_file_path();
-            let file_folder_root = cfg.temp_file_folder_root();
-
-            fs::ensure_removed_dir(&suite_folder).await?;
-            tokio::fs::create_dir_all(file_folder_root).await?;
-            tracing::info!(
-                "Test suite does not exist. Initiating download of suite {} from {} to {:?}",
-                suite_id,
-                &endpoint,
-                &filename
-            );
-            fs::net::download_unzip(
-                cfg.client.clone(),
-                cfg.client
-                    .get(&endpoint)
-                    .header("authorization", cfg.cfg.access_token.as_ref().unwrap())
-                    .build()?,
-                &suite_folder,
-                &filename,
-            )
-            .await?;
-        }
-
-        // Rewrite lockfile AFTER all data are saved
-        if !lockfile_up_to_date {
-            let serialized = serde_json::to_string(&suite_data)?;
-            tokio::fs::write(&lockfile, &serialized).await?;
-        }
-
-        tracing::info!("Suite downloaded");
-        Ok(())
-    }
-    .await;
-
-    match download_section {
-        Ok(_) => {}
-        Err(e) => {
-            // cleanup!
-            let _ = fs::ensure_removed_dir(&cfg.test_suite_folder(suite_id)).await;
-            return Err(e);
-        }
+        fs::ensure_removed_dir(&suite_folder).await?;
+        tokio::fs::create_dir_all(file_folder_root).await?;
+        tracing::info!(
+            "Test suite does not exist. Initiating download of suite {} from {} to {:?}",
+            suite_id,
+            &endpoint,
+            &filename
+        );
+        fs::net::download_unzip(
+            cfg.client.clone(),
+            cfg.client
+                .get(&endpoint)
+                .header("authorization", cfg.cfg.access_token.as_ref().unwrap())
+                .build()?,
+            &suite_folder,
+            &filename,
+        )
+        .await?;
     }
 
-    if let Some(h) = handle {
-        h.cancel();
+    // Rewrite lockfile AFTER all data are saved
+    if !lockfile_up_to_date {
+        let serialized = serde_json::to_string(&suite_data)?;
+        tokio::fs::write(&lockfile, &serialized).await?;
     }
-    cfg.suite_unlock(suite_id);
+
+    tracing::info!("Suite downloaded");
+
+    // Note:
+    // Lockfile is updated only AFTER test suite is fully downloaded, so an incomplete
+    // download would not result in an updated lockfile. Therefore there's no need
+    // to clean up the suite folder if things blow up - they're simply ignored.
+    //
+    // This should be easier to write using traditional try-catch-finally pattern
+    // since finally-blocks can also be async. Sadly we don't have AsyncDrop trait
+    // yet here in Rust. See this withoutboats' post for more information:
+    // <https://without.boats/blog/poll-drop/>
+    //
+    //   |
+    //   V
+    // let _ = fs::ensure_removed_dir(&cfg.test_suite_folder(suite_id)).await;
+
+    // The handle should be dropped right here
+    drop(handle);
 
     let mut judger_conf_dir = suite_folder.clone();
     judger_conf_dir.push("testconf.json");
@@ -628,11 +646,8 @@ async fn keepalive(
         .await
         .is_some()
     {
-        tracing::info!("Sending ping");
         match { ws.send_conf(tungstenite::Message::Ping(vec![]), true).await } {
-            Ok(_) => {
-                tracing::info!("ping sent");
-            }
+            Ok(_) => {}
             Err(e) => {
                 keepalive_token.cancel();
                 tracing::error!("Server disconnected: {}", e);
@@ -642,6 +657,7 @@ async fn keepalive(
     }
 }
 
+#[allow(clippy::if_same_then_else)]
 pub async fn client_loop(
     mut ws_recv: WsStream,
     ws_send: Arc<WsSink>,
@@ -699,9 +715,9 @@ pub async fn client_loop(
                 }
             }
         } else if x.is_ping() {
-            tracing::info!("Client gets pinged! {:?}", x);
+            // noop
         } else if x.is_pong() {
-            tracing::info!("Client is still alive: {:?}", x);
+            // also noop
         } else {
             tracing::warn!("Unsupported message: {:?}", x);
         }

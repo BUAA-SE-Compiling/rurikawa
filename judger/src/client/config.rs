@@ -209,10 +209,14 @@ impl SharedClientData {
             .entry(suite_id)
             .or_insert_with(|| handle.get_token())
             .clone();
+        tracing::debug!("Trying to obtain suite lock for {}", suite_id);
         if entry.is_token_of(&handle) {
+            tracing::debug!("Lock obtained");
             Some(handle)
         } else {
+            tracing::debug!("Already locked");
             entry.await;
+            tracing::debug!("Lock cleared");
             None
         }
     }
