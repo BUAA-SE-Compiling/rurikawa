@@ -361,10 +361,7 @@ impl Image {
                     .map_err(|e| BuildError::Internal(e.to_string()))?;
 
                 if let BuildResult::Error(err, detail) = result {
-                    return Err(BuildError::BuildError(format!(
-                        "{}; Detail: {:?}",
-                        err, detail
-                    )));
+                    return Err(BuildError::BuildError { error: err, detail });
                 }
 
                 task.await

@@ -56,6 +56,9 @@ pub enum JobExecErr {
     #[error(display = "TOML error: {}", _0)]
     TomlDes(#[error(source)] toml::de::Error),
 
+    #[error(display = "Build error: {}", _0)]
+    Build(#[error(source)] crate::tester::BuildError),
+
     #[error(display = "Execution error: {}", _0)]
     Exec(#[error(source)] crate::tester::ExecError),
 
@@ -355,6 +358,7 @@ pub async fn handle_job_wrapper(
                     JobResultKind::JudgerError,
                     format!("Web request error: {:?}", e),
                 ),
+                JobExecErr::Build(e) => (JobResultKind::CompileError, format!("{}", e)),
                 JobExecErr::Exec(e) => (JobResultKind::PipelineError, format!("{:?}", e)),
                 JobExecErr::Any(e) => (JobResultKind::OtherError, format!("{:?}", e)),
             };

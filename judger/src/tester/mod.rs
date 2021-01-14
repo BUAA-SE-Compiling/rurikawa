@@ -49,7 +49,10 @@ pub struct ShouldFailFailure {
 pub enum BuildError {
     ImagePullFailure(String),
     FileTransferError(String),
-    BuildError(String),
+    BuildError {
+        error: String,
+        detail: Option<bollard::models::ErrorDetail>,
+    },
     Internal(String),
     Cancelled,
 }
