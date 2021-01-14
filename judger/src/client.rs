@@ -66,7 +66,7 @@ pub enum JobExecErr {
     Cancelled,
 
     #[error(display = "Other error: {}", _0)]
-    Any(#[error(from)] anyhow::Error),
+    Any(anyhow::Error),
 }
 
 impl From<tungstenite::error::Error> for JobExecErr {
@@ -75,6 +75,29 @@ impl From<tungstenite::error::Error> for JobExecErr {
             tungstenite::Error::Io(e) => JobExecErr::Io(e),
             _ => JobExecErr::Ws(e),
         }
+    }
+}
+
+macro_rules! anyhow_downcast_chain {
+    ($e:expr, $($ty:ty),*) => {
+        $(if $e.is::<$ty>(){
+            let e = $e.downcast::<$ty>().unwrap();
+            return e.into();
+        })*
+    };
+}
+
+impl From<anyhow::Error> for JobExecErr {
+    fn from(e: anyhow::Error) -> Self {
+        anyhow_downcast_chain!(
+            e,
+            std::io::Error,
+            crate::tester::BuildError,
+            crate::tester::ExecError,
+            toml::de::Error,
+            reqwest::Error
+        );
+        JobExecErr::Any(e)
     }
 }
 
