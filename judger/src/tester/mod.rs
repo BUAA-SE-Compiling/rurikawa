@@ -49,7 +49,7 @@ pub struct ShouldFailFailure {
 pub enum BuildError {
     ImagePullFailure(String),
     FileTransferError(String),
-    BuildError(Vec<ProcessInfo>),
+    BuildError(String),
     Internal(String),
     Cancelled,
 }
