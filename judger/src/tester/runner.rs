@@ -12,7 +12,7 @@ use names::{Generator, Name};
 #[cfg(unix)]
 use std::os::unix::process::ExitStatusExt;
 use std::process::ExitStatus;
-use std::{default::Default, time::Duration};
+use std::{default::Default, };
 use tokio::{io::BufWriter, process::Command};
 
 /// An evaluation environment for commands.

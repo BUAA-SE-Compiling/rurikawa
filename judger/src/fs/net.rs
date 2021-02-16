@@ -1,9 +1,8 @@
 //! Functions to download stuff into destinations
-use futures::{SinkExt, StreamExt};
+use futures::{ StreamExt};
 use std::fmt::Write;
 use std::path::Path;
-use std::str::FromStr;
-use tokio::io::{AsyncReadExt, AsyncWriteExt};
+use tokio::io::{ AsyncWriteExt};
 use tokio::process::Command;
 
 #[derive(Debug)]

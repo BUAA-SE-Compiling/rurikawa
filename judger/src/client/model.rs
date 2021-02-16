@@ -113,21 +113,42 @@ pub struct ResultUploadConfig {
     pub job_id: FlowSnake,
 }
 
+pub type Score = Option<f64>;
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct TestResult {
     pub kind: TestResultKind,
+    pub score: Score,
     pub result_file_id: Option<String>,
 }
 
+/// Represents the resulting score of a single test
+pub trait ToScore {
+    fn to_score(&self) -> Score;
+}
+
+impl ToScore for f64 {
+    fn to_score(&self) -> Score {
+        Some(*self)
+    }
+}
+
+impl ToScore for () {
+    fn to_score(&self) -> Score {
+        None
+    }
+}
+
 impl TestResult {
-    pub fn from_failure(
-        failure: Result<(), crate::tester::JobFailure>,
+    pub fn from_failure<S: ToScore>(
+        failure: Result<S, crate::tester::JobFailure>,
     ) -> (TestResult, Option<FailedJobOutputCacheFile>) {
         match failure {
-            Ok(_) => (
+            Ok(s) => (
                 TestResult {
                     kind: TestResultKind::Accepted,
+                    score: s.to_score(),
                     result_file_id: None,
                 },
                 None,
@@ -192,6 +213,7 @@ impl TestResult {
                 (
                     TestResult {
                         kind,
+                        score: None,
                         result_file_id: None,
                     },
                     cache,

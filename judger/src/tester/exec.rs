@@ -585,6 +585,7 @@ impl TestSuite {
                     case.name.clone(),
                     TestResult {
                         kind: TestResultKind::Running,
+                        score: None,
                         result_file_id: None,
                     },
                 ))

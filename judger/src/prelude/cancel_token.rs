@@ -305,6 +305,7 @@ pub trait ICancellationToken: Future<Output = ()> + Send + Unpin {}
 
 impl ICancellationToken for CancellationToken {}
 
+#[cfg(test)]
 mod test {
     use super::*;
     use std::time::Duration;
