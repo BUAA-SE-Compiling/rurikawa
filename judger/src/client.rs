@@ -26,10 +26,9 @@ use serde_json::from_slice;
 use sink::*;
 use std::{collections::HashMap, fmt::Debug, path::PathBuf, sync::atomic::Ordering, sync::Arc};
 use tokio::{net::TcpStream, sync::Mutex};
-use tokio_tungstenite::{connect_async, tungstenite, MaybeTlsStream, WebSocketStream};
+use tokio_tungstenite::{connect_async, tungstenite::Message, MaybeTlsStream, WebSocketStream};
 use tracing::info_span;
 use tracing_futures::Instrument;
-use tungstenite::Message;
 
 // Arc<Mutex<WsSink>>==>>Arc<WsSink>
 
@@ -48,7 +47,7 @@ pub enum JobExecErr {
     Request(#[error(source)] reqwest::Error),
 
     #[error(display = "Websocket error: {}", _0)]
-    Ws(#[error(source, no_from)] tungstenite::Error),
+    Ws(#[error(source, no_from)] tokio_tungstenite::tungstenite::Error),
 
     #[error(display = "JSON error: {}", _0)]
     Json(#[error(source)] serde_json::Error),
@@ -69,10 +68,10 @@ pub enum JobExecErr {
     Any(anyhow::Error),
 }
 
-impl From<tungstenite::error::Error> for JobExecErr {
-    fn from(e: tungstenite::error::Error) -> Self {
+impl From<tokio_tungstenite::tungstenite::error::Error> for JobExecErr {
+    fn from(e: tokio_tungstenite::tungstenite::error::Error) -> Self {
         match e {
-            tungstenite::Error::Io(e) => JobExecErr::Io(e),
+            tokio_tungstenite::tungstenite::Error::Io(e) => JobExecErr::Io(e),
             _ => JobExecErr::Ws(e),
         }
     }
@@ -104,7 +103,7 @@ impl From<anyhow::Error> for JobExecErr {
 #[derive(Debug, Error)]
 pub enum ClientConnectionErr {
     #[error(display = "Websocket error: {}", _0)]
-    Ws(#[error(from)] tungstenite::Error),
+    Ws(#[error(from)] tokio_tungstenite::tungstenite::Error),
     #[error(display = "Bad access token")]
     BadAccessToken,
     #[error(display = "Bad register token")]
@@ -529,7 +528,7 @@ pub async fn handle_job(
         let ws_send = send.clone();
         let job_id = job.id;
         async move {
-            while let Some((key, res)) = recv.next().await {
+            while let Some((key, res)) = recv.recv().await {
                 tracing::info!("Job {}: recv message for key={}", job_id, key);
                 // Omit error; it doesn't matter
                 let _ = ws_send
@@ -551,7 +550,7 @@ pub async fn handle_job(
         let ws_send = send.clone();
         let job_id = job.id;
         async move {
-            while let Some(res) = recv.next().await {
+            while let Some(res) = recv.recv().await {
                 let _ = ws_send
                     .send_msg(&ClientMsg::JobOutput(JobOutputMsg {
                         job_id,
@@ -675,12 +674,15 @@ async fn keepalive(
     ws: Arc<WsSink>,
     interval: std::time::Duration,
 ) {
-    while tokio::time::delay_for(interval)
-        .with_cancel(client_config.cancel_handle.get_token())
+    while tokio::time::sleep(interval)
+        .with_cancel(client_config.cancel_handle.child_token())
         .await
         .is_some()
     {
-        match { ws.send_conf(tungstenite::Message::Ping(vec![]), true).await } {
+        match {
+            ws.send_conf(tokio_tungstenite::tungstenite::Message::Ping(vec![]), true)
+                .await
+        } {
             Ok(_) => {}
             Err(e) => {
                 keepalive_token.cancel();

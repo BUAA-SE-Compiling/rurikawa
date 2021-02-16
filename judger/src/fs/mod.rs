@@ -12,7 +12,7 @@ pub const JUDGE_FILE_NAME: &str = "judge.toml";
 pub fn ensure_removed_dir(path: &Path) -> BoxFuture<Result<(), std::io::Error>> {
     async move {
         let entries = match read_dir(path).await {
-            Ok(dir) => dir,
+            Ok(dir) => tokio_stream::wrappers::ReadDirStream::new(dir),
             Err(e) => match e.kind() {
                 std::io::ErrorKind::NotFound => return Ok(()),
                 _ => return Err(e),
@@ -50,7 +50,7 @@ pub fn find_judge_root(path: &Path) -> BoxFuture<Result<PathBuf, std::io::Error>
         let mut dir = read_dir(path).await?;
         let mut dirs = vec![];
         let mut files = vec![];
-        while let Some(content) = dir.next().await {
+        while let Some(content) = tokio_stream::wrappers::ReadDirStream::new(dir).next().await {
             let content = content?;
             if content.file_type().await?.is_dir() {
                 dirs.push(content);
