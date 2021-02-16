@@ -372,6 +372,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "bstr"
+version = "0.2.15"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a40b47ad93e1a5404e6c18dec46b628214fee441c70f4ab5d6942142cc268a3d"
+dependencies = [
+ "memchr",
+]
+
+[[package]]
 name = "bumpalo"
 version = "3.6.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1239,6 +1248,24 @@ dependencies = [
 ]
 
 [[package]]
+name = "lua-src"
+version = "542.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "4c8866ea13f233a5fd3165080e4029b84f9df7107c80d3b338a5f775a810d9b4"
+dependencies = [
+ "cc",
+]
+
+[[package]]
+name = "luajit-src"
+version = "210.1.2+resty29a66f7"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b9ff31ac8626ef6c96d066f42f5adc963a0d1c60047cfa583d6b048c74b7e95f"
+dependencies = [
+ "cc",
+]
+
+[[package]]
 name = "matchers"
 version = "0.0.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1337,6 +1364,21 @@ checksum = "5a33c1b55807fbed163481b5ba66db4b2fa6cde694a5027be10fb724206c5897"
 dependencies = [
  "socket2",
  "winapi 0.3.9",
+]
+
+[[package]]
+name = "mlua"
+version = "0.5.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "0bd179c80340f87911c17eb365ab9f890cf745ac722860d1465be5889be2853a"
+dependencies = [
+ "bstr",
+ "cc",
+ "lazy_static",
+ "lua-src",
+ "luajit-src",
+ "num-traits",
+ "pkg-config",
 ]
 
 [[package]]
@@ -1966,6 +2008,7 @@ dependencies = [
  "hyper",
  "libc",
  "log",
+ "mlua",
  "names",
  "once_cell",
  "path-absolutize",
