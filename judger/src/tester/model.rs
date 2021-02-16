@@ -104,7 +104,7 @@ pub struct JudgerPublicConfig {
 
     /// Path to the special judger script.
     ///
-    /// The special judger script should be a valid Lua script with specified
+    /// The special judger script should be a valid JS script with specified
     /// functions inside global scope.
     pub special_judge_script: Option<String>,
 }
