@@ -27,7 +27,8 @@ use sink::*;
 use std::{collections::HashMap, fmt::Debug, path::PathBuf, sync::atomic::Ordering, sync::Arc};
 use tokio::{net::TcpStream, sync::Mutex};
 use tokio_tungstenite::{connect_async, tungstenite, MaybeTlsStream, WebSocketStream};
-use tracing::{instrument, span};
+use tracing::info_span;
+use tracing_futures::Instrument;
 use tungstenite::Message;
 
 // Arc<Mutex<WsSink>>==>>Arc<WsSink>
@@ -55,6 +56,9 @@ pub enum JobExecErr {
     #[error(display = "TOML error: {}", _0)]
     TomlDes(#[error(source)] toml::de::Error),
 
+    #[error(display = "Build error: {}", _0)]
+    Build(#[error(source)] crate::tester::BuildError),
+
     #[error(display = "Execution error: {}", _0)]
     Exec(#[error(source)] crate::tester::ExecError),
 
@@ -62,7 +66,7 @@ pub enum JobExecErr {
     Cancelled,
 
     #[error(display = "Other error: {}", _0)]
-    Any(#[error(from)] anyhow::Error),
+    Any(anyhow::Error),
 }
 
 impl From<tungstenite::error::Error> for JobExecErr {
@@ -71,6 +75,29 @@ impl From<tungstenite::error::Error> for JobExecErr {
             tungstenite::Error::Io(e) => JobExecErr::Io(e),
             _ => JobExecErr::Ws(e),
         }
+    }
+}
+
+macro_rules! anyhow_downcast_chain {
+    ($e:expr, $($ty:ty),*) => {
+        $(if $e.is::<$ty>(){
+            let e = $e.downcast::<$ty>().unwrap();
+            return e.into();
+        })*
+    };
+}
+
+impl From<anyhow::Error> for JobExecErr {
+    fn from(e: anyhow::Error) -> Self {
+        anyhow_downcast_chain!(
+            e,
+            std::io::Error,
+            crate::tester::BuildError,
+            crate::tester::ExecError,
+            toml::de::Error,
+            reqwest::Error
+        );
+        JobExecErr::Any(e)
     }
 }
 
@@ -109,10 +136,21 @@ pub async fn try_register(cfg: &mut SharedClientData, refresh: bool) -> anyhow::
         .request(Method::POST, &endpoint)
         .json(&req_body)
         .send()
-        .await?
-        .error_for_status()?
-        .text()
         .await?;
+
+    let status = res.status().as_u16();
+    if status >= 300 {
+        let headers = res.headers();
+        tracing::error!("Failed to register judger. Status: {}", status);
+        tracing::error!("Headers: {:#?}", headers);
+        let body = res.text().await?;
+        tracing::error!("body: {}", body);
+        return Err(anyhow::Error::msg(format!(
+            "Failed to register judger: status code {}",
+            status
+        )));
+    }
+    let res = res.text().await?;
 
     tracing::info!("Got new access token: {}", res);
     cfg.cfg.access_token = Some(res);
@@ -176,95 +214,113 @@ pub async fn check_download_read_test_suite(
     tokio::fs::create_dir_all(suite_folder_root).await?;
     let suite_folder = cfg.test_suite_folder(suite_id);
 
-    let handle = cfg.obtain_suite_lock(suite_id).await;
+    // My fault - The cancellation token should automagically cancel itself when
+    // dropped in this case - If download fails then it won't cancel.
 
-    let download_section: Result<(), JobExecErr> = async {
-        // Lock this specific test suite and let all other concurrent tasks to wait
-        // until downloading completes
+    /// This struct automatically releases the test suite inside it if dropped.
+    ///
+    /// TODO: Move this struct inside `SharedClientData`.
+    struct AutoReleaseToken<'a>(CancellationTokenHandle, &'a SharedClientData, FlowSnake);
+    impl<'a> Drop for AutoReleaseToken<'a> {
+        fn drop(&mut self) {
+            self.0.cancel();
+            self.1.suite_unlock(self.2);
+        }
+    }
 
-        let suite_data = fetch_test_suite_data(suite_id, cfg).await?;
+    tracing::debug!("Folder created: {:?}", suite_folder);
+    let handle = cfg
+        .obtain_suite_lock(suite_id)
+        .instrument(info_span!("suite_lock", %suite_id))
+        .await
+        .map(|x| AutoReleaseToken(x, cfg, suite_id));
 
-        let dir_exists = {
-            let create_dir = tokio::fs::create_dir(&suite_folder).await;
-            match create_dir {
-                Ok(()) => false,
-                Err(e) => match e.kind() {
-                    std::io::ErrorKind::AlreadyExists => true,
-                    _ => return Err(e.into()),
-                },
-            }
+    // Lock this specific test suite and let all other concurrent tasks to wait
+    // until downloading completes
+
+    let suite_data = fetch_test_suite_data(suite_id, cfg).await?;
+
+    let dir_exists = {
+        let create_dir = tokio::fs::create_dir(&suite_folder).await;
+        match create_dir {
+            Ok(()) => false,
+            Err(e) => match e.kind() {
+                std::io::ErrorKind::AlreadyExists => true,
+                _ => return Err(e.into()),
+            },
+        }
+    };
+
+    let lockfile = cfg.test_suite_folder_lockfile(suite_id);
+
+    let lockfile_up_to_date = {
+        let lockfile_data = tokio::fs::read_to_string(&lockfile).await;
+        let lockfile_data = match lockfile_data {
+            Ok(f) => Some(f),
+            Err(e) => match e.kind() {
+                std::io::ErrorKind::NotFound => None,
+                _ => return Err(e.into()),
+            },
         };
 
-        let lockfile = cfg.test_suite_folder_lockfile(suite_id);
+        let suite_data_locked = lockfile_data
+            .as_deref()
+            .and_then(|x| serde_json::from_str::<TestSuite>(x).ok());
 
-        let lockfile_up_to_date = {
-            let lockfile_data = tokio::fs::read_to_string(&lockfile).await;
-            let lockfile_data = match lockfile_data {
-                Ok(f) => Some(f),
-                Err(e) => match e.kind() {
-                    std::io::ErrorKind::NotFound => None,
-                    _ => return Err(e.into()),
-                },
-            };
+        suite_data_locked
+            .map(|locked| locked.package_file_id == suite_data.package_file_id)
+            .unwrap_or(false)
+    };
 
-            let suite_data_locked = lockfile_data
-                .as_deref()
-                .and_then(|x| serde_json::from_str::<TestSuite>(x).ok());
+    if !dir_exists || !lockfile_up_to_date {
+        let endpoint = cfg.test_suite_download_endpoint(suite_id);
+        let filename = cfg.random_temp_file_path();
+        let file_folder_root = cfg.temp_file_folder_root();
 
-            suite_data_locked
-                .map(|locked| locked.package_file_id == suite_data.package_file_id)
-                .unwrap_or(false)
-        };
-
-        if !dir_exists || !lockfile_up_to_date {
-            let endpoint = cfg.test_suite_download_endpoint(suite_id);
-            let filename = cfg.random_temp_file_path();
-            let file_folder_root = cfg.temp_file_folder_root();
-
-            fs::ensure_removed_dir(&suite_folder).await?;
-            tokio::fs::create_dir_all(file_folder_root).await?;
-            tracing::info!(
-                "Test suite does not exist. Initiating download of suite {} from {} to {:?}",
-                suite_id,
-                &endpoint,
-                &filename
-            );
-            fs::net::download_unzip(
-                cfg.client.clone(),
-                cfg.client
-                    .get(&endpoint)
-                    .header("authorization", cfg.cfg.access_token.as_ref().unwrap())
-                    .build()?,
-                &suite_folder,
-                &filename,
-            )
-            .await?;
-        }
-
-        // Rewrite lockfile AFTER all data are saved
-        if !lockfile_up_to_date {
-            let serialized = serde_json::to_string(&suite_data)?;
-            tokio::fs::write(&lockfile, &serialized).await?;
-        }
-
-        tracing::info!("Suite downloaded");
-        Ok(())
-    }
-    .await;
-
-    match download_section {
-        Ok(_) => {}
-        Err(e) => {
-            // cleanup!
-            let _ = fs::ensure_removed_dir(&cfg.test_suite_folder(suite_id)).await;
-            return Err(e);
-        }
+        fs::ensure_removed_dir(&suite_folder).await?;
+        tokio::fs::create_dir_all(file_folder_root).await?;
+        tracing::info!(
+            "Test suite does not exist. Initiating download of suite {} from {} to {:?}",
+            suite_id,
+            &endpoint,
+            &filename
+        );
+        fs::net::download_unzip(
+            cfg.client.clone(),
+            cfg.client
+                .get(&endpoint)
+                .header("authorization", cfg.cfg.access_token.as_ref().unwrap())
+                .build()?,
+            &suite_folder,
+            &filename,
+        )
+        .await?;
     }
 
-    if let Some(h) = handle {
-        h.cancel();
+    // Rewrite lockfile AFTER all data are saved
+    if !lockfile_up_to_date {
+        let serialized = serde_json::to_string(&suite_data)?;
+        tokio::fs::write(&lockfile, &serialized).await?;
     }
-    cfg.suite_unlock(suite_id);
+
+    tracing::info!("Suite downloaded");
+
+    // Note:
+    // Lockfile is updated only AFTER test suite is fully downloaded, so an incomplete
+    // download would not result in an updated lockfile. Therefore there's no need
+    // to clean up the suite folder if things blow up - they're simply ignored.
+    //
+    // This should be easier to write using traditional try-catch-finally pattern
+    // since finally-blocks can also be async. Sadly we don't have AsyncDrop trait
+    // yet here in Rust. See this withoutboats' post for more information:
+    // <https://without.boats/blog/poll-drop/>
+    //
+    //   |
+    //   V
+    // let _ = fs::ensure_removed_dir(&cfg.test_suite_folder(suite_id)).await;
+
+    // The handle should be dropped right here
+    drop(handle);
 
     let mut judger_conf_dir = suite_folder.clone();
     judger_conf_dir.push("testconf.json");
@@ -293,7 +349,10 @@ pub async fn handle_job_wrapper(
     // TODO: Handle failed cases and report
     let job_id = job.job.id;
     flag_new_job(send.clone(), cfg.clone()).await;
-    let msg = match handle_job(job, send.clone(), cancel, cfg.clone()).await {
+    let msg = match handle_job(job, send.clone(), cancel, cfg.clone())
+        .instrument(tracing::info_span!("handle_job", %job_id))
+        .await
+    {
         Ok(_res) => ClientMsg::JobResult(_res),
         Err(err) => {
             tracing::warn!("job {} aborted because of error: {:?}", job_id, &err);
@@ -322,6 +381,7 @@ pub async fn handle_job_wrapper(
                     JobResultKind::JudgerError,
                     format!("Web request error: {:?}", e),
                 ),
+                JobExecErr::Build(e) => (JobResultKind::CompileError, format!("{}", e)),
                 JobExecErr::Exec(e) => (JobResultKind::PipelineError, format!("{:?}", e)),
                 JobExecErr::Any(e) => (JobResultKind::OtherError, format!("{:?}", e)),
             };
@@ -335,15 +395,15 @@ pub async fn handle_job_wrapper(
         }
     };
 
-    let mut req = cfg.client.post(&cfg.result_send_endpoint()).json(&msg);
-    if let Some(token) = &cfg.cfg.access_token {
-        req = req.header("authorization", token.as_str());
-    }
-
-    let send_res = req.send().await.and_then(|x| x.error_for_status());
-    match send_res {
-        Ok(_) => {}
-        Err(e) => tracing::error!("Error when sending job result mesage:\n{}", e),
+    while let Err(e) = {
+        // Ah yes, do-while pattern
+        let mut req = cfg.client.post(&cfg.result_send_endpoint()).json(&msg);
+        if let Some(token) = &cfg.cfg.access_token {
+            req = req.header("authorization", token.as_str());
+        }
+        req.send().await.and_then(|x| x.error_for_status())
+    } {
+        tracing::error!("Error when sending job result mesage:\n{}", e)
     }
 
     flag_finished_job(send.clone(), cfg.clone()).await;
@@ -361,7 +421,6 @@ pub async fn handle_job_wrapper(
     tracing::info!("{}: cleanup complete", job_id);
 }
 
-#[instrument(skip(send, cancel, cfg))]
 pub async fn handle_job(
     job: NewJob,
     send: Arc<WsSink>,
@@ -375,6 +434,7 @@ pub async fn handle_job(
 
     let mut public_cfg = check_download_read_test_suite(job.test_suite, &*cfg)
         .with_cancel(cancel.clone())
+        .instrument(info_span!("download_test_suites", %job.test_suite))
         .await
         .ok_or(JobExecErr::Cancelled)??;
     public_cfg.binds.get_or_insert_with(Vec::new);
@@ -523,6 +583,7 @@ pub async fn handle_job(
             Some(upload_info),
             cancel.clone(),
         )
+        .instrument(info_span!("run_job"))
         .await?;
 
     tracing::info!("finished running");
@@ -608,6 +669,29 @@ async fn cancel_job(job_id: FlowSnake, client_config: Arc<SharedClientData>) {
         .remove(&job_id);
 }
 
+async fn keepalive(
+    client_config: Arc<SharedClientData>,
+    keepalive_token: CancellationTokenHandle,
+    ws: Arc<WsSink>,
+    interval: std::time::Duration,
+) {
+    while tokio::time::delay_for(interval)
+        .with_cancel(client_config.cancel_handle.get_token())
+        .await
+        .is_some()
+    {
+        match { ws.send_conf(tungstenite::Message::Ping(vec![]), true).await } {
+            Ok(_) => {}
+            Err(e) => {
+                keepalive_token.cancel();
+                tracing::error!("Server disconnected: {}", e);
+                break;
+            }
+        };
+    }
+}
+
+#[allow(clippy::if_same_then_else)]
 pub async fn client_loop(
     mut ws_recv: WsStream,
     ws_send: Arc<WsSink>,
@@ -622,6 +706,16 @@ pub async fn client_loop(
         }))
         .await
         .unwrap();
+
+    let keepalive_token = client_config.cancel_handle.child_token();
+    let keepalive_cancel = keepalive_token.child_token();
+
+    let keepalive_handle = tokio::spawn(keepalive(
+        client_config.clone(),
+        keepalive_token,
+        ws_send.clone(),
+        std::time::Duration::from_secs(20),
+    ));
 
     while let Some(Some(Ok(x))) = ws_recv
         .next()
@@ -655,12 +749,16 @@ pub async fn client_loop(
                 }
             }
         } else if x.is_ping() {
-            // Noop.
+            // noop
+        } else if x.is_pong() {
+            // also noop
         } else {
             tracing::warn!("Unsupported message: {:?}", x);
         }
     }
     ws_send.clear_socket();
+
+    let _ = keepalive_handle.await;
 
     tracing::warn!("Disconnected!");
     ws_send

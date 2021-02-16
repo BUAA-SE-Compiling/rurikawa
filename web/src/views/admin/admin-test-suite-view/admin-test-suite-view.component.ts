@@ -104,6 +104,39 @@ export class AdminTestSuiteViewComponent implements OnInit {
     started();
   }
 
+  // HACK: these methods are dirty
+  async dumpJobs(): Promise<void> {
+    let code = await this.httpClient
+      .post(environment.endpointBase() + endpoints.admin.getCode, null, {
+        responseType: 'text',
+      })
+      .toPromise();
+    console.log('code: ', code);
+    window.open(
+      environment.endpointBase() +
+        endpoints.admin.dumpSuiteJobs(this.id) +
+        '?auth=' +
+        code,
+      'blank'
+    );
+  }
+
+  async dumpAllJobs(): Promise<void> {
+    let code = await this.httpClient
+      .post(environment.endpointBase() + endpoints.admin.getCode, null, {
+        responseType: 'text',
+      })
+      .toPromise();
+    console.log('code: ', code);
+    window.open(
+      environment.endpointBase() +
+        endpoints.admin.dumpSuiteAllJobs(this.id) +
+        '?auth=' +
+        code,
+      'blank'
+    );
+  }
+
   ngOnInit(): void {
     this.route.paramMap.subscribe((n) => {
       this.id = n.get('id');

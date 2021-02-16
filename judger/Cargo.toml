@@ -20,8 +20,8 @@ arc-swap = "1.0.0"
 async-compat = "0.1"
 async-pipe = "0.1"
 async-tar = "0.3.0"
-async-trait = "0.1.41"
-bollard = {path = "3rd_party/bollard"}
+async-trait = "0.1.42"
+bollard = "0.9"
 broadcaster = {version = "1.0.0", features = ["default-channels"]}
 bytes = "0.5"
 chrono = "0.4.19"
@@ -33,10 +33,9 @@ dirs = "3.0.1"
 err-derive = "*"
 fern = "0.6.0"
 futures = "0.3.8"
-futures_codec = "0.4.1"
 http = "*"
 hyper = {version = "0.13.9", features = ["stream"]}
-libc = "0.2.80"
+libc = "0.2.81"
 log = "*"
 names = "0.11.0"
 once_cell = "1.5.2"
@@ -44,9 +43,9 @@ path-absolutize = "3.0.6"
 path-slash = "0.1.3"
 rand = "0.7.3"
 regex = "1.4.2"
-reqwest = {version = "0.10.8", features = ["json", "stream"]}
-serde = {version = "1.0.117", features = ["derive"]}
-serde_json = "1.0.59"
+reqwest = {version = "0.11", features = ["json", "stream"]}
+serde = {version = "1.0.118", features = ["derive"]}
+serde_json = "1.0.60"
 tar = "0.4.30"
 tokio = {version = "0.3.3", features = [
   "time",
@@ -59,8 +58,8 @@ tokio = {version = "0.3.3", features = [
   "rt",
   "fs",
 ]}
-tokio-tungstenite = {version = "0.12.0", features = ["tls"]}
-tokio-util = {version = "0.5.0", features = ["codec", "compat"]}
+tokio-tungstenite = {version = "0.13.0", features = ["tls"]}
+tokio-util = {version = "0.6", features = ["codec", "compat"]}
 toml = "0.5.7"
 tracing = "0.1.21"
 tracing-futures = "0.2.4"
@@ -71,6 +70,3 @@ tungstenite = "0.11.1"
 [dev-dependencies]
 pretty_assertions = "0.6.1"
 tokio-test = "0.3.0"
-
-[patch.crates-io]
-hyper = {path = "3rd_party/hyper"}

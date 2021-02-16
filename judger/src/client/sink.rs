@@ -34,7 +34,18 @@ impl WebsocketSink {
     }
 
     pub async fn send(&self, msg: Message) -> Result<(), tungstenite::Error> {
+        self.send_conf(msg, false).await
+    }
+
+    pub async fn send_conf(
+        &self,
+        msg: Message,
+        err_if_connection_fail: bool,
+    ) -> Result<(), tungstenite::Error> {
         let mut sink = self.sink.load();
+        if sink.is_none() && err_if_connection_fail {
+            return Err(tungstenite::Error::AlreadyClosed);
+        }
         while sink.is_none() {
             // drop guard to avoid deadlock
             drop(sink);
@@ -52,7 +63,23 @@ impl WebsocketSink {
             + Stream<Item = Result<Message, tungstenite::Error>>
             + Unpin,
     {
+        self.send_all_conf(msg, false).await
+    }
+
+    pub async fn send_all_conf<It>(
+        &self,
+        msg: &mut It,
+        err_if_connection_fail: bool,
+    ) -> Result<(), tungstenite::Error>
+    where
+        It: TryStream<Ok = Message, Error = tungstenite::Error>
+            + Stream<Item = Result<Message, tungstenite::Error>>
+            + Unpin,
+    {
         let mut sink = self.sink.load();
+        if sink.is_none() && err_if_connection_fail {
+            return Err(tungstenite::Error::AlreadyClosed);
+        }
         while sink.is_none() {
             // drop guard to avoid deadlock
             drop(sink);

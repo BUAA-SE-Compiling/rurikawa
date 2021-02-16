@@ -150,7 +150,7 @@ impl TestResult {
                             }
                             crate::tester::ExecErrorKind::ReturnCodeCheckFailed => (
                                 TestResultKind::PipelineFailed,
-                                Some("Return code check failed".into()),
+                                Some("Some command's return code is not 0".into()),
                             ),
                             crate::tester::ExecErrorKind::TimedOut => {
                                 (TestResultKind::TimeLimitExceeded, None)
@@ -180,7 +180,9 @@ impl TestResult {
                         Some(FailedJobOutputCacheFile {
                             output: out.output,
                             stdout_diff: None,
-                            message: Some("Test should fail".into()),
+                            message: Some(
+                                "One of the commands should return a non-zero value".into(),
+                            ),
                         }),
                     ),
 

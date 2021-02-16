@@ -312,8 +312,13 @@ impl Image {
                     }
                 };
 
+                enum BuildResult {
+                    Success,
+                    Error(String, Option<bollard::models::ErrorDetail>),
+                }
+
                 let task = tokio::spawn(task);
-                let mut res = instance
+                let result = instance
                     .build_image(
                         bollard::image::BuildImageOptions {
                             dockerfile: file
@@ -333,22 +338,33 @@ impl Image {
                         // TODO: wait for PR#107 to merge in bollard
                         match x {
                             Ok(info) => {
+                                if let Some(e) = info.error {
+                                    return Ok(BuildResult::Error(e, info.error_detail));
+                                }
                                 if let Some(ch) = partial_result_channel.as_ref() {
                                     let _ = ch.send(info);
                                 }
-                                Ok(())
+                                Ok(BuildResult::Success)
                             }
                             Err(e) => Err(e),
                         }
                     })
-                    .collect::<Vec<_>>()
+                    .fold(Ok(BuildResult::Success), |last, x| async {
+                        match (last, x) {
+                            (Ok(last), Ok(BuildResult::Success)) => Ok(last),
+                            (Ok(_), Ok(e @ BuildResult::Error(..))) => Ok(e),
+                            (Ok(_), Err(e)) => Err(e),
+                            (e @ Err(_), _) => e,
+                        }
+                    })
                     .with_cancel(cancel.clone())
                     .await
-                    .ok_or(BuildError::Cancelled)?;
-
-                res.drain(..)
-                    .collect::<Result<_, _>>()
+                    .ok_or(BuildError::Cancelled)?
                     .map_err(|e| BuildError::Internal(e.to_string()))?;
+
+                if let BuildResult::Error(err, detail) = result {
+                    return Err(BuildError::BuildError { error: err, detail });
+                }
 
                 task.await
                     .map_err(|e| BuildError::Internal(e.to_string()))?
@@ -509,14 +525,6 @@ impl TestSuite {
         })
     }
 
-    #[tracing::instrument(skip(
-        self,
-        instance,
-        build_result_channel,
-        result_channel,
-        upload_info,
-        cancellation_token
-    ))]
     pub async fn run(
         &mut self,
         instance: bollard::Docker,

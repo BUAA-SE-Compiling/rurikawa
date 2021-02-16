@@ -53,7 +53,9 @@ namespace Karenia.Rurikawa.Coordinator {
                     ValidateIssuer = false,
                     ValidateAudience = false,
                 };
-            }).AddScheme<Microsoft.AspNetCore.Authentication.AuthenticationSchemeOptions, JudgerAuthenticateMiddleware>("judger", null);
+            })
+            .AddScheme<Microsoft.AspNetCore.Authentication.AuthenticationSchemeOptions, JudgerAuthenticateMiddleware>("judger", null)
+            .AddScheme<Microsoft.AspNetCore.Authentication.AuthenticationSchemeOptions, TemporaryTokenAuthMiddleware>("token", null);
 
             services.AddAuthorization(opt => {
                 opt.AddPolicy("user", policy => policy.RequireRole("User", "Admin", "Root"));
@@ -95,7 +97,8 @@ namespace Karenia.Rurikawa.Coordinator {
             services.AddScoped<JudgerService>();
             services.AddScoped<ProfileService>();
             services.AddScoped<DbService>();
-            services.AddSingleton<JudgerAuthenticateService>();
+            services.AddScoped<JudgerAuthenticateService>();
+            services.AddScoped<TemporaryTokenAuthService>();
             services.AddSingleton<DbVacuumingService>();
             services.AddSingleton<JsonSerializerOptions>(_ =>
                 SetupJsonSerializerOptions(new JsonSerializerOptions())

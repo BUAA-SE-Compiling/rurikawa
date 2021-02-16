@@ -64,7 +64,13 @@ impl SharedClientData {
         SharedClientData {
             cfg,
             conn_id: rand::random(),
-            client: reqwest::Client::new(),
+            // WORKAROUND: Client hang issue in hyper crate.
+            // see: https://github.com/hyperium/hyper/issues/2312
+            client: reqwest::Client::builder()
+                .pool_idle_timeout(std::time::Duration::from_secs(0))
+                .pool_max_idle_per_host(0)
+                .build()
+                .unwrap(),
             aborting: AtomicBool::new(false),
             running_tests: AtomicUsize::new(0),
             locked_test_suite: dashmap::DashMap::new(),
@@ -204,10 +210,14 @@ impl SharedClientData {
             .entry(suite_id)
             .or_insert_with(|| (state, handle.child_token()))
             .clone();
+        tracing::debug!("Trying to obtain suite lock for {}", suite_id);
         if entry.0 == state {
+            tracing::debug!("Lock obtained");
             Some(entry.1)
         } else {
+            tracing::debug!("Already locked");
             (entry.1).cancelled().await;
+            tracing::debug!("Lock cleared");
             None
         }
     }
