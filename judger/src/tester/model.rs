@@ -101,6 +101,12 @@ pub struct JudgerPublicConfig {
     /// `host-src:container-dest` volume bindings for the container.
     /// For details see [here](https://docs.rs/bollard/0.7.2/bollard/service/struct.HostConfig.html#structfield.binds).
     pub binds: Option<Vec<Bind>>,
+
+    /// Path to the special judger script.
+    ///
+    /// The special judger script should be a valid Lua script with specified
+    /// functions inside global scope.
+    pub special_judge_script: Option<String>,
 }
 
 /// Judger's private config, specific to a host machine.
