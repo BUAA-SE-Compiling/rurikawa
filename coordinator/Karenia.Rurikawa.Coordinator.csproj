@@ -5,7 +5,7 @@
     <Version>0.2.0</Version>
     <Authors>Rynco Maekawa; Rami3L Li</Authors>
 
-    <TargetFramework>netcoreapp3.1</TargetFramework>
+    <TargetFramework>net5</TargetFramework>
     <LangVersion>9.0</LangVersion>
     <Nullable>enable</Nullable>
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
