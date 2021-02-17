@@ -5,7 +5,10 @@
 
 use std::path::Path;
 
-use rquickjs::{bind, AsFunction, Context, Func, Function, IntoJs, MutFn, Promise, Runtime};
+use futures::Future;
+use rquickjs::{
+    bind, AsFunction, Context, FromJs, Func, Function, IntoJs, MutFn, Promise, Runtime,
+};
 use tokio::{runtime::Handle, task::JoinHandle};
 use tracing::{event, field::FieldSet, fieldset, info_span, metadata::Kind, Level, Metadata};
 
@@ -78,27 +81,16 @@ impl SpjEnvironment {
 
     /// Callback for initializing special judge
     pub async fn spj_global_init(&self, config: &JudgerPublicConfig) -> anyhow::Result<()> {
-        enum R {
-            Promise(Promise<()>),
-            None,
-        }
-        let promise = self.ctx.with(move |ctx| {
+        let res = self.ctx.with(move |ctx| {
             let globals = ctx.globals();
             if let Ok(f) = globals.get::<_, Function>(SPJ_INIT_FN) {
                 let result = f.call::<_, rquickjs::Value>((config,))?;
-                if let Ok(p) = result.get::<Promise<()>>() {
-                    Ok(R::Promise(p))
-                } else {
-                    Ok(R::None)
-                }
+                Ok(extract_promise_like(result))
             } else {
                 Err(anyhow::anyhow!("{} is not a function!", SPJ_INIT_FN))
             }
         })?;
-        match promise {
-            R::Promise(p) => p.await.map_err(|e| e.into()),
-            R::None => Ok(()),
-        }
+        res.await.map_err(|e| e.into())
     }
 
     fn detect_features(&self) -> SpjFeatures {
@@ -123,6 +115,21 @@ impl SpjEnvironment {
                 case,
             }
         })
+    }
+}
+
+/// Map `value` as either a `Promise` or a regular `Value` into an awaitable future.
+/// Awaiting this futures either awaits the promise or extracts the value.
+fn extract_promise_like<'js, T>(
+    value: rquickjs::Value<'js>,
+) -> futures::future::Either<Promise<T>, futures::future::Ready<Result<T, rquickjs::Error>>>
+where
+    T: FromJs<'js> + Send + 'static,
+{
+    if let Ok(p) = value.get::<Promise<T>>() {
+        futures::future::Either::Left(p)
+    } else {
+        futures::future::Either::Right(futures::future::ready(value.get()))
     }
 }
 
