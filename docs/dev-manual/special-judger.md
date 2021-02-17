@@ -16,10 +16,10 @@ SPJ 的运行环境支持以下 JS 特性：
 - RegExp
 - Promise
 - TypedArrays
+- Eval
 
 不支持以下 JS 特性：
 
-- eval
 - ES6 Modules (换句话说，所有功能必须都包含在这一个文件内)
 
 ## API
@@ -34,11 +34,11 @@ function specialJudgeTransformExec(exec: Step[]): Step[];
 // 可选，初始化单个样例，在执行样例中操作之前调用
 function specialJudgeCaseInit(case: string, mapping: Map<string, string>);
 
-// 必选，分析执行结果，返回 `true` 是 AC，`false` 是 WA。
+// 可选，分析执行结果，返回 `true` 是 AC，`false` 是 WA。
 //
 // 如果开启了 SPJ 评分模式，则还可以返回一个数字作为分值，基准分 1 分。此时 `true` 代表 1 分。
 // 本题的实际得分是 返回值 * 该题分值。
-function specialJudgeCaseCommand(case: string, results: StepResult[]): boolean | number
+function specialJudgeCase(case: string, results: StepResult[]): boolean | number
 
 // 将要执行的指令
 interface Step {
@@ -59,6 +59,20 @@ interface StepResult {
 ```ts
 // 读取题目文件夹下的指定文件，作为字符串返回。
 function readFile(path: string): Promise<string>;
+
+// 向评测机的日志里输出记录
+interface console {
+    // 输出日志，等同于 `console.info()`
+    log(val: string);
+    // 以 DEBUG 等级输出日志
+    debug(val: string);
+    // 以 INFO  等级输出日志
+    info(val: string);
+    // 以 WARN  等级输出日志
+    warn(val: string);
+    // 以 ERROR 等级输出日志
+    error(val: string);
+}
 ```
 
 ## 示例

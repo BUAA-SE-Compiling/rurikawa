@@ -1,4 +1,4 @@
-use super::model::*;
+use super::{model::*, spj};
 use super::{
     runner::{CommandRunner, DockerCommandRunner, DockerCommandRunnerOptions},
     ExecError, ExecErrorKind, JobFailure, OutputMismatch, ProcessInfo, ShouldFailFailure,
@@ -15,7 +15,9 @@ use bollard::models::{BuildInfo, Mount};
 use futures::stream::StreamExt;
 use once_cell::sync::Lazy;
 use path_slash::PathBufExt;
+use rquickjs::{Context, Runtime};
 use serde::{self, Deserialize, Serialize};
+use spj::SpjEnvironment;
 use std::path::Path;
 use std::time;
 use std::{collections::HashMap, io, path::PathBuf, string::String, sync::Arc};
@@ -396,7 +398,6 @@ impl Image {
 ///
 /// Attention: a `TestSuite` instance should NOT be constructed manually.
 /// Please use `TestSuite::from_config`, for example.
-#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct TestSuite {
     /// The test contents.
     pub test_cases: Vec<TestCase>,
@@ -409,6 +410,9 @@ pub struct TestSuite {
     pub copies: Option<Vec<(String, String)>>,
     /// Initialization options for `Testsuite`.
     pub options: TestSuiteOptions,
+
+    /// Special Judger
+    spj_env: Option<spj::SpjEnvironment>,
 }
 
 impl TestSuite {
@@ -416,6 +420,7 @@ impl TestSuite {
         self.test_cases.push(case)
     }
 
+    /// Build the test suite from given configs.
     pub async fn from_config(
         image: Image,
         base_dir: &Path,
@@ -428,6 +433,7 @@ impl TestSuite {
 
         let index = construct_case_index(&public_cfg);
 
+        // create test cases
         // TODO: Remove drain when this compiler issue gets repaired:
         // https://github.com/rust-lang/rust/issues/64552
         let mut test_cases = futures::stream::iter(options.tests.clone().drain(..))
@@ -436,73 +442,20 @@ impl TestSuite {
                 let test_root = &test_root;
                 let container_test_root = &container_test_root;
                 let case = index.get(&name).unwrap();
-                async move {
-                    let replacer: HashMap<String, _> = public_cfg
-                        .vars
-                        .iter()
-                        .map(|(var, ext)| {
-                            (var.to_owned(), {
-                                // Special case for `$stdout`:
-                                // These variables will point to files under `io_dir`,
-                                // while others to `src_dir`.
-                                let mut p = match var.as_ref() {
-                                    "$stdout" => test_root.clone(),
-                                    _ => container_test_root.clone(),
-                                };
-                                p.push(format!("{}.{}", name, ext));
-                                p.to_slash_lossy()
-                            })
-                        })
-                        .collect();
-                    let exec: Vec<String> = public_cfg
-                        .run
-                        .iter()
-                        .map(|line| {
-                            replacer.iter().fold(line.to_owned(), |seed, (pat, rep)| {
-                                seed.replace(pat, &format!(r#""{}""#, rep))
-                            })
-                        })
-                        .collect();
-
-                    // ? QUESTION: Now I'm reading `$stdout` in host, but the source file, etc. are handled in containers.
-                    // ? Is this desirable?
-
-                    let expected_out = if case.has_out && !case.should_fail {
-                        let stdout_path = replacer.get("$stdout").ok_or_else(|| {
-                            io::Error::new(
-                                io::ErrorKind::NotFound,
-                                "Output verification failed, no `$stdout` in dictionary",
-                            )
-                        })?;
-
-                        let mut expected_out = Vec::new();
-                        let mut file = tokio::fs::File::open(stdout_path).await.map_err(|e| {
-                            io::Error::new(
-                                io::ErrorKind::NotFound,
-                                format!(
-                                    "Output verification failed, failed to open `{:?}`: {}",
-                                    stdout_path, e,
-                                ),
-                            )
-                        })?;
-                        file.read_to_end(&mut expected_out).await?;
-                        Some(String::from_utf8_lossy(&expected_out).into_owned())
-                    } else {
-                        None
-                    };
-
-                    Result::Ok(TestCase {
-                        name: name.to_owned(),
-                        exec,
-                        expected_out,
-                        should_fail: case.should_fail,
-                    })
-                }
+                create_test_case(public_cfg, test_root, container_test_root, case, name)
             })
             .buffer_unordered(16)
             .collect::<Vec<Result<TestCase>>>()
             .await;
         let test_cases = test_cases.drain(..).collect::<Result<Vec<_>>>()?;
+
+        let spj = if let Some(script) = public_cfg.special_judge_script {
+            let script_path = test_root.join(script);
+            Some(spj::make_spj(&script_path).await?)
+        } else {
+            None
+        };
+
         Ok(TestSuite {
             image: Some(image),
             test_cases,
@@ -520,6 +473,7 @@ impl TestSuite {
                 path_canonical_from(&public_cfg.mapped_dir.from, base_dir).to_slash_lossy(),
                 public_cfg.mapped_dir.to.to_slash_lossy(),
             )]),
+            spj_env: spj,
         })
     }
 
@@ -636,6 +590,75 @@ impl TestSuite {
 
         Ok(result)
     }
+}
+
+async fn create_test_case(
+    public_cfg: &JudgerPublicConfig,
+    test_root: &PathBuf,
+    container_test_root: &PathBuf,
+    case: &&TestCaseDefinition,
+    name: String,
+) -> Result<TestCase> {
+    let replacer: HashMap<String, _> = public_cfg
+        .vars
+        .iter()
+        .map(|(var, ext)| {
+            (var.to_owned(), {
+                // Special case for `$stdout`:
+                // These variables will point to files under `io_dir`,
+                // while others to `src_dir`.
+                let mut p = match var.as_ref() {
+                    "$stdout" => test_root.clone(),
+                    _ => container_test_root.clone(),
+                };
+                p.push(format!("{}.{}", name, ext));
+                p.to_slash_lossy()
+            })
+        })
+        .collect();
+    let exec: Vec<String> = public_cfg
+        .run
+        .iter()
+        .map(|line| {
+            replacer.iter().fold(line.to_owned(), |seed, (pat, rep)| {
+                seed.replace(pat, &format!(r#""{}""#, rep))
+            })
+        })
+        .collect();
+
+    // ? QUESTION: Now I'm reading `$stdout` in host, but the source file, etc. are handled in containers.
+    // ? Is this desirable?
+
+    let expected_out = if case.has_out && !case.should_fail {
+        let stdout_path = replacer.get("$stdout").ok_or_else(|| {
+            io::Error::new(
+                io::ErrorKind::NotFound,
+                "Output verification failed, no `$stdout` in dictionary",
+            )
+        })?;
+
+        let mut expected_out = Vec::new();
+        let mut file = tokio::fs::File::open(stdout_path).await.map_err(|e| {
+            io::Error::new(
+                io::ErrorKind::NotFound,
+                format!(
+                    "Output verification failed, failed to open `{:?}`: {}",
+                    stdout_path, e,
+                ),
+            )
+        })?;
+        file.read_to_end(&mut expected_out).await?;
+        Some(String::from_utf8_lossy(&expected_out).into_owned())
+    } else {
+        None
+    };
+
+    Result::Ok(TestCase {
+        name: name.to_owned(),
+        exec,
+        expected_out,
+        should_fail: case.should_fail,
+    })
 }
 
 fn construct_case_index(pub_cfg: &JudgerPublicConfig) -> HashMap<String, &TestCaseDefinition> {
@@ -1069,6 +1092,7 @@ mod test_suite {
                         readonly: false,
                     },
                     binds: None,
+                    special_judge_script: None,
                 },
                 TestSuiteOptions {
                     tests: ["succ"].iter().map(|s| s.to_string()).collect(),
@@ -1153,6 +1177,7 @@ mod test_suite {
                         readonly: false,
                     },
                     binds: Some(vec![]),
+                    special_judge_script: None,
                 },
                 TestSuiteOptions {
                     tests: ["succ"].iter().map(|s| s.to_string()).collect(), // private

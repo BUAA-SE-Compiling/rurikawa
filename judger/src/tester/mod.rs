@@ -2,6 +2,7 @@ pub mod exec;
 pub mod model;
 pub mod runner;
 pub mod utils;
+pub mod spj;
 
 use err_derive::Error;
 use serde::{Deserialize, Serialize};

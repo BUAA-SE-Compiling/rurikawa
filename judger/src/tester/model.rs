@@ -1,6 +1,7 @@
 use anyhow::Result;
 use bollard::models::Mount;
 use path_absolutize::Absolutize;
+use rquickjs::IntoJsByRef;
 use serde::{self, Deserialize, Serialize};
 use std::{collections::HashMap, path::PathBuf, string::String};
 use std::{path::Path, str::FromStr};
@@ -61,7 +62,7 @@ pub enum Image {
 }
 
 /// The definition of a test case
-#[derive(Serialize, Debug, Clone)]
+#[derive(Serialize, Debug, Clone, IntoJsByRef)]
 #[serde(rename_all = "camelCase")]
 pub struct TestCaseDefinition {
     pub name: String,
@@ -83,23 +84,30 @@ impl FromStr for TestCaseDefinition {
 
 /// Judger's public config, specific to a paticular repository,
 /// Maintained by the owner of the project to be tested.
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone, IntoJsByRef)]
 #[serde(rename_all = "camelCase")]
+#[quickjs(rename_all = "camelCase")]
 pub struct JudgerPublicConfig {
     pub time_limit: Option<i32>,
     pub memory_limit: Option<i32>,
     pub name: String,
     pub test_groups: HashMap<String, Vec<TestCaseDefinition>>,
+
     /// Variables and extensions of test files
     /// (`$src`, `$bin`, `$stdin`, `$stdout`, etc...).
     /// For example: `"$src" => "go"`.
     pub vars: HashMap<String, String>,
+
     /// Sequence of commands necessary to perform an IO check.
     pub run: Vec<String>,
+
     /// The path of test root directory to be mapped inside test container
+    #[quickjs(skip)]
     pub mapped_dir: Bind,
+
     /// `host-src:container-dest` volume bindings for the container.
     /// For details see [here](https://docs.rs/bollard/0.7.2/bollard/service/struct.HostConfig.html#structfield.binds).
+    #[quickjs(skip)]
     pub binds: Option<Vec<Bind>>,
 
     /// Path to the special judger script.
