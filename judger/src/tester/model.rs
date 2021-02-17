@@ -1,7 +1,7 @@
 use anyhow::Result;
 use bollard::models::Mount;
 use path_absolutize::Absolutize;
-use rquickjs::IntoJsByRef;
+use rquickjs::{FromJs, IntoJsByRef};
 use serde::{self, Deserialize, Serialize};
 use std::{collections::HashMap, path::PathBuf, string::String};
 use std::{path::Path, str::FromStr};
@@ -115,6 +115,14 @@ pub struct JudgerPublicConfig {
     /// The special judger script should be a valid JS script with specified
     /// functions inside global scope.
     pub special_judge_script: Option<String>,
+}
+
+/// A raw step for usage in spj scripts
+#[derive(IntoJsByRef, FromJs)]
+#[quickjs(rename_all = "camelCase")]
+pub struct RawStep {
+    pub command: String,
+    pub is_user_command: bool,
 }
 
 /// Judger's private config, specific to a host machine.

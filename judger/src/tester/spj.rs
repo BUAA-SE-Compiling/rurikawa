@@ -3,13 +3,16 @@
 //!
 //! Read more about SPJ in `/docs/dev-manual/special-judger.md`
 
-use std::path::Path;
+use std::{collections::HashMap, path::Path};
 
-use rquickjs::{Context, FromJs, Func, Function, IntoJs, MutFn, Promise, Runtime};
+use anyhow::anyhow;
+use rquickjs::{
+    AsArguments, Context, Ctx, FromJs, Func, Function, IntoJs, MutFn, Promise, Runtime,
+};
 use tokio::{runtime::Handle, task::JoinHandle};
 use tracing::info_span;
 
-use super::model::JudgerPublicConfig;
+use super::model::{JudgerPublicConfig, RawStep};
 
 pub const SPJ_INIT_FN: &str = "specialJudgeInit";
 pub const SPJ_TRANSFORM_FN: &str = "specialJudgeTransformExec";
@@ -17,6 +20,33 @@ pub const SPJ_CASE_INIT_FN: &str = "specialJudgeCaseInit";
 pub const SPJ_CASE_FN: &str = "specialJudgeCase";
 
 pub const SPJ_MAX_MEMORY: usize = 50 * 1024 * 1024;
+
+/// Run a function inside a context with promise-like return value
+macro_rules! run_promise_like {
+    ($ctx:expr,$name:expr,$args:expr,$map:expr) => {{
+        let res = $ctx.with(move |ctx| {
+            let globals = ctx.globals();
+            if let Ok(f) = globals.get::<_, Function>($name) {
+                let result = f.call::<_, rquickjs::Value>($args)?;
+                Ok(extract_promise_like!(result))
+            } else {
+                Err(anyhow::anyhow!("{} is not a function!", $name))
+            }
+        })?;
+        res.await.map($map)
+    }};
+}
+
+/// Extract the future of a promise-like value
+macro_rules! extract_promise_like {
+    ($val:expr) => {
+        if let Ok(p) = $val.get::<Promise<_>>() {
+            futures::future::Either::Left(p)
+        } else {
+            futures::future::Either::Right(futures::future::ready($val.get()))
+        }
+    };
+}
 
 /// The execution environment of the special judge.
 ///
@@ -78,16 +108,33 @@ impl SpjEnvironment {
 
     /// Callback for initializing special judge
     pub async fn spj_global_init(&self, config: &JudgerPublicConfig) -> anyhow::Result<()> {
-        let res = self.ctx.with(move |ctx| {
-            let globals = ctx.globals();
-            if let Ok(f) = globals.get::<_, Function>(SPJ_INIT_FN) {
-                let result = f.call::<_, rquickjs::Value>((config,))?;
-                Ok(extract_promise_like(result))
-            } else {
-                Err(anyhow::anyhow!("{} is not a function!", SPJ_INIT_FN))
-            }
-        })?;
-        res.await.map_err(|e| e.into())
+        run_promise_like!(self.ctx, SPJ_INIT_FN, (config,), |x| x).map_err(|e| e.into())
+    }
+
+    /// Callback for mapping exec
+    pub async fn spj_map_exec(&self, config: &[RawStep]) -> anyhow::Result<Vec<RawStep>> {
+        run_promise_like!(self.ctx, SPJ_TRANSFORM_FN, (config,), |x| x).map_err(|e| e.into())
+    }
+
+    /// Callback for case init
+    pub async fn spj_case_init(
+        &self,
+        case: &str,
+        mappings: &HashMap<String, String>,
+    ) -> anyhow::Result<()> {
+        run_promise_like!(self.ctx, SPJ_CASE_INIT_FN, (case, mappings), |x| x).map_err(|e| e.into())
+    }
+
+    /// Callback for case judging
+    pub async fn spj_case_judge(
+        &self,
+        case: &str,
+        mappings: &HashMap<String, String>,
+    ) -> anyhow::Result<f64> {
+        run_promise_like!(self.ctx, SPJ_CASE_INIT_FN, (case, mappings), |val: f64| {
+            val
+        })
+        .map_err(|e| e.into())
     }
 
     fn detect_features(&self) -> SpjFeatures {
@@ -112,21 +159,6 @@ impl SpjEnvironment {
                 case,
             }
         })
-    }
-}
-
-/// Map `value` as either a `Promise` or a regular `Value` into an awaitable future.
-/// Awaiting this futures either awaits the promise or extracts the value.
-fn extract_promise_like<'js, T>(
-    value: rquickjs::Value<'js>,
-) -> futures::future::Either<Promise<T>, futures::future::Ready<Result<T, rquickjs::Error>>>
-where
-    T: FromJs<'js> + Send + 'static,
-{
-    if let Ok(p) = value.get::<Promise<T>>() {
-        futures::future::Either::Left(p)
-    } else {
-        futures::future::Either::Right(futures::future::ready(value.get()))
     }
 }
 

@@ -15,6 +15,7 @@ use bollard::models::{BuildInfo, Mount};
 use futures::stream::StreamExt;
 use once_cell::sync::Lazy;
 use path_slash::PathBufExt;
+use rquickjs::{FromJs, IntoJsByRef};
 use std::path::Path;
 use std::time;
 use std::{collections::HashMap, io, path::PathBuf, string::String, sync::Arc};
