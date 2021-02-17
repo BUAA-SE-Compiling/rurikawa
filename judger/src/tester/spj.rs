@@ -5,12 +5,9 @@
 
 use std::path::Path;
 
-use futures::Future;
-use rquickjs::{
-    bind, AsFunction, Context, FromJs, Func, Function, IntoJs, MutFn, Promise, Runtime,
-};
+use rquickjs::{Context, FromJs, Func, Function, IntoJs, MutFn, Promise, Runtime};
 use tokio::{runtime::Handle, task::JoinHandle};
-use tracing::{event, field::FieldSet, fieldset, info_span, metadata::Kind, Level, Metadata};
+use tracing::info_span;
 
 use super::model::JudgerPublicConfig;
 
