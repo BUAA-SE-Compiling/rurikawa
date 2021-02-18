@@ -835,7 +835,7 @@ mod tests {
                 ));
                 t.expected("Goodbye, world!");
                 let got = t.run(&TokioCommandRunner {}, &HashMap::new(), None).await;
-                let expected: Result<(), _> = Err(JobFailure::ExecError(ExecError {
+                let expected: Result<f64, _> = Err(JobFailure::ExecError(ExecError {
                     stage: 1,
                     kind: ExecErrorKind::ReturnCodeCheckFailed,
                     output: vec![
@@ -873,7 +873,7 @@ mod tests {
                 ),true));
                 t.expected("Hello,\nworld!\n");
                 let got = t.run(&TokioCommandRunner {}, &HashMap::new(), None).await;
-                let expected: Result<(), _> = Err(JobFailure::ExecError(ExecError {
+                let expected: Result<f64, _> = Err(JobFailure::ExecError(ExecError {
                     stage: 1,
                     kind: ExecErrorKind::RuntimeError(
                         format!(
@@ -881,7 +881,7 @@ mod tests {
                             strsignal(15)
                         )
                     ),
-            output: vec![
+                    output: vec![
                         ProcessInfo {
                             ret_code: 0,
                             is_user_command:true,
@@ -916,7 +916,7 @@ mod tests {
                 ));
                 t.expected("Hello,\nworld!");
                 let got = t.run(&TokioCommandRunner {}, &HashMap::new(), None).await;
-                let expected: Result<(), _> = Err(JobFailure::OutputMismatch(OutputMismatch {
+                let expected: Result<f64, _> = Err(JobFailure::OutputMismatch(OutputMismatch {
                     diff: "+ Hello,\n  world!\n".into(),
                     output: vec![
                         ProcessInfo {
@@ -953,7 +953,7 @@ mod tests {
                 );
                 t.expected("Hello,\nworld!\n");
                 let got = t.run(&TokioCommandRunner {}, &HashMap::new(), None).await;
-                let expected: Result<(), _> = Err(JobFailure::ExecError(ExecError {
+                let expected: Result<f64, _> = Err(JobFailure::ExecError(ExecError {
                     stage: 1,
                     kind: ExecErrorKind::TimedOut,
                     output: vec![ProcessInfo {
