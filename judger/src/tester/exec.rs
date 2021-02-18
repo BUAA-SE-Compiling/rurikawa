@@ -818,14 +818,14 @@ mod tests {
         fn signal() {
             block_on(async {
                 let mut t = Test::new();
-                t.add_step(Step::new(Capturable::new(command!(
-                    "echo",
-                    "This does nothing."
-                ))));
-                t.add_step(Step::new(Capturable::new(sh!(
-                    // "ping www.bing.com & sleep 0.5; kill $!",
-                    r#"{ sleep 0.1; kill $$; } & i=0; while [ "$i" -lt 4 ]; do echo $i; sleep 1; i=$(( i + 1 )); done"#
-                ))));
+                t.add_step(Step::new(
+                    Capturable::new(r"echo 'This does nothing.'".into()),
+                    true,
+                ));
+                t.add_step(Step::new(Capturable::new(
+                    // Kill a running task
+                    r#"{ sleep 0.1; kill $$; } & i=0; while [ "$i" -lt 4 ]; do echo $i; sleep 1; i=$(( i + 1 )); done"#.into()
+                ),true));
                 t.expected("Hello,\nworld!\n");
                 let got = t.run(&TokioCommandRunner {}, &HashMap::new()).await;
                 let expected: Result<(), _> = Err(JobFailure::ExecError(ExecError {
