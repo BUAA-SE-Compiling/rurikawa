@@ -816,7 +816,7 @@ mod tests {
                     true,
                 ));
                 t.expected("Hello,\n");
-                let res = t.run(&TokioCommandRunner {}, &HashMap::new()).await;
+                let res = t.run(&TokioCommandRunner {}, &HashMap::new(), None).await;
                 assert!(matches!(dbg!(res), Ok(())));
             })
         }
@@ -834,7 +834,7 @@ mod tests {
                     true,
                 ));
                 t.expected("Goodbye, world!");
-                let got = t.run(&TokioCommandRunner {}, &HashMap::new()).await;
+                let got = t.run(&TokioCommandRunner {}, &HashMap::new(), None).await;
                 let expected: Result<(), _> = Err(JobFailure::ExecError(ExecError {
                     stage: 1,
                     kind: ExecErrorKind::ReturnCodeCheckFailed,
@@ -872,7 +872,7 @@ mod tests {
                     r#"{ sleep 0.1; kill $$; } & i=0; while [ "$i" -lt 4 ]; do echo $i; sleep 1; i=$(( i + 1 )); done"#.into()
                 ),true));
                 t.expected("Hello,\nworld!\n");
-                let got = t.run(&TokioCommandRunner {}, &HashMap::new()).await;
+                let got = t.run(&TokioCommandRunner {}, &HashMap::new(), None).await;
                 let expected: Result<(), _> = Err(JobFailure::ExecError(ExecError {
                     stage: 1,
                     kind: ExecErrorKind::RuntimeError(
@@ -915,7 +915,7 @@ mod tests {
                     true,
                 ));
                 t.expected("Hello,\nworld!");
-                let got = t.run(&TokioCommandRunner {}, &HashMap::new()).await;
+                let got = t.run(&TokioCommandRunner {}, &HashMap::new(), None).await;
                 let expected: Result<(), _> = Err(JobFailure::OutputMismatch(OutputMismatch {
                     diff: "+ Hello,\n  world!\n".into(),
                     output: vec![
@@ -952,7 +952,7 @@ mod tests {
                         .timeout(time::Duration::from_millis(100)),
                 );
                 t.expected("Hello,\nworld!\n");
-                let got = t.run(&TokioCommandRunner {}, &HashMap::new()).await;
+                let got = t.run(&TokioCommandRunner {}, &HashMap::new(), None).await;
                 let expected: Result<(), _> = Err(JobFailure::ExecError(ExecError {
                     stage: 1,
                     kind: ExecErrorKind::TimedOut,
@@ -1010,7 +1010,8 @@ mod tests {
                 ));
                 t.expected("Hello,\n");
                 let res = t.run(&runner, &HashMap::new(), None).await;
-                assert!(matches!(dbg!(res), Ok(1.0)));
+                // Any Ok(_) represents accepted, just with different score.
+                assert!(matches!(dbg!(res), Ok(_)));
                 runner
             });
         }
