@@ -400,15 +400,6 @@ pub async fn handle_job(
     }))
     .await?;
 
-    // Set run script
-    let run = judge_job_cfg
-        .run
-        .iter()
-        .chain(public_cfg.run.iter())
-        .map(|x| x.to_owned())
-        .collect::<Vec<_>>();
-    public_cfg.run = run;
-
     let suite_root_path = cfg.test_suite_folder(job.test_suite);
     let mut tests_path = suite_root_path.clone();
     tests_path.push(&public_cfg.mapped_dir.from);
@@ -430,6 +421,7 @@ pub async fn handle_job(
         &suite_root_path,
         private_cfg,
         public_cfg,
+        &judge_job_cfg,
         options,
     )
     .await?;

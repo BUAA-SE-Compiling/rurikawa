@@ -7,6 +7,7 @@ use super::{utils::diff, BuildError};
 use crate::{
     client::model::ResultUploadConfig,
     client::model::{upload_test_result, TestResult, TestResultKind},
+    config::JudgeTomlTestConfig,
     prelude::*,
 };
 use anyhow::Result;
@@ -15,7 +16,9 @@ use bollard::models::{BuildInfo, Mount};
 use futures::stream::StreamExt;
 use once_cell::sync::Lazy;
 use path_slash::PathBufExt;
+use regex::{Captures, Regex};
 use rquickjs::{FromJs, IntoJsByRef};
+use serde::de::value;
 use std::path::Path;
 use std::time;
 use std::{collections::HashMap, io, path::PathBuf, string::String, sync::Arc};
@@ -56,16 +59,20 @@ macro_rules! sh {
     }};
 }
 
-pub struct Capturable(Vec<String>);
+pub struct Capturable(String);
 
 impl Capturable {
-    pub fn new(cmd: Vec<String>) -> Self {
+    pub fn new(cmd: String) -> Self {
         Capturable(cmd)
     }
 
-    async fn capture<R: CommandRunner + Send>(self, runner: &R) -> PopenResult<ProcessInfo> {
-        let Self(cmd) = self;
-        runner.run(&cmd).await
+    /// Run the command represented by `self` with the given `runner` and `variables`
+    async fn capture<R: CommandRunner + Send>(
+        self,
+        runner: &R,
+        variables: HashMap<String, String>,
+    ) -> PopenResult<ProcessInfo> {
+        runner.run(&self.0, variables).await
     }
 }
 
@@ -73,14 +80,20 @@ impl Capturable {
 pub struct Step {
     /// The command to be executed.
     pub cmd: Capturable,
+    /// The command is created by the user, not the admin.
+    pub is_user_command: bool,
     /// The timeout of the command.
     pub timeout: Option<time::Duration>,
 }
 
 impl Step {
     /// Make a new `Step` with no timeout.
-    pub fn new(cmd: Capturable) -> Self {
-        Step { cmd, timeout: None }
+    pub fn new(cmd: Capturable, is_user_command: bool) -> Self {
+        Step {
+            cmd,
+            is_user_command,
+            timeout: None,
+        }
     }
 
     /// Set `timeout` for a `Step`.
@@ -90,19 +103,34 @@ impl Step {
     }
 
     /// Make a new `Step` with a `timeout`.
-    pub fn new_with_timeout(cmd: Capturable, timeout: Option<time::Duration>) -> Self {
-        Step { cmd, timeout }
+    pub fn new_with_timeout(
+        cmd: Capturable,
+        timeout: Option<time::Duration>,
+        is_user_command: bool,
+    ) -> Self {
+        Step {
+            cmd,
+            is_user_command,
+            timeout,
+        }
     }
 
     /// Run the `Step` and collect its info, considering the `timeout`.
-    pub async fn capture<R>(self, runner: &R) -> PopenResult<ProcessInfo>
+    pub async fn capture<R>(
+        self,
+        runner: &R,
+        variables: &HashMap<String, String>,
+    ) -> PopenResult<ProcessInfo>
     where
         R: CommandRunner + Send,
     {
         if let Some(timeout) = self.timeout {
             let mres = tokio::time::timeout(timeout, self.cmd.capture(runner)).await;
             if let Ok(res) = mres {
-                res
+                res.map(|mut i| {
+                    i.is_user_command = self.is_user_command;
+                    i
+                })
             } else {
                 Err(io::Error::new(
                     io::ErrorKind::TimedOut,
@@ -110,7 +138,10 @@ impl Step {
                 ))
             }
         } else {
-            self.cmd.capture(runner).await
+            self.cmd.capture(runner, variables).await.map(|mut i| {
+                i.is_user_command = self.is_user_command;
+                i
+            })
         }
     }
 }
@@ -153,7 +184,11 @@ impl Test {
     }
 
     // ? Should `runner` be mutable?
-    pub async fn run<R>(self, runner: &R) -> Result<(), JobFailure>
+    pub async fn run<R>(
+        self,
+        runner: &R,
+        variables: &HashMap<String, String>,
+    ) -> Result<(), JobFailure>
     where
         R: CommandRunner + Send,
     {
@@ -161,7 +196,7 @@ impl Test {
         let steps_len = self.steps.len();
         let mut test_failed = false;
         for (i, step) in self.steps.into_iter().enumerate() {
-            let info = match step.capture(runner).await {
+            let info = match step.capture(runner, variables).await {
                 Ok(res) => res,
                 Err(e) if e.kind() == io::ErrorKind::TimedOut => {
                     return Err(JobFailure::ExecError(ExecError {
@@ -408,8 +443,16 @@ pub struct TestSuite {
     pub copies: Option<Vec<(String, String)>>,
     /// Initialization options for `Testsuite`.
     pub options: TestSuiteOptions,
+    /// Command to execute within each test case. Commands should be regular shell commands
+    /// inside a unix shell.
+    pub exec: Vec<RawStep>,
+    /// Variables to be expanded at testing.
+    ///
+    /// Variables in this field are in the form of `{"$var": "dest"}`, which for example then
+    /// expands `$var` inside test case `123` to `123.dest`.
+    pub vars: HashMap<String, String>,
 
-    /// Special Judger
+    /// Special Judger environment
     spj_env: Option<spj::SpjEnvironment>,
 }
 
@@ -424,12 +467,25 @@ impl TestSuite {
         base_dir: &Path,
         private_cfg: JudgerPrivateConfig,
         public_cfg: JudgerPublicConfig,
+        job_cfg: &JudgeTomlTestConfig,
         options: TestSuiteOptions,
     ) -> Result<Self> {
         let container_test_root = private_cfg.mapped_test_root_dir.clone();
         let test_root = private_cfg.test_root_dir.clone();
 
         let index = construct_case_index(&public_cfg);
+        let raw_steps = job_cfg
+            .run
+            .iter()
+            .map(|s| RawStep {
+                command: s.to_owned(),
+                is_user_command: true,
+            })
+            .chain(public_cfg.run.iter().map(|s| RawStep {
+                command: s.to_owned(),
+                is_user_command: false,
+            }))
+            .collect();
 
         // create test cases
         // TODO: Remove drain when this compiler issue gets repaired:
@@ -458,6 +514,8 @@ impl TestSuite {
             image: Some(image),
             test_cases,
             options,
+            exec: raw_steps,
+            vars: public_cfg.vars,
             binds: public_cfg.binds.map(|bs| {
                 bs.iter()
                     .map(|b| {
@@ -544,10 +602,11 @@ impl TestSuite {
             });
             let mut t = Test::new();
             t.should_fail = case.should_fail;
-            case.exec.iter().for_each(|step| {
+            self.exec.iter().for_each(|step| {
                 t.add_step(Step::new_with_timeout(
-                    Capturable::new(sh![step]),
+                    Capturable::new(step.command),
                     time_limit.map(|n| std::time::Duration::from_secs(n as u64)),
+                    step.is_user_command,
                 ));
             });
             if let Some(out) = case.expected_out.as_deref() {
@@ -594,7 +653,7 @@ async fn create_test_case(
     public_cfg: &JudgerPublicConfig,
     test_root: &PathBuf,
     container_test_root: &PathBuf,
-    case: &&TestCaseDefinition,
+    case: &TestCaseDefinition,
     name: String,
 ) -> Result<TestCase> {
     let replacer: HashMap<String, _> = public_cfg
@@ -611,15 +670,6 @@ async fn create_test_case(
                 };
                 p.push(format!("{}.{}", name, ext));
                 p.to_slash_lossy()
-            })
-        })
-        .collect();
-    let exec: Vec<String> = public_cfg
-        .run
-        .iter()
-        .map(|line| {
-            replacer.iter().fold(line.to_owned(), |seed, (pat, rep)| {
-                seed.replace(pat, &format!(r#""{}""#, rep))
             })
         })
         .collect();
@@ -653,7 +703,6 @@ async fn create_test_case(
 
     Result::Ok(TestCase {
         name: name.to_owned(),
-        exec,
         expected_out,
         should_fail: case.should_fail,
     })

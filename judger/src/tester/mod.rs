@@ -1,10 +1,11 @@
 pub mod exec;
 pub mod model;
 pub mod runner;
-pub mod utils;
 pub mod spj;
+pub mod utils;
 
 use err_derive::Error;
+use rquickjs::IntoJsByRef;
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Serialize, Deserialize, Eq, PartialEq)]
@@ -14,9 +15,10 @@ pub enum ExecErrorKind {
     TimedOut,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, Eq, PartialEq)]
+#[derive(Debug, Clone, Serialize, Deserialize, Eq, PartialEq, IntoJsByRef)]
 pub struct ProcessInfo {
     pub ret_code: i32,
+    pub is_user_command: bool,
     pub command: String,
     pub stdout: String,
     pub stderr: String,

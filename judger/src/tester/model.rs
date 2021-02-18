@@ -140,8 +140,6 @@ pub struct JudgerPrivateConfig {
 pub struct TestCase {
     /// File name of the test case.
     pub name: String,
-    /// List of commands to be executed.
-    pub exec: Vec<String>,
     /// Expected `stdout` of the last command.
     pub expected_out: Option<String>,
     /// Should this test case fail

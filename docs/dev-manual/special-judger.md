@@ -29,7 +29,7 @@ SPJ 的运行环境支持以下 JS 特性：
 ```ts
 // 可选，初始化整个 SPJ，在所有样例运行前调用
 function specialJudgeInit(config: JudgerPublicConfig);
-// 可选，在执行前修改执行步骤
+// 可选，在执行前修改所有样例的执行步骤，可能会被调用多次
 function specialJudgeTransformExec(exec: Step[]): Step[];
 // 可选，初始化单个样例，在执行样例中操作之前调用
 function specialJudgeCaseInit(case: string, mapping: Map<string, string>);
@@ -51,6 +51,7 @@ interface StepResult {
     isUserCommand: boolean;
     stdout: string;
     stderr: string;
+    return_code: number;
 }
 ```
 
