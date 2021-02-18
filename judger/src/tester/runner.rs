@@ -31,15 +31,10 @@ pub struct TokioCommandRunner {}
 impl CommandRunner for TokioCommandRunner {
     async fn run(
         &self,
-        cmd: &str,
+        cmd_str: &str,
         variables: &HashMap<String, String>,
     ) -> PopenResult<ProcessInfo> {
-        let cmd_str = shellexpand::env_with_context_no_errors(cmd, |i| variables.get(i));
-        let cmd = vec![
-            "sh".to_owned(),
-            "-c".to_owned(),
-            cmd_str.as_ref().to_owned(),
-        ];
+        let cmd = vec!["sh".to_owned(), "-c".to_owned(), cmd_str.to_owned()];
 
         let mut cmd_iter = cmd.iter();
         let mut command = Command::new(cmd_iter.next().ok_or_else(|| {
@@ -49,6 +44,11 @@ impl CommandRunner for TokioCommandRunner {
             )
         })?);
         command.args(cmd_iter);
+
+        for (k, v) in variables {
+            command.env(k, v);
+        }
+
         let std::process::Output {
             status,
             stdout,
@@ -57,7 +57,7 @@ impl CommandRunner for TokioCommandRunner {
         let ret_code = ret_code_from_exit_status(status);
         let ret_code = convert_code(ret_code);
         Ok(ProcessInfo {
-            command: cmd_str.into_owned(),
+            command: cmd_str.to_owned(),
             is_user_command: false,
             stdout: String::from_utf8_lossy(&stdout).into_owned(),
             stderr: String::from_utf8_lossy(&stderr).into_owned(),
