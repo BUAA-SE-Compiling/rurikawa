@@ -20,7 +20,8 @@ use tokio::{io::BufWriter, process::Command};
 pub trait CommandRunner {
     /// Evaluate a command string with the given variables to replace.
     /// The command should be supplied with Unix Shell style.
-    async fn run(&self, cmd: &str, variables: HashMap<String, String>) -> PopenResult<ProcessInfo>;
+    async fn run(&self, cmd: &str, variables: &HashMap<String, String>)
+        -> PopenResult<ProcessInfo>;
 }
 
 /// A *local* command evaluation environment.
@@ -28,7 +29,11 @@ pub struct TokioCommandRunner {}
 
 #[async_trait]
 impl CommandRunner for TokioCommandRunner {
-    async fn run(&self, cmd: &str, variables: HashMap<String, String>) -> PopenResult<ProcessInfo> {
+    async fn run(
+        &self,
+        cmd: &str,
+        variables: &HashMap<String, String>,
+    ) -> PopenResult<ProcessInfo> {
         let cmd_str = shellexpand::env_with_context_no_errors(cmd, |i| variables.get(i));
         let cmd = shell_words::split(&cmd_str).map_err(|e| {
             std::io::Error::new(
@@ -397,7 +402,11 @@ static MAX_CONSOLE_FILE_SIZE: usize = 100 * 1024;
 
 #[async_trait]
 impl CommandRunner for DockerCommandRunner {
-    async fn run(&self, cmd: &str, variables: HashMap<String, String>) -> PopenResult<ProcessInfo> {
+    async fn run(
+        &self,
+        cmd: &str,
+        variables: &HashMap<String, String>,
+    ) -> PopenResult<ProcessInfo> {
         let container_name = &self.options.container_name;
 
         // Create a Docker Exec
