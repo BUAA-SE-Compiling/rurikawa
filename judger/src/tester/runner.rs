@@ -35,12 +35,11 @@ impl CommandRunner for TokioCommandRunner {
         variables: &HashMap<String, String>,
     ) -> PopenResult<ProcessInfo> {
         let cmd_str = shellexpand::env_with_context_no_errors(cmd, |i| variables.get(i));
-        let cmd = shell_words::split(&cmd_str).map_err(|e| {
-            std::io::Error::new(
-                std::io::ErrorKind::InvalidInput,
-                "Command string is malformed",
-            )
-        })?;
+        let cmd = vec![
+            "sh".to_owned(),
+            "-c".to_owned(),
+            cmd_str.as_ref().to_owned(),
+        ];
 
         let mut cmd_iter = cmd.iter();
         let mut command = Command::new(cmd_iter.next().ok_or_else(|| {
