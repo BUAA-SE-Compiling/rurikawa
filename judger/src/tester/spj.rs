@@ -12,7 +12,10 @@ use rquickjs::{
 use tokio::{runtime::Handle, task::JoinHandle};
 use tracing::info_span;
 
-use super::model::{JudgerPublicConfig, RawStep};
+use super::{
+    model::{JudgerPublicConfig, RawStep, TestCase},
+    ProcessInfo,
+};
 
 pub const SPJ_INIT_FN: &str = "specialJudgeInit";
 pub const SPJ_TRANSFORM_FN: &str = "specialJudgeTransformExec";
@@ -119,22 +122,15 @@ impl SpjEnvironment {
     /// Callback for case init
     pub async fn spj_case_init(
         &self,
-        case: &str,
+        case: &TestCase,
         mappings: &HashMap<String, String>,
     ) -> anyhow::Result<()> {
         run_promise_like!(self.ctx, SPJ_CASE_INIT_FN, (case, mappings), |x| x).map_err(|e| e.into())
     }
 
     /// Callback for case judging
-    pub async fn spj_case_judge(
-        &self,
-        case: &str,
-        mappings: &HashMap<String, String>,
-    ) -> anyhow::Result<f64> {
-        run_promise_like!(self.ctx, SPJ_CASE_INIT_FN, (case, mappings), |val: f64| {
-            val
-        })
-        .map_err(|e| e.into())
+    pub async fn spj_case_judge(&self, results: &[ProcessInfo]) -> anyhow::Result<SpjResult> {
+        run_promise_like!(self.ctx, SPJ_CASE_INIT_FN, (results,), |x| x).map_err(|e| e.into())
     }
 
     fn detect_features(&self) -> SpjFeatures {
@@ -169,6 +165,14 @@ pub async fn make_spj(script_path: &Path) -> anyhow::Result<SpjEnvironment> {
     let script = String::from_utf8_lossy(&script);
     spj.load_script(&script)?;
     Ok(spj)
+}
+
+#[derive(Debug, FromJs)]
+#[quickjs(rename_all = "camelCase")]
+pub struct SpjResult {
+pub    accepted: bool,
+pub    score: Option<f64>,
+pub    reason: Option<String>,
 }
 
 /// Represents enabled features of a special judge instance.

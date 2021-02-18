@@ -136,7 +136,8 @@ pub struct JudgerPrivateConfig {
 }
 
 /// The public representation of a test.
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone, IntoJsByRef)]
+#[quickjs(rename_all = "camelCase")]
 pub struct TestCase {
     /// File name of the test case.
     pub name: String,

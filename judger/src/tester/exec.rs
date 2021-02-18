@@ -1,4 +1,7 @@
-use super::{model::*, spj};
+use super::{
+    model::*,
+    spj::{self, SpjEnvironment},
+};
 use super::{
     runner::{CommandRunner, DockerCommandRunner, DockerCommandRunnerOptions},
     ExecError, ExecErrorKind, JobFailure, OutputMismatch, ProcessInfo, ShouldFailFailure,
@@ -185,14 +188,17 @@ impl Test {
     }
 
     // ? Should `runner` be mutable?
+    /// Run this specific test. Returns the score of this test (`1` when scoring mode is off)
     pub async fn run<R>(
         self,
         runner: &R,
         variables: &HashMap<String, String>,
-    ) -> Result<(), JobFailure>
+        spj: Option<&mut SpjEnvironment>,
+    ) -> Result<f64, JobFailure>
     where
         R: CommandRunner + Send,
     {
+        let spj_enabled = spj.as_ref().map_or(false, |x| x.features().case());
         let mut output: Vec<ProcessInfo> = vec![];
         let steps_len = self.steps.len();
         let mut test_failed = false;
@@ -218,6 +224,8 @@ impl Test {
                         // bail out of test, but it's totally fine
                         test_failed = true;
                         break;
+                    } else if spj_enabled {
+                        // continue
                     } else {
                         return Err(JobFailure::ExecError(ExecError {
                             stage: i,
@@ -240,7 +248,8 @@ impl Test {
             }
 
             // Special case for last step
-            if i == steps_len - 1 {
+
+            if i == steps_len - 1 && !spj_enabled {
                 if let Some(expected) = self.expected.as_ref() {
                     // * Actually there is a test that should not have passed,
                     // * because the `.out` file is missing a `\n`.
@@ -258,12 +267,29 @@ impl Test {
             }
         }
 
-        // Tests that _should_ fail but did not should return error here
-        if self.should_fail && !test_failed {
-            return Err(JobFailure::ShouldFail(ShouldFailFailure { output }));
-        }
+        if spj_enabled {
+            // do special judging
+            // spj_enabled would only be true when spj is Some(_)
+            let spj = spj.unwrap();
+            let judge_result = spj
+                .spj_case_judge(&output)
+                .await
+                .map_err(JobFailure::internal_err_from)?;
 
-        Ok(())
+            if judge_result.accepted {
+                Ok(judge_result.score.unwrap_or(1.0))
+            } else {
+                Err(JobFailure::SpjWrongAnswer(super::SpjFailure {
+                    reason: judge_result.reason,
+                    output,
+                }))
+            }
+        } else if self.should_fail && !test_failed {
+            // Tests that _should_ fail but did not should return error here
+            return Err(JobFailure::ShouldFail(ShouldFailFailure { output }));
+        } else {
+            Ok(1.0)
+        }
     }
 }
 
@@ -480,18 +506,6 @@ impl TestSuite {
         let test_root = private_cfg.test_root_dir.clone();
 
         let index = construct_case_index(&public_cfg);
-        let raw_steps = job_cfg
-            .run
-            .iter()
-            .map(|s| RawStep {
-                command: s.to_owned(),
-                is_user_command: true,
-            })
-            .chain(public_cfg.run.iter().map(|s| RawStep {
-                command: s.to_owned(),
-                is_user_command: false,
-            }))
-            .collect();
 
         // create test cases
         // TODO: Remove drain when this compiler issue gets repaired:
@@ -507,11 +521,38 @@ impl TestSuite {
             .buffer_unordered(16)
             .collect::<Vec<Result<TestCase>>>()
             .await;
+
         let test_cases = test_cases.drain(..).collect::<Result<Vec<_>>>()?;
 
-        let spj = if let Some(script) = public_cfg.special_judge_script {
+        // Get command steps
+        let mut raw_steps = job_cfg
+            .run
+            .iter()
+            .map(|s| RawStep {
+                command: s.to_owned(),
+                is_user_command: true,
+            })
+            .chain(public_cfg.run.iter().map(|s| RawStep {
+                command: s.to_owned(),
+                is_user_command: false,
+            }))
+            .collect::<Vec<_>>();
+
+        // Initialize special judge
+        let spj = if let Some(script) = &public_cfg.special_judge_script {
             let script_path = test_root.join(script);
-            Some(spj::make_spj(&script_path).await?)
+            let mut spj = spj::make_spj(&script_path).await?;
+
+            // Do special judge initialization
+            spj.with_console_env("todo".into())?;
+            spj.spawn_futures().await;
+            if spj.features().global_init() {
+                spj.spj_global_init(&public_cfg).await?;
+            }
+            if spj.features().transform_exec() {
+                raw_steps = spj.spj_map_exec(&raw_steps).await?;
+            }
+            Some(spj)
         } else {
             None
         };
@@ -642,7 +683,7 @@ impl TestSuite {
             log::trace!("{:08x}: created test: {}", rnd_id, case.name);
 
             let res = t
-                .run(&runner, &replacer)
+                .run(&runner, &replacer, self.spj_env.as_mut())
                 .with_cancel(cancellation_token.clone())
                 .await
                 .ok_or(JobFailure::Cancelled)
@@ -675,6 +716,10 @@ impl TestSuite {
     }
 }
 
+/// Create a test case out of various configs.
+///
+/// This function is extracted from TestSuite::Run.
+/// TODO: Refactor this function.
 async fn create_test_case(
     public_cfg: &JudgerPublicConfig,
     test_root: &PathBuf,
@@ -964,8 +1009,8 @@ mod tests {
                     true,
                 ));
                 t.expected("Hello,\n");
-                let res = t.run(&runner, &HashMap::new()).await;
-                assert!(matches!(dbg!(res), Ok(())));
+                let res = t.run(&runner, &HashMap::new(), None).await;
+                assert!(matches!(dbg!(res), Ok(1.0)));
                 runner
             });
         }
@@ -982,8 +1027,8 @@ mod tests {
                     true,
                 ));
                 t.expected("Hello,\nworld!\n");
-                let got = t.run(&runner, &HashMap::new()).await;
-                let expected: Result<(), _> = Err(JobFailure::ExecError(ExecError {
+                let got = t.run(&runner, &HashMap::new(), None).await;
+                let expected: Result<f64, _> = Err(JobFailure::ExecError(ExecError {
                     stage: 1,
                     kind: ExecErrorKind::ReturnCodeCheckFailed,
                     output: vec![
@@ -1020,8 +1065,8 @@ mod tests {
                     r#"{ sleep 0.1; kill $$; } & i=0; while [ "$i" -lt 4 ]; do echo $i; sleep 1; i=$(( i + 1 )); done"#.into()
                 ),true));
                 t.expected("Hello,\nworld!\n");
-                let got = t.run(&runner, &HashMap::new()).await;
-                let expected: Result<(), _> = Err(JobFailure::ExecError(ExecError {
+                let got = t.run(&runner, &HashMap::new(), None).await;
+                let expected: Result<f64, _> = Err(JobFailure::ExecError(ExecError {
                     stage: 1,
                     kind: if cfg!(unix){ ExecErrorKind::RuntimeError(
                         format!(
@@ -1065,8 +1110,8 @@ mod tests {
                     true,
                 ));
                 t.expected("Hello,\nworld!");
-                let got = t.run(&runner, &HashMap::new()).await;
-                let expected: Result<(), _> = Err(JobFailure::OutputMismatch(OutputMismatch {
+                let got = t.run(&runner, &HashMap::new(), None).await;
+                let expected: Result<f64, _> = Err(JobFailure::OutputMismatch(OutputMismatch {
                     diff: "+ Hello,\n  world!\n".into(),
                     output: vec![
                         ProcessInfo {
@@ -1102,8 +1147,8 @@ mod tests {
                         .timeout(time::Duration::from_millis(100)),
                 );
                 t.expected("Hello,\nworld!\n");
-                let got = t.run(&runner, &HashMap::new()).await;
-                let expected: Result<(), _> = Err(JobFailure::ExecError(ExecError {
+                let got = t.run(&runner, &HashMap::new(), None).await;
+                let expected: Result<f64, _> = Err(JobFailure::ExecError(ExecError {
                     stage: 1,
                     kind: ExecErrorKind::TimedOut,
                     output: vec![ProcessInfo {

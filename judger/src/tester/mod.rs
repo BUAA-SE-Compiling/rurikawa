@@ -30,6 +30,13 @@ pub struct OutputMismatch {
     pub output: Vec<ProcessInfo>,
 }
 
+
+#[derive(Debug, Clone, Serialize, Deserialize, Eq, PartialEq)]
+pub struct SpjFailure{
+    pub reason: Option<String>,
+    pub output: Vec<ProcessInfo>
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, Eq, PartialEq, Error)]
 #[error(
     display = "Execution error in stage {}: {:?};\noutputs: {:?}",
@@ -71,6 +78,7 @@ impl std::error::Error for BuildError {}
 #[derive(Debug, Clone, Serialize, Deserialize, Eq, PartialEq)]
 pub enum JobFailure {
     OutputMismatch(OutputMismatch),
+    SpjWrongAnswer(SpjFailure),
     ExecError(ExecError),
     InternalError(String),
     ShouldFail(ShouldFailFailure),

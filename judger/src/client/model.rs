@@ -208,6 +208,14 @@ impl TestResult {
                     ),
 
                     crate::tester::JobFailure::Cancelled => (TestResultKind::NotRunned, None),
+                    crate::tester::JobFailure::SpjWrongAnswer(out) => (
+                        TestResultKind::WrongAnswer,
+                        Some(FailedJobOutputCacheFile {
+                            output: out.output,
+                            stdout_diff: None,
+                            message: out.reason,
+                        }),
+                    ),
                 };
 
                 (
