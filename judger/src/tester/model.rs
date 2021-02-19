@@ -68,6 +68,10 @@ pub struct TestCaseDefinition {
     pub name: String,
     pub should_fail: bool,
     pub has_out: bool,
+
+    /// Baseline score for this test case
+    #[serde(default = "default_base_score")]
+    pub base_score: f64,
 }
 
 impl FromStr for TestCaseDefinition {
@@ -78,6 +82,7 @@ impl FromStr for TestCaseDefinition {
             name: s.to_owned(),
             should_fail: false,
             has_out: true,
+            base_score: 1.0,
         })
     }
 }
@@ -145,6 +150,14 @@ pub struct TestCase {
     pub expected_out: Option<String>,
     /// Should this test case fail
     pub should_fail: bool,
+
+    /// Baseline score for this test case
+    #[serde(default = "default_base_score")]
+    pub base_score: f64,
+}
+
+fn default_base_score() -> f64 {
+    1.0
 }
 
 /// Initialization options for `Testsuite`.
@@ -207,6 +220,7 @@ mod de {
         Name,
         ShouldFail,
         HasOut,
+        BaseScore,
     }
 
     struct TestCaseVisitor;
@@ -232,23 +246,27 @@ mod de {
             let mut name = None;
             let mut should_fail = None;
             let mut has_out = None;
+            let mut base_score = None;
 
             while let Some(key) = map.next_key::<TestCaseFields>()? {
                 match key {
                     TestCaseFields::Name => set_field!(name, map),
                     TestCaseFields::ShouldFail => set_field!(should_fail, map),
                     TestCaseFields::HasOut => set_field!(has_out, map),
+                    TestCaseFields::BaseScore => set_field!(base_score, map),
                 }
             }
 
             let name = check_field!(name);
             let should_fail = should_fail.unwrap_or(false);
             let has_out = has_out.unwrap_or(true);
+            let base_score = base_score.unwrap_or(1.0);
 
             Ok(TestCaseDefinition {
                 name,
                 should_fail,
                 has_out,
+                base_score,
             })
         }
     }

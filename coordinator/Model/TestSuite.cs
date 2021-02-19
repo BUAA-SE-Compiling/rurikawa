@@ -47,6 +47,8 @@ namespace Karenia.Rurikawa.Models.Test {
 
         public int? MemoryLimit { get; set; }
 
+        public ScoringMode ScoringMode { get; set; }
+
         /// <summary>
         /// All tests inside test suite, grouped by user-defined keys.
         /// <br/>
@@ -140,6 +142,7 @@ namespace Karenia.Rurikawa.Models.Test {
     [JsonConverter(typeof(SerDe.TestCaseDefinitionConverter))]
     public class TestCaseDefinition {
         public string Name { get; set; }
+        public double BaseScore { get; set; } = 1.0;
         public bool HasOut { get; set; }
         public bool ShouldFail { get; set; }
     }
@@ -169,9 +172,15 @@ namespace Karenia.Rurikawa.Models.Test {
         Skipped,
     }
 
+    public enum ScoringMode {
+        Basic = 0,
+        Floating,
+    }
+
     public class TestResult {
         public TestResultKind Kind { get; set; }
         public string? ResultFileId { get; set; }
+        public double? Score { get; set; }
     }
 
     namespace SerDe {

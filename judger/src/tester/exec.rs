@@ -776,6 +776,7 @@ async fn create_test_case(
         name: name.to_owned(),
         expected_out,
         should_fail: case.should_fail,
+        base_score: case.base_score,
     })
 }
 
@@ -1201,6 +1202,7 @@ mod test_suite {
                                 name: "succ".into(),
                                 should_fail: false,
                                 has_out: true,
+                                base_score: 1.0,
                             }],
                         )]
                         .iter()
@@ -1288,6 +1290,7 @@ mod test_suite {
                                 name: "succ".into(),
                                 should_fail: false,
                                 has_out: true,
+                                base_score: 1.0,
                             }],
                         )]
                         .iter()
