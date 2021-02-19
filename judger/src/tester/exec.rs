@@ -817,7 +817,7 @@ mod tests {
                 ));
                 t.expected("Hello,\n");
                 let res = t.run(&TokioCommandRunner {}, &HashMap::new(), None).await;
-                assert!(matches!(dbg!(res), Ok(())));
+                assert!(matches!(dbg!(res), Ok(_)));
             })
         }
 
