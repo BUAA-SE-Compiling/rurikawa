@@ -17,6 +17,7 @@ export const endpoints = {
     getCode: 'admin/code',
     dumpSuiteJobs: (id: string) => `admin/suite/${id}/dump_jobs`,
     dumpSuiteAllJobs: (id: string) => `admin/suite/${id}/dump_all_jobs`,
+    judgerRegisterToken: 'admin/judger/register-token',
   },
   dashboard: {
     get: 'dashboard',

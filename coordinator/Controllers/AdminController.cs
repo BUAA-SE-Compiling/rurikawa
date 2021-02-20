@@ -289,7 +289,7 @@ namespace Karenia.Rurikawa.Coordinator.Controllers {
         }
 
         public class CreateJudgerTokenRequest {
-            public DateTimeOffset ExpireAt { get; set; }
+            public DateTimeOffset? ExpireAt { get; set; }
             public bool IsSingleUse { get; set; }
             public List<string> Tags { get; set; }
         }
