@@ -1,6 +1,6 @@
 
 FROM caddy:2-builder-alpine AS builder
-ENV HTTP_PROXY=http://host.docker.internal:10809
+
 RUN xcaddy build \
   --with github.com/caddy-dns/cloudflare
 
