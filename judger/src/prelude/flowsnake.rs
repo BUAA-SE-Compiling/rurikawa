@@ -78,7 +78,7 @@ impl FlowSnake {
             return Err(FlowSnakeDeserializeError::InvalidLength(s.len()));
         }
         let mut n = 0u64;
-        for (pos, ch_) in s.chars().enumerate() {
+        for (pos, ch_) in s.chars().filter(|x| *x != '-').enumerate() {
             let ch = ch_ as usize;
             if ch >= CHAR_TO_BASE32.len() {
                 return Err(FlowSnakeDeserializeError::InvalidChar(pos, ch_));
@@ -103,9 +103,25 @@ impl FlowSnake {
         }
         Ok(())
     }
+
+    pub fn write_str_dashed_buffered(&self, buf: &mut [u8]) -> Result<(), ()> {
+        if buf.len() < 14{
+            return Err(());
+        }
+        for i in 0..7 {
+            let x = ((self.0 >> (5 * (12 - i))) & 31) as u8;
+            buf[i as usize] = ALPHABET[x as usize];
+        }
+        buf[7] = b'-';
+        for i in 7..13 {
+            let x = ((self.0 >> (5 * (12 - i))) & 31) as u8;
+            buf[(i + 1) as usize] = ALPHABET[x as usize];
+        }
+        Ok(())
+    }
 }
 
-impl From<u64> for FlowSnake{
+impl From<u64> for FlowSnake {
     fn from(i: u64) -> Self {
         FlowSnake(i)
     }
@@ -113,8 +129,8 @@ impl From<u64> for FlowSnake{
 
 impl std::fmt::Display for FlowSnake {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        let mut s = [0u8; 13];
-        self.write_str_buffered(&mut s).unwrap();
+        let mut s = [0u8; 14];
+        self.write_str_dashed_buffered(&mut s).unwrap();
         let s = unsafe { std::str::from_utf8_unchecked(&s) };
         f.write_str(s)
     }
