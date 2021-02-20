@@ -28,6 +28,7 @@ export const endpoints = {
     setFile: (id: string) => `tests/${id}/file`,
     setVisibility: (id: string) => `tests/${id}/visibility`,
     put: (id: string) => `tests/${id}`,
+    remove: (id: string) => `tests/${id}`,
     post: 'tests',
     ws: 'tests/ws?token=:token',
   },

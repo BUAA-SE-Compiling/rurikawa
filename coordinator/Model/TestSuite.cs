@@ -173,8 +173,15 @@ namespace Karenia.Rurikawa.Models.Test {
     }
 
     public enum ScoringMode {
+        /// <summary>
+        /// The basic scoring mode, display `{passedCases}/{totalCases}`
+        /// </summary>
         Basic = 0,
-        Floating,
+
+        /// <summary>
+        /// Floating scoring mode. Displays `{currentScore}/{totalScore}`
+        /// </summary>
+        Floating = 1,
     }
 
     public class TestResult {

@@ -318,5 +318,6 @@ namespace Karenia.Rurikawa.Coordinator.Controllers {
             }
             return NoContent();
         }
+
     }
 }

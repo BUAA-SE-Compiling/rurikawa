@@ -37,11 +37,9 @@
     <PackageReference Include="System.IdentityModel.Tokens.Jwt" Version="6.7.1" />
     <PackageReference Include="System.Reactive" Version="4.4.1" />
     <PackageReference Include="Z.EntityFramework.Plus.EFCore" Version="3.0.60" />
-  </ItemGroup>
-
-  <ItemGroup>
     <ProjectReference Include="..\3rd_party\SplitStream\src\SplitStream\MicroKnights.IO.SplitStream.csproj" />
   </ItemGroup>
+
   <ItemGroup>
     <TrimmerRootAssembly Include="System.IO.FileSystem" />
     <TrimmerRootAssembly Include="System.Xml.XPath.XDocument" />

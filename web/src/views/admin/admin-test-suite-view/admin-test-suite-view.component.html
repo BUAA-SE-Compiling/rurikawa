@@ -3,10 +3,12 @@
   <div class="title-row">
     <div class="row text">
       <div class="id">{{ suite?.name }}:{{ id }}</div>
+      <div class="space"></div>
       <a (click)="togglePublic()">
         {{ suite.isPublic ? "公开" : "未公开" }}
       </a>
       <a [routerLink]="'/suite/' + id">测试界面</a>
+      <a (click)="removeSuite()">删除</a>
     </div>
     <h1>{{ suite?.title }}</h1>
   </div>

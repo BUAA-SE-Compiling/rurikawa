@@ -198,8 +198,7 @@ namespace Karenia.Rurikawa.Coordinator.Controllers {
             if (!await db.TestSuites.Where(suite => suite.Id == suiteId).AnyAsync()) {
                 return NotFound();
             }
-            await db.Jobs.Where(job => job.TestSuite == suiteId).DeleteFromQueryAsync();
-            await db.TestSuites.Where(suite => suite.Id == suiteId).DeleteFromQueryAsync();
+            await dbService.RemoveTestSuiteCascade(suiteId);
             return NoContent();
         }
 
