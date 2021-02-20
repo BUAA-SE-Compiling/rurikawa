@@ -217,10 +217,12 @@ namespace Karenia.Rurikawa.Models.Test {
                 string propName_name = options.PropertyNamingPolicy?.ConvertName(nameof(TestCaseDefinition.Name)) ?? nameof(TestCaseDefinition.Name);
                 string propName_hasOut = options.PropertyNamingPolicy?.ConvertName(nameof(TestCaseDefinition.HasOut)) ?? nameof(TestCaseDefinition.HasOut);
                 string propName_shouldFail = options.PropertyNamingPolicy?.ConvertName(nameof(TestCaseDefinition.ShouldFail)) ?? nameof(TestCaseDefinition.ShouldFail);
+                string propName_baseScore = options.PropertyNamingPolicy?.ConvertName(nameof(TestCaseDefinition.BaseScore)) ?? nameof(TestCaseDefinition.BaseScore);
 
                 string? name = null;
                 bool? hasOut = null;
                 bool? shouldFail = null;
+                double? baseScore = null;
 
                 while (reader.Read()) {
                     if (reader.TokenType == JsonTokenType.EndObject) break;
@@ -241,6 +243,10 @@ namespace Karenia.Rurikawa.Models.Test {
                         if (shouldFail != null)
                             throw new JsonException("Duplicate property 'shouldFail'");
                         shouldFail = reader.GetBoolean();
+                    } else if (key == propName_baseScore) {
+                        if (baseScore != null)
+                            throw new JsonException("Duplicate property 'baseScore'");
+                        baseScore = reader.GetDouble();
                     } else {
                         throw new JsonException($"Unknown property '{key}'");
                     }
@@ -252,6 +258,7 @@ namespace Karenia.Rurikawa.Models.Test {
                     Name = name,
                     HasOut = hasOut ?? true,
                     ShouldFail = shouldFail ?? false,
+                    BaseScore = baseScore ?? 1.0
                 };
             }
 

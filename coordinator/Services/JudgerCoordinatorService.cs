@@ -99,7 +99,8 @@ namespace Karenia.Rurikawa.Coordinator.Services {
         ///     True if the websocket connection was made.
         /// </returns>
         public async ValueTask<bool> TryUseConnection(HttpContext ctx) {
-            if (ctx.Request.Query.TryGetValue("token", out var auth)) {
+            if (ctx.Request.Query.TryGetValue("token", out var authStrings)) {
+                var auth = authStrings.FirstOrDefault();
                 var tokenEntry = await Authenticate(auth);
                 if (tokenEntry != null) {
                     // A connection id is passed to ensure that the client can safely
