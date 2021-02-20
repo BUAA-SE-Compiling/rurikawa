@@ -141,14 +141,15 @@ impl ToScore for () {
 }
 
 impl TestResult {
-    pub fn from_failure<S: ToScore>(
+    pub fn from_result<S: ToScore>(
         failure: Result<S, crate::tester::JobFailure>,
+        base_score: f64,
     ) -> (TestResult, Option<FailedJobOutputCacheFile>) {
         match failure {
             Ok(s) => (
                 TestResult {
                     kind: TestResultKind::Accepted,
-                    score: s.to_score(),
+                    score: s.to_score().map(|x| x * base_score),
                     result_file_id: None,
                 },
                 None,

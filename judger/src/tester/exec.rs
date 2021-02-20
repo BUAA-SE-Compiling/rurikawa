@@ -19,9 +19,6 @@ use bollard::models::{BuildInfo, Mount};
 use futures::stream::StreamExt;
 use once_cell::sync::Lazy;
 use path_slash::PathBufExt;
-use regex::{Captures, Regex};
-use rquickjs::{FromJs, IntoJsByRef};
-use serde::de::value;
 use std::path::Path;
 use std::time;
 use std::{collections::HashMap, io, path::PathBuf, string::String, sync::Arc};
@@ -688,10 +685,9 @@ impl TestSuite {
                 .await
                 .ok_or(JobFailure::Cancelled)
                 .and_then(|x| x);
-
             log::trace!("{:08x}: runned: {}", rnd_id, case.name);
 
-            let (mut res, cache) = TestResult::from_failure(res);
+            let (mut res, cache) = TestResult::from_result(res, case.base_score);
             if let Some(cfg) = &upload_info {
                 if let Some(cache) = cache {
                     let file = upload_test_result(cache, cfg.clone(), &case.name).await;
