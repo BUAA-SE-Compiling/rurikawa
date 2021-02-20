@@ -1,3 +1,4 @@
+use anyhow::Context;
 use err_derive::Error;
 use std::fmt::Debug;
 use tokio_tungstenite::tungstenite;
@@ -22,7 +23,7 @@ pub enum JobExecErr {
     #[error(display = "JSON error: {}", _0)]
     Json(#[error(source)] serde_json::Error),
 
-    #[error(display = "TOML error: {}", _0)]
+    #[error(display = "TOML deserialization error: {}", _0)]
     TomlDes(#[error(source)] toml::de::Error),
 
     #[error(display = "Build error: {}", _0)]
@@ -34,14 +35,16 @@ pub enum JobExecErr {
     #[error(display = "Job was cancelled")]
     Cancelled,
 
-    #[error(display = "Other error: {}", _0)]
+    #[error(display = "{:#}", _0)]
     Any(anyhow::Error),
 }
 
 impl From<tungstenite::error::Error> for JobExecErr {
     fn from(e: tungstenite::error::Error) -> Self {
         match e {
-            tungstenite::Error::Io(e) => JobExecErr::Io(e),
+            tungstenite::Error::Io(e) => {
+                Self::Any(anyhow::Error::new(e).context("error inside websocket"))
+            }
             _ => JobExecErr::Ws(e),
         }
     }
@@ -58,11 +61,17 @@ macro_rules! anyhow_downcast_chain {
 
 impl From<anyhow::Error> for JobExecErr {
     fn from(e: anyhow::Error) -> Self {
+        if e.chain().count() > 1 {
+            tracing::warn!(
+                "Context may be stripped during downcast. Logging error here:\n{:#}",
+                e
+            );
+        }
         anyhow_downcast_chain!(
             e,
-            std::io::Error,
             crate::tester::BuildError,
             crate::tester::ExecError,
+            std::io::Error,
             toml::de::Error,
             reqwest::Error
         );

@@ -13,9 +13,8 @@ use crate::{
     tester::model::JudgerPrivateConfig,
     tester::model::TestSuiteOptions,
 };
-use anyhow::Result;
+use anyhow::{Context, Result};
 use config::SharedClientData;
-
 use futures::StreamExt;
 use http::Method;
 use model::*;
@@ -424,7 +423,8 @@ pub async fn handle_job(
         &judge_job_cfg,
         options,
     )
-    .await?;
+    .await
+    .context("during TestSuite::from_config")?;
 
     tracing::info!("options created");
     let (ch_send, ch_recv) = tokio::sync::mpsc::unbounded_channel();
@@ -489,7 +489,8 @@ pub async fn handle_job(
             cancel.clone(),
         )
         .instrument(info_span!("run_job"))
-        .await?;
+        .await
+        .context("during TestSuite::run")?;
 
     tracing::info!("finished running");
 

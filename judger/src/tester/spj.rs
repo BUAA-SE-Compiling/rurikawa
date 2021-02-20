@@ -5,7 +5,7 @@
 
 use std::{collections::HashMap, path::Path};
 
-use anyhow::anyhow;
+use anyhow::{anyhow, Context as AnyhowCtx};
 use rquickjs::{
     AsArguments, Context, Ctx, FromJs, Func, Function, IntoJs, MutFn, Promise, Runtime,
 };
@@ -160,19 +160,22 @@ impl SpjEnvironment {
 
 /// Make a special judger using the given script path.
 pub async fn make_spj(script_path: &Path) -> anyhow::Result<SpjEnvironment> {
-    let mut spj = SpjEnvironment::new()?;
-    let script = tokio::fs::read(script_path).await?;
+    let mut spj = SpjEnvironment::new().context("when creating spj environment")?;
+    let script = tokio::fs::read(script_path)
+        .await
+        .context("when reading spj input file")?;
     let script = String::from_utf8_lossy(&script);
-    spj.load_script(&script)?;
+    spj.load_script(&script)
+        .context("when loading spj script")?;
     Ok(spj)
 }
 
 #[derive(Debug, FromJs)]
 #[quickjs(rename_all = "camelCase")]
 pub struct SpjResult {
-pub    accepted: bool,
-pub    score: Option<f64>,
-pub    reason: Option<String>,
+    pub accepted: bool,
+    pub score: Option<f64>,
+    pub reason: Option<String>,
 }
 
 /// Represents enabled features of a special judge instance.

@@ -537,7 +537,7 @@ impl TestSuite {
 
         // Initialize special judge
         let spj = if let Some(script) = &public_cfg.special_judge_script {
-            let script_path = test_root.join(script);
+            let script_path = base_dir.join(script);
             let mut spj = spj::make_spj(&script_path).await?;
 
             // Do special judge initialization
