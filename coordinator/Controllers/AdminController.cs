@@ -126,30 +126,48 @@ namespace Karenia.Rurikawa.Coordinator.Controllers {
                     .ToList();
 
             var suiteIdNum = suiteId.Num;
-            var ptr = db.Jobs.FromSqlInterpolated($@"
-            select
-                distinct on (account)
-                *
-            from jobs
-            where test_suite = {suiteIdNum}
-            order by account, id desc
-            ")
-            .Join(
-                db.Profiles,
-                (job) => job.Account,
-                (profile) => profile.Username,
-                (job, profile) =>
-                    new JobDumpEntry { Job = job, StudentId = profile.StudentId })
-            .AsAsyncEnumerable();
-
-            const int flushInterval = 50;
 
             Response.ContentType = "application/csv";
             Response.StatusCode = 200;
             Response.Headers.Add("Content-Disposition", $"inline; filename=\"{suiteId}.jobs.csv\"");
 
             await Response.StartAsync();
-            await WriteJobResults(columns, ptr, flushInterval);
+            // write to body of response
+            using var sw = new StreamWriter(new StreamAsyncAdaptor(Response.Body));
+            await using var swGuard = sw.ConfigureAwait(false);
+            var csvWriter = new CsvWriter(sw);
+
+            var startId = FlowSnake.MaxValue;
+            const int batchSize = 100;
+            while (true) {
+
+                var batch = db.Jobs.FromSqlInterpolated($@"
+                    select
+                        distinct on (account)
+                        *
+                    from jobs
+                    where test_suite = {suiteIdNum}
+                    order by account, id desc
+                    ")
+                    .Where(job => job.Id < startId)
+                    .Take(batchSize)
+                    .Join(
+                        db.Profiles,
+                        (job) => job.Account,
+                        (profile) => profile.Username,
+                        (job, profile) =>
+                            new JobDumpEntry { Job = job, StudentId = profile.StudentId })
+                    .ToList();
+
+                if (batch.Count == 0) break;
+                startId = batch.Last().Job.Id;
+
+                await Task.Run(() => {
+                    foreach (var val in batch) {
+                        WriteJobInfo(csvWriter, val, columns);
+                    }
+                });
+            }
             return new EmptyResult();
         }
 
@@ -165,36 +183,62 @@ namespace Karenia.Rurikawa.Coordinator.Controllers {
                     .SelectMany(group => group.Value.Select(value => value.Name))
                     .ToList();
 
-            var ptr = db.Jobs
-                .Where((job) => job.TestSuite == suiteId)
-                .Join(
-                    db.Profiles,
-                    (job) => job.Account,
-                    (profile) => profile.Username,
-                    (job, profile) =>
-                        new JobDumpEntry { Job = job, StudentId = profile.StudentId })
-                .AsAsyncEnumerable();
-
-            const int flushInterval = 50;
-
             Response.ContentType = "application/csv";
             Response.StatusCode = 200;
             Response.Headers.Add("Content-Disposition", $"inline; filename=\"{suiteId}.all-jobs.csv\"");
 
             await Response.StartAsync();
-            await WriteJobResults(columns, ptr, flushInterval);
+
+            // write to body of response
+            using var sw = new StreamWriter(new StreamAsyncAdaptor(Response.Body));
+            await using var swGuard = sw.ConfigureAwait(false);
+            var csvWriter = new CsvWriter(sw);
+
+
+            const int batchSize = 100;
+            var startId = FlowSnake.MaxValue;
+
+            await WriteJobHeaders(csvWriter, columns);
+            while (true) {
+                var batch = db.Jobs
+                    .OrderByDescending(job => job.Id)
+                    .Where((job) => job.TestSuite == suiteId && job.Id < startId)
+                    .Take(batchSize)
+                    .Join(
+                        db.Profiles,
+                        (job) => job.Account,
+                        (profile) => profile.Username,
+                        (job, profile) =>
+                            new JobDumpEntry { Job = job, StudentId = profile.StudentId })
+                    .ToList();
+
+                if (batch.Count == 0) break;
+                startId = batch.Last().Job.Id;
+
+                await Task.Run(() => {
+                    foreach (var val in batch) {
+                        WriteJobInfo(csvWriter, val, columns);
+                    }
+                });
+
+                await sw.FlushAsync();
+            }
+
+
             return new EmptyResult();
         }
 
-        private async Task WriteJobResults(
-            List<string> columns,
-            IAsyncEnumerable<JobDumpEntry> ptr,
-            int flushInterval) {
-            await Task.Run(async () => {
-                // write to body of response
-                using var sw = new StreamWriter(new StreamAsyncAdaptor(Response.Body));
-                await using var swGuard = sw.ConfigureAwait(false);
-                var csvWriter = new CsvWriter(sw);
+        /// <summary>
+        /// Write the header of a JobResult to the given response's body.
+        /// </summary>
+        /// <param name="csvWriter"></param>
+        /// <param name="columns"></param>
+        /// <returns></returns>
+        private async Task WriteJobHeaders(
+            CsvWriter csvWriter,
+            List<string> columns
+        ) {
+            await Task.Run(() => {
                 csvWriter.QuoteAllFields = true;
 
                 csvWriter.WriteField("id");
@@ -208,16 +252,6 @@ namespace Karenia.Rurikawa.Coordinator.Controllers {
                     csvWriter.WriteField(col);
                 }
                 csvWriter.NextRecord();
-
-                int counter = 0;
-                await foreach (var val in ptr) {
-                    if (counter % flushInterval == 0) {
-                        await sw.FlushAsync();
-                    }
-                    WriteJobInfo(csvWriter, val, columns);
-                    counter++;
-                }
-                await sw.FlushAsync();
             });
         }
 
@@ -239,7 +273,11 @@ namespace Karenia.Rurikawa.Coordinator.Controllers {
             foreach (var column in columns) {
                 if (job.Results.TryGetValue(column, out var colResult)) {
                     if (colResult.Kind == Models.Test.TestResultKind.Accepted) {
-                        csv.WriteField("1");
+                        if (colResult.Score.HasValue) {
+                            csv.WriteField(colResult.Score.Value.ToString());
+                        } else {
+                            csv.WriteField("1");
+                        }
                     } else {
                         csv.WriteField("0");
                     }
