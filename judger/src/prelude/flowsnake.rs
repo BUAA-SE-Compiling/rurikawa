@@ -74,7 +74,7 @@ impl FlowSnake {
     }
 
     pub fn parse(s: &str) -> Result<FlowSnake, FlowSnakeDeserializeError> {
-        if s.len() != 13 {
+        if s.len() < 13 {
             return Err(FlowSnakeDeserializeError::InvalidLength(s.len()));
         }
         let mut n = 0u64;
@@ -105,7 +105,7 @@ impl FlowSnake {
     }
 
     pub fn write_str_dashed_buffered(&self, buf: &mut [u8]) -> Result<(), ()> {
-        if buf.len() < 14{
+        if buf.len() < 14 {
             return Err(());
         }
         for i in 0..7 {
