@@ -141,11 +141,12 @@ impl ToScore for () {
 }
 
 impl TestResult {
+    /// Convert a job result into a protocol-compatible `TestResult`
     pub fn from_result<S: ToScore>(
-        failure: Result<S, crate::tester::JobFailure>,
+        result: Result<S, crate::tester::JobFailure>,
         base_score: f64,
     ) -> (TestResult, Option<FailedJobOutputCacheFile>) {
-        match failure {
+        match result {
             Ok(s) => (
                 TestResult {
                     kind: TestResultKind::Accepted,

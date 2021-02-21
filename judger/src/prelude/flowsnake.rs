@@ -1,3 +1,4 @@
+use err_derive::Error;
 use serde::{de::Visitor, Deserialize, Deserializer, Serialize, Serializer};
 use std::{
     cell::RefCell,
@@ -93,9 +94,9 @@ impl FlowSnake {
         Ok(FlowSnake(n))
     }
 
-    pub fn write_str_buffered(&self, buf: &mut [u8]) -> Result<(), ()> {
+    pub fn write_str_buffered(&self, buf: &mut [u8]) -> Result<(), FlowSnakeFormatErr> {
         if buf.len() < 13 {
-            return Err(());
+            return Err(FlowSnakeFormatErr::SliceTooSmall);
         }
         for i in 0..13 {
             let x = ((self.0 >> (5 * (12 - i))) & 31) as u8;
@@ -104,9 +105,9 @@ impl FlowSnake {
         Ok(())
     }
 
-    pub fn write_str_dashed_buffered(&self, buf: &mut [u8]) -> Result<(), ()> {
+    pub fn write_str_dashed_buffered(&self, buf: &mut [u8]) -> Result<(), FlowSnakeFormatErr> {
         if buf.len() < 14 {
-            return Err(());
+            return Err(FlowSnakeFormatErr::SliceTooSmall);
         }
         for i in 0..7 {
             let x = ((self.0 >> (5 * (12 - i))) & 31) as u8;
@@ -152,6 +153,12 @@ impl Serialize for FlowSnake {
         let st = unsafe { std::str::from_utf8_unchecked(&st) };
         serializer.serialize_str(st)
     }
+}
+
+#[derive(Debug, Error)]
+pub enum FlowSnakeFormatErr {
+    #[error(display = "not enough space to format")]
+    SliceTooSmall,
 }
 
 struct FlowSnakeVisitor;
