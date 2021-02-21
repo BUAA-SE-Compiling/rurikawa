@@ -3,6 +3,7 @@ import { HttpClient, HttpEventType } from '@angular/common/http';
 import { environment } from 'src/environments/environment';
 import { endpoints } from 'src/environments/endpoints';
 import { TestSuite } from 'src/models/server-types';
+import { Router } from '@angular/router';
 
 @Component({
   selector: 'app-admin-create-test-suite-view',
@@ -10,7 +11,7 @@ import { TestSuite } from 'src/models/server-types';
   styleUrls: ['./admin-create-test-suite-view.component.styl'],
 })
 export class AdminCreateTestSuiteViewComponent implements OnInit {
-  constructor(private httpClient: HttpClient) {}
+  constructor(private httpClient: HttpClient, private router: Router) {}
 
   testSuite?: TestSuite;
 
@@ -62,6 +63,7 @@ export class AdminCreateTestSuiteViewComponent implements OnInit {
             finished(ev.status < 300);
             if (ev.status < 300) {
               this.testSuite = ev.body;
+              this.router.navigate(['admin', 'suite', this.testSuite.id]);
             }
           }
         },

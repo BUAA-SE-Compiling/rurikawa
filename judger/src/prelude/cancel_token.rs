@@ -294,7 +294,7 @@ where
         pin_mut!(self_);
 
         futures::select! {
-            abort = cancel.fuse() => None,
+            _abort = cancel.fuse() => None,
             fut = self_ => Some(fut),
             complete => None
         }
@@ -305,6 +305,7 @@ pub trait ICancellationToken: Future<Output = ()> + Send + Unpin {}
 
 impl ICancellationToken for CancellationToken {}
 
+#[cfg(test)]
 mod test {
     use super::*;
     use std::time::Duration;

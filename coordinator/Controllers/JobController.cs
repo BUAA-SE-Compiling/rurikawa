@@ -44,9 +44,18 @@ namespace Karenia.Rurikawa.Coordinator.Controllers {
             if (res == null) {
                 return NotFound();
             } else {
+                {
+                    // authorize
+                    var role = HttpContext.User.FindFirst(ClaimTypes.Role).Value;
+                    if (role != "Admin" && role != "Root") {
+                        var account = HttpContext.User.FindFirst(ClaimTypes.NameIdentifier).Value;
+                        if (res.Account != account) return NotFound();
+                    }
+                }
                 return res;
             }
         }
+
 
         [HttpGet("")]
         public async Task<IList<Job>> GetJobs(

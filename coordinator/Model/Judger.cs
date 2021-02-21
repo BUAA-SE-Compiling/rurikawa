@@ -1,12 +1,14 @@
 using System;
 using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations.Schema;
+using System.Text.Json.Serialization;
 using System.Threading.Channels;
 using System.Threading.Tasks;
 using Karenia.Rurikawa.Helpers;
 using Karenia.Rurikawa.Models.Test;
+using Microsoft.EntityFrameworkCore.Query;
 
-#pragma warning disable CS8618  
+#pragma warning disable CS8618
 namespace Karenia.Rurikawa.Models.Judger {
     /// <summary>
     /// A runner of a specific testing task.
@@ -114,6 +116,18 @@ namespace Karenia.Rurikawa.Models.Judger {
 
         [Column(TypeName = "jsonb")]
         public Dictionary<string, TestResult> Results { get; set; } = new Dictionary<string, TestResult>();
+
+        // TODO: Dunno whether this column is needed...
+        [JsonIgnore]
+        public double Score {
+            get {
+                var s = 0.0;
+                foreach (var result in this.Results) {
+                    if (result.Value.Score.HasValue) s += result.Value.Score.Value;
+                }
+                return s;
+            }
+        }
     }
 
     public class JobBuildOutput {

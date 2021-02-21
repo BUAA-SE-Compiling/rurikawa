@@ -1,7 +1,10 @@
 <div class="wrapper hover-highlight" [ngClass]="{ compact: compact }">
   <div class="row text">
     <div class="time">{{ timeString }}</div>
-    <div class="score">{{ item.numberBrief }}</div>
+    <div class="score">
+      {{ item.numberBrief
+      }}<span class="score-sub">{{ item.numberBriefSub }}</span>
+    </div>
     <div class="slider" *ngIf="!compact">
       <app-slider-view [items]="slider" [height]="8"></app-slider-view>
     </div>

@@ -32,6 +32,11 @@ namespace Karenia.Rurikawa.Coordinator.Services {
             return await db.Announcements.Where(a => a.Id == id).SingleOrDefaultAsync();
         }
 
+        public async Task RemoveTestSuiteCascade(FlowSnake id) {
+            await db.Jobs.Where(job => job.TestSuite == id).DeleteFromQueryAsync();
+            await db.TestSuites.Where(suite => suite.Id == id).DeleteFromQueryAsync();
+        }
+
         public async Task<FlowSnake> CreateAnnouncement(Announcement announcement) {
             announcement.Id = FlowSnake.Generate();
             db.Announcements.Add(announcement);

@@ -172,24 +172,22 @@ export class TestSuiteViewComponent implements OnInit, OnDestroy {
   }
 
   fetchTestSuite(id: string) {
-    this.httpClient
-      .get<TestSuite>(environment.endpointBase() + endpoints.testSuite.get(id))
-      .subscribe({
-        next: (suite) => {
-          this.suite = suite;
-          this.testGroups = this.getTestGroups();
-          this.determineLastTestGroup();
+    this.service.getTestSuite(id).subscribe({
+      next: (suite) => {
+        this.suite = suite;
+        this.testGroups = this.getTestGroups();
+        this.determineLastTestGroup();
 
-          this.title.setTitle(`${suite.title} - Rurikawa`, 'test-suite');
-        },
-        error: (e) => {
-          if (e instanceof HttpErrorResponse) {
-            if (e.status === 404) {
-              this.router.navigate(['/404']);
-            }
+        this.title.setTitle(`${suite.title} - Rurikawa`, 'test-suite');
+      },
+      error: (e) => {
+        if (e instanceof HttpErrorResponse) {
+          if (e.status === 404) {
+            this.router.navigate(['/404']);
           }
-        },
-      });
+        }
+      },
+    });
     this.fetchJobs(id).subscribe({
       next: () => {
         if (this.jobs.length > 0) {

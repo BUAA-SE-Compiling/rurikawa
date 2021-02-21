@@ -7,6 +7,7 @@ import {
 } from 'src/models/job-items';
 import { SliderItem } from 'src/components/base-components/slider-view/slider-view.component';
 import { Dayjs } from 'dayjs';
+import { TestSuite } from 'src/models/server-types';
 
 @Component({
   selector: 'app-job-item',
@@ -15,12 +16,13 @@ import { Dayjs } from 'dayjs';
 })
 export class JobItemComponent implements OnInit {
   @Input() job: Job;
+  @Input() testSuite?: TestSuite;
   @Input() compact: boolean = false;
 
   constructor() {}
 
   public get item(): JobItem {
-    return JobToJobItem(this.job);
+    return JobToJobItem(this.job, this.testSuite);
   }
 
   public get slider(): SliderItem[] {

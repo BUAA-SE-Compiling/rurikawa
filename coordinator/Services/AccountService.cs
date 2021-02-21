@@ -121,7 +121,7 @@ namespace Karenia.Rurikawa.Coordinator.Services {
         }
 
         const int TOKEN_LENGTH = 32;
-        static readonly char[] TOKEN_ALPHABET = "0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ_-.=".ToCharArray();
+        static readonly char[] TOKEN_ALPHABET = "0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ_-.~".ToCharArray();
 
 
         public static string GenerateToken() {

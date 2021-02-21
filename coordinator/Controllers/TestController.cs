@@ -71,15 +71,18 @@ namespace Karenia.Rurikawa.Coordinator.Controllers {
         [HttpGet("{id}")]
         [ProducesErrorResponseType(typeof(void))]
         public async Task<ActionResult<TestSuite>> GetTestSuite(
-            [FromRoute] FlowSnake id) {
-            var cached = await cacheService.GetCachedTestSuiteString(id);
-            if (cached != null) {
-                return new ContentResult()
-                {
-                    StatusCode = 200,
-                    Content = cached,
-                    ContentType = "application/json"
-                };
+            [FromRoute] FlowSnake id,
+            [FromQuery] bool bypassCache = false) {
+            if (!bypassCache) {
+                var cached = await cacheService.GetCachedTestSuiteString(id);
+                if (cached != null) {
+                    return new ContentResult()
+                    {
+                        StatusCode = 200,
+                        Content = cached,
+                        ContentType = "application/json"
+                    };
+                }
             }
             var res = await db.TestSuites.Where(t => t.Id == id).SingleOrDefaultAsync();
             if (res == null) return NotFound();
@@ -198,8 +201,7 @@ namespace Karenia.Rurikawa.Coordinator.Controllers {
             if (!await db.TestSuites.Where(suite => suite.Id == suiteId).AnyAsync()) {
                 return NotFound();
             }
-            await db.Jobs.Where(job => job.TestSuite == suiteId).DeleteFromQueryAsync();
-            await db.TestSuites.Where(suite => suite.Id == suiteId).DeleteFromQueryAsync();
+            await dbService.RemoveTestSuiteCascade(suiteId);
             return NoContent();
         }
 

@@ -5,10 +5,10 @@ use arc_swap::{ArcSwapAny, ArcSwapOption};
 use async_trait::async_trait;
 use futures::{
     stream::{SplitSink, SplitStream},
-    Sink, SinkExt, Stream, StreamExt, TryStream,
+    Sink, SinkExt, Stream,  TryStream,
 };
 use serde::Serialize;
-use std::{collections::VecDeque, fmt::Debug, sync::Arc};
+use std::{ fmt::Debug, sync::Arc};
 use tokio::{net::TcpStream, sync::Mutex};
 use tokio_tungstenite::{tungstenite, MaybeTlsStream, WebSocketStream};
 use tungstenite::Message;

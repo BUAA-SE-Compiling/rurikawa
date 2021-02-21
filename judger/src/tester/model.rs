@@ -1,10 +1,9 @@
-use super::runner::CommandRunner;
 use anyhow::Result;
-use bollard::models::{BuildInfo, Mount};
+use bollard::models::Mount;
 use path_absolutize::Absolutize;
-use serde::de::Visitor;
-use serde::{self, Deserialize, Deserializer, Serialize};
-use std::{collections::HashMap, io, path::PathBuf, string::String, sync::Arc};
+use rquickjs::{FromJs, IntoJsByRef};
+use serde::{self, Deserialize, Serialize};
+use std::{collections::HashMap, path::PathBuf, string::String};
 use std::{path::Path, str::FromStr};
 
 /// A Host-to-container volume binding for the container.
@@ -63,12 +62,16 @@ pub enum Image {
 }
 
 /// The definition of a test case
-#[derive(Serialize, Debug, Clone)]
+#[derive(Serialize, Debug, Clone, IntoJsByRef)]
 #[serde(rename_all = "camelCase")]
 pub struct TestCaseDefinition {
     pub name: String,
     pub should_fail: bool,
     pub has_out: bool,
+
+    /// Baseline score for this test case
+    #[serde(default = "default_base_score")]
+    pub base_score: f64,
 }
 
 impl FromStr for TestCaseDefinition {
@@ -79,30 +82,52 @@ impl FromStr for TestCaseDefinition {
             name: s.to_owned(),
             should_fail: false,
             has_out: true,
+            base_score: 1.0,
         })
     }
 }
 
 /// Judger's public config, specific to a paticular repository,
 /// Maintained by the owner of the project to be tested.
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone, IntoJsByRef)]
 #[serde(rename_all = "camelCase")]
+#[quickjs(rename_all = "camelCase")]
 pub struct JudgerPublicConfig {
     pub time_limit: Option<i32>,
     pub memory_limit: Option<i32>,
     pub name: String,
     pub test_groups: HashMap<String, Vec<TestCaseDefinition>>,
+
     /// Variables and extensions of test files
     /// (`$src`, `$bin`, `$stdin`, `$stdout`, etc...).
     /// For example: `"$src" => "go"`.
     pub vars: HashMap<String, String>,
+
     /// Sequence of commands necessary to perform an IO check.
     pub run: Vec<String>,
+
     /// The path of test root directory to be mapped inside test container
+    #[quickjs(skip)]
     pub mapped_dir: Bind,
+
     /// `host-src:container-dest` volume bindings for the container.
     /// For details see [here](https://docs.rs/bollard/0.7.2/bollard/service/struct.HostConfig.html#structfield.binds).
+    #[quickjs(skip)]
     pub binds: Option<Vec<Bind>>,
+
+    /// Path to the special judger script.
+    ///
+    /// The special judger script should be a valid JS script with specified
+    /// functions inside global scope.
+    pub special_judge_script: Option<String>,
+}
+
+/// A raw step for usage in spj scripts
+#[derive(IntoJsByRef, FromJs)]
+#[quickjs(rename_all = "camelCase")]
+pub struct RawStep {
+    pub command: String,
+    pub is_user_command: bool,
 }
 
 /// Judger's private config, specific to a host machine.
@@ -116,16 +141,23 @@ pub struct JudgerPrivateConfig {
 }
 
 /// The public representation of a test.
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone, IntoJsByRef)]
+#[quickjs(rename_all = "camelCase")]
 pub struct TestCase {
     /// File name of the test case.
     pub name: String,
-    /// List of commands to be executed.
-    pub exec: Vec<String>,
     /// Expected `stdout` of the last command.
     pub expected_out: Option<String>,
     /// Should this test case fail
     pub should_fail: bool,
+
+    /// Baseline score for this test case
+    #[serde(default = "default_base_score")]
+    pub base_score: f64,
+}
+
+fn default_base_score() -> f64 {
+    1.0
 }
 
 /// Initialization options for `Testsuite`.
@@ -188,6 +220,7 @@ mod de {
         Name,
         ShouldFail,
         HasOut,
+        BaseScore,
     }
 
     struct TestCaseVisitor;
@@ -213,23 +246,27 @@ mod de {
             let mut name = None;
             let mut should_fail = None;
             let mut has_out = None;
+            let mut base_score = None;
 
             while let Some(key) = map.next_key::<TestCaseFields>()? {
                 match key {
                     TestCaseFields::Name => set_field!(name, map),
                     TestCaseFields::ShouldFail => set_field!(should_fail, map),
                     TestCaseFields::HasOut => set_field!(has_out, map),
+                    TestCaseFields::BaseScore => set_field!(base_score, map),
                 }
             }
 
             let name = check_field!(name);
             let should_fail = should_fail.unwrap_or(false);
             let has_out = has_out.unwrap_or(true);
+            let base_score = base_score.unwrap_or(1.0);
 
             Ok(TestCaseDefinition {
                 name,
                 should_fail,
                 has_out,
+                base_score,
             })
         }
     }

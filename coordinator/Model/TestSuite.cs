@@ -47,6 +47,8 @@ namespace Karenia.Rurikawa.Models.Test {
 
         public int? MemoryLimit { get; set; }
 
+        public ScoringMode ScoringMode { get; set; }
+
         /// <summary>
         /// All tests inside test suite, grouped by user-defined keys.
         /// <br/>
@@ -140,6 +142,7 @@ namespace Karenia.Rurikawa.Models.Test {
     [JsonConverter(typeof(SerDe.TestCaseDefinitionConverter))]
     public class TestCaseDefinition {
         public string Name { get; set; }
+        public double BaseScore { get; set; } = 1.0;
         public bool HasOut { get; set; }
         public bool ShouldFail { get; set; }
     }
@@ -169,9 +172,22 @@ namespace Karenia.Rurikawa.Models.Test {
         Skipped,
     }
 
+    public enum ScoringMode {
+        /// <summary>
+        /// The basic scoring mode, display `{passedCases}/{totalCases}`
+        /// </summary>
+        Basic = 0,
+
+        /// <summary>
+        /// Floating scoring mode. Displays `{currentScore}/{totalScore}`
+        /// </summary>
+        Floating = 1,
+    }
+
     public class TestResult {
         public TestResultKind Kind { get; set; }
         public string? ResultFileId { get; set; }
+        public double? Score { get; set; }
     }
 
     namespace SerDe {
@@ -201,10 +217,12 @@ namespace Karenia.Rurikawa.Models.Test {
                 string propName_name = options.PropertyNamingPolicy?.ConvertName(nameof(TestCaseDefinition.Name)) ?? nameof(TestCaseDefinition.Name);
                 string propName_hasOut = options.PropertyNamingPolicy?.ConvertName(nameof(TestCaseDefinition.HasOut)) ?? nameof(TestCaseDefinition.HasOut);
                 string propName_shouldFail = options.PropertyNamingPolicy?.ConvertName(nameof(TestCaseDefinition.ShouldFail)) ?? nameof(TestCaseDefinition.ShouldFail);
+                string propName_baseScore = options.PropertyNamingPolicy?.ConvertName(nameof(TestCaseDefinition.BaseScore)) ?? nameof(TestCaseDefinition.BaseScore);
 
                 string? name = null;
                 bool? hasOut = null;
                 bool? shouldFail = null;
+                double? baseScore = null;
 
                 while (reader.Read()) {
                     if (reader.TokenType == JsonTokenType.EndObject) break;
@@ -225,6 +243,10 @@ namespace Karenia.Rurikawa.Models.Test {
                         if (shouldFail != null)
                             throw new JsonException("Duplicate property 'shouldFail'");
                         shouldFail = reader.GetBoolean();
+                    } else if (key == propName_baseScore) {
+                        if (baseScore != null)
+                            throw new JsonException("Duplicate property 'baseScore'");
+                        baseScore = reader.GetDouble();
                     } else {
                         throw new JsonException($"Unknown property '{key}'");
                     }
@@ -236,6 +258,7 @@ namespace Karenia.Rurikawa.Models.Test {
                     Name = name,
                     HasOut = hasOut ?? true,
                     ShouldFail = shouldFail ?? false,
+                    BaseScore = baseScore ?? 1.0
                 };
             }
 
@@ -246,11 +269,13 @@ namespace Karenia.Rurikawa.Models.Test {
                 string propName_name = options.PropertyNamingPolicy?.ConvertName(nameof(TestCaseDefinition.Name)) ?? nameof(TestCaseDefinition.Name);
                 string propName_hasOut = options.PropertyNamingPolicy?.ConvertName(nameof(TestCaseDefinition.HasOut)) ?? nameof(TestCaseDefinition.HasOut);
                 string propName_shouldFail = options.PropertyNamingPolicy?.ConvertName(nameof(TestCaseDefinition.ShouldFail)) ?? nameof(TestCaseDefinition.ShouldFail);
+                string propName_baseScore = options.PropertyNamingPolicy?.ConvertName(nameof(TestCaseDefinition.BaseScore)) ?? nameof(TestCaseDefinition.BaseScore);
 
                 writer.WriteStartObject();
                 writer.WriteString(propName_name, value.Name);
                 writer.WriteBoolean(propName_hasOut, value.HasOut);
                 writer.WriteBoolean(propName_shouldFail, value.ShouldFail);
+                writer.WriteNumber(propName_baseScore, value.BaseScore);
                 writer.WriteEndObject();
             }
         }

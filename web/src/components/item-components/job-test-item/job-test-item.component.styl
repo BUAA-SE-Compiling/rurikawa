@@ -1,20 +1,47 @@
 .wrapper {
   padding: var(--space-2)
   color: var(--pal-text-over-highlight)
-  font-weight: bold
   display: flex
   flex-direction: row
   flex-wrap: nowrap
-  height: 48px
+  // yeah... a height is necessary, since CSS is hard
+  height: 3.5rem
+}
+
+.left-section,
+.right-section {
+  flex-grow: 1
+  display: flex
+  flex-direction: column
+}
+
+.right-section {
+  justify-content: flex-end
+}
+
+.score {
+  margin-top: var(--space-0)
+  font-variant-numeric: tabular-nums oldstyle-nums
+
+  .got {
+    font-size: var(--font-size-large)
+    font-weight: 500
+  }
+
+  .base {
+    font-size: var(--font-size-larger)
+    font-weight: normal
+  }
 }
 
 .key {
   align-self: flex-start
   flex-grow: 1
-  font-size: var(--font-size-larger)
+  font-weight: 500
 }
 
 .status {
   font-size: calc(var(--font-size-extra-large) / 2 + var(--font-size-title) / 2)
   align-self: flex-end
+  font-weight: bold
 }

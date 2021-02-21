@@ -12,14 +12,16 @@ use names::{Generator, Name};
 #[cfg(unix)]
 use std::os::unix::process::ExitStatusExt;
 use std::process::ExitStatus;
-use std::{default::Default, time::Duration};
+use std::{collections::HashMap, default::Default};
 use tokio::{io::BufWriter, process::Command};
 
 /// An evaluation environment for commands.
 #[async_trait]
 pub trait CommandRunner {
-    /// Evaluate a command.
-    async fn run(&self, cmd: &[String]) -> PopenResult<ProcessInfo>;
+    /// Evaluate a command string with the given variables to replace.
+    /// The command should be supplied with Unix Shell style.
+    async fn run(&self, cmd: &str, variables: &HashMap<String, String>)
+        -> PopenResult<ProcessInfo>;
 }
 
 /// A *local* command evaluation environment.
@@ -27,8 +29,13 @@ pub struct TokioCommandRunner {}
 
 #[async_trait]
 impl CommandRunner for TokioCommandRunner {
-    async fn run(&self, cmd: &[String]) -> PopenResult<ProcessInfo> {
-        let cmd_str = format!("{:?}", cmd.to_vec());
+    async fn run(
+        &self,
+        cmd_str: &str,
+        variables: &HashMap<String, String>,
+    ) -> PopenResult<ProcessInfo> {
+        let cmd = vec!["sh".to_owned(), "-c".to_owned(), cmd_str.to_owned()];
+
         let mut cmd_iter = cmd.iter();
         let mut command = Command::new(cmd_iter.next().ok_or_else(|| {
             std::io::Error::new(
@@ -37,6 +44,11 @@ impl CommandRunner for TokioCommandRunner {
             )
         })?);
         command.args(cmd_iter);
+
+        for (k, v) in variables {
+            command.env(k, v);
+        }
+
         let std::process::Output {
             status,
             stdout,
@@ -45,7 +57,8 @@ impl CommandRunner for TokioCommandRunner {
         let ret_code = ret_code_from_exit_status(status);
         let ret_code = convert_code(ret_code);
         Ok(ProcessInfo {
-            command: cmd_str,
+            command: cmd_str.to_owned(),
+            is_user_command: false,
             stdout: String::from_utf8_lossy(&stdout).into_owned(),
             stderr: String::from_utf8_lossy(&stderr).into_owned(),
             ret_code,
@@ -388,19 +401,28 @@ static MAX_CONSOLE_FILE_SIZE: usize = 100 * 1024;
 
 #[async_trait]
 impl CommandRunner for DockerCommandRunner {
-    async fn run(&self, cmd: &[String]) -> PopenResult<ProcessInfo> {
-        let cmd_str = format!("{:?}", cmd.to_vec());
+    async fn run(
+        &self,
+        cmd: &str,
+        variables: &HashMap<String, String>,
+    ) -> PopenResult<ProcessInfo> {
         let container_name = &self.options.container_name;
 
         // Create a Docker Exec
+        let env = variables
+            .iter()
+            .map(|(k, v)| format!("{}={}", k.trim_start_matches('$'), v))
+            .collect::<Vec<_>>();
+
         let message = self
             .instance
             .create_exec(
                 container_name,
                 bollard::exec::CreateExecOptions {
-                    cmd: Some(cmd.to_vec()),
+                    cmd: Some(vec!["sh", "-c", &cmd]),
                     attach_stdout: Some(true),
                     attach_stderr: Some(true),
+                    env: Some(env.iter().map(|x| x.as_str()).collect()),
                     ..Default::default()
                 },
             )
@@ -464,7 +486,8 @@ impl CommandRunner for DockerCommandRunner {
             .unwrap_or(-1);
 
         Ok(ProcessInfo {
-            command: cmd_str,
+            command: cmd.into(),
+            is_user_command: false,
             stdout,
             stderr,
             ret_code,
