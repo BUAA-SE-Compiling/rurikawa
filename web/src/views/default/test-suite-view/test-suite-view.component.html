@@ -87,6 +87,7 @@
           class="test-item"
           *ngFor="let job of jobs; trackBy: trackBy"
           [job]="job"
+          [testSuite]="suite"
           (click)="gotoJob(job.id)"
         ></app-job-item>
         <div

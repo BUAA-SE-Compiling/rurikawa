@@ -27,7 +27,8 @@
     <div class="before-title-spacer"></div>
     <div class="row">
       <span class="result-brief">
-        {{ titleNumberBrief() }}
+        {{ resultBriefMain()
+        }}<span class="result-brief-sub">{{ resultBriefSub() }}</span>
       </span>
     </div>
     <div class="result-brief-slider" *ngIf="isFinished">
@@ -48,6 +49,7 @@
         *ngFor="let res of results()"
         [item]="res[1]"
         [key]="res[0]"
+        [baseScore]="res[2]"
         [class.clickable]="caseClickable(res[1])"
         (click)="navigateToCase(res[0])"
       >

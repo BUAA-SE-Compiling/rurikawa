@@ -146,7 +146,13 @@ export class TestSuiteAndJobCache {
   }
 
   public getTestSuite(id: string, forceUpdate: boolean = false) {
-    throw new Error('Not implemented yet!');
+    if (!forceUpdate) {
+      let suite = this.testSuiteCache.get(id);
+      if (suite !== undefined) {
+        return of(suite);
+      }
+    }
+    return this.fetchTestSuite(id);
   }
 
   public getJob(
@@ -197,9 +203,15 @@ export class TestSuiteAndJobCache {
   }
 
   public fetchTestSuite(id: string) {
-    return this.httpClient.get<TestSuite>(
-      environment.endpointBase() + endpoints.testSuite.get(id)
-    );
+    return this.httpClient
+      .get<TestSuite>(environment.endpointBase() + endpoints.testSuite.get(id))
+      .pipe(
+        tap({
+          next: (v) => {
+            this.testSuiteCache.set(v.id, v);
+          },
+        })
+      );
   }
 
   public fetchJob(id: string, track: boolean) {

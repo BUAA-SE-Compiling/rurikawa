@@ -269,11 +269,13 @@ namespace Karenia.Rurikawa.Models.Test {
                 string propName_name = options.PropertyNamingPolicy?.ConvertName(nameof(TestCaseDefinition.Name)) ?? nameof(TestCaseDefinition.Name);
                 string propName_hasOut = options.PropertyNamingPolicy?.ConvertName(nameof(TestCaseDefinition.HasOut)) ?? nameof(TestCaseDefinition.HasOut);
                 string propName_shouldFail = options.PropertyNamingPolicy?.ConvertName(nameof(TestCaseDefinition.ShouldFail)) ?? nameof(TestCaseDefinition.ShouldFail);
+                string propName_baseScore = options.PropertyNamingPolicy?.ConvertName(nameof(TestCaseDefinition.BaseScore)) ?? nameof(TestCaseDefinition.BaseScore);
 
                 writer.WriteStartObject();
                 writer.WriteString(propName_name, value.Name);
                 writer.WriteBoolean(propName_hasOut, value.HasOut);
                 writer.WriteBoolean(propName_shouldFail, value.ShouldFail);
+                writer.WriteNumber(propName_baseScore, value.BaseScore);
                 writer.WriteEndObject();
             }
         }

@@ -2,6 +2,8 @@ import { SliderItemKind } from 'src/components/base-components/slider-view/slide
 import { mapValues, groupBy, toPairs } from 'lodash';
 import { extractTime } from './flowsnake';
 import { Dayjs } from 'dayjs';
+import { TestSuite } from './server-types';
+import { resultBriefMain, resultBriefSub } from 'src/util/brief-calc';
 
 export function dashboardTypeToSlider(item: TestResultKind): SliderItemKind {
   switch (item) {
@@ -69,6 +71,7 @@ export interface JobItem {
   id: string;
   time: Dayjs;
   numberBrief: string;
+  numberBriefSub?: string;
   status: JobStatus[];
   repo: string;
   branch: string;
@@ -107,6 +110,7 @@ export type TestResultKind =
 
 export interface TestResult {
   kind: TestResultKind;
+  score?: number;
   resultFileId: string | undefined;
 }
 
@@ -183,32 +187,15 @@ export function getStatus(job: Job): JobStatus[] {
   }
 }
 
-export function getNumberBrief(job: Job): string {
-  if (job.stage !== 'Finished') {
-    return job.stage;
-  }
-  if (job.resultKind !== 'Accepted') {
-    return job.resultKind;
-  }
+const numberFormatter = Intl.NumberFormat('native', {
+  maximumSignificantDigits: 5,
+});
 
-  let totalCnt = 0;
-  let acCnt = 0;
-
-  // tslint:disable-next-line: forin
-  for (let idx in job.results) {
-    let res = job.results[idx];
-    totalCnt++;
-    if (res.kind === 'Accepted') {
-      acCnt++;
-    }
-  }
-  return `${acCnt}/${totalCnt}`;
-}
-
-export function JobToJobItem(job: Job): JobItem {
+export function JobToJobItem(job: Job, testSuite?: TestSuite): JobItem {
   let res = {
     id: job.id,
-    numberBrief: getNumberBrief(job),
+    numberBrief: resultBriefMain(job, testSuite, numberFormatter),
+    numberBriefSub: resultBriefSub(job, testSuite, numberFormatter),
     status: getStatus(job),
     time: extractTime(job.id),
     repo: job.repo,

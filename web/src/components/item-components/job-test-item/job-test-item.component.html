@@ -1,4 +1,18 @@
 <div class="wrapper" [style.background-color]="backgroundColor()">
-  <div class="key">{{ key }}</div>
-  <div class="status">{{ displayResult() }}</div>
+  <div class="left-section">
+    <div class="key">{{ key }}</div>
+    <div class="score" *ngIf="score && baseScore">
+      <span class="got">{{
+        score.toLocaleString("native", { maximumSignificantDigits: 3 })
+      }}</span
+      ><span class="base" *ngIf="baseScore"
+        >/{{
+          baseScore.toLocaleString("native", { maximumSignificantDigits: 3 })
+        }}
+      </span>
+    </div>
+  </div>
+  <div class="right-section">
+    <div class="status">{{ displayResult() }}</div>
+  </div>
 </div>
