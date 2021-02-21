@@ -183,11 +183,20 @@ pub struct SpjResult {
     pub reason: Option<String>,
 }
 
-/// Represents enabled features of a special judge instance.
+/// Represents enabled features of a SPJ instance. Methods of this
+/// struct represents whether different functions are declared (and thus callable)
+/// inside this instance.
+///
+/// See detail at `/docs/dev-manual/special-judger.md` in project root.
+#[derive(Debug, Clone)]
 pub struct SpjFeatures {
+    /// Whether `specialJudgeInit` is declated as a function.
     global_init: bool,
+    /// Whether `specialJudgeTransformExec` is declared as a function.
     transform_exec: bool,
+    /// Whether `specialJudgeCaseInit` is declared as a function.
     case_init: bool,
+    /// Whether `specialJudgeCase` is declared as a function.
     case: bool,
 }
 
@@ -203,22 +212,22 @@ impl Default for SpjFeatures {
 }
 
 impl SpjFeatures {
-    /// Get a reference to the spj features's global init.
+    /// Whether `specialJudgeInit` is declated as a function.
     pub fn global_init(&self) -> bool {
         self.global_init
     }
 
-    /// Get a reference to the spj features's transform exec.
+    /// Whether `specialJudgeTransformExec` is declared as a function.
     pub fn transform_exec(&self) -> bool {
         self.transform_exec
     }
 
-    /// Get a reference to the spj features's case init.
+    /// Whether `specialJudgeCaseInit` is declared as a function.
     pub fn case_init(&self) -> bool {
         self.case_init
     }
 
-    /// Get a reference to the spj features's case command.
+    /// Whether `specialJudgeCase` is declared as a function.
     pub fn case(&self) -> bool {
         self.case
     }
@@ -235,6 +244,7 @@ impl rquickjs::ExecutorSpawner for TokioSpawner {
     }
 }
 
+/// Bindings into QuickJS instances
 mod binding {
     use std::{path::PathBuf, sync::Arc};
 
@@ -244,6 +254,7 @@ mod binding {
 
     use super::SPJ_MAX_MEMORY;
 
+    /// Console to [`tracing`] logging adapter for QuickJS
     pub struct SpjConsole {
         pub ctx_name: String,
     }
@@ -309,6 +320,7 @@ mod binding {
         }
     }
 
+    /// File reader for SPJ script.
     pub struct ReadFile(pub PathBuf);
 
     impl<'js> IntoJs<'js> for ReadFile {
@@ -327,7 +339,7 @@ mod binding {
         }
     }
 
-    /// Function inside quickjs for reading files.
+    /// Utility function for reading file
     pub async fn read_file(path: PathBuf) -> Option<String> {
         let mut file = tokio::fs::File::open(path).await.ok()?;
         let meta = file.metadata().await.ok()?;
