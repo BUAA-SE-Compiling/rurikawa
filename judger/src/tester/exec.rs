@@ -134,23 +134,26 @@ impl Step {
     {
         let is_user_command = self.is_user_command;
         if let Some(timeout) = self.timeout {
-            let mres = tokio::time::timeout(timeout, self.cmd.capture(runner, variables)).await;
-            if let Ok(res) = mres {
-                res.map(|mut i| {
+            tokio::time::timeout(timeout, self.cmd.capture(runner, variables))
+                .await
+                .map_err(|_| {
+                    io::Error::new(
+                        io::ErrorKind::TimedOut,
+                        format!("Popen capture timed out at {}s", timeout.as_secs_f64()),
+                    )
+                })?
+                .map(|mut i| {
                     i.is_user_command = is_user_command;
                     i
                 })
-            } else {
-                Err(io::Error::new(
-                    io::ErrorKind::TimedOut,
-                    "Popen capture timed out",
-                ))
-            }
         } else {
-            self.cmd.capture(runner, variables).await.map(|mut i| {
-                i.is_user_command = is_user_command;
-                i
-            })
+            self.cmd
+                .capture(runner, variables)
+                .await
+                .map(|i| ProcessInfo {
+                    is_user_command,
+                    ..i
+                })
         }
     }
 }
