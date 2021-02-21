@@ -542,6 +542,7 @@ impl TestSuite {
 
             // Do special judge initialization
             spj.with_console_env("todo".into())?;
+            spj.with_readfile(base_dir.to_owned())?;
             spj.spawn_futures().await;
             if spj.features().global_init() {
                 spj.spj_global_init(&public_cfg).await?;
@@ -676,6 +677,13 @@ impl TestSuite {
                     })
                 })
                 .collect();
+
+            if let Some(spj) = &mut self.spj_env {
+                if spj.features().case_init() {
+                    log::trace!("{:08x}: spj init {}", rnd_id, case.name);
+                    spj.spj_case_init(case, &replacer).await?;
+                }
+            }
 
             log::trace!("{:08x}: created test: {}", rnd_id, case.name);
 

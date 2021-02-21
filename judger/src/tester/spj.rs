@@ -3,14 +3,14 @@
 //!
 //! Read more about SPJ in `/docs/dev-manual/special-judger.md`
 
-use std::{collections::HashMap, path::Path};
-
-use anyhow::{anyhow, Context as AnyhowCtx};
-use rquickjs::{
-    AsArguments, Context, Ctx, FromJs, Func, Function, IntoJs, MutFn, Promise, Runtime,
+use std::{
+    collections::HashMap,
+    path::{Path, PathBuf},
 };
+
+use anyhow::Context as AnyhowCtx;
+use rquickjs::{Context, FromJs, Function, Promise, Runtime};
 use tokio::{runtime::Handle, task::JoinHandle};
-use tracing::info_span;
 
 use super::{
     model::{JudgerPublicConfig, RawStep, TestCase},
@@ -85,8 +85,13 @@ impl SpjEnvironment {
         })
     }
 
+    pub fn with_readfile(&mut self, base_path: PathBuf) -> rquickjs::Result<()> {
+        let readfile = binding::ReadFile(base_path);
+        self.ctx.with(|ctx| ctx.globals().set("readFile", readfile))
+    }
+
     pub fn with_console_env(&mut self, name: String) -> rquickjs::Result<()> {
-        let console = SpjConsole { ctx_name: name };
+        let console = binding::SpjConsole { ctx_name: name };
         self.ctx.with(|ctx| ctx.globals().set("console", console))
     }
 
@@ -130,7 +135,7 @@ impl SpjEnvironment {
 
     /// Callback for case judging
     pub async fn spj_case_judge(&self, results: &[ProcessInfo]) -> anyhow::Result<SpjResult> {
-        run_promise_like!(self.ctx, SPJ_CASE_INIT_FN, (results,), |x| x).map_err(|e| e.into())
+        run_promise_like!(self.ctx, SPJ_CASE_FN, (results,), |x| x).map_err(|e| e.into())
     }
 
     fn detect_features(&self) -> SpjFeatures {
@@ -230,68 +235,108 @@ impl rquickjs::ExecutorSpawner for TokioSpawner {
     }
 }
 
-struct SpjConsole {
-    ctx_name: String,
-}
+mod binding {
+    use std::{path::PathBuf, sync::Arc};
 
-impl<'js> IntoJs<'js> for SpjConsole {
-    fn into_js(
-        self,
-        ctx: rquickjs::Ctx<'js>,
-    ) -> std::result::Result<rquickjs::Value<'js>, rquickjs::Error> {
-        let span = info_span!(target: "qjs", "spj_console", ctx = %self.ctx_name);
-        let obj = rquickjs::Object::new(ctx)?;
+    use rquickjs::{Async, Func, Function, IntoJs, MutFn};
+    use tokio::io::AsyncReadExt;
+    use tracing::info_span;
 
-        obj.set("log", {
-            let span = span.clone();
-            Func::from(MutFn::from(move |s: String| {
-                let guard = span.enter();
-                tracing::info!("{}", s);
-                drop(guard);
-            }))
-        })
-        .unwrap();
+    use super::SPJ_MAX_MEMORY;
 
-        obj.set("debug", {
-            let span = span.clone();
-            Func::from(MutFn::from(move |s: String| {
-                let guard = span.enter();
-                tracing::debug!("{}", s);
-                drop(guard);
-            }))
-        })
-        .unwrap();
+    pub struct SpjConsole {
+        pub ctx_name: String,
+    }
 
-        obj.set("info", {
-            let span = span.clone();
-            Func::from(MutFn::from(move |s: String| {
-                let guard = span.enter();
-                tracing::info!("{}", s);
-                drop(guard);
-            }))
-        })
-        .unwrap();
+    impl<'js> IntoJs<'js> for SpjConsole {
+        fn into_js(
+            self,
+            ctx: rquickjs::Ctx<'js>,
+        ) -> std::result::Result<rquickjs::Value<'js>, rquickjs::Error> {
+            let span = info_span!(target: "qjs", "spj_console", ctx = %self.ctx_name);
+            let obj = rquickjs::Object::new(ctx)?;
 
-        obj.set("warn", {
-            let span = span.clone();
-            Func::from(MutFn::from(move |s: String| {
-                let guard = span.enter();
-                tracing::warn!("{}", s);
-                drop(guard);
-            }))
-        })
-        .unwrap();
+            obj.set("log", {
+                let span = span.clone();
+                Func::from(MutFn::from(move |s: String| {
+                    let guard = span.enter();
+                    tracing::info!("{}", s);
+                    drop(guard);
+                }))
+            })
+            .unwrap();
 
-        obj.set("error", {
-            Func::from(MutFn::from(move |s: String| {
-                let guard = span.enter();
-                tracing::error!("{}", s);
-                drop(guard);
-            }))
-        })
-        .unwrap();
+            obj.set("debug", {
+                let span = span.clone();
+                Func::from(MutFn::from(move |s: String| {
+                    let guard = span.enter();
+                    tracing::debug!("{}", s);
+                    drop(guard);
+                }))
+            })
+            .unwrap();
 
-        Ok(obj.into())
+            obj.set("info", {
+                let span = span.clone();
+                Func::from(MutFn::from(move |s: String| {
+                    let guard = span.enter();
+                    tracing::info!("{}", s);
+                    drop(guard);
+                }))
+            })
+            .unwrap();
+
+            obj.set("warn", {
+                let span = span.clone();
+                Func::from(MutFn::from(move |s: String| {
+                    let guard = span.enter();
+                    tracing::warn!("{}", s);
+                    drop(guard);
+                }))
+            })
+            .unwrap();
+
+            obj.set("error", {
+                Func::from(MutFn::from(move |s: String| {
+                    let guard = span.enter();
+                    tracing::error!("{}", s);
+                    drop(guard);
+                }))
+            })
+            .unwrap();
+
+            Ok(obj.into())
+        }
+    }
+
+    pub struct ReadFile(pub PathBuf);
+
+    impl<'js> IntoJs<'js> for ReadFile {
+        fn into_js(
+            self,
+            ctx: rquickjs::Ctx<'js>,
+        ) -> std::result::Result<rquickjs::Value<'js>, rquickjs::Error> {
+            let base_path = Arc::new(self.0);
+            Function::new(
+                ctx,
+                Async(MutFn::from(move |path: (String,)| {
+                    read_file(base_path.join(path.0))
+                })),
+            )
+            .map(|f| f.into())
+        }
+    }
+
+    /// Function inside quickjs for reading files.
+    pub async fn read_file(path: PathBuf) -> Option<String> {
+        let mut file = tokio::fs::File::open(path).await.ok()?;
+        let meta = file.metadata().await.ok()?;
+        if meta.len() > SPJ_MAX_MEMORY as u64 {
+            return None;
+        }
+        let mut result = String::new();
+        file.read_to_string(&mut result).await.ok()?;
+        Some(result)
     }
 }
 

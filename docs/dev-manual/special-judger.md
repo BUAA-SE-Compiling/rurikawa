@@ -73,11 +73,15 @@ interface SpjResult {
 此外，SPJ 会将以下函数导出到全局命名空间：
 
 ```ts
-// 读取题目文件夹下的指定文件，作为字符串返回。
-function readFile(path: string): Promise<string>;
+// 读取题目文件夹下的指定文件，作为字符串返回。`path` 以题目文件夹根目录为基础，
+// 不能延伸到题目文件夹以外。如果读取出现错误，则会返回 undefined。
+function readFile(path: string): Promise<string | undefined>;
+
+// 控制台
+const console: Console
 
 // 向评测机的日志里输出记录
-interface console {
+interface Console {
     // 输出日志，等同于 `console.info()`
     log(val: string);
     // 以 DEBUG 等级输出日志
