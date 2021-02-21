@@ -1,6 +1,5 @@
 use clap::Clap;
 use dirs::home_dir;
-use futures::SinkExt;
 use once_cell::sync::OnceCell;
 use rurikawa_judger::{
     client::config::*,

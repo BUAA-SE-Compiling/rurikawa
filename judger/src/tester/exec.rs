@@ -321,12 +321,7 @@ impl Image {
     pub fn replace_with_absolute_dir(&mut self, base_dir: PathBuf) {
         match self {
             Image::Image { .. } => {}
-            Image::Dockerfile { path, file, .. } => {
-                // if let Some(file) = file {
-                //     let mut file_base = base_dir.clone();
-                //     file_base.push(&file);
-                //     *file = file_base;
-                // }
+            Image::Dockerfile { path, .. } => {
                 let mut path_base = base_dir;
                 path_base.push(&path);
                 *path = path_base;
@@ -737,8 +732,8 @@ impl TestSuite {
 /// TODO: Refactor this function.
 async fn create_test_case(
     public_cfg: &JudgerPublicConfig,
-    test_root: &PathBuf,
-    container_test_root: &PathBuf,
+    test_root: &Path,
+    container_test_root: &Path,
     case: &TestCaseDefinition,
     name: String,
 ) -> Result<TestCase> {
@@ -750,12 +745,11 @@ async fn create_test_case(
                 // Special case for `$stdout`:
                 // These variables will point to files under `io_dir`,
                 // while others to `src_dir`.
-                let mut p = match var.as_ref() {
-                    "$stdout" => test_root.clone(),
-                    _ => container_test_root.clone(),
+                let p = match var.as_ref() {
+                    "$stdout" => test_root,
+                    _ => container_test_root,
                 };
-                p.push(format!("{}.{}", name, ext));
-                p.to_slash_lossy()
+                p.join(format!("{}.{}", name, ext)).to_slash_lossy()
             })
         })
         .collect();

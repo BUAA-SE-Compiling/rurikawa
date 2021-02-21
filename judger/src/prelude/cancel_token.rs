@@ -294,7 +294,7 @@ where
         pin_mut!(self_);
 
         futures::select! {
-            abort = cancel.fuse() => None,
+            _abort = cancel.fuse() => None,
             fut = self_ => Some(fut),
             complete => None
         }

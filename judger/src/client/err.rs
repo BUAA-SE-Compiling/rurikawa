@@ -1,4 +1,3 @@
-use anyhow::Context;
 use err_derive::Error;
 use std::fmt::Debug;
 use tokio_tungstenite::tungstenite;
