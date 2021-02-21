@@ -59,6 +59,12 @@ macro_rules! sh {
     }};
 }
 
+/// A `Capturable` represents a pending subprocess call using a [`CommandRunner`]
+/// inside [`sh` (Bourne shell)][sh] or any compatible shell. The command inside
+/// `Capturable` MUST be a valid Bourne shell commandline string, capable of being
+/// called using `sh -c '...'`.
+///
+/// [sh]: https://en.wikipedia.org/wiki/Bourne_shell
 pub struct Capturable(String);
 
 impl Capturable {
@@ -66,7 +72,9 @@ impl Capturable {
         Capturable(cmd)
     }
 
-    /// Run the command represented by `self` with the given `runner` and `variables`
+    /// Run the command represented by `self` with the given `runner`, with
+    /// `variables` representing commandline variables feeding to `sh` to
+    /// replace corresponding `$...` inside the commandline.
     async fn capture<R: CommandRunner + Send>(
         self,
         runner: &R,
