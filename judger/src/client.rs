@@ -271,6 +271,18 @@ pub async fn handle_job_wrapper(
         .await
     {
         Ok(_res) => ClientMsg::JobResult(_res),
+
+        // These two types need explicit handling, since they are not finished
+        Err(JobExecErr::Aborted) => ClientMsg::JobProgress(JobProgressMsg {
+            job_id,
+            stage: JobStage::Aborted,
+        }),
+        Err(JobExecErr::Cancelled) => ClientMsg::JobProgress(JobProgressMsg {
+            job_id,
+            stage: JobStage::Cancelled,
+        }),
+
+        // regular result handling
         Err(err) => {
             tracing::warn!("job {} aborted because of error: {:?}", job_id, &err);
 
@@ -288,7 +300,6 @@ pub async fn handle_job_wrapper(
                     JobResultKind::JudgerError,
                     format!("Websocket error: {:?}", e),
                 ),
-                JobExecErr::Cancelled => (JobResultKind::Aborted, "Job cancelled by user".into()),
                 JobExecErr::Json(e) => (JobResultKind::JudgerError, format!("JSON error: {:?}", e)),
                 JobExecErr::TomlDes(e) => (
                     JobResultKind::JudgerError,
@@ -301,6 +312,7 @@ pub async fn handle_job_wrapper(
                 JobExecErr::Build(e) => (JobResultKind::CompileError, format!("{}", e)),
                 JobExecErr::Exec(e) => (JobResultKind::PipelineError, format!("{:?}", e)),
                 JobExecErr::Any(e) => (JobResultKind::OtherError, format!("{:?}", e)),
+                _ => unreachable!(),
             };
 
             ClientMsg::JobResult(JobResultMsg {

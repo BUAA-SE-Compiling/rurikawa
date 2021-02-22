@@ -93,6 +93,7 @@ pub enum JobStage {
     Finished,
     Cancelled,
     Skipped,
+    Aborted,
 }
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize)]

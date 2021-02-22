@@ -162,7 +162,7 @@ namespace Karenia.Rurikawa.Models.Test {
     }
 
     public enum JobStage {
-        Queued,
+        Queued = 0,
         Dispatched,
         Fetching,
         Compiling,
@@ -170,6 +170,7 @@ namespace Karenia.Rurikawa.Models.Test {
         Finished,
         Cancelled,
         Skipped,
+        Aborted,
     }
 
     public enum ScoringMode {
@@ -197,7 +198,7 @@ namespace Karenia.Rurikawa.Models.Test {
                 Type typeToConvert,
                 JsonSerializerOptions options) {
                 if (reader.TokenType == JsonTokenType.String) {
-                    string name = reader.GetString();
+                    string name = reader.GetString()!;
                     return new TestCaseDefinition()
                     {
                         Name = name,
