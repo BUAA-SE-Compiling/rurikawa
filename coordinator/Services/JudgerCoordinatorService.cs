@@ -223,25 +223,34 @@ namespace Karenia.Rurikawa.Coordinator.Services {
         }
 
         async void OnJobProgressMessage(string clientId, JobProgressMsg msg) {
-            // TODO: Send job progress to web clients
             using var scope = scopeProvider.CreateScope();
             var db = GetDb(scope);
 
-            var job = await db.Jobs.Where(j => j.Id == msg.JobId).FirstOrDefaultAsync();
+            FlowSnake jobId = msg.JobId;
+            var job = await db.Jobs.Where(j => j.Id == jobId).FirstOrDefaultAsync();
             if (job == null) {
-                logger.LogError("Cannot find job {0}, error?", msg.JobId);
+                logger.LogError("Cannot find job {0}, error?", jobId);
                 return;
             }
 
-            frontendService.OnJobStautsUpdate(msg.JobId, new Models.WebsocketApi.JobStatusUpdateMsg
+            frontendService.OnJobStautsUpdate(jobId, new Models.WebsocketApi.JobStatusUpdateMsg
             {
-                JobId = msg.JobId,
+                JobId = jobId,
                 Stage = msg.Stage
             });
 
             if (job.Stage != msg.Stage) {
                 job.Stage = msg.Stage;
                 await db.SaveChangesAsync();
+            }
+
+            // Clear output when job gets cancelled
+            if (job.Stage == JobStage.Aborted || job.Stage == JobStage.Cancelled) {
+                var redis = scope.ServiceProvider.GetService<RedisService>()!;
+                var redisDb = await redis.GetDatabase();
+                await redisDb.KeyDeleteAsync(
+                    new RedisKey[] { FormatJobStdout(jobId), FormatJobError(jobId) },
+                    flags: CommandFlags.FireAndForget);
             }
         }
 
@@ -324,19 +333,26 @@ namespace Karenia.Rurikawa.Coordinator.Services {
 
         async void OnJobOutputMessage(string clientId, JobOutputMsg msg) {
             var db = await this.redis.GetDatabase();
-            // var values = new List<NameValueEntry>();
+            // Autoclean output logs after a specific timeout.
+            TimeSpan timeout = TimeSpan.FromMinutes(30);
 
-            if (msg.Stream != null)
+            if (msg.Stream != null) {
+                string key = FormatJobStdout(msg.JobId);
                 await db.StringAppendAsync(
-                    FormatJobStdout(msg.JobId),
+                    key,
                     msg.Stream,
                     flags: CommandFlags.FireAndForget);
+                await db.KeyExpireAsync(key, timeout);
+            }
 
-            if (msg.Error != null)
+            if (msg.Error != null) {
+                string key = FormatJobError(msg.JobId);
                 await db.StringAppendAsync(
-                    FormatJobError(msg.JobId),
+                    key,
                     msg.Error,
                     flags: CommandFlags.FireAndForget);
+                await db.KeyExpireAsync(key, timeout);
+            }
 
             // if (msg.Stream != null)
             //     values.Add(new NameValueEntry("stream", msg.Stream));

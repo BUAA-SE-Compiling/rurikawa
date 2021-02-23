@@ -20,7 +20,7 @@ use http::Method;
 use model::*;
 use serde_json::from_slice;
 use sink::*;
-use std::{collections::HashMap, path::PathBuf, sync::atomic::Ordering, sync::Arc};
+use std::{collections::HashMap, path::PathBuf, sync::atomic::Ordering, sync::Arc, time::Duration};
 use tokio_tungstenite::{connect_async, tungstenite};
 use tracing::info_span;
 use tracing_futures::Instrument;
@@ -279,7 +279,17 @@ pub async fn handle_job_wrapper(
         }),
         Err(JobExecErr::Cancelled) => ClientMsg::JobProgress(JobProgressMsg {
             job_id,
-            stage: JobStage::Cancelled,
+            stage: {
+                if cfg
+                    .cancelling_job_info
+                    .get(&job_id)
+                    .map_or(true, |x| x.as_cancel)
+                {
+                    JobStage::Cancelled
+                } else {
+                    JobStage::Aborted
+                }
+            },
         }),
 
         // regular result handling
@@ -564,12 +574,19 @@ pub async fn accept_job(job: NewJob, send: Arc<WsSink>, client_config: Arc<Share
         .insert(job_id, (handle, cancel_handle));
 }
 
-async fn cancel_job(job_id: FlowSnake, client_config: Arc<SharedClientData>) {
+async fn cancel_job(
+    job: AbortJob,
+    client_config: Arc<SharedClientData>,
+    inserted: futures::channel::oneshot::Receiver<()>,
+) {
+    let job_id = job.job_id;
+    client_config.cancelling_job_info.insert(job_id, job);
     let job = client_config
         .running_job_handles
         .lock()
         .await
         .remove(&job_id);
+
     if let Some((handle, cancel)) = job {
         cancel.cancel();
         match handle.await {
@@ -577,12 +594,18 @@ async fn cancel_job(job_id: FlowSnake, client_config: Arc<SharedClientData>) {
             Err(e) => tracing::warn!("Unable to cancel job {}: {}", job_id, e),
         };
     }
-    // remove self from cancelling job list
-    client_config
-        .cancelling_job_handles
-        .lock()
-        .await
-        .remove(&job_id);
+
+    // Wait until self gets inserted into cancelling job handles
+    // (it's a racing condition with the main loop)
+    if inserted.await.is_ok() {
+        // remove self from cancelling job list
+        client_config
+            .cancelling_job_handles
+            .lock()
+            .await
+            .remove(&job_id);
+    }
+    client_config.cancelling_job_info.remove(&job_id);
 }
 
 async fn keepalive(
@@ -648,12 +671,16 @@ pub async fn client_loop(
                         accept_job(job, ws_send.clone(), client_config.clone()).await
                     }
                     ServerMsg::AbortJob(job) => {
-                        let abort = tokio::spawn(cancel_job(job.job_id, client_config.clone()));
+                        let job_id = job.job_id;
+                        let (inserted_send, inserted_recv) = futures::channel::oneshot::channel();
+                        let abort =
+                            tokio::spawn(cancel_job(job, client_config.clone(), inserted_recv));
                         client_config
                             .cancelling_job_handles
                             .lock()
                             .await
-                            .insert(job.job_id, abort);
+                            .insert(job_id, abort);
+                        let _ = inserted_send.send(());
                     }
                 },
                 Err(e) => {

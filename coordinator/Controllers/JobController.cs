@@ -46,9 +46,9 @@ namespace Karenia.Rurikawa.Coordinator.Controllers {
             } else {
                 {
                     // authorize
-                    var role = HttpContext.User.FindFirst(ClaimTypes.Role).Value;
+                    var role = HttpContext.User.FindFirst(ClaimTypes.Role)?.Value;
                     if (role != "Admin" && role != "Root") {
-                        var account = HttpContext.User.FindFirst(ClaimTypes.NameIdentifier).Value;
+                        var account = HttpContext.User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
                         if (res.Account != account) return NotFound();
                     }
                 }
@@ -111,6 +111,25 @@ namespace Karenia.Rurikawa.Coordinator.Controllers {
                 return BadRequest(new ErrorResponse("not_in_active_timespan"));
             }
             return Ok(id.ToString());
+        }
+
+        /// <summary>
+        /// Submit a job with identical parameters as the given job.
+        /// </summary>
+        /// <param name="id"></param>
+        /// <returns></returns>
+        [HttpPost("respawn/{id}")]
+        public async Task<ActionResult<String>> RespawnJob([FromRoute] FlowSnake id) {
+            // the returned job is non-tracking, so we can safely modify its data
+            var job = await dbsvc.GetJob(id);
+            if (job == null) return NotFound();
+
+            // clear job stats, reset id
+            job.ClearStats();
+            job.Id = FlowSnake.Generate();
+
+            await coordinatorService.ScheduleJob(job);
+            return Ok(job.Id.ToString());
         }
 
         /// <summary>

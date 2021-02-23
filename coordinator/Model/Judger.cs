@@ -128,6 +128,17 @@ namespace Karenia.Rurikawa.Models.Judger {
                 return s;
             }
         }
+
+        /// <summary>
+        /// Clears all running status of this job, allowing this job to be reused.
+        /// </summary>
+        public void ClearStats() {
+            this.Stage = JobStage.Queued;
+            this.BuildOutputFile = null;
+            this.Results = new Dictionary<string, TestResult>();
+            this.ResultMessage = null;
+            this.ResultKind = null;
+        }
     }
 
     public class JobBuildOutput {

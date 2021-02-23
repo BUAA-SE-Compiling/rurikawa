@@ -21,15 +21,15 @@ namespace Karenia.Rurikawa.Coordinator.Services {
         }
 
         public async Task<Job?> GetJob(FlowSnake id) {
-            return await db.Jobs.Where(j => j.Id == id).SingleOrDefaultAsync();
+            return await db.Jobs.Where(j => j.Id == id).AsNoTracking().SingleOrDefaultAsync();
         }
 
         public async Task<TestSuite?> GetTestSuite(FlowSnake id) {
-            return await db.TestSuites.Where(j => j.Id == id).SingleOrDefaultAsync();
+            return await db.TestSuites.Where(j => j.Id == id).AsNoTracking().SingleOrDefaultAsync();
         }
 
         public async Task<Announcement?> GetAnnouncement(FlowSnake id) {
-            return await db.Announcements.Where(a => a.Id == id).SingleOrDefaultAsync();
+            return await db.Announcements.Where(a => a.Id == id).AsNoTracking().SingleOrDefaultAsync();
         }
 
         public async Task RemoveTestSuiteCascade(FlowSnake id) {

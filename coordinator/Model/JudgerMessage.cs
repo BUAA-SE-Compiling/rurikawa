@@ -22,13 +22,23 @@ namespace Karenia.Rurikawa.Models.Judger {
     }
 
     /// <summary>
-    /// Message that provides a new job to judger with given id and specification.
-    /// <br/>
-    /// The client MUST accept this job after it's being sent.
+    /// Message that requests the given client to abort this job.
+    /// <p>
+    /// The client MUST abort this job according to the given params. The client
+    /// MUST either send a single <c>JobProgressMsg</c> with the given params,
+    /// or send no message after abort.
+    /// </p>
+    /// <p>
+    /// If <c>AsCancel</c>
+    /// is true, this job MUST be marked as <c>Cancelled</c> and will not be retried. 
+    /// Otherwise, it MUST be marked as <c>Aborted</c> and be rescheduled to a future
+    /// run.
+    /// </p>
     /// </summary>
     [JsonDiscriminator("abort_job")]
     public class AbortJobServerMsg : ServerMsg {
         public FlowSnake JobId { get; set; }
+        public bool AsCancel { get; set; }
     }
 
     /// <summary>

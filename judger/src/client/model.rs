@@ -2,7 +2,7 @@ use crate::prelude::FlowSnake;
 use serde::{Deserialize, Serialize};
 use std::{collections::HashMap, sync::Arc};
 
-/// Message sent from server
+/// Message sent from server. See documentation on the server side.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "_t")]
 #[serde(rename_all = "camelCase")]
@@ -23,6 +23,7 @@ pub struct NewJob {
 #[serde(rename_all = "camelCase")]
 pub struct AbortJob {
     pub job_id: FlowSnake,
+    pub as_cancel: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

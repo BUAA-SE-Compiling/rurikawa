@@ -1,9 +1,12 @@
 use crate::prelude::{CancellationToken, CancellationTokenHandle, FlowSnake};
+use dashmap::DashMap;
 use serde::{Deserialize, Serialize};
 use std::{
     collections::HashMap, path::PathBuf, sync::atomic::AtomicBool, sync::atomic::AtomicUsize,
 };
 use tokio::{sync::Mutex, task::JoinHandle};
+
+use super::model::AbortJob;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ClientConfig {
@@ -51,6 +54,8 @@ pub struct SharedClientData {
     pub running_job_handles: Mutex<HashMap<FlowSnake, (JoinHandle<()>, CancellationTokenHandle)>>,
     /// Handle for all jobs currently cancelling
     pub cancelling_job_handles: Mutex<HashMap<FlowSnake, JoinHandle<()>>>,
+    /// Information for currently-cancelling jobs.
+    pub cancelling_job_info: dashmap::DashMap<FlowSnake, AbortJob>,
     /// Global cancellation token handle
     pub cancel_handle: CancellationTokenHandle,
 }
@@ -72,6 +77,7 @@ impl SharedClientData {
             locked_test_suite: dashmap::DashMap::new(),
             running_job_handles: Mutex::new(HashMap::new()),
             cancelling_job_handles: Mutex::new(HashMap::new()),
+            cancelling_job_info: DashMap::new(),
             cancel_handle: CancellationTokenHandle::new(),
         }
     }
