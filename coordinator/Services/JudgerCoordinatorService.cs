@@ -281,6 +281,7 @@ namespace Karenia.Rurikawa.Coordinator.Services {
                 job.Stage = JobStage.Finished;
                 job.ResultKind = msg.JobResult;
                 job.ResultMessage = msg.Message;
+                job.FinishTime = DateTimeOffset.Now;
                 await db.SaveChangesAsync();
                 await tx.CommitAsync();
             }
@@ -303,7 +304,7 @@ namespace Karenia.Rurikawa.Coordinator.Services {
 
             var filename = $"job/{jobId}/build_output.json";
 
-            await fileBucket.UploadFile(filename, new MemoryStream(stringified), stringified.LongLength);
+            await fileBucket!.UploadFile(filename, new MemoryStream(stringified), stringified.LongLength);
 
             await db.KeyDeleteAsync(
                 new RedisKey[] { FormatJobStdout(jobId), FormatJobError(jobId) },
@@ -415,7 +416,9 @@ namespace Karenia.Rurikawa.Coordinator.Services {
         }
 
         protected async Task<Job?> GetLastUndispatchedJobFromDatabase(RurikawaDb db) {
-            var res = await db.Jobs.Where(j => j.Stage == JobStage.Queued)
+            var res = await db.Jobs.Where(
+                    j => j.Stage == JobStage.Queued || j.Stage == JobStage.Aborted
+                )
                 .OrderBy(j => j.Id)
                 .FirstOrDefaultAsync();
             return res;
@@ -427,6 +430,8 @@ namespace Karenia.Rurikawa.Coordinator.Services {
             var job = await GetLastUndispatchedJobFromDatabase(db);
             if (job == null) return false;
             job.Stage = JobStage.Dispatched;
+            job.DispatchTime = DateTimeOffset.Now;
+            job.Judger = judger.Id;
             await db.SaveChangesAsync();
             try {
                 return await DispatchJob(judger, job);
@@ -477,6 +482,8 @@ namespace Karenia.Rurikawa.Coordinator.Services {
                     var judger = await TryGetNextUsableJudger(true);
                     if (judger == null) break;
                     try {
+                        job.DispatchTime = DateTimeOffset.Now;
+                        job.Judger = judger.Id;
                         success = await DispatchJob(judger, job);
                     } catch {
                         // If any exception occurs (including but not limited 
