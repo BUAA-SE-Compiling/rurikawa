@@ -11,6 +11,9 @@ namespace Karenia.Rurikawa.Coordinator.Controllers {
     [ApiController]
     [Route("api/v1/status")]
     public class StatusController : ControllerBase {
+        private const string JUDGER_STAT_CACHE_KEY = "stat-cache:judger";
+        private const string QUEUE_STAT_CACHE_KEY = "stat-cache:job-queue";
+
         /// <summary>
         /// Always return 204.
         /// </summary>
@@ -37,6 +40,10 @@ namespace Karenia.Rurikawa.Coordinator.Controllers {
             public int Running { get; set; }
         }
 
+        /// <summary>
+        /// Reports the stat of judger queue.
+        /// </summary>
+        /// <returns></returns>
         [HttpGet("judger")]
         public async Task<ActionResult<JudgerStat>> GetJudgerStat(
             [FromServices] JudgerCoordinatorService coordinatorService,
@@ -44,7 +51,7 @@ namespace Karenia.Rurikawa.Coordinator.Controllers {
             [FromServices] RedisService redis,
             [FromServices] JsonSerializerOptions jsonSerializerOptions) {
             var red = await redis.GetDatabase();
-            var judgerStat = await red.StringGetAsync("judger");
+            var judgerStat = await red.StringGetAsync(JUDGER_STAT_CACHE_KEY);
             if (!judgerStat.IsNullOrEmpty) {
                 return new ContentResult()
                 {
@@ -64,9 +71,49 @@ namespace Karenia.Rurikawa.Coordinator.Controllers {
             };
 
             await red.StringSetAsync(
-                "judger",
+                JUDGER_STAT_CACHE_KEY,
                 JsonSerializer.Serialize(stat, jsonSerializerOptions),
-                expiry: TimeSpan.FromMinutes(2));
+                expiry: TimeSpan.FromSeconds(10));
+
+            return stat;
+        }
+
+        public class QueueStat {
+            public int QueuedJobs { get; set; }
+        }
+
+        /// <summary>
+        /// Reports the status of the job queue.
+        /// </summary>
+        /// <returns></returns>
+        [HttpGet("job-queue")]
+        public async Task<ActionResult<QueueStat>> GetJobQueueStat(
+            [FromServices] RurikawaDb db,
+            [FromServices] RedisService redis,
+            [FromServices] JsonSerializerOptions jsonSerializerOptions
+        ) {
+            var red = await redis.GetDatabase();
+            var judgerStat = await red.StringGetAsync(QUEUE_STAT_CACHE_KEY);
+            if (!judgerStat.IsNullOrEmpty) {
+                return new ContentResult()
+                {
+                    Content = (string)judgerStat,
+                    StatusCode = 200,
+                    ContentType = "application/json"
+                };
+            }
+
+            // TODO: Use redis to track jobs count?
+            var jobCount = await JudgerCoordinatorService.QueuedCriteria(db.Jobs).CountAsync();
+            var stat = new QueueStat
+            {
+                QueuedJobs = jobCount
+            };
+
+            await red.StringSetAsync(
+                QUEUE_STAT_CACHE_KEY,
+                JsonSerializer.Serialize(stat, jsonSerializerOptions),
+                expiry: TimeSpan.FromSeconds(10));
 
             return stat;
         }

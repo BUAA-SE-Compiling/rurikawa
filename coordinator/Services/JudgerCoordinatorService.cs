@@ -426,16 +426,20 @@ namespace Karenia.Rurikawa.Coordinator.Services {
 
         static readonly TimeSpan DISPATH_TIMEOUT = TimeSpan.FromMinutes(30);
         protected async Task<Job?> GetLastUndispatchedJobFromDatabase(RurikawaDb db) {
+            var res = await QueuedCriteria(db.Jobs)
+                .OrderBy(j => j.Id)
+                .FirstOrDefaultAsync();
+            return res;
+        }
+
+        public static IQueryable<Job> QueuedCriteria(IQueryable<Job> jobs) {
             var timeoutLimit = DateTimeOffset.Now + DISPATH_TIMEOUT;
-            var res = await db.Jobs.Where(
+            return jobs.Where(
                     j => j.Stage == JobStage.Queued
                     || j.Stage == JobStage.Aborted
                     || j.DispatchTime != null
                     || j.DispatchTime < timeoutLimit
-                )
-                .OrderBy(j => j.Id)
-                .FirstOrDefaultAsync();
-            return res;
+                );
         }
 
         protected async ValueTask<bool> TryDispatchJobFromDatabase(Judger judger) {
