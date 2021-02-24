@@ -78,8 +78,10 @@ namespace Karenia.Rurikawa.Coordinator.Controllers {
         /// PUTs a new job
         /// </summary>
         [HttpPost("")]
-        public async Task<IActionResult> NewJob([FromBody] NewJobMessage m) {
-            var account = HttpContext.User.FindFirst(ClaimTypes.NameIdentifier).Value;
+        public async Task<ActionResult<string>> NewJob([FromBody] NewJobMessage m) {
+            var account = HttpContext.User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+            if (account == null) return BadRequest();
+
             FlowSnake id = FlowSnake.Generate();
             var job = new Job
             {

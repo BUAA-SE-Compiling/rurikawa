@@ -373,9 +373,11 @@ namespace Karenia.Rurikawa.Coordinator.Services {
         /// <summary>
         /// Check if the authorization header is valid. 
         /// </summary>
-        async ValueTask<JudgerEntry?> Authenticate(string tokenString) {
+        async ValueTask<JudgerEntry?> Authenticate(string? tokenString) {
+            if (tokenString == null) return null;
             using var scope = scopeProvider.CreateScope();
             var judgerService = scope.ServiceProvider.GetService<JudgerService>();
+            if (judgerService == null) return null;
             return await judgerService.GetJudgerByToken(tokenString);
         }
 
@@ -398,7 +400,12 @@ namespace Karenia.Rurikawa.Coordinator.Services {
         }
 
         /// <summary>
-        /// Dispatch a single job to the given judger
+        /// Dispatch a single job to the given judger. 
+        /// 
+        /// <p>
+        /// Note: this method changes the state of the job, so it needs to be 
+        /// saved to database after this method returns.
+        /// </p>
         /// </summary>
         protected async ValueTask<bool> DispatchJob(Judger judger, Job job) {
             var redis = await this.redis.GetDatabase();
@@ -410,14 +417,21 @@ namespace Karenia.Rurikawa.Coordinator.Services {
                 {
                     Job = job
                 });
+                job.Judger = judger.Id;
                 job.Stage = JobStage.Dispatched;
+                job.DispatchTime = DateTimeOffset.Now;
                 return true;
             } catch { return false; }
         }
 
+        static readonly TimeSpan DISPATH_TIMEOUT = TimeSpan.FromMinutes(30);
         protected async Task<Job?> GetLastUndispatchedJobFromDatabase(RurikawaDb db) {
+            var timeoutLimit = DateTimeOffset.Now + DISPATH_TIMEOUT;
             var res = await db.Jobs.Where(
-                    j => j.Stage == JobStage.Queued || j.Stage == JobStage.Aborted
+                    j => j.Stage == JobStage.Queued
+                    || j.Stage == JobStage.Aborted
+                    || j.DispatchTime != null
+                    || j.DispatchTime < timeoutLimit
                 )
                 .OrderBy(j => j.Id)
                 .FirstOrDefaultAsync();
@@ -427,17 +441,17 @@ namespace Karenia.Rurikawa.Coordinator.Services {
         protected async ValueTask<bool> TryDispatchJobFromDatabase(Judger judger) {
             using var scope = scopeProvider.CreateScope();
             var db = GetDb(scope);
+            using var tx = await db.Database.BeginTransactionAsync(System.Data.IsolationLevel.Serializable);
             var job = await GetLastUndispatchedJobFromDatabase(db);
             if (job == null) return false;
-            job.Stage = JobStage.Dispatched;
-            job.DispatchTime = DateTimeOffset.Now;
-            job.Judger = judger.Id;
-            await db.SaveChangesAsync();
+
             try {
-                return await DispatchJob(judger, job);
-            } catch {
-                job.Stage = JobStage.Queued;
+                var res = await DispatchJob(judger, job);
                 await db.SaveChangesAsync();
+                await tx.CommitAsync();
+                return res;
+            } catch {
+                await tx.RollbackAsync();
                 return false;
             }
         }
@@ -464,6 +478,7 @@ namespace Karenia.Rurikawa.Coordinator.Services {
             using var scope = scopeProvider.CreateScope();
             var db = GetDb(scope);
 
+            using var tx = await db.Database.BeginTransactionAsync(System.Data.IsolationLevel.Serializable);
             var suite = await db.TestSuites.Where(x => x.Id == job.TestSuite).SingleOrDefaultAsync();
             if (suite == null) {
                 throw new KeyNotFoundException();
@@ -473,6 +488,15 @@ namespace Karenia.Rurikawa.Coordinator.Services {
             }
 
             job.Stage = JobStage.Queued;
+
+            var success = await DispatchUsingNextJudger(job);
+
+            db.Jobs.Add(job);
+            await db.SaveChangesAsync();
+            await tx.CommitAsync();
+        }
+
+        private async Task<bool> DispatchUsingNextJudger(Job job) {
             bool success = false;
 
             // Lock queue so no one can write to it, leading to race conditions
@@ -496,8 +520,7 @@ namespace Karenia.Rurikawa.Coordinator.Services {
                 }
             }
 
-            db.Jobs.Add(job);
-            await db.SaveChangesAsync();
+            return success;
         }
 
         public async ValueTask RevertJobStatus() {
