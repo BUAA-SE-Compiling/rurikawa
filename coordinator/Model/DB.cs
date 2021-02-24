@@ -75,6 +75,10 @@ namespace Karenia.Rurikawa.Models {
             modelBuilder.Entity<Job>().HasIndex(x => x.Id).IsUnique();
             modelBuilder.Entity<Job>().HasIndex(x => x.Account);
             modelBuilder.Entity<Job>().HasIndex(x => x.TestSuite);
+            modelBuilder.Entity<Job>().HasIndex(x => x.DispatchTime);
+            modelBuilder.Entity<Job>().HasIndex(x => x.FinishTime);
+            modelBuilder.Entity<Job>().HasIndex(x => x.Judger);
+            modelBuilder.Entity<Job>().HasIndex(x => x.Stage);
             modelBuilder.Entity<JudgerEntry>().HasIndex(x => x.Id).IsUnique();
             modelBuilder.Entity<JudgerEntry>().HasIndex(x => x.Tags);
             modelBuilder.Entity<JudgerEntry>().HasIndex(x => x.AcceptUntaggedJobs);
