@@ -12,7 +12,7 @@ use names::{Generator, Name};
 use std::os::unix::process::ExitStatusExt;
 use std::process::ExitStatus;
 use std::{collections::HashMap, default::Default};
-use tokio::{process::Command};
+use tokio::process::Command;
 use tokio_util::compat::*;
 
 /// An evaluation environment for commands.
@@ -255,7 +255,7 @@ impl DockerCommandRunner {
                             path: to_path.clone(),
                             ..Default::default()
                         }),
-                        hyper::Body::wrap_stream(frame.map(|x| x.map(|x| x))),
+                        hyper::Body::wrap_stream(frame.map(|x| x)),
                     )
                     .await?;
                 task.await??;
