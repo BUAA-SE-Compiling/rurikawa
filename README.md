@@ -64,3 +64,7 @@ $ cargo build
 ```
 $ path/to/rurikawa connect <your_coordinator_host>
 ```
+
+#### 限制
+
+目前不能在 Windows 下运行

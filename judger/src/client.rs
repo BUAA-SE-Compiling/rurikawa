@@ -21,10 +21,10 @@ use model::*;
 use serde_json::from_slice;
 use sink::*;
 use std::{collections::HashMap, path::PathBuf, sync::atomic::Ordering, sync::Arc};
-use tokio_tungstenite::{connect_async, tungstenite};
+
+use tokio_tungstenite::{connect_async, tungstenite::Message};
 use tracing::info_span;
 use tracing_futures::Instrument;
-use tungstenite::Message;
 
 // Arc<Mutex<WsSink>>==>>Arc<WsSink>
 
@@ -260,7 +260,7 @@ pub async fn check_download_read_test_suite(
 pub async fn handle_job_wrapper(
     job: NewJob,
     send: Arc<WsSink>,
-    cancel: CancellationToken,
+    cancel: CancellationTokenHandle,
     cfg: Arc<SharedClientData>,
 ) {
     // TODO: Handle failed cases and report
@@ -325,18 +325,23 @@ pub async fn handle_job_wrapper(
 
     flag_finished_job(send.clone(), cfg.clone()).await;
 
-    cfg.running_job_handles.lock().await.remove(&job_id);
+    tracing::info!("{}: Result message sent", job_id);
+
+    {
+        cfg.running_job_handles.lock().await.remove(&job_id);
+    }
 
     match fs::ensure_removed_dir(&cfg.job_folder(job_id)).await {
         Ok(_) => {}
         Err(e) => tracing::error!("Failed to remove directory for job {}: {}", job_id, e),
     };
+    tracing::info!("{}: cleanup complete", job_id);
 }
 
 pub async fn handle_job(
     job: NewJob,
     send: Arc<WsSink>,
-    cancel: CancellationToken,
+    cancel: CancellationTokenHandle,
     cfg: Arc<SharedClientData>,
 ) -> Result<JobResultMsg, JobExecErr> {
     let job = job.job;
@@ -434,7 +439,7 @@ pub async fn handle_job(
         let ws_send = send.clone();
         let job_id = job.id;
         async move {
-            while let Some((key, res)) = recv.next().await {
+            while let Some((key, res)) = recv.recv().await {
                 tracing::info!("Job {}: recv message for key={}", job_id, key);
                 // Omit error; it doesn't matter
                 let _ = ws_send
@@ -456,7 +461,7 @@ pub async fn handle_job(
         let ws_send = send.clone();
         let job_id = job.id;
         async move {
-            while let Some(res) = recv.next().await {
+            while let Some(res) = recv.recv().await {
                 let _ = ws_send
                     .send_msg(&ClientMsg::JobOutput(JobOutputMsg {
                         job_id,
@@ -537,8 +542,8 @@ pub async fn flag_finished_job(send: Arc<WsSink>, client_config: Arc<SharedClien
 pub async fn accept_job(job: NewJob, send: Arc<WsSink>, client_config: Arc<SharedClientData>) {
     tracing::info!("Received job {}", job.job.id);
     let job_id = job.job.id;
-    let cancel_handle = client_config.cancel_handle.create_child();
-    let cancel_token = cancel_handle.get_token();
+    let cancel_handle = client_config.cancel_handle.child_token();
+    let cancel_token = cancel_handle.child_token();
     let handle = tokio::spawn(handle_job_wrapper(
         job,
         send,
@@ -553,11 +558,13 @@ pub async fn accept_job(job: NewJob, send: Arc<WsSink>, client_config: Arc<Share
 }
 
 async fn cancel_job(job_id: FlowSnake, client_config: Arc<SharedClientData>) {
-    let job = client_config
-        .running_job_handles
-        .lock()
-        .await
-        .remove(&job_id);
+    let job = {
+        client_config
+            .running_job_handles
+            .lock()
+            .await
+            .remove(&job_id)
+    };
     if let Some((handle, cancel)) = job {
         cancel.cancel();
         match handle.await {
@@ -579,12 +586,15 @@ async fn keepalive(
     ws: Arc<WsSink>,
     interval: std::time::Duration,
 ) {
-    while tokio::time::delay_for(interval)
-        .with_cancel(client_config.cancel_handle.get_token())
+    while tokio::time::sleep(interval)
+        .with_cancel(client_config.cancel_handle.child_token())
         .await
         .is_some()
     {
-        match { ws.send_conf(tungstenite::Message::Ping(vec![]), true).await } {
+        match {
+            ws.send_conf(tokio_tungstenite::tungstenite::Message::Ping(vec![]), true)
+                .await
+        } {
             Ok(_) => {}
             Err(e) => {
                 keepalive_token.cancel();
@@ -611,8 +621,8 @@ pub async fn client_loop(
         .await
         .unwrap();
 
-    let keepalive_token = client_config.cancel_handle.create_child();
-    let keepalive_cancel = keepalive_token.create_child();
+    let keepalive_token = client_config.cancel_handle.child_token();
+    let _keepalive_cancel = keepalive_token.child_token();
 
     let keepalive_handle = tokio::spawn(keepalive(
         client_config.clone(),
@@ -623,7 +633,7 @@ pub async fn client_loop(
 
     while let Some(Some(Ok(x))) = ws_recv
         .next()
-        .with_cancel(keepalive_cancel.get_token())
+        .with_cancel(client_config.cancel_handle.child_token())
         .await
     {
         let x: Message = x;
