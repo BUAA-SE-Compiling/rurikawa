@@ -1,9 +1,11 @@
 pub mod exec;
 pub mod model;
 pub mod runner;
+pub mod spj;
 pub mod utils;
 
 use err_derive::Error;
+use rquickjs::IntoJsByRef;
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Serialize, Deserialize, Eq, PartialEq)]
@@ -13,9 +15,10 @@ pub enum ExecErrorKind {
     TimedOut,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, Eq, PartialEq)]
+#[derive(Debug, Clone, Serialize, Deserialize, Eq, PartialEq, IntoJsByRef)]
 pub struct ProcessInfo {
     pub ret_code: i32,
+    pub is_user_command: bool,
     pub command: String,
     pub stdout: String,
     pub stderr: String,
@@ -25,6 +28,13 @@ pub struct ProcessInfo {
 pub struct OutputMismatch {
     pub diff: String,
     pub output: Vec<ProcessInfo>,
+}
+
+
+#[derive(Debug, Clone, Serialize, Deserialize, Eq, PartialEq)]
+pub struct SpjFailure{
+    pub reason: Option<String>,
+    pub output: Vec<ProcessInfo>
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Eq, PartialEq, Error)]
@@ -68,6 +78,7 @@ impl std::error::Error for BuildError {}
 #[derive(Debug, Clone, Serialize, Deserialize, Eq, PartialEq)]
 pub enum JobFailure {
     OutputMismatch(OutputMismatch),
+    SpjWrongAnswer(SpjFailure),
     ExecError(ExecError),
     InternalError(String),
     ShouldFail(ShouldFailFailure),

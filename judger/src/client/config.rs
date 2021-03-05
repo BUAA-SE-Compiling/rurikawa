@@ -2,12 +2,8 @@ use crate::prelude::{CancellationToken, CancellationTokenHandle, FlowSnake};
 use serde::{Deserialize, Serialize};
 use std::{
     collections::HashMap, path::PathBuf, sync::atomic::AtomicBool, sync::atomic::AtomicUsize,
-    sync::Arc,
 };
-use tokio::{
-    sync::{Mutex, RwLock},
-    task::JoinHandle,
-};
+use tokio::{sync::Mutex, task::JoinHandle};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ClientConfig {

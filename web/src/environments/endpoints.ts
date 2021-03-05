@@ -17,6 +17,7 @@ export const endpoints = {
     getCode: 'admin/code',
     dumpSuiteJobs: (id: string) => `admin/suite/${id}/dump_jobs`,
     dumpSuiteAllJobs: (id: string) => `admin/suite/${id}/dump_all_jobs`,
+    judgerRegisterToken: 'admin/judger/register-token',
   },
   dashboard: {
     get: 'dashboard',
@@ -28,6 +29,7 @@ export const endpoints = {
     setFile: (id: string) => `tests/${id}/file`,
     setVisibility: (id: string) => `tests/${id}/visibility`,
     put: (id: string) => `tests/${id}`,
+    remove: (id: string) => `tests/${id}`,
     post: 'tests',
     ws: 'tests/ws?token=:token',
   },

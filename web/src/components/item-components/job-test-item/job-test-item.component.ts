@@ -15,6 +15,10 @@ export class JobTestItemComponent implements OnInit {
 
   @Input() key: string;
   @Input() item: TestResult;
+  @Input() baseScore?: number;
+  get score(): number | undefined {
+    return this.item.score;
+  }
 
   displayResult() {
     switch (this.item.kind) {

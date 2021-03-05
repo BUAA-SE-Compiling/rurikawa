@@ -132,7 +132,7 @@ const charToBase32 = [
 ];
 
 export function extractTime(flowsnake: string): Dayjs {
-  if (flowsnake.length !== 13) {
+  if (flowsnake.length !== 13 && flowsnake.length !== 14) {
     throw new Error(
       `Not a flowsnake value. Invalid length ${flowsnake.length}, expected 13`
     );

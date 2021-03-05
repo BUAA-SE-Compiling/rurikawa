@@ -1,4 +1,7 @@
-use super::model::*;
+use super::{
+    model::*,
+    spj::{self, SpjEnvironment},
+};
 use super::{
     runner::{CommandRunner, DockerCommandRunner, DockerCommandRunnerOptions},
     ExecError, ExecErrorKind, JobFailure, OutputMismatch, ProcessInfo, ShouldFailFailure,
@@ -7,6 +10,7 @@ use super::{utils::diff, BuildError};
 use crate::{
     client::model::ResultUploadConfig,
     client::model::{upload_test_result, TestResult, TestResultKind},
+    config::JudgeTomlTestConfig,
     prelude::*,
 };
 use anyhow::Result;
@@ -14,7 +18,6 @@ use bollard::models::{BuildInfo, Mount};
 use futures::stream::StreamExt;
 use once_cell::sync::Lazy;
 use path_slash::PathBufExt;
-use serde::{self, Deserialize, Serialize};
 use std::path::Path;
 use std::time;
 use std::{collections::HashMap, io, path::PathBuf, string::String, sync::Arc};
@@ -34,7 +37,7 @@ fn strsignal(_i: i32) -> String {
 macro_rules! command {
     ( $prog:expr, $( $arg:expr ),* ) => {
         {
-            vec![
+            &[
                 $prog.to_string(),
                 $($arg.to_string(),)*
             ]
@@ -56,16 +59,28 @@ macro_rules! sh {
     }};
 }
 
-pub struct Capturable(Vec<String>);
+/// A `Capturable` represents a pending subprocess call using a [`CommandRunner`]
+/// inside [`sh` (Bourne shell)][sh] or any compatible shell. The command inside
+/// `Capturable` MUST be a valid Bourne shell commandline string, capable of being
+/// called using `sh -c '...'`.
+///
+/// [sh]: https://en.wikipedia.org/wiki/Bourne_shell
+pub struct Capturable(String);
 
 impl Capturable {
-    pub fn new(cmd: Vec<String>) -> Self {
+    pub fn new(cmd: String) -> Self {
         Capturable(cmd)
     }
 
-    async fn capture<R: CommandRunner + Send>(self, runner: &R) -> PopenResult<ProcessInfo> {
-        let Self(cmd) = self;
-        runner.run(&cmd).await
+    /// Run the command represented by `self` with the given `runner`, with
+    /// `variables` representing commandline variables feeding to `sh` to
+    /// replace corresponding `$...` inside the commandline.
+    async fn capture<R: CommandRunner + Send>(
+        self,
+        runner: &R,
+        variables: &HashMap<String, String>,
+    ) -> PopenResult<ProcessInfo> {
+        runner.run(&self.0, variables).await
     }
 }
 
@@ -73,14 +88,20 @@ impl Capturable {
 pub struct Step {
     /// The command to be executed.
     pub cmd: Capturable,
+    /// The command is created by the user, not the admin.
+    pub is_user_command: bool,
     /// The timeout of the command.
     pub timeout: Option<time::Duration>,
 }
 
 impl Step {
     /// Make a new `Step` with no timeout.
-    pub fn new(cmd: Capturable) -> Self {
-        Step { cmd, timeout: None }
+    pub fn new(cmd: Capturable, is_user_command: bool) -> Self {
+        Step {
+            cmd,
+            is_user_command,
+            timeout: None,
+        }
     }
 
     /// Set `timeout` for a `Step`.
@@ -90,27 +111,49 @@ impl Step {
     }
 
     /// Make a new `Step` with a `timeout`.
-    pub fn new_with_timeout(cmd: Capturable, timeout: Option<time::Duration>) -> Self {
-        Step { cmd, timeout }
+    pub fn new_with_timeout(
+        cmd: Capturable,
+        timeout: Option<time::Duration>,
+        is_user_command: bool,
+    ) -> Self {
+        Step {
+            cmd,
+            is_user_command,
+            timeout,
+        }
     }
 
     /// Run the `Step` and collect its info, considering the `timeout`.
-    pub async fn capture<R>(self, runner: &R) -> PopenResult<ProcessInfo>
+    pub async fn capture<R>(
+        self,
+        runner: &R,
+        variables: &HashMap<String, String>,
+    ) -> PopenResult<ProcessInfo>
     where
         R: CommandRunner + Send,
     {
+        let is_user_command = self.is_user_command;
         if let Some(timeout) = self.timeout {
-            let mres = tokio::time::timeout(timeout, self.cmd.capture(runner)).await;
-            if let Ok(res) = mres {
-                res
-            } else {
-                Err(io::Error::new(
-                    io::ErrorKind::TimedOut,
-                    "Popen capture timed out",
-                ))
-            }
+            tokio::time::timeout(timeout, self.cmd.capture(runner, variables))
+                .await
+                .map_err(|_| {
+                    io::Error::new(
+                        io::ErrorKind::TimedOut,
+                        format!("Popen capture timed out at {}s", timeout.as_secs_f64()),
+                    )
+                })?
+                .map(|mut i| {
+                    i.is_user_command = is_user_command;
+                    i
+                })
         } else {
-            self.cmd.capture(runner).await
+            self.cmd
+                .capture(runner, variables)
+                .await
+                .map(|i| ProcessInfo {
+                    is_user_command,
+                    ..i
+                })
         }
     }
 }
@@ -153,15 +196,22 @@ impl Test {
     }
 
     // ? Should `runner` be mutable?
-    pub async fn run<R>(self, runner: &R) -> Result<(), JobFailure>
+    /// Run this specific test. Returns the score of this test (`1` when scoring mode is off)
+    pub async fn run<R>(
+        self,
+        runner: &R,
+        variables: &HashMap<String, String>,
+        spj: Option<&mut SpjEnvironment>,
+    ) -> Result<f64, JobFailure>
     where
         R: CommandRunner + Send,
     {
+        let spj_enabled = spj.as_ref().map_or(false, |x| x.features().case());
         let mut output: Vec<ProcessInfo> = vec![];
         let steps_len = self.steps.len();
         let mut test_failed = false;
         for (i, step) in self.steps.into_iter().enumerate() {
-            let info = match step.capture(runner).await {
+            let info = match step.capture(runner, variables).await {
                 Ok(res) => res,
                 Err(e) if e.kind() == io::ErrorKind::TimedOut => {
                     return Err(JobFailure::ExecError(ExecError {
@@ -182,6 +232,8 @@ impl Test {
                         // bail out of test, but it's totally fine
                         test_failed = true;
                         break;
+                    } else if spj_enabled {
+                        // continue
                     } else {
                         return Err(JobFailure::ExecError(ExecError {
                             stage: i,
@@ -204,7 +256,8 @@ impl Test {
             }
 
             // Special case for last step
-            if i == steps_len - 1 {
+
+            if i == steps_len - 1 && !spj_enabled {
                 if let Some(expected) = self.expected.as_ref() {
                     // * Actually there is a test that should not have passed,
                     // * because the `.out` file is missing a `\n`.
@@ -222,12 +275,29 @@ impl Test {
             }
         }
 
-        // Tests that _should_ fail but did not should return error here
-        if self.should_fail && !test_failed {
-            return Err(JobFailure::ShouldFail(ShouldFailFailure { output }));
-        }
+        if spj_enabled {
+            // do special judging
+            // spj_enabled would only be true when spj is Some(_)
+            let spj = spj.unwrap();
+            let judge_result = spj
+                .spj_case_judge(&output)
+                .await
+                .map_err(JobFailure::internal_err_from)?;
 
-        Ok(())
+            if judge_result.accepted {
+                Ok(judge_result.score.unwrap_or(1.0))
+            } else {
+                Err(JobFailure::SpjWrongAnswer(super::SpjFailure {
+                    reason: judge_result.reason,
+                    output,
+                }))
+            }
+        } else if self.should_fail && !test_failed {
+            // Tests that _should_ fail but did not should return error here
+            return Err(JobFailure::ShouldFail(ShouldFailFailure { output }));
+        } else {
+            Ok(1.0)
+        }
     }
 }
 
@@ -251,12 +321,7 @@ impl Image {
     pub fn replace_with_absolute_dir(&mut self, base_dir: PathBuf) {
         match self {
             Image::Image { .. } => {}
-            Image::Dockerfile { path, file, .. } => {
-                // if let Some(file) = file {
-                //     let mut file_base = base_dir.clone();
-                //     file_base.push(&file);
-                //     *file = file_base;
-                // }
+            Image::Dockerfile { path, .. } => {
                 let mut path_base = base_dir;
                 path_base.push(&path);
                 *path = path_base;
@@ -398,7 +463,6 @@ impl Image {
 ///
 /// Attention: a `TestSuite` instance should NOT be constructed manually.
 /// Please use `TestSuite::from_config`, for example.
-#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct TestSuite {
     /// The test contents.
     pub test_cases: Vec<TestCase>,
@@ -411,6 +475,22 @@ pub struct TestSuite {
     pub copies: Option<Vec<(String, String)>>,
     /// Initialization options for `Testsuite`.
     pub options: TestSuiteOptions,
+    /// Command to execute within each test case. Commands should be regular shell commands
+    /// inside a unix shell.
+    pub exec: Vec<RawStep>,
+    /// Variables to be expanded at testing.
+    ///
+    /// Variables in this field are in the form of `{"$var": "dest"}`, which for example then
+    /// expands `$var` inside test case `123` to `123.dest`.
+    pub vars: HashMap<String, String>,
+
+    /// Root folder inside **this** machine
+    pub test_root: PathBuf,
+    /// Root folder inside **container**
+    pub container_test_root: PathBuf,
+
+    /// Special Judger environment
+    spj_env: Option<spj::SpjEnvironment>,
 }
 
 impl TestSuite {
@@ -418,11 +498,13 @@ impl TestSuite {
         self.test_cases.push(case)
     }
 
+    /// Build the test suite from given configs.
     pub async fn from_config(
         image: Image,
         base_dir: &Path,
         private_cfg: JudgerPrivateConfig,
         public_cfg: JudgerPublicConfig,
+        job_cfg: &JudgeTomlTestConfig,
         options: TestSuiteOptions,
     ) -> Result<Self> {
         let container_test_root = private_cfg.mapped_test_root_dir.clone();
@@ -430,6 +512,7 @@ impl TestSuite {
 
         let index = construct_case_index(&public_cfg);
 
+        // create test cases
         // TODO: Remove drain when this compiler issue gets repaired:
         // https://github.com/rust-lang/rust/issues/64552
         let mut test_cases = futures::stream::iter(options.tests.clone().drain(..))
@@ -438,77 +521,54 @@ impl TestSuite {
                 let test_root = &test_root;
                 let container_test_root = &container_test_root;
                 let case = index.get(&name).unwrap();
-                async move {
-                    let replacer: HashMap<String, _> = public_cfg
-                        .vars
-                        .iter()
-                        .map(|(var, ext)| {
-                            (var.to_owned(), {
-                                // Special case for `$stdout`:
-                                // These variables will point to files under `io_dir`,
-                                // while others to `src_dir`.
-                                let mut p = match var.as_ref() {
-                                    "$stdout" => test_root.clone(),
-                                    _ => container_test_root.clone(),
-                                };
-                                p.push(format!("{}.{}", name, ext));
-                                p.to_slash_lossy()
-                            })
-                        })
-                        .collect();
-                    let exec: Vec<String> = public_cfg
-                        .run
-                        .iter()
-                        .map(|line| {
-                            replacer.iter().fold(line.to_owned(), |seed, (pat, rep)| {
-                                seed.replace(pat, &format!(r#""{}""#, rep))
-                            })
-                        })
-                        .collect();
-
-                    // ? QUESTION: Now I'm reading `$stdout` in host, but the source file, etc. are handled in containers.
-                    // ? Is this desirable?
-
-                    let expected_out = if case.has_out && !case.should_fail {
-                        let stdout_path = replacer.get("$stdout").ok_or_else(|| {
-                            io::Error::new(
-                                io::ErrorKind::NotFound,
-                                "Output verification failed, no `$stdout` in dictionary",
-                            )
-                        })?;
-
-                        let mut expected_out = Vec::new();
-                        let mut file = tokio::fs::File::open(stdout_path).await.map_err(|e| {
-                            io::Error::new(
-                                io::ErrorKind::NotFound,
-                                format!(
-                                    "Output verification failed, failed to open `{:?}`: {}",
-                                    stdout_path, e,
-                                ),
-                            )
-                        })?;
-                        file.read_to_end(&mut expected_out).await?;
-                        Some(String::from_utf8_lossy(&expected_out).into_owned())
-                    } else {
-                        None
-                    };
-
-                    Result::Ok(TestCase {
-                        name: name.to_owned(),
-                        exec,
-                        expected_out,
-                        should_fail: case.should_fail,
-                    })
-                }
+                create_test_case(public_cfg, test_root, container_test_root, case, name)
             })
             .buffer_unordered(16)
             .collect::<Vec<Result<TestCase>>>()
             .await;
+
         let test_cases = test_cases.drain(..).collect::<Result<Vec<_>>>()?;
+
+        // Get command steps
+        let mut raw_steps = job_cfg
+            .run
+            .iter()
+            .map(|s| RawStep {
+                command: s.to_owned(),
+                is_user_command: true,
+            })
+            .chain(public_cfg.run.iter().map(|s| RawStep {
+                command: s.to_owned(),
+                is_user_command: false,
+            }))
+            .collect::<Vec<_>>();
+
+        // Initialize special judge
+        let spj = if let Some(script) = &public_cfg.special_judge_script {
+            let script_path = base_dir.join(script);
+            let mut spj = spj::make_spj(&script_path).await?;
+
+            // Do special judge initialization
+            spj.with_console_env("todo".into())?;
+            spj.with_readfile(base_dir.to_owned())?;
+            spj.spawn_futures().await;
+            if spj.features().global_init() {
+                spj.spj_global_init(&public_cfg).await?;
+            }
+            if spj.features().transform_exec() {
+                raw_steps = spj.spj_map_exec(&raw_steps).await?;
+            }
+            Some(spj)
+        } else {
+            None
+        };
+
         Ok(TestSuite {
             image: Some(image),
             test_cases,
             options,
+            exec: raw_steps,
+            vars: public_cfg.vars,
             binds: public_cfg.binds.map(|bs| {
                 bs.iter()
                     .map(|b| {
@@ -522,6 +582,9 @@ impl TestSuite {
                 path_canonical_from(&public_cfg.mapped_dir.from, base_dir).to_slash_lossy(),
                 public_cfg.mapped_dir.to.to_slash_lossy(),
             )]),
+            spj_env: spj,
+            test_root,
+            container_test_root,
         })
     }
 
@@ -587,34 +650,60 @@ impl TestSuite {
                     case.name.clone(),
                     TestResult {
                         kind: TestResultKind::Running,
+                        score: None,
                         result_file_id: None,
                     },
                 ))
             });
             let mut t = Test::new();
             t.should_fail = case.should_fail;
-            case.exec.iter().for_each(|step| {
+            self.exec.iter().for_each(|step| {
                 t.add_step(Step::new_with_timeout(
-                    Capturable::new(sh![step]),
+                    Capturable::new(step.command.clone()),
                     time_limit.map(|n| std::time::Duration::from_secs(n as u64)),
+                    step.is_user_command,
                 ));
             });
             if let Some(out) = case.expected_out.as_deref() {
                 t.expected(out);
             }
 
+            let replacer: HashMap<String, _> = self
+                .vars
+                .iter()
+                .map(|(var, ext)| {
+                    (var.to_owned(), {
+                        // Special case for `$stdout`:
+                        // These variables will point to files under `io_dir`,
+                        // while others to `src_dir`.
+                        let mut p = match var.as_ref() {
+                            "$stdout" => self.test_root.clone(),
+                            _ => self.container_test_root.clone(),
+                        };
+                        p.push(format!("{}.{}", &case.name, ext));
+                        p.to_slash_lossy()
+                    })
+                })
+                .collect();
+
+            if let Some(spj) = &mut self.spj_env {
+                if spj.features().case_init() {
+                    log::trace!("{:08x}: spj init {}", rnd_id, case.name);
+                    spj.spj_case_init(case, &replacer).await?;
+                }
+            }
+
             log::trace!("{:08x}: created test: {}", rnd_id, case.name);
 
             let res = t
-                .run(&runner)
+                .run(&runner, &replacer, self.spj_env.as_mut())
                 .with_cancel(cancellation_token.clone())
                 .await
                 .ok_or(JobFailure::Cancelled)
                 .and_then(|x| x);
-
             log::trace!("{:08x}: runned: {}", rnd_id, case.name);
 
-            let (mut res, cache) = TestResult::from_failure(res);
+            let (mut res, cache) = TestResult::from_result(res, case.base_score);
             if let Some(cfg) = &upload_info {
                 if let Some(cache) = cache {
                     let file = upload_test_result(cache, cfg.clone(), &case.name).await;
@@ -637,6 +726,69 @@ impl TestSuite {
 
         Ok(result)
     }
+}
+
+/// Create a test case out of various configs.
+///
+/// This function is extracted from TestSuite::Run.
+/// TODO: Refactor this function.
+async fn create_test_case(
+    public_cfg: &JudgerPublicConfig,
+    test_root: &Path,
+    container_test_root: &Path,
+    case: &TestCaseDefinition,
+    name: String,
+) -> Result<TestCase> {
+    let replacer: HashMap<String, _> = public_cfg
+        .vars
+        .iter()
+        .map(|(var, ext)| {
+            (var.to_owned(), {
+                // Special case for `$stdout`:
+                // These variables will point to files under `io_dir`,
+                // while others to `src_dir`.
+                let p = match var.as_ref() {
+                    "$stdout" => test_root,
+                    _ => container_test_root,
+                };
+                p.join(format!("{}.{}", name, ext)).to_slash_lossy()
+            })
+        })
+        .collect();
+
+    // ? QUESTION: Now I'm reading `$stdout` in host, but the source file, etc. are handled in containers.
+    // ? Is this desirable?
+
+    let expected_out = if case.has_out && !case.should_fail {
+        let stdout_path = replacer.get("$stdout").ok_or_else(|| {
+            io::Error::new(
+                io::ErrorKind::NotFound,
+                "Output verification failed, no `$stdout` in dictionary",
+            )
+        })?;
+
+        let mut expected_out = Vec::new();
+        let mut file = tokio::fs::File::open(stdout_path).await.map_err(|e| {
+            io::Error::new(
+                io::ErrorKind::NotFound,
+                format!(
+                    "Output verification failed, failed to open `{:?}`: {}",
+                    stdout_path, e,
+                ),
+            )
+        })?;
+        file.read_to_end(&mut expected_out).await?;
+        Some(String::from_utf8_lossy(&expected_out).into_owned())
+    } else {
+        None
+    };
+
+    Result::Ok(TestCase {
+        name: name.to_owned(),
+        expected_out,
+        should_fail: case.should_fail,
+        base_score: case.base_score,
+    })
 }
 
 fn construct_case_index(pub_cfg: &JudgerPublicConfig) -> HashMap<String, &TestCaseDefinition> {
@@ -667,16 +819,17 @@ mod tests {
         fn ok() {
             block_on(async {
                 let mut t = Test::new();
-                t.add_step(Step::new(Capturable::new(command!(
-                    "echo",
-                    "This does nothing."
-                ))));
-                t.add_step(Step::new(Capturable::new(sh!(
-                    "echo 'Hello, world!' | awk '{print $1}'"
-                ))));
+                t.add_step(Step::new(
+                    Capturable::new(r"echo 'This does nothing.'".into()),
+                    true,
+                ));
+                t.add_step(Step::new(
+                    Capturable::new("echo 'Hello, world!' | awk '{print $1}'".into()),
+                    true,
+                ));
                 t.expected("Hello,\n");
-                let res = t.run(&TokioCommandRunner {}).await;
-                assert!(matches!(dbg!(res), Ok(())));
+                let res = t.run(&TokioCommandRunner {}, &HashMap::new(), None).await;
+                assert!(matches!(dbg!(res), Ok(_)));
             })
         }
 
@@ -684,31 +837,33 @@ mod tests {
         fn error_code() {
             block_on(async {
                 let mut t = Test::new();
-                t.add_step(Step::new(Capturable::new(command!(
-                    "echo",
-                    "This does nothing."
-                ))));
-                t.add_step(Step::new(Capturable::new(sh!(
-                    "echo 'Hello, world!' && false"
-                ))));
+                t.add_step(Step::new(
+                    Capturable::new(r"echo 'This does nothing.'".into()),
+                    true,
+                ));
+                t.add_step(Step::new(
+                    Capturable::new("echo 'Hello, world!' && false".into()),
+                    true,
+                ));
                 t.expected("Goodbye, world!");
-                let got = t.run(&TokioCommandRunner {}).await;
-                let expected: Result<(), _> = Err(JobFailure::ExecError(ExecError {
+                let got = t.run(&TokioCommandRunner {}, &HashMap::new(), None).await;
+                let expected: Result<f64, _> = Err(JobFailure::ExecError(ExecError {
                     stage: 1,
                     kind: ExecErrorKind::ReturnCodeCheckFailed,
                     output: vec![
                         ProcessInfo {
                             ret_code: 0,
-                            command: "[\"echo\", \"This does nothing.\"]".into(),
+                            command: "echo 'This does nothing.'".into(),
                             stdout: "This does nothing.\n".into(),
                             stderr: "".into(),
+                            is_user_command: true,
                         },
                         ProcessInfo {
                             ret_code: 1,
-                            command: "[\"sh\", \"-c\", \"echo \\\'Hello, world!\\\' && false\"]"
-                                .into(),
+                            command: "echo 'Hello, world!' && false".into(),
                             stdout: "Hello, world!\n".into(),
                             stderr: "".into(),
+                            is_user_command: true,
                         },
                     ],
                 }));
@@ -720,17 +875,17 @@ mod tests {
         fn signal() {
             block_on(async {
                 let mut t = Test::new();
-                t.add_step(Step::new(Capturable::new(command!(
-                    "echo",
-                    "This does nothing."
-                ))));
-                t.add_step(Step::new(Capturable::new(sh!(
-                    // "ping www.bing.com & sleep 0.5; kill $!",
-                    r#"{ sleep 0.1; kill $$; } & i=0; while [ "$i" -lt 4 ]; do echo $i; sleep 1; i=$(( i + 1 )); done"#
-                ))));
+                t.add_step(Step::new(
+                    Capturable::new(r"echo 'This does nothing.'".into()),
+                    true,
+                ));
+                t.add_step(Step::new(Capturable::new(
+                    // Kill a running task
+                    r#"{ sleep 0.1; kill $$; } & i=0; while [ "$i" -lt 4 ]; do echo $i; sleep 1; i=$(( i + 1 )); done"#.into()
+                ),true));
                 t.expected("Hello,\nworld!\n");
-                let got = t.run(&TokioCommandRunner {}).await;
-                let expected: Result<(), _> = Err(JobFailure::ExecError(ExecError {
+                let got = t.run(&TokioCommandRunner {}, &HashMap::new(), None).await;
+                let expected: Result<f64, _> = Err(JobFailure::ExecError(ExecError {
                     stage: 1,
                     kind: ExecErrorKind::RuntimeError(
                         format!(
@@ -741,13 +896,15 @@ mod tests {
                     output: vec![
                         ProcessInfo {
                             ret_code: 0,
-                            command: "[\"echo\", \"This does nothing.\"]".into(),
+                            is_user_command:true,
+                            command: r"echo 'This does nothing.'".into(),
                             stdout: "This does nothing.\n".into(),
                             stderr: "".into(),
                         },
                         ProcessInfo {
                             ret_code: -15,
-                            command: "[\"sh\", \"-c\", \"{ sleep 0.1; kill $$; } & i=0; while [ \\\"$i\\\" -lt 4 ]; do echo $i; sleep 1; i=$(( i + 1 )); done\"]".into(),
+                            is_user_command:true,
+                            command:r#"{ sleep 0.1; kill $$; } & i=0; while [ "$i" -lt 4 ]; do echo $i; sleep 1; i=$(( i + 1 )); done"#.into(),
                             stdout: "0\n".into(),
                             stderr: "".into(),
                         },
@@ -761,27 +918,30 @@ mod tests {
         fn output_mismatch() {
             block_on(async {
                 let mut t = Test::new();
-                t.add_step(Step::new(Capturable::new(command!(
-                    "echo",
-                    "This does nothing."
-                ))));
-                t.add_step(Step::new(Capturable::new(sh!(
-                    "echo 'Hello, world!' | awk '{print $2}'"
-                ))));
+                t.add_step(Step::new(
+                    Capturable::new(r"echo 'This does nothing.'".into()),
+                    true,
+                ));
+                t.add_step(Step::new(
+                    Capturable::new("echo 'Hello, world!' | awk '{print $2}'".into()),
+                    true,
+                ));
                 t.expected("Hello,\nworld!");
-                let got = t.run(&TokioCommandRunner {}).await;
-                let expected: Result<(), _> = Err(JobFailure::OutputMismatch(OutputMismatch {
+                let got = t.run(&TokioCommandRunner {}, &HashMap::new(), None).await;
+                let expected: Result<f64, _> = Err(JobFailure::OutputMismatch(OutputMismatch {
                     diff: "+ Hello,\n  world!\n".into(),
                     output: vec![
                         ProcessInfo {
                             ret_code: 0,
-                            command: "[\"echo\", \"This does nothing.\"]".into(),
+                            is_user_command: true,
+                            command: r"echo 'This does nothing.'".into(),
                             stdout: "This does nothing.\n".into(),
                             stderr: "".into(),
                         },
                         ProcessInfo {
                             ret_code: 0,
-                            command: "[\"sh\", \"-c\", \"echo \\\'Hello, world!\\\' | awk \\\'{print $2}\\\'\"]".into(),
+                            is_user_command: true,
+                            command: "echo 'Hello, world!' | awk '{print $2}'".into(),
                             stdout: "world!\n".into(),
                             stderr: "".into(),
                         },
@@ -795,22 +955,23 @@ mod tests {
         fn output_timed_out() {
             block_on(async {
                 let mut t = Test::new();
-                t.add_step(Step::new(Capturable::new(command!(
-                    "echo",
-                    "This does nothing."
-                ))));
+                t.add_step(Step::new(
+                    Capturable::new(r"echo 'This does nothing.'".into()),
+                    true,
+                ));
                 t.add_step(
-                    Step::new(Capturable::new(sh!("echo 0; sleep 3; echo 1")))
+                    Step::new(Capturable::new("echo 0; sleep 3; echo 1".into()), true)
                         .timeout(time::Duration::from_millis(100)),
                 );
                 t.expected("Hello,\nworld!\n");
-                let got = t.run(&TokioCommandRunner {}).await;
-                let expected: Result<(), _> = Err(JobFailure::ExecError(ExecError {
+                let got = t.run(&TokioCommandRunner {}, &HashMap::new(), None).await;
+                let expected: Result<f64, _> = Err(JobFailure::ExecError(ExecError {
                     stage: 1,
                     kind: ExecErrorKind::TimedOut,
                     output: vec![ProcessInfo {
                         ret_code: 0,
-                        command: "[\"echo\", \"This does nothing.\"]".into(),
+                        is_user_command: true,
+                        command: r"echo 'This does nothing.'".into(),
                         stdout: "This does nothing.\n".into(),
                         stderr: "".into(),
                     }],
@@ -851,16 +1012,18 @@ mod tests {
         #[test]
         fn ok() {
             docker_run(|runner, mut t| async {
-                t.add_step(Step::new(Capturable::new(command!(
-                    "echo",
-                    "This does nothing."
-                ))));
-                t.add_step(Step::new(Capturable::new(sh!(
-                    "echo 'Hello, world!' | awk '{print $1}'"
-                ))));
+                t.add_step(Step::new(
+                    Capturable::new(r"echo 'This does nothing.'".into()),
+                    true,
+                ));
+                t.add_step(Step::new(
+                    Capturable::new("echo 'Hello, world!' | awk '{print $1}'".into()),
+                    true,
+                ));
                 t.expected("Hello,\n");
-                let res = t.run(&runner).await;
-                assert!(matches!(dbg!(res), Ok(())));
+                let res = t.run(&runner, &HashMap::new(), None).await;
+                // Any Ok(_) represents accepted, just with different score.
+                assert!(matches!(dbg!(res), Ok(_)));
                 runner
             });
         }
@@ -868,31 +1031,33 @@ mod tests {
         #[test]
         fn error_code() {
             docker_run(|runner, mut t| async {
-                t.add_step(Step::new(Capturable::new(command!(
-                    "echo",
-                    "This does nothing."
-                ))));
-                t.add_step(Step::new(Capturable::new(sh!(
-                    "echo 'Hello, world!' && false"
-                ))));
+                t.add_step(Step::new(
+                    Capturable::new(r"echo 'This does nothing.'".into()),
+                    true,
+                ));
+                t.add_step(Step::new(
+                    Capturable::new("echo 'Hello, world!' && false".into()),
+                    true,
+                ));
                 t.expected("Hello,\nworld!\n");
-                let got = t.run(&runner).await;
-                let expected: Result<(), _> = Err(JobFailure::ExecError(ExecError {
+                let got = t.run(&runner, &HashMap::new(), None).await;
+                let expected: Result<f64, _> = Err(JobFailure::ExecError(ExecError {
                     stage: 1,
                     kind: ExecErrorKind::ReturnCodeCheckFailed,
                     output: vec![
                         ProcessInfo {
                             ret_code: 0,
-                            command: "[\"echo\", \"This does nothing.\"]".into(),
+                            command: "echo 'This does nothing.'".into(),
                             stdout: "This does nothing.\n".into(),
                             stderr: "".into(),
+                            is_user_command: true,
                         },
                         ProcessInfo {
                             ret_code: 1,
-                            command: "[\"sh\", \"-c\", \"echo \\\'Hello, world!\\\' && false\"]"
-                                .into(),
+                            command: "echo 'Hello, world!' && false".into(),
                             stdout: "Hello, world!\n".into(),
                             stderr: "".into(),
+                            is_user_command: true,
                         },
                     ],
                 }));
@@ -904,34 +1069,38 @@ mod tests {
         #[test]
         fn signal() {
             docker_run(|runner, mut t| async {
-                t.add_step(Step::new(Capturable::new(command!(
-                    "echo",
-                    "This does nothing."
-                ))));
-                t.add_step(Step::new(Capturable::new(sh!(
-                    // "ping www.bing.com & sleep 0.5; kill $!",
-                    r#"{ sleep 0.1; kill $$; } & i=0; while [ "$i" -lt 4 ]; do echo $i; sleep 1; i=$(( i + 1 )); done"#
-                ))));
+                t.add_step(Step::new(
+                    Capturable::new(r"echo 'This does nothing.'".into()),
+                    true,
+                ));
+                t.add_step(Step::new(Capturable::new(
+                    // Kill a running task
+                    r#"{ sleep 0.1; kill $$; } & i=0; while [ "$i" -lt 4 ]; do echo $i; sleep 1; i=$(( i + 1 )); done"#.into()
+                ),true));
                 t.expected("Hello,\nworld!\n");
-                let got = t.run(&runner).await;
-                let expected: Result<(), _> = Err(JobFailure::ExecError(ExecError {
+                let got = t.run(&runner, &HashMap::new(), None).await;
+                let expected: Result<f64, _> = Err(JobFailure::ExecError(ExecError {
                     stage: 1,
-                    kind: ExecErrorKind::RuntimeError(
+                    kind: if cfg!(unix){ ExecErrorKind::RuntimeError(
                         format!(
                             "Runtime Error: {}",
                             strsignal(15)
                         )
-                    ),
+                    )}else{
+                        ExecErrorKind::ReturnCodeCheckFailed
+                    },
                     output: vec![
                         ProcessInfo {
                             ret_code: 0,
-                            command: "[\"echo\", \"This does nothing.\"]".into(),
+                            is_user_command:true,
+                            command: r"echo 'This does nothing.'".into(),
                             stdout: "This does nothing.\n".into(),
                             stderr: "".into(),
                         },
                         ProcessInfo {
                             ret_code: -15,
-                            command: "[\"sh\", \"-c\", \"{ sleep 0.1; kill $$; } & i=0; while [ \\\"$i\\\" -lt 4 ]; do echo $i; sleep 1; i=$(( i + 1 )); done\"]".into(),
+                            is_user_command:true,
+                            command:r#"{ sleep 0.1; kill $$; } & i=0; while [ "$i" -lt 4 ]; do echo $i; sleep 1; i=$(( i + 1 )); done"#.into(),
                             stdout: "0\n".into(),
                             stderr: "".into(),
                         },
@@ -945,27 +1114,30 @@ mod tests {
         #[test]
         fn output_mismatch() {
             docker_run(|runner, mut t| async {
-                t.add_step(Step::new(Capturable::new(command!(
-                    "echo",
-                    "This does nothing."
-                ))));
-                t.add_step(Step::new(Capturable::new(sh!(
-                    "echo 'Hello, world!' | awk '{print $2}'"
-                ))));
+                t.add_step(Step::new(
+                    Capturable::new(r"echo 'This does nothing.'".into()),
+                    true,
+                ));
+                t.add_step(Step::new(
+                    Capturable::new("echo 'Hello, world!' | awk '{print $2}'".into()),
+                    true,
+                ));
                 t.expected("Hello,\nworld!");
-                let got = t.run(&runner).await;
-                let expected: Result<(), _> = Err(JobFailure::OutputMismatch(OutputMismatch {
+                let got = t.run(&runner, &HashMap::new(), None).await;
+                let expected: Result<f64, _> = Err(JobFailure::OutputMismatch(OutputMismatch {
                     diff: "+ Hello,\n  world!\n".into(),
                     output: vec![
                         ProcessInfo {
                             ret_code: 0,
-                            command: "[\"echo\", \"This does nothing.\"]".into(),
+                            is_user_command: true,
+                            command: r"echo 'This does nothing.'".into(),
                             stdout: "This does nothing.\n".into(),
                             stderr: "".into(),
                         },
                         ProcessInfo {
                             ret_code: 0,
-                            command: "[\"sh\", \"-c\", \"echo \\\'Hello, world!\\\' | awk \\\'{print $2}\\\'\"]".into(),
+                            is_user_command: true,
+                            command: "echo 'Hello, world!' | awk '{print $2}'".into(),
                             stdout: "world!\n".into(),
                             stderr: "".into(),
                         },
@@ -979,22 +1151,23 @@ mod tests {
         #[test]
         fn output_timed_out() {
             docker_run(|runner, mut t| async {
-                t.add_step(Step::new(Capturable::new(command!(
-                    "echo",
-                    "This does nothing."
-                ))));
+                t.add_step(Step::new(
+                    Capturable::new(r"echo 'This does nothing.'".into()),
+                    true,
+                ));
                 t.add_step(
-                    Step::new(Capturable::new(sh!("echo 0; sleep 3; echo 1")))
+                    Step::new(Capturable::new("echo 0; sleep 3; echo 1".into()), true)
                         .timeout(time::Duration::from_millis(100)),
                 );
                 t.expected("Hello,\nworld!\n");
-                let got = t.run(&runner).await;
-                let expected: Result<(), _> = Err(JobFailure::ExecError(ExecError {
+                let got = t.run(&runner, &HashMap::new(), None).await;
+                let expected: Result<f64, _> = Err(JobFailure::ExecError(ExecError {
                     stage: 1,
                     kind: ExecErrorKind::TimedOut,
                     output: vec![ProcessInfo {
                         ret_code: 0,
-                        command: "[\"echo\", \"This does nothing.\"]".into(),
+                        is_user_command: true,
+                        command: r"echo 'This does nothing.'".into(),
                         stdout: "This does nothing.\n".into(),
                         stderr: "".into(),
                     }],
@@ -1040,6 +1213,7 @@ mod test_suite {
                                 name: "succ".into(),
                                 should_fail: false,
                                 has_out: true,
+                                base_score: 1.0,
                             }],
                         )]
                         .iter()
@@ -1055,14 +1229,10 @@ mod test_suite {
                     .iter()
                     .map(|(k, v)| (k.to_string(), v.to_string()))
                     .collect(),
-                    run: [
-                        // "cd golem",
-                        "python ./golemc.py $src -o $bin",
-                        "cat $stdin | python ./golem.py $bin",
-                    ]
-                    .iter()
-                    .map(|s| s.to_string())
-                    .collect(),
+                    run: ["cat $stdin | python ./golem.py $bin"]
+                        .iter()
+                        .map(|s| s.to_string())
+                        .collect(),
 
                     mapped_dir: Bind {
                         from: PathBuf::from(r"../golem/src"),
@@ -1070,6 +1240,13 @@ mod test_suite {
                         readonly: false,
                     },
                     binds: None,
+                    special_judge_script: None,
+                },
+                &JudgeTomlTestConfig {
+                    // TODO: Refine interface
+                    image: Image::Image { tag: "".into() },
+                    build: None,
+                    run: vec!["python ./golemc.py $src -o $bin".into()],
                 },
                 TestSuiteOptions {
                     tests: ["succ"].iter().map(|s| s.to_string()).collect(),
@@ -1124,6 +1301,7 @@ mod test_suite {
                                 name: "succ".into(),
                                 should_fail: false,
                                 has_out: true,
+                                base_score: 1.0,
                             }],
                         )]
                         .iter()
@@ -1139,14 +1317,10 @@ mod test_suite {
                     .iter()
                     .map(|(k, v)| (k.to_string(), v.to_string()))
                     .collect(),
-                    run: [
-                        // "cd golem",
-                        "python ./golemc.py $src -o $bin",
-                        "cat $stdin | python ./golem.py $bin",
-                    ] // public
-                    .iter()
-                    .map(|s| s.to_string())
-                    .collect(),
+                    run: ["cat $stdin | python ./golem.py $bin"] // public
+                        .iter()
+                        .map(|s| s.to_string())
+                        .collect(),
 
                     mapped_dir: Bind {
                         from: PathBuf::from(r"../golem/src"),
@@ -1154,6 +1328,13 @@ mod test_suite {
                         readonly: false,
                     },
                     binds: Some(vec![]),
+                    special_judge_script: None,
+                },
+                &JudgeTomlTestConfig {
+                    // TODO: Refine interface
+                    image: Image::Image { tag: "".into() },
+                    build: None,
+                    run: vec!["python ./golemc.py $src -o $bin".into()],
                 },
                 TestSuiteOptions {
                     tests: ["succ"].iter().map(|s| s.to_string()).collect(), // private

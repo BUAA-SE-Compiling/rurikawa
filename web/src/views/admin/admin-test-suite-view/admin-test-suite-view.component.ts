@@ -137,6 +137,16 @@ export class AdminTestSuiteViewComponent implements OnInit {
     );
   }
 
+  removeSuite() {
+    this.httpClient
+      .delete(environment.endpointBase() + endpoints.testSuite.remove(this.id))
+      .subscribe({
+        next: () => {
+          this.router.navigate(['admin']);
+        },
+      });
+  }
+
   ngOnInit(): void {
     this.route.paramMap.subscribe((n) => {
       this.id = n.get('id');

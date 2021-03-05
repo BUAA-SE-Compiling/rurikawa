@@ -4,7 +4,7 @@
 	branch = master
 [submodule "3rd_party/SplitStream"]
 	path = 3rd_party/SplitStream
-	url = https://github.com/01010101lzy/SplitStream.git
+	url = https://github.com/lynzrand/SplitStream.git
 [submodule "judger/3rd_party/bollard"]
 	path = judger/3rd_party/bollard
 	url = https://github.com/fussybeaver/bollard.git

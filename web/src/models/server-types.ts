@@ -23,13 +23,22 @@ export interface TestSuite {
   isPublic: boolean;
   startTime: Date;
   endTime: Date;
+  scoringMode: ScoringMode;
   testGroups: { [key: string]: TestCaseDefinition[] };
+}
+
+export enum ScoringMode {
+  /** The basic scoring mode, display `{passedCases}/{totalCases}` */
+  Basic = 'Basic',
+  /** Floating scoring mode. Displays `{currentScore}/{totalScore}` */
+  Floating = 'Floating',
 }
 
 export interface TestCaseDefinition {
   name: string;
   hasOut: boolean;
   shouldFail: boolean;
+  baseScore?: number;
 }
 
 export interface DashboardItem {

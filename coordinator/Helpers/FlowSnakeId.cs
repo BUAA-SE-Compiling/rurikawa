@@ -82,27 +82,44 @@ namespace Karenia.Rurikawa.Helpers {
                 Num = 0;
                 return;
             }
-            if (val.Length != 13) {
+            if (val.Length < 13) {
                 throw new ArgumentException(
-                    $"Expected string length: 13, got: {val.Length}"
+                    $"Expected string length: at least 13, got: {val.Length}"
                 );
             }
             long num = 0;
-            for (int i = 0; i < 13; i++) {
+            int i = 0;
+            int j = 0;
+            while (j < 13 && i < val.Length) {
+                if (val[i] == '-') {
+                    i++; continue;
+                }
+                byte ch = charToBase32[val[i]];
+                if (ch == 255)
+                    throw new ArgumentException($"Unknown character when parsing FlowSnake");
                 num <<= 5;
-                num |= charToBase32[val[i]];
+                num |= ch;
+                i++;
+                j++;
             }
             Num = num;
         }
 
-        public override string ToString() {
-            var sb = new StringBuilder(13);
+        public string ToString(bool dash) {
+            var sb = new StringBuilder(14);
             int bit0 = (int)(Num >> 60) & 31;
             sb.Append(alphabet[bit0]);
             for (int i = 11; i >= 0; i--) {
                 sb.Append(alphabet[(int)((Num >> (5 * i)) & 31)]);
             }
+            if (dash) {
+                sb.Insert(7, '-');
+            }
             return sb.ToString();
+        }
+
+        public override string ToString() {
+            return this.ToString(true);
         }
 
         public DateTimeOffset ExtractTime() =>

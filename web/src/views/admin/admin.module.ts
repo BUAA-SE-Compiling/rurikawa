@@ -11,6 +11,7 @@ import { AdminTestSuiteViewComponent } from './admin-test-suite-view/admin-test-
 import { AdminComponentsModule } from 'src/components/admin-components/admin-components.module';
 import { AdminCreateTestSuiteViewComponent } from './admin-create-test-suite-view/admin-create-test-suite-view.component';
 import { HttpClientModule } from '@angular/common/http';
+import { AdminManageJudgerViewComponent } from './admin-manage-judger-view/admin-manage-judger-view.component';
 
 const routes: Routes = [
   {
@@ -29,6 +30,10 @@ const routes: Routes = [
     path: 'init-db',
     component: InitDatabaseComponent,
   },
+  {
+    path: 'judger',
+    component: AdminManageJudgerViewComponent,
+  },
 ];
 
 @NgModule({
@@ -37,6 +42,7 @@ const routes: Routes = [
     InitDatabaseComponent,
     AdminTestSuiteViewComponent,
     AdminCreateTestSuiteViewComponent,
+    AdminManageJudgerViewComponent,
   ],
   imports: [
     CommonModule,
@@ -50,6 +56,7 @@ const routes: Routes = [
     InitDatabaseComponent,
     AdminTestSuiteViewComponent,
     AdminCreateTestSuiteViewComponent,
+    AdminManageJudgerViewComponent,
   ],
 })
 export class AdminModule {}

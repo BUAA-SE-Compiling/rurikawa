@@ -1,5 +1,7 @@
 use difference::{Changeset, Difference};
+#[cfg(unix)]
 use libc::{c_char, c_int};
+#[cfg(unix)]
 use std::ffi::CStr;
 use std::str;
 
@@ -45,7 +47,7 @@ pub fn strsignal(signal: i32) -> String {
 
 /// Convert a signal (128-254) to a minus error code, retain the others.
 pub fn convert_code(code: i32) -> i32 {
-    if 128 <= code && code <= 254 {
+    if (128..=254).contains(&code) {
         128 - code
     } else {
         code

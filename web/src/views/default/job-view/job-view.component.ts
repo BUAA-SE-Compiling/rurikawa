@@ -11,7 +11,18 @@ import {
   TestResultKind,
   TestResult,
 } from 'src/models/job-items';
-import { groupBy, mapValues, toPairs, bindKey } from 'lodash';
+import {
+  groupBy,
+  mapValues,
+  toPairs,
+  bindKey,
+  flatMap,
+  values,
+  map,
+  flatten,
+  countBy,
+  reduce,
+} from 'lodash';
 import {
   SliderItem,
   SliderItemKind,
@@ -26,9 +37,14 @@ import RepoIcon from '@iconify/icons-mdi/git';
 import CommitIcon from '@iconify/icons-mdi/source-commit';
 import LeftIcon from '@iconify/icons-carbon/arrow-left';
 import { TestSuiteAndJobCache } from 'src/services/test_suite_cacher';
-import { JobBuildOutput } from 'src/models/server-types';
+import {
+  JobBuildOutput,
+  TestCaseDefinition,
+  TestSuite,
+} from 'src/models/server-types';
 import stripAnsi from 'strip-ansi';
 import { TitleService } from 'src/services/title_service';
+import { resultBriefMain, resultBriefSub } from 'src/util/brief-calc';
 
 @Component({
   selector: 'app-job-view',
@@ -48,10 +64,14 @@ export class JobViewComponent implements OnInit, OnChanges, OnDestroy {
   readonly repoIcon = RepoIcon;
   readonly commitIcon = CommitIcon;
   readonly leftIcon = LeftIcon;
+  readonly numberFormatter = Intl.NumberFormat('native', {
+    maximumSignificantDigits: 5,
+  });
 
   id: string;
-
+  testSuite?: TestSuite = undefined;
   job?: Job = undefined;
+  flatCaseMap?: Map<string, TestCaseDefinition> = undefined;
 
   outputMessage?: JobBuildOutput = undefined;
 
@@ -89,29 +109,12 @@ export class JobViewComponent implements OnInit, OnChanges, OnDestroy {
     return this.job?.revision.substring(0, 8) || '???';
   }
 
-  titleNumberBrief() {
-    if (!this.job) {
-      return 'Loading';
-    }
-    if (this.job.stage !== 'Finished') {
-      return this.job.stage;
-    }
-    if (this.job.resultKind !== 'Accepted') {
-      return this.job.resultKind;
-    }
+  resultBriefMain() {
+    return resultBriefMain(this.job, this.testSuite, this.numberFormatter);
+  }
 
-    let totalCnt = 0;
-    let acCnt = 0;
-
-    // tslint:disable-next-line: forin
-    for (let idx in this.job.results) {
-      let res = this.job.results[idx];
-      totalCnt++;
-      if (res.kind === 'Accepted') {
-        acCnt++;
-      }
-    }
-    return `${acCnt}/${totalCnt}`;
+  resultBriefSub() {
+    return resultBriefSub(this.job, this.testSuite, this.numberFormatter);
   }
 
   briefSlider(): SliderItem[] {
@@ -139,25 +142,45 @@ export class JobViewComponent implements OnInit, OnChanges, OnDestroy {
     if (!this.job) {
       return [];
     }
-    return toPairs(this.job.results).sort(([ax, ay], [bx, by]) => {
-      if (ay.kind !== by.kind) {
-        if (ay.kind === 'Accepted') {
-          return 1;
-        } else if (by.kind === 'Accepted') {
-          return -1;
+    return toPairs(this.job.results)
+      .sort(([ax, ay], [bx, by]) => {
+        if (ay.kind !== by.kind) {
+          if (ay.kind === 'Accepted') {
+            return 1;
+          } else if (by.kind === 'Accepted') {
+            return -1;
+          } else {
+            return ay.kind.localeCompare(by.kind);
+          }
         } else {
-          return ay.kind.localeCompare(by.kind);
+          return ax.localeCompare(bx);
         }
-      } else {
-        return ax.localeCompare(bx);
-      }
-    });
+      })
+      .map(([key, val]) => [
+        key,
+        val,
+        this.flatCaseMap?.get(key).baseScore ?? 1,
+      ]);
   }
 
   fetchJob() {
     this.service.getJob(this.id, false, true).subscribe({
       next: (v) => {
         this.job = v;
+        this.fetchSuite(v.testSuite);
+      },
+    });
+  }
+
+  fetchSuite(id: string) {
+    this.service.getTestSuite(id).subscribe({
+      next: (suite) => {
+        this.testSuite = suite;
+        this.flatCaseMap = new Map(
+          flatMap(values(suite.testGroups), (vals) =>
+            vals.map((v) => [v.name, v])
+          )
+        );
       },
     });
   }
