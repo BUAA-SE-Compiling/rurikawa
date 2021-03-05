@@ -20,12 +20,10 @@ use http::Method;
 use model::*;
 use serde_json::from_slice;
 use sink::*;
-use std::{collections::HashMap, path::PathBuf, sync::atomic::Ordering, sync::Arc, time::Duration};
+use std::{collections::HashMap, path::PathBuf, sync::atomic::Ordering, sync::Arc};
 use tokio_tungstenite::{connect_async, tungstenite::Message};
 use tracing::info_span;
 use tracing_futures::Instrument;
-
-// Arc<Mutex<WsSink>>==>>Arc<WsSink>
 
 /// Try to register at the coordinator if no access token was specified.
 ///

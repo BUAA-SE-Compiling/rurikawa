@@ -53,6 +53,9 @@ pub struct TestSuite {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "_t")]
 pub enum ClientMsg {
+    #[serde(rename = "receive_job")]
+    ReceiveJob(ReceiveJobMsg),
+
     #[serde(rename = "job_progress")]
     JobProgress(JobProgressMsg),
 
@@ -269,6 +272,12 @@ pub async fn upload_test_result(
             None
         }
     }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ReceiveJobMsg {
+    pub reject: bool,
+    pub job_id: FlowSnake,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
