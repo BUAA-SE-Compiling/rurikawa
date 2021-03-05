@@ -13,6 +13,7 @@ use std::{
 };
 use std::{path::Path, process::exit};
 use std::{sync::Arc, time::Duration};
+use tokio_tungstenite::tungstenite;
 use tracing_subscriber::FmtSubscriber;
 
 mod opt;
@@ -36,8 +37,7 @@ fn main() {
 
     ctrlc::set_handler(handle_ctrl_c).expect("Failed to set termination handler!");
 
-    let mut rt = tokio::runtime::Builder::new()
-        .threaded_scheduler()
+    let rt = tokio::runtime::Builder::new_multi_thread()
         .enable_all()
         .build()
         .expect("Failed to initialize runtime");
@@ -160,7 +160,7 @@ async fn client(cmd: opt::ConnectSubCmd) {
             Err(e) => {
                 // Exponential wait time
                 tracing::warn!("Failed to connect: {}", e);
-                tokio::time::delay_for(wait_time).await;
+                tokio::time::sleep(wait_time).await;
                 wait_time = std::cmp::min(wait_time.mul_f64(1.6), MAX_WAIT_TIME);
                 continue;
             }

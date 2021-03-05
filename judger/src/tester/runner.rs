@@ -4,7 +4,6 @@ use super::utils::convert_code;
 use super::{JobFailure, ProcessInfo};
 use crate::prelude::*;
 use anyhow::Result;
-use async_compat::CompatExt;
 use async_trait::async_trait;
 use bollard::{container::UploadToContainerOptions, exec::StartExecResults, models::Mount, Docker};
 use futures::stream::StreamExt;
@@ -13,7 +12,8 @@ use names::{Generator, Name};
 use std::os::unix::process::ExitStatusExt;
 use std::process::ExitStatus;
 use std::{collections::HashMap, default::Default};
-use tokio::{io::BufWriter, process::Command};
+use tokio::process::Command;
+use tokio_util::compat::*;
 
 /// An evaluation environment for commands.
 #[async_trait]
@@ -107,7 +107,7 @@ pub struct DockerCommandRunnerOptions {
     /// Data to be copied into container before build, in format of `(source_dir, target_dir)`
     pub copies: Option<Vec<(String, String)>>,
     /// Token to cancel this runner
-    pub cancellation_token: CancellationToken,
+    pub cancellation_token: CancellationTokenHandle,
 }
 
 impl Default for DockerCommandRunnerOptions {
@@ -235,11 +235,13 @@ impl DockerCommandRunner {
                     .collect::<Result<Vec<_>, bollard::errors::Error>>()?;
 
                 let from_path = from_path.clone();
-                let (pipe_recv, pipe_send) = async_pipe::pipe();
+                let (pipe_recv, pipe_send) = tokio::io::duplex(8192);
                 let read_codec = tokio_util::codec::BytesCodec::new();
                 let frame = tokio_util::codec::FramedRead::new(pipe_send, read_codec);
                 let task = async move {
-                    let mut tar = async_tar::Builder::new(BufWriter::new(pipe_recv).compat());
+                    let mut tar = async_tar::Builder::new(futures::io::BufWriter::new(
+                        pipe_recv.compat_write(),
+                    ));
                     match tar.append_dir_all(".", from_path).await {
                         Ok(_) => tar.finish().await,
                         e @ Err(_) => e,
@@ -253,7 +255,7 @@ impl DockerCommandRunner {
                             path: to_path.clone(),
                             ..Default::default()
                         }),
-                        hyper::Body::wrap_stream(frame.map(|x| x.map(bytes::BytesMut::freeze))),
+                        hyper::Body::wrap_stream(frame.map(|x| x)),
                     )
                     .await?;
                 task.await??;

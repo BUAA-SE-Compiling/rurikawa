@@ -49,7 +49,7 @@ pub struct SharedClientData {
     /// HTTP client
     pub client: reqwest::Client,
     /// All test suites whose folder is being edited.
-    pub locked_test_suite: dashmap::DashMap<FlowSnake, CancellationToken>,
+    pub locked_test_suite: dashmap::DashMap<FlowSnake, (u64, CancellationTokenHandle)>,
     /// Handle for all jobs currently running
     pub running_job_handles: Mutex<HashMap<FlowSnake, (JoinHandle<()>, CancellationTokenHandle)>>,
     /// Handle for all jobs currently cancelling
@@ -205,19 +205,20 @@ impl SharedClientData {
     }
 
     pub async fn obtain_suite_lock(&self, suite_id: FlowSnake) -> Option<CancellationTokenHandle> {
+        let state = rand::random();
         let handle = CancellationTokenHandle::new();
         let entry = self
             .locked_test_suite
             .entry(suite_id)
-            .or_insert_with(|| handle.get_token())
+            .or_insert_with(|| (state, handle.child_token()))
             .clone();
         tracing::debug!("Trying to obtain suite lock for {}", suite_id);
-        if entry.is_token_of(&handle) {
+        if entry.0 == state {
             tracing::debug!("Lock obtained");
-            Some(handle)
+            Some(entry.1)
         } else {
             tracing::debug!("Already locked");
-            entry.await;
+            (entry.1).cancelled().await;
             tracing::debug!("Lock cleared");
             None
         }
