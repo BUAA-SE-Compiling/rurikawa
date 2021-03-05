@@ -21,7 +21,7 @@ use path_slash::PathBufExt;
 use std::path::Path;
 use std::time;
 use std::{collections::HashMap, io, path::PathBuf, string::String, sync::Arc};
-use tokio::io::{AsyncReadExt, BufWriter};
+use tokio::io::{AsyncReadExt};
 use tokio::sync::mpsc::UnboundedSender;
 use tokio_util::compat::*;
 

@@ -20,9 +20,9 @@ use http::Method;
 use model::*;
 use serde_json::from_slice;
 use sink::*;
-use std::{collections::HashMap, fmt::Debug, path::PathBuf, sync::atomic::Ordering, sync::Arc};
-use tokio::{net::TcpStream, sync::Mutex};
-use tokio_tungstenite::{connect_async, tungstenite::Message, MaybeTlsStream, WebSocketStream};
+use std::{collections::HashMap, path::PathBuf, sync::atomic::Ordering, sync::Arc};
+
+use tokio_tungstenite::{connect_async, tungstenite::Message};
 use tracing::info_span;
 use tracing_futures::Instrument;
 
@@ -622,7 +622,7 @@ pub async fn client_loop(
         .unwrap();
 
     let keepalive_token = client_config.cancel_handle.child_token();
-    let keepalive_cancel = keepalive_token.child_token();
+    let _keepalive_cancel = keepalive_token.child_token();
 
     let keepalive_handle = tokio::spawn(keepalive(
         client_config.clone(),

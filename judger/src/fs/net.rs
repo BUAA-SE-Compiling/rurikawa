@@ -1,8 +1,8 @@
 //! Functions to download stuff into destinations
-use futures::{ StreamExt};
+use futures::StreamExt;
 use std::fmt::Write;
 use std::path::Path;
-use tokio::io::{ AsyncWriteExt};
+use tokio::io::AsyncWriteExt;
 use tokio::process::Command;
 
 #[derive(Debug)]
@@ -102,7 +102,7 @@ pub async fn download_unzip(
             log::info!("Writing {} bytes into {}", bytes.len(), dir.display());
             file.write_all(&bytes).await?;
         }
-        file.flush();
+        file.flush().await?;
         drop(file);
 
         let unzip_res = Command::new("7z")

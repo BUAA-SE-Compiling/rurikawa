@@ -91,7 +91,7 @@ impl WebsocketSink {
         let sink = sink.clone().unwrap();
         let mut sink = sink.lock().await;
         let inner = &mut *sink;
-        inner.send_all(msg).await;
+        inner.send_all(msg).await?;
         Ok(())
     }
 

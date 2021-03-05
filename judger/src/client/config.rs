@@ -1,4 +1,4 @@
-use crate::prelude::{CancellationToken, CancellationTokenHandle, FlowSnake};
+use crate::prelude::{CancellationTokenHandle, FlowSnake};
 use serde::{Deserialize, Serialize};
 use std::{
     collections::HashMap, path::PathBuf, sync::atomic::AtomicBool, sync::atomic::AtomicUsize,

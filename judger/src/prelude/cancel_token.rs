@@ -28,7 +28,7 @@ where
         pin_mut!(self_);
 
         tokio::select! {
-            abort = cancel.cancelled() => None,
+            _abort = cancel.cancelled() => None,
             fut = self_ => Some(fut)
         }
     }

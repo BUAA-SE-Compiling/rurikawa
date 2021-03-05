@@ -12,7 +12,7 @@ use names::{Generator, Name};
 use std::os::unix::process::ExitStatusExt;
 use std::process::ExitStatus;
 use std::{collections::HashMap, default::Default};
-use tokio::{io::BufWriter, process::Command};
+use tokio::{process::Command};
 use tokio_util::compat::*;
 
 /// An evaluation environment for commands.
