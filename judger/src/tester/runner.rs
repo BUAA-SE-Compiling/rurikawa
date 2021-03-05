@@ -2,10 +2,11 @@ use super::exec::BuildResultChannel;
 use super::model::*;
 use super::utils::convert_code;
 use super::{JobFailure, ProcessInfo};
-use crate::prelude::*;
+use crate::{prelude::*, sh};
 use anyhow::Result;
 use async_trait::async_trait;
 use bollard::{container::UploadToContainerOptions, exec::StartExecResults, models::Mount, Docker};
+use drop_bomb::DropBomb;
 use futures::stream::StreamExt;
 use names::{Generator, Name};
 #[cfg(unix)]
@@ -25,6 +26,7 @@ pub trait CommandRunner {
 }
 
 /// A *local* command evaluation environment.
+/// This is used generally for local testing purposes.
 pub struct TokioCommandRunner {}
 
 #[async_trait]
@@ -34,16 +36,17 @@ impl CommandRunner for TokioCommandRunner {
         cmd_str: &str,
         variables: &HashMap<String, String>,
     ) -> PopenResult<ProcessInfo> {
-        let cmd = vec!["sh".to_owned(), "-c".to_owned(), cmd_str.to_owned()];
+        let cmd: Vec<String> = sh!(cmd_str);
 
-        let mut cmd_iter = cmd.iter();
-        let mut command = Command::new(cmd_iter.next().ok_or_else(|| {
+        let (car, cdr) = cmd.split_first().ok_or_else(|| {
             std::io::Error::new(
                 std::io::ErrorKind::InvalidInput,
                 "Command must contain at least one string",
             )
-        })?);
-        command.args(cmd_iter);
+        })?;
+
+        let mut command = Command::new(car);
+        command.args(cdr);
 
         for (k, v) in variables {
             command.env(k, v);
@@ -54,8 +57,10 @@ impl CommandRunner for TokioCommandRunner {
             stdout,
             stderr,
         } = command.output().await?;
+
         let ret_code = ret_code_from_exit_status(status);
         let ret_code = convert_code(ret_code);
+
         Ok(ProcessInfo {
             command: cmd_str.to_owned(),
             is_user_command: false,
@@ -73,11 +78,10 @@ fn ret_code_from_exit_status(status: ExitStatus) -> i32 {
 
 #[cfg(unix)]
 fn ret_code_from_exit_status(status: ExitStatus) -> i32 {
-    match (status.code(), status.signal()) {
-        (Some(x), _) => x,
-        (None, Some(x)) => -x,
-        _ => unreachable!(),
-    }
+    status
+        .code()
+        .or_else(|| status.signal().map(|x| -x))
+        .unwrap_or(1)
 }
 
 /// Command evaluation environment in a Docker container.
@@ -90,6 +94,8 @@ pub struct DockerCommandRunner {
     options: DockerCommandRunnerOptions,
     /// Intermediate images created by this runner
     pub intermediate_images: Vec<String>,
+    /// A bomb that must be defused. Prevents drops without explicit kills.
+    bomb: DropBomb,
 }
 
 pub struct DockerCommandRunnerOptions {
@@ -137,6 +143,9 @@ impl DockerCommandRunner {
             instance,
             options,
             intermediate_images: vec![],
+            bomb: DropBomb::new(
+                "DockerCommandRunner must be explicitly killed to prevent stranding contrainers",
+            ),
         };
         let cancel = res.options.cancellation_token.clone();
 
@@ -335,10 +344,7 @@ impl DockerCommandRunner {
         log::trace!("container {}: starting", res.options.container_name);
         // Start the container
         res.instance
-            .start_container(
-                container_name,
-                None::<bollard::container::StartContainerOptions<String>>,
-            )
+            .start_container::<String>(container_name, None)
             .await
             .map_err(|e| {
                 JobFailure::internal_err_from(format!(
@@ -351,7 +357,10 @@ impl DockerCommandRunner {
         Ok(res)
     }
 
-    pub async fn kill(self) {
+    pub async fn kill(mut self) {
+        // Defuse the bomb.
+        self.bomb.defuse();
+
         let container_name = &self.options.container_name;
 
         let _res = self
