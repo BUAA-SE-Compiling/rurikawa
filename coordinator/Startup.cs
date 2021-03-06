@@ -123,10 +123,12 @@ namespace Karenia.Rurikawa.Coordinator {
             dis.RegisterConvention(new DefaultDiscriminatorConvention<string>(opt, "_t"));
             dis.RegisterType<Models.Judger.ClientStatusMsg>();
             dis.RegisterType<Models.Judger.JobProgressMsg>();
+            dis.RegisterType<Models.Judger.ServerHelloMsg>();
             dis.RegisterType<Models.Judger.JobResultMsg>();
             dis.RegisterType<Models.Judger.PartialResultMsg>();
             dis.RegisterType<Models.Judger.AbortJobServerMsg>();
             dis.RegisterType<Models.Judger.NewJobServerMsg>();
+            dis.RegisterType<Models.Judger.JobRequestMsg>();
             dis.RegisterType<Models.Judger.JobOutputMsg>();
             dis.RegisterType<Models.WebsocketApi.JobStatusUpdateMsg>();
             dis.RegisterType<Models.WebsocketApi.JudgerStatusUpdateMsg>();

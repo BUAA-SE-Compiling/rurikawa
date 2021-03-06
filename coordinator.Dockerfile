@@ -1,11 +1,11 @@
-FROM mcr.microsoft.com/dotnet/core/aspnet:5-alpine AS base
+FROM mcr.microsoft.com/dotnet/aspnet:5.0-alpine AS base
 RUN sed -i 's/dl-cdn.alpinelinux.org/mirrors.tuna.tsinghua.edu.cn/g' /etc/apk/repositories
 RUN apk add git
 WORKDIR /app
 EXPOSE 80
 EXPOSE 443
 
-FROM mcr.microsoft.com/dotnet/core/sdk:5-alpine AS build
+FROM mcr.microsoft.com/dotnet/sdk:5.0-alpine AS build
 WORKDIR /src
 COPY 3rd_party /src/3rd_party
 COPY coordinator/Karenia.Rurikawa.Coordinator.csproj coordinator/

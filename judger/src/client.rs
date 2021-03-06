@@ -617,46 +617,73 @@ async fn keepalive(
 
 async fn poll_jobs(
     client_config: Arc<SharedClientData>,
+    keepalive_token: CancellationTokenHandle,
     ws: Arc<WsSink>,
     poll_interval: std::time::Duration,
     retry_interval: std::time::Duration,
+    poll_timeout: std::time::Duration,
 ) {
-    'out: while tokio::time::sleep(poll_interval)
-        .with_cancel(client_config.cancel_handle.child_token())
-        .await
-        .is_some()
-    {
+    while {
         while client_config.waiting_for_jobs.load().is_some() {
             if tokio::time::sleep(retry_interval)
-                .with_cancel(client_config.cancel_handle.child_token())
+                .with_cancel(keepalive_token.child_token())
                 .await
                 .is_none()
             {
-                break 'out;
+                return;
             }
         }
 
         let message_id = FlowSnake::generate();
+
         client_config
             .waiting_for_jobs
-            .store(Some(Arc::new(message_id.clone())));
+            .store(Some(Arc::new(message_id)));
 
         let active_task_count = client_config.running_tests.load(Ordering::SeqCst) as u32;
         let request_for_new_task =
             client_config.cfg.max_concurrent_tasks as u32 - active_task_count;
 
-        match ws
-            .send_msg(&ClientMsg::JobRequest(JobRequestMsg {
-                active_task_count,
-                request_for_new_task,
-                message_id: Some(message_id),
-            }))
+        tracing::trace!(
+            "Polling jobs from server. Asking for {} new jobs.",
+            request_for_new_task
+        );
+
+        let msg = ClientMsg::JobRequest(JobRequestMsg {
+            active_task_count,
+            request_for_new_task,
+            message_id: Some(message_id),
+        });
+        if !matches!(
+            ws.send_msg(&msg)
+                .with_cancel(keepalive_token.child_token())
+                .await,
+            Some(Ok(_))
+        ) {
+            return;
+        }
+
+        tokio::spawn({
+            // auto-resetting
+            let client_config = client_config.clone();
+            async move {
+                tokio::time::sleep(poll_timeout).await;
+                let old_val = client_config.waiting_for_jobs.swap(None);
+                if old_val.as_ref().map_or(false, |x| **x == message_id) {
+                    tracing::warn!(
+                        "Job polling timed out at {}s for poll message {}. Please check server!",
+                        poll_timeout.as_secs_f32(),
+                        old_val.unwrap()
+                    );
+                }
+            }
+        });
+
+        tokio::time::sleep(poll_interval)
+            .with_cancel(keepalive_token.child_token())
             .await
-        {
-            Err(_) => break 'out,
-            _ => {}
-        };
-    }
+            .is_some()
+    } {}
 }
 
 #[allow(clippy::if_same_then_else)]
@@ -666,7 +693,9 @@ pub async fn client_loop(
     client_config: Arc<SharedClientData>,
 ) -> Arc<WsSink> {
     let keepalive_token = client_config.cancel_handle.child_token();
-    let _keepalive_cancel = keepalive_token.child_token();
+    let keepalive_cancel = keepalive_token.child_token();
+
+    client_config.waiting_for_jobs.store(None);
 
     let keepalive_handle = tokio::spawn(keepalive(
         client_config.clone(),
@@ -675,16 +704,18 @@ pub async fn client_loop(
         std::time::Duration::from_secs(20),
     ));
 
-    let report_stat = tokio::spawn(poll_jobs(
+    let poll_jobs_handle = tokio::spawn(poll_jobs(
         client_config.clone(),
+        keepalive_cancel.child_token(),
         ws_send.clone(),
         std::time::Duration::from_secs(10),
         std::time::Duration::from_secs(1),
+        std::time::Duration::from_secs(60),
     ));
 
     while let Some(Some(Ok(x))) = ws_recv
         .next()
-        .with_cancel(client_config.cancel_handle.child_token())
+        .with_cancel(keepalive_cancel.child_token())
         .await
     {
         let x: Message = x;
@@ -699,7 +730,7 @@ pub async fn client_loop(
                             if client_config
                                 .waiting_for_jobs
                                 .swap(None)
-                                .map_or(true, |x| id == *x)
+                                .map_or(false, |x| id != *x)
                             {
                                 proceed = false;
                             }
@@ -723,6 +754,9 @@ pub async fn client_loop(
                             .insert(job_id, abort);
                         let _ = inserted_send.send(());
                     }
+                    ServerMsg::ServerHello => {
+                        tracing::info!("Hi, server o/");
+                    }
                 },
                 Err(e) => {
                     tracing::warn!(
@@ -743,6 +777,9 @@ pub async fn client_loop(
     ws_send.clear_socket();
 
     let _ = keepalive_handle.await;
+    let _ = poll_jobs_handle.await;
+
+    client_config.waiting_for_jobs.store(None);
 
     tracing::warn!("Disconnected!");
     ws_send

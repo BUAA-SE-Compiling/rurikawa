@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using System.Dynamic;
 using System.IO;
 using System.Linq;
+using System.Reactive.Linq;
 using System.Text;
 using System.Text.Json;
 using System.Threading;
@@ -94,8 +95,9 @@ namespace Karenia.Rurikawa.Coordinator.Services {
         ///     True if the websocket connection was made.
         /// </returns>
         public async ValueTask<bool> TryUseConnection(HttpContext ctx) {
+            using var scope = scopeProvider.CreateScope();
             if (ctx.Request.Query.TryGetValue("token", out var authStrings)) {
-                var auth = authStrings.FirstOrDefault();
+                var auth = authStrings.First();
                 var tokenEntry = await Authenticate(auth);
                 if (tokenEntry != null) {
                     // A connection id is passed to ensure that the client can safely
@@ -118,34 +120,27 @@ namespace Karenia.Rurikawa.Coordinator.Services {
                     connLock.Dispose();
 
                     var ws = await ctx.WebSockets.AcceptWebSocketAsync();
+
                     var wrapper = new JudgerWebsocketWrapperTy(
                         ws,
                         jsonSerializerOptions,
-                        4096);
+                        logger: scope.ServiceProvider.GetService<ILogger<JudgerWebsocketWrapperTy>>());
+
                     var judger = new Judger(auth, tokenEntry, wrapper, connId);
                     {
                         using var _ = await connectionLock.LockAsync();
                         connections.Add(auth, judger);
                     }
+                    await wrapper.SendMessage(new ServerHelloMsg());
                     logger.LogInformation($"Connected to judger {auth}");
 
-                    /*
-                     * Note:
-                     *
-                     * We do not add judger to judger queue upon creation,
-                     * although it should be available. On the contrary, we rely
-                     * on the judger to send a ClientStatusMessage to declare it
-                     * is ready, and add it to queue at that time.
-                     */
-
                     try {
-                        using (var conn = judger.Socket.Messages.Connect())
-                        using (var subscription = AssignObservables(auth, judger.Socket)) {
-                            await wrapper.WaitUntilClose();
-                        }
+                        using var subscription = AssignObservables(auth, judger.Socket);
+                        await wrapper.WaitUntilClose();
                     } catch (Exception e) {
                         logger.LogError(e, $"Aborted connection to judger {auth}");
                     }
+
                     logger.LogInformation($"Disconnected from judger {auth}");
                     {
                         using var _ = await connectionLock.LockAsync();
@@ -181,6 +176,8 @@ namespace Karenia.Rurikawa.Coordinator.Services {
                         logger.LogCritical("Unable to handle message type {0}", msg.GetType().Name);
                         break;
                 }
+            }, _ => { }, () => {
+                logger.LogInformation($"Judger {clientId} finished connection");
             });
         }
 
@@ -201,21 +198,18 @@ namespace Karenia.Rurikawa.Coordinator.Services {
         }
 
         async void OnJobRequestMessage(string clientId, JobRequestMsg msg) {
-            using (await queueLock.LockAsync()) {
-                // should we dispatch a new job for this judger?
-                using (await connectionLock.LockAsync()) {
-                    if (connections.TryGetValue(clientId, out var conn)) {
-                        conn.CanAcceptNewTask = msg.ActiveTaskCount > 0;
-                        conn.ActiveTaskCount = msg.ActiveTaskCount;
+            // should we dispatch a new job for this judger?
+            using (await connectionLock.LockAsync()) {
+                if (connections.TryGetValue(clientId, out var conn)) {
+                    conn.CanAcceptNewTask = msg.ActiveTaskCount > 0;
+                    conn.ActiveTaskCount = msg.ActiveTaskCount;
 
-                        logger.LogInformation("Judger {0} asked for {1} jobs", clientId, msg.RequestForNewTask);
+                    logger.LogInformation("Judger {0} asked for {1} jobs", clientId, msg.RequestForNewTask);
 
-                        var dispatchedCount = await TryDispatchJobFromDatabase(conn, msg.RequestForNewTask);
+                    var dispatchedCount = await TryDispatchJobFromDatabase(conn, msg.RequestForNewTask, msg.MessageId);
 
-                        logger.LogInformation("Sent {1} jobs to {0}", clientId, msg.RequestForNewTask);
-                    }
+                    logger.LogInformation("Sent {1} jobs to {0}", dispatchedCount, clientId);
                 }
-
             }
         }
 
@@ -405,21 +399,23 @@ namespace Karenia.Rurikawa.Coordinator.Services {
         }
 
         /// <summary>
-        /// Dispatch a single job to the given judger. 
-        /// 
+        /// Dispatch a list of jobs to the given judger.
         /// <p>
         /// Note: this method changes the state of the job, so it needs to be 
         /// saved to database after this method returns.
         /// </p>
         /// </summary>
-        protected async ValueTask<bool> DispatchJobs(Judger judger, List<Job> jobs) {
+        protected async ValueTask<bool> DispatchJobs(
+            Judger judger,
+            List<Job> jobs,
+            FlowSnake? replyTo = null) {
             var redis = await this.redis.GetDatabase();
 
             try {
                 await judger.Socket.SendMessage(new MultipleNewJobServerMsg()
                 {
                     Jobs = jobs,
-                    ReplyTo = null
+                    ReplyTo = replyTo
                 });
 
                 foreach (var job in jobs) {
@@ -499,18 +495,22 @@ namespace Karenia.Rurikawa.Coordinator.Services {
         /// </summary>
         /// <param name="judger">The judger to dispatch from.</param>
         /// <param name="count">The maximum count of jobs to dispatch.</param>
+        /// <param name="replyTo">The request message this replies to, if any</param>
         /// <returns></returns>
-        protected async ValueTask<int> TryDispatchJobFromDatabase(Judger judger, int count) {
+        protected async ValueTask<int> TryDispatchJobFromDatabase(
+            Judger judger,
+            int count,
+            FlowSnake? replyTo = null) {
             using var scope = scopeProvider.CreateScope();
             var db = GetDb(scope);
             using var tx = await db.Database.BeginTransactionAsync(System.Data.IsolationLevel.Serializable);
-            var job = await GetUndispatchedJobsFromDatabase(db, count);
+            var jobs = await GetUndispatchedJobsFromDatabase(db, count);
 
             try {
-                var res = await DispatchJobs(judger, job);
+                var res = await DispatchJobs(judger, jobs, replyTo);
                 await db.SaveChangesAsync();
                 await tx.CommitAsync();
-                return job.Count;
+                return jobs.Count;
             } catch {
                 await tx.RollbackAsync();
                 return 0;

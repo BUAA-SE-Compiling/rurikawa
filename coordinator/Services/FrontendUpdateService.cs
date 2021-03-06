@@ -120,7 +120,7 @@ namespace Karenia.Rurikawa.Coordinator.Services {
         }
 
         private IDisposable SetupObservables(FrontendConnection conn) {
-            conn.Conn.Messages.Connect();
+            // conn.Conn.Messages.Connect();
             return conn.Conn.Messages.Subscribe((val) => {
                 switch (val) {
                     case SubscribeMsg msg:

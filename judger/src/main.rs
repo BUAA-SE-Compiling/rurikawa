@@ -24,13 +24,10 @@ static ABORT_HANDLE: OnceCell<CancellationTokenHandle> = OnceCell::new();
 
 fn main() {
     let opt = opt::Opts::parse();
-    tracing_log::LogTracer::builder()
-        .with_max_level(log::LevelFilter::Info)
-        .init()
-        .unwrap();
+    tracing_log::LogTracer::builder().init().unwrap();
 
     let subscriber = FmtSubscriber::builder()
-        .with_max_level(tracing::Level::INFO)
+        .with_max_level(opt.opt.log_level)
         .finish();
 
     tracing::subscriber::set_global_default(subscriber).expect("setting default subscriber failed");
@@ -140,6 +137,7 @@ async fn client(cmd: opt::ConnectSubCmd) {
         }
     }
 
+    tokio::fs::create_dir_all(&cache_folder).await.unwrap();
     if !cmd.no_save {
         update_client_config(&cache_folder, &cfg.cfg).await.unwrap();
     }

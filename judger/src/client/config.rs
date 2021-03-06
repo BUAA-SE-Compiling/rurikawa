@@ -61,6 +61,8 @@ pub struct SharedClientData {
     pub cancelling_job_info: dashmap::DashMap<FlowSnake, AbortJob>,
     /// Global cancellation token handle
     pub cancel_handle: CancellationTokenHandle,
+    // /// The docker instance we're connecting
+    // pub docker: Docker
 }
 
 impl SharedClientData {

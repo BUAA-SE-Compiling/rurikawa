@@ -24,8 +24,8 @@ namespace Karenia.Rurikawa.Helpers {
             this.serializerOptions = serializerOptions;
             this.recvBuffer = new byte[defaultBufferSize];
             this.logger = logger;
-            this.Messages = messages.ObserveOn(Scheduler.Default).Publish();
-            this.Errors = errors.ObserveOn(Scheduler.Default).Publish();
+            this.Messages = messages.ObserveOn(Scheduler.Default);
+            this.Errors = errors.ObserveOn(Scheduler.Default);
         }
 
         readonly WebSocket socket;
@@ -38,9 +38,9 @@ namespace Karenia.Rurikawa.Helpers {
         byte[] recvBuffer;
 
         private readonly Subject<TRecvMessage> messages = new Subject<TRecvMessage>();
-        public IConnectableObservable<TRecvMessage> Messages { get; }
+        public IObservable<TRecvMessage> Messages { get; }
         private readonly Subject<Exception> errors = new Subject<Exception>();
-        public IConnectableObservable<Exception> Errors { get; }
+        public IObservable<Exception> Errors { get; }
 
         protected void DoubleRecvCapacity() {
             var newBuffer = new byte[this.recvBuffer.Length * 2];
@@ -76,6 +76,7 @@ namespace Karenia.Rurikawa.Helpers {
                                 new ArraySegment<byte>(this.recvBuffer, 0, writtenBytes),
                                 serializerOptions
                             );
+                            if (message is null) continue;
                             logger?.LogInformation("{0}", message);
                             this.messages.OnNext(message);
                             break;

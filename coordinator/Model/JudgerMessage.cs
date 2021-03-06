@@ -12,6 +12,9 @@ namespace Karenia.Rurikawa.Models.Judger {
     /// </summary>
     public class ServerMsg { }
 
+    [JsonDiscriminator("server_hello")]
+    public class ServerHelloMsg : ServerMsg { }
+
     /// <summary>
     /// Message that provides a new job to judger with given id and specification.
     /// <br/>

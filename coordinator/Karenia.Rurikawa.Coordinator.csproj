@@ -35,7 +35,7 @@
     <PackageReference Include="SharpCompress" Version="0.26.0" />
     <PackageReference Include="StackExchange.Redis" Version="2.1.58" />
     <PackageReference Include="System.IdentityModel.Tokens.Jwt" Version="6.7.1" />
-    <PackageReference Include="System.Reactive" Version="4.4.1" />
+    <PackageReference Include="System.Reactive" Version="5.0.0" />
     <PackageReference Include="Z.EntityFramework.Plus.EFCore" Version="3.0.60" />
     <ProjectReference Include="..\3rd_party\SplitStream\src\SplitStream\MicroKnights.IO.SplitStream.csproj" />
   </ItemGroup>

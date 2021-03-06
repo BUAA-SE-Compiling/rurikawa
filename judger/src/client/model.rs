@@ -12,6 +12,8 @@ pub enum ServerMsg {
     MultiNewJob(MultiNewJob),
     #[serde(rename = "abort_job")]
     AbortJob(AbortJob),
+    #[serde(rename = "server_hello")]
+    ServerHello,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -73,6 +75,8 @@ pub enum ClientMsg {
     // Obsolete
     // #[serde(rename = "client_status")]
     // ClientStatus(ClientStatusMsg),
+    //
+    /// Requests some job from coordinator
     #[serde(rename = "job_request")]
     JobRequest(JobRequestMsg),
 }
