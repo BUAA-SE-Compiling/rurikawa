@@ -6,7 +6,9 @@
         "canonicalize",
         "deserialization",
         "golemc",
+        "mkdir",
         "rurikawa",
+        "stablized",
         "tungstenite",
         "unsync"
     ],

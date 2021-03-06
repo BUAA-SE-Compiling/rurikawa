@@ -85,6 +85,11 @@ fn ret_code_from_exit_status(status: ExitStatus) -> i32 {
 }
 
 /// Command evaluation environment in a Docker container.
+///
+/// Attention:
+/// - Every `DockerCommandRunner` instance includes a `DropBomb`,
+///     which prevents `drop`ping without explicitly using `self.kill()`.
+/// - When the instance is directly `drop`ped, a runtime panic will occur.
 pub struct DockerCommandRunner {
     /// The image to be used.
     image: Image,
@@ -98,6 +103,7 @@ pub struct DockerCommandRunner {
     bomb: DropBomb,
 }
 
+/// The options while creating a `DockerCommandRunner`.
 pub struct DockerCommandRunnerOptions {
     /// Name assigned to the container.
     pub container_name: String,
@@ -132,13 +138,21 @@ impl Default for DockerCommandRunnerOptions {
 }
 
 impl DockerCommandRunner {
+    /// Try creating a new `DockerCommandRunner` instance.
+    ///
+    /// This includes:
+    /// - Defusing the DropBomb.
+    /// - Stopping & removing the container.
+    /// - Removing all the intermediate images (only if `self.options.remove_image` is set to `true`).
+    // ! WARNING: When implementing this function, THE QUESTION MARK SHALL NEVER BE USED
+    // ! as it implies an implicit drop of `self`, which is not tolerated!
     pub async fn try_new(
         instance: Docker,
         image: Image,
         options: DockerCommandRunnerOptions,
         partial_result_channel: Option<BuildResultChannel>,
     ) -> Result<Self> {
-        let mut res = DockerCommandRunner {
+        let mut r = DockerCommandRunner {
             image,
             instance,
             options,
@@ -147,27 +161,45 @@ impl DockerCommandRunner {
                 "DockerCommandRunner must be explicitly killed to prevent stranding contrainers",
             ),
         };
-        let cancel = res.options.cancellation_token.clone();
 
-        log::info!("container {}: started building", res.options.container_name);
+        /// The equivalent of Rust's `try` macro, with the only difference that
+        /// right before early returning errors, `DockerCommandRunner` is killed.
+        /// TODO: When `AsyncDrop` is stabled, use RAII + kill() instead of this workaround.
+        macro_rules! try_or_kill {
+            ($res:expr $(,)?) => {
+                match $res {
+                    Ok(val) => val,
+                    Err(err) => {
+                        r.kill().await;
+                        return Err(err.into());
+                    }
+                }
+            };
+        }
 
-        // Build the image
-        if res.options.build_image {
-            res.image
-                .build(res.instance.clone(), partial_result_channel, cancel.clone())
-                .await?
+        let cancel = r.options.cancellation_token.clone();
+
+        log::info!("container {}: started building", r.options.container_name);
+
+        // Build the image.
+        if r.options.build_image {
+            try_or_kill!(
+                r.image
+                    .build(r.instance.clone(), partial_result_channel, cancel.clone(),)
+                    .await
+            )
         };
-        let mut image_name = res.image.tag();
 
-        res.intermediate_images.push(image_name.clone());
+        let mut image_name = r.image.tag();
+        r.intermediate_images.push(image_name.clone());
 
-        // Copy data into the container
-        if let Some(copies) = &res.options.copies {
+        // Copy data into the container.
+        if let Some(copies) = &r.options.copies {
             let after_copy_image_name = format!("{}_copied", image_name);
 
             let container_name = format!(
                 "{}-add-data-{}",
-                res.options.container_name,
+                r.options.container_name,
                 FlowSnake::generate()
             );
             log::info!(
@@ -176,7 +208,7 @@ impl DockerCommandRunner {
                 container_name
             );
 
-            let create_instance = res
+            let create_res = r
                 .instance
                 .create_container(
                     Some(bollard::container::CreateContainerOptions {
@@ -191,45 +223,51 @@ impl DockerCommandRunner {
                         ..Default::default()
                     },
                 )
-                .with_cancel(cancel.clone())
+                .with_cancel(cancel)
                 .await;
-            match create_instance {
-                Some(r) => r.map_err(|e| {
-                    JobFailure::internal_err_from(format!(
-                        "Failed to create container `{}`: {}",
-                        &container_name, e
-                    ))
-                })?,
-                None => {
-                    // TODO: Cleanup
-                    res.kill().await;
-                    return Err(JobFailure::Cancelled.into());
-                }
-            };
 
-            res.instance
-                .start_container::<String>(&container_name, None)
-                .await?;
+            // Ensure every early return comes with an explicit kill.
+            if create_res.is_none() {
+                // TODO: Cleanup
+                r.kill().await;
+                return Err(JobFailure::Cancelled.into());
+            } else if let Err(e) = create_res.unwrap() {
+                r.kill().await;
+                return Err(JobFailure::internal_err_from(format!(
+                    "Failed to create container `{}`: {}",
+                    &container_name, e
+                ))
+                .into());
+            }
+
+            // Start the container.
+            try_or_kill!(
+                r.instance
+                    .start_container::<String>(&container_name, None)
+                    .await,
+            );
 
             log::info!("created container {}", container_name);
 
+            // Copy files.
             for (from_path, to_path) in copies {
                 log::info!("Copying {} to {} in {}", from_path, to_path, image_name);
 
-                let exec = res
-                    .instance
-                    .create_exec(
-                        &container_name,
-                        bollard::exec::CreateExecOptions {
-                            cmd: Some(vec!["mkdir", "-p", to_path]),
-                            attach_stdout: Some(true),
-                            attach_stderr: Some(true),
-                            ..Default::default()
-                        },
-                    )
-                    .await?;
+                let exec = try_or_kill!(
+                    r.instance
+                        .create_exec(
+                            &container_name,
+                            bollard::exec::CreateExecOptions {
+                                cmd: Some(vec!["mkdir", "-p", to_path]),
+                                attach_stdout: Some(true),
+                                attach_stderr: Some(true),
+                                ..Default::default()
+                            },
+                        )
+                        .await
+                );
 
-                let mut exec_res = res
+                let mut exec_res = r
                     .instance
                     .start_exec(
                         &exec.id,
@@ -239,9 +277,9 @@ impl DockerCommandRunner {
                     .collect::<Vec<_>>()
                     .await;
 
-                exec_res
+                try_or_kill!(exec_res
                     .drain(..)
-                    .collect::<Result<Vec<_>, bollard::errors::Error>>()?;
+                    .collect::<Result<Vec<_>, bollard::errors::Error>>());
 
                 let from_path = from_path.clone();
                 let (pipe_recv, pipe_send) = tokio::io::duplex(8192);
@@ -257,48 +295,53 @@ impl DockerCommandRunner {
                     }
                 };
                 let task = tokio::spawn(task);
-                res.instance
-                    .upload_to_container(
-                        &container_name,
-                        Some(UploadToContainerOptions {
-                            path: to_path.clone(),
-                            ..Default::default()
-                        }),
-                        hyper::Body::wrap_stream(frame.map(|x| x)),
-                    )
-                    .await?;
-                task.await??;
+                try_or_kill!(
+                    r.instance
+                        .upload_to_container(
+                            &container_name,
+                            Some(UploadToContainerOptions {
+                                path: to_path.clone(),
+                                ..Default::default()
+                            }),
+                            hyper::Body::wrap_stream(frame.map(|x| x)),
+                        )
+                        .await
+                );
+                try_or_kill!(try_or_kill!(task.await));
             }
 
-            res.instance
-                .commit_container(
-                    bollard::image::CommitContainerOptions {
-                        container: container_name.clone(),
-                        repo: after_copy_image_name.clone(),
-                        ..Default::default()
-                    },
-                    bollard::container::Config::<String>::default(),
-                )
-                .await?;
+            try_or_kill!(
+                r.instance
+                    .commit_container(
+                        bollard::image::CommitContainerOptions {
+                            container: container_name.clone(),
+                            repo: after_copy_image_name.clone(),
+                            ..Default::default()
+                        },
+                        bollard::container::Config::<String>::default(),
+                    )
+                    .await
+            );
 
-            res.intermediate_images.push(after_copy_image_name.clone());
+            r.intermediate_images.push(after_copy_image_name.clone());
             image_name = after_copy_image_name;
 
-            res.instance.stop_container(&container_name, None).await?;
-            res.instance
+            try_or_kill!(r.instance.stop_container(&container_name, None).await);
+            r.instance
                 .wait_container::<String>(&container_name, None)
                 .collect::<Vec<_>>()
                 .await;
-            res.instance.remove_container(&container_name, None).await?;
+            try_or_kill!(r.instance.remove_container(&container_name, None).await);
         }
 
-        log::trace!("container {}: creating", res.options.container_name);
+        log::trace!("container {}: creating", r.options.container_name);
 
         // Create a container
-        res.instance
+        try_or_kill!(r
+            .instance
             .create_container(
                 Some(bollard::container::CreateContainerOptions {
-                    name: res.options.container_name.clone(),
+                    name: r.options.container_name.clone(),
                 }),
                 bollard::container::Config {
                     image: Some(image_name),
@@ -307,7 +350,7 @@ impl DockerCommandRunner {
                     attach_stderr: Some(true),
                     tty: Some(true),
                     host_config: Some(bollard::service::HostConfig {
-                        mounts: res.options.binds.clone(),
+                        mounts: r.options.binds.clone(),
                         ..Default::default()
                     }),
                     entrypoint: Some(vec!["sh".into()]),
@@ -318,18 +361,19 @@ impl DockerCommandRunner {
             .map_err(|e| {
                 JobFailure::internal_err_from(format!(
                     "Failed to create container `{}`: {}",
-                    &res.options.container_name, e
+                    &r.options.container_name, e
                 ))
-            })?;
+            }));
 
-        let container_name = &res.options.container_name;
+        let container_name = &r.options.container_name;
 
         // Set memory limit
-        res.instance
+        try_or_kill!(r
+            .instance
             .update_container(
                 container_name,
                 bollard::container::UpdateContainerOptions::<String> {
-                    memory: res.options.mem_limit.map(|n| n as i64),
+                    memory: r.options.mem_limit.map(|n| n as i64),
                     ..Default::default()
                 },
             )
@@ -339,11 +383,12 @@ impl DockerCommandRunner {
                     "Failed to update container `{}`: {}",
                     container_name, e
                 ))
-            })?;
+            }));
 
-        log::trace!("container {}: starting", res.options.container_name);
+        log::trace!("container {}: starting", r.options.container_name);
         // Start the container
-        res.instance
+        try_or_kill!(r
+            .instance
             .start_container::<String>(container_name, None)
             .await
             .map_err(|e| {
@@ -351,12 +396,19 @@ impl DockerCommandRunner {
                     "Failed to start container `{}`: {}",
                     container_name, e
                 ))
-            })?;
+            }),);
 
-        log::trace!("container {}: finished", res.options.container_name);
-        Ok(res)
+        log::trace!("container {}: launched", r.options.container_name);
+        Ok(r)
     }
 
+    /// Kill the `DockerCommandRunner` instance.
+    ///
+    /// This includes:
+    /// - Defusing the DropBomb.
+    /// - Stopping & removing the container.
+    /// - Removing all the intermediate images (only if `self.options.remove_image` is set to `true`).
+    // ! WARNING: When implementing this function, we should explicitly drop the returned values because we have no way to fail.
     pub async fn kill(mut self) {
         // Defuse the bomb.
         self.bomb.defuse();
@@ -373,10 +425,7 @@ impl DockerCommandRunner {
 
         let _res = self
             .instance
-            .wait_container(
-                container_name,
-                None::<bollard::container::WaitContainerOptions<String>>,
-            )
+            .wait_container::<String>(container_name, None)
             .for_each(|_| async {})
             .await;
 
