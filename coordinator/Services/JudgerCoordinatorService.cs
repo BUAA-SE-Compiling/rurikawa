@@ -70,11 +70,6 @@ namespace Karenia.Rurikawa.Coordinator.Services {
             scope.ServiceProvider.GetRequiredService<RurikawaDb>();
 
         /// <summary>
-        /// A channel indicating finished judgers' Id.
-        /// </summary>
-        private LinkedList<string> JudgerQueue { get; } = new LinkedList<string>();
-
-        /// <summary>
         /// A mutex lock on judger queue.
         /// </summary>
         /// <returns></returns>
@@ -153,18 +148,6 @@ namespace Karenia.Rurikawa.Coordinator.Services {
                     }
                     logger.LogInformation($"Disconnected from judger {auth}");
                     {
-                        using var __ = await queueLock.LockAsync();
-                        if (JudgerQueue.First != null) {
-                            var curr = JudgerQueue.First;
-                            while (curr != null) {
-                                if (curr.Value == auth) {
-                                    JudgerQueue.Remove(curr);
-                                }
-                                curr = curr.Next;
-                            }
-                        }
-                    }
-                    {
                         using var _ = await connectionLock.LockAsync();
                         connections.Remove(auth);
                     }
@@ -190,6 +173,8 @@ namespace Karenia.Rurikawa.Coordinator.Services {
                         OnPartialResultMessage(clientId, msg1); break;
                     case ClientStatusMsg msg1:
                         OnJudgerStatusUpdateMessage(clientId, msg1); break;
+                    case JobRequestMsg msg1:
+                        OnJobRequestMessage(clientId, msg1); break;
                     case JobOutputMsg msg1:
                         OnJobOutputMessage(clientId, msg1); break;
                     default:
@@ -199,26 +184,38 @@ namespace Karenia.Rurikawa.Coordinator.Services {
             });
         }
 
+        /// <summary>
+        /// Process a <c>ClientStatusMsg</c>. This function is present only for
+        /// compatibility reasons.
+        /// </summary>
+        /// <param name="clientId"></param>
+        /// <param name="msg"></param>
+        /// <returns></returns>
         async void OnJudgerStatusUpdateMessage(string clientId, ClientStatusMsg msg) {
+            using (await connectionLock.LockAsync()) {
+                if (connections.TryGetValue(clientId, out var conn)) {
+                    conn.CanAcceptNewTask = msg.CanAcceptNewTask;
+                    conn.ActiveTaskCount = msg.ActiveTaskCount;
+                }
+            }
+        }
+
+        async void OnJobRequestMessage(string clientId, JobRequestMsg msg) {
             using (await queueLock.LockAsync()) {
                 // should we dispatch a new job for this judger?
-                var remainingDispatches = msg.RequestForNewTask;
                 using (await connectionLock.LockAsync()) {
                     if (connections.TryGetValue(clientId, out var conn)) {
-                        conn.CanAcceptNewTask = msg.CanAcceptNewTask;
+                        conn.CanAcceptNewTask = msg.ActiveTaskCount > 0;
                         conn.ActiveTaskCount = msg.ActiveTaskCount;
-                        while (remainingDispatches > 0) {
-                            if (await TryDispatchJobFromDatabase(conn)) {
-                                remainingDispatches--;
-                            } else {
-                                break;
-                            }
-                        }
+
+                        logger.LogInformation("Judger {0} asked for {1} jobs", clientId, msg.RequestForNewTask);
+
+                        var dispatchedCount = await TryDispatchJobFromDatabase(conn, msg.RequestForNewTask);
+
+                        logger.LogInformation("Sent {1} jobs to {0}", clientId, msg.RequestForNewTask);
                     }
                 }
-                for (ulong i = 0; i < remainingDispatches; i++)
-                    JudgerQueue.AddLast(clientId);
-                logger.LogInformation("Status::Judger: {0}", DEBUG_LogEnumerator(JudgerQueue));
+
             }
         }
 
@@ -381,24 +378,6 @@ namespace Karenia.Rurikawa.Coordinator.Services {
             return await judgerService.GetJudgerByToken(tokenString);
         }
 
-        private async Task<Judger?> TryGetNextUsableJudger(bool blockNewTasks) {
-            using (await connectionLock.LockAsync()) {
-                while (JudgerQueue.First != null) {
-                    var nextJudger = JudgerQueue.First;
-                    JudgerQueue.RemoveFirst();
-                    if (connections.TryGetValue(nextJudger.Value, out var conn)) {
-                        if (conn.CanAcceptNewTask) {
-                            // Change the status to false, until the judger reports
-                            // it can accept new tasks again
-                            conn.CanAcceptNewTask &= !blockNewTasks;
-                            return conn;
-                        }
-                    }
-                }
-            }
-            return null;
-        }
-
         /// <summary>
         /// Dispatch a single job to the given judger. 
         /// 
@@ -413,9 +392,10 @@ namespace Karenia.Rurikawa.Coordinator.Services {
             await redis.StringSetAsync(FormatJobError(job.Id), "", expiry: TimeSpan.FromHours(2), flags: CommandFlags.FireAndForget);
 
             try {
-                await judger.Socket.SendMessage(new NewJobServerMsg()
+                await judger.Socket.SendMessage(new MultipleNewJobServerMsg()
                 {
-                    Job = job
+                    Jobs = new List<Job> { job },
+                    ReplyTo = null
                 });
                 job.Judger = judger.Id;
                 job.Stage = JobStage.Dispatched;
@@ -424,7 +404,38 @@ namespace Karenia.Rurikawa.Coordinator.Services {
             } catch { return false; }
         }
 
+        /// <summary>
+        /// Dispatch a single job to the given judger. 
+        /// 
+        /// <p>
+        /// Note: this method changes the state of the job, so it needs to be 
+        /// saved to database after this method returns.
+        /// </p>
+        /// </summary>
+        protected async ValueTask<bool> DispatchJobs(Judger judger, List<Job> jobs) {
+            var redis = await this.redis.GetDatabase();
+
+            try {
+                await judger.Socket.SendMessage(new MultipleNewJobServerMsg()
+                {
+                    Jobs = jobs,
+                    ReplyTo = null
+                });
+
+                foreach (var job in jobs) {
+                    await redis.StringSetAsync(FormatJobStdout(job.Id), "", expiry: TimeSpan.FromHours(2), flags: CommandFlags.FireAndForget);
+                    await redis.StringSetAsync(FormatJobError(job.Id), "", expiry: TimeSpan.FromHours(2), flags: CommandFlags.FireAndForget);
+
+                    job.Judger = judger.Id;
+                    job.Stage = JobStage.Dispatched;
+                    job.DispatchTime = DateTimeOffset.Now;
+                }
+                return true;
+            } catch { return false; }
+        }
+
         static readonly TimeSpan DISPATH_TIMEOUT = TimeSpan.FromMinutes(30);
+
         protected async Task<Job?> GetLastUndispatchedJobFromDatabase(RurikawaDb db) {
             var res = await QueuedCriteria(db.Jobs)
                 .OrderBy(j => j.Id)
@@ -432,16 +443,38 @@ namespace Karenia.Rurikawa.Coordinator.Services {
             return res;
         }
 
+        protected async Task<List<Job>> GetUndispatchedJobsFromDatabase(RurikawaDb db, int count) {
+            var res = await QueuedCriteria(db.Jobs)
+                .OrderBy(j => j.Id)
+                .Take(count)
+                .ToListAsync();
+            return res;
+        }
+
         public static IQueryable<Job> QueuedCriteria(IQueryable<Job> jobs) {
-            var timeoutLimit = DateTimeOffset.Now + DISPATH_TIMEOUT;
+            var timeoutTaskStartsBeforeThis = DateTimeOffset.Now - DISPATH_TIMEOUT;
             return jobs.Where(
-                    j => j.Stage == JobStage.Queued
+                    j =>
+                       // queued jobs
+                       j.Stage == JobStage.Queued
+                    // aborted jobs
                     || j.Stage == JobStage.Aborted
-                    || j.DispatchTime != null
-                    || j.DispatchTime < timeoutLimit
+                    // stalled jobs
+                    || (
+                        j.Stage != JobStage.Cancelled
+                        && j.Stage != JobStage.Aborted
+                        && j.Stage != JobStage.Skipped
+                        && j.Stage != JobStage.Queued
+                        && j.DispatchTime != null
+                        && j.DispatchTime < timeoutTaskStartsBeforeThis)
                 );
         }
 
+        /// <summary>
+        /// Dispatch ONE job from database.
+        /// </summary>
+        /// <param name="judger">The judger to dispatch from</param>
+        /// <returns></returns>
         protected async ValueTask<bool> TryDispatchJobFromDatabase(Judger judger) {
             using var scope = scopeProvider.CreateScope();
             var db = GetDb(scope);
@@ -457,6 +490,30 @@ namespace Karenia.Rurikawa.Coordinator.Services {
             } catch {
                 await tx.RollbackAsync();
                 return false;
+            }
+        }
+
+        /// <summary>
+        /// Dispatch MANY job from database. This method should be favored over
+        /// <c>TryDispatchJobFromDatabase(Judger)</c>
+        /// </summary>
+        /// <param name="judger">The judger to dispatch from.</param>
+        /// <param name="count">The maximum count of jobs to dispatch.</param>
+        /// <returns></returns>
+        protected async ValueTask<int> TryDispatchJobFromDatabase(Judger judger, int count) {
+            using var scope = scopeProvider.CreateScope();
+            var db = GetDb(scope);
+            using var tx = await db.Database.BeginTransactionAsync(System.Data.IsolationLevel.Serializable);
+            var job = await GetUndispatchedJobsFromDatabase(db, count);
+
+            try {
+                var res = await DispatchJobs(judger, job);
+                await db.SaveChangesAsync();
+                await tx.CommitAsync();
+                return job.Count;
+            } catch {
+                await tx.RollbackAsync();
+                return 0;
             }
         }
 
@@ -487,54 +544,17 @@ namespace Karenia.Rurikawa.Coordinator.Services {
             if (suite == null) {
                 throw new KeyNotFoundException();
             } else if (suite.EndTime < DateTime.Now) {
-                // WARN: We don't check about submitting BEFORE active; this is intentional.
+                // WARN: We don't check about submitting BEFORE activation; this is intentional.
                 throw new OutOfActiveTimeException();
             }
-
             job.Stage = JobStage.Queued;
 
-            var success = await DispatchUsingNextJudger(job);
+            // NOTE: We no longer directly dispatch jobs to judgers. Instead, 
+            // we let judgers poll for new jobs using `JudgerStatusUpdateMessage`.
 
             db.Jobs.Add(job);
             await db.SaveChangesAsync();
             await tx.CommitAsync();
-        }
-
-        private async Task<bool> DispatchUsingNextJudger(Job job) {
-            bool success = false;
-
-            // Lock queue so no one can write to it, leading to race conditions
-            using (await queueLock.LockAsync()) {
-                while (!success) {
-                    // Get the first usable judger
-                    var judger = await TryGetNextUsableJudger(true);
-                    if (judger == null) break;
-                    try {
-                        job.DispatchTime = DateTimeOffset.Now;
-                        job.Judger = judger.Id;
-                        success = await DispatchJob(judger, job);
-                    } catch {
-                        // If any exception occurs (including but not limited 
-                        // to connection closed, web error, etc.), this try is 
-                        // considered as unsuccessful.
-                        success = false;
-                    }
-                    // If this try is unsuccessful, try a next one until
-                    // no judger is usable
-                }
-            }
-
-            return success;
-        }
-
-        public async ValueTask RevertJobStatus() {
-            using var scope = scopeProvider.CreateScope();
-            var db = GetDb(scope);
-            dynamic updatedObject = new ExpandoObject();
-            updatedObject.Stage = JobStage.Queued;
-            await db.Jobs
-                .Where(j => j.Stage != JobStage.Finished && j.Stage != JobStage.Cancelled)
-                .UpdateFromQueryAsync(j => updatedObject);
         }
 
         public void Stop() {

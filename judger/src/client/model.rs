@@ -7,16 +7,18 @@ use std::{collections::HashMap, sync::Arc};
 #[serde(tag = "_t")]
 #[serde(rename_all = "camelCase")]
 pub enum ServerMsg {
-    #[serde(rename = "new_job")]
-    NewJob(NewJob),
+    // Obsolete: NewJob
+    #[serde(rename = "new_job_multi")]
+    MultiNewJob(MultiNewJob),
     #[serde(rename = "abort_job")]
     AbortJob(AbortJob),
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct NewJob {
-    pub job: Job,
+pub struct MultiNewJob {
+    pub reply_to: Option<FlowSnake>,
+    pub jobs: Vec<Job>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -68,8 +70,11 @@ pub enum ClientMsg {
     #[serde(rename = "job_result")]
     JobResult(JobResultMsg),
 
-    #[serde(rename = "client_status")]
-    ClientStatus(ClientStatusMsg),
+    // Obsolete
+    // #[serde(rename = "client_status")]
+    // ClientStatus(ClientStatusMsg),
+    #[serde(rename = "job_request")]
+    JobRequest(JobRequestMsg),
 }
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize)]
@@ -318,6 +323,14 @@ pub struct ClientStatusMsg {
     pub active_task_count: i32,
     pub can_accept_new_task: bool,
     pub request_for_new_task: u32,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct JobRequestMsg {
+    pub active_task_count: u32,
+    pub request_for_new_task: u32,
+    pub message_id: Option<FlowSnake>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

@@ -1,4 +1,5 @@
 use crate::prelude::{CancellationToken, CancellationTokenHandle, FlowSnake};
+use arc_swap::ArcSwapOption;
 use dashmap::DashMap;
 use serde::{Deserialize, Serialize};
 use std::{
@@ -44,6 +45,8 @@ pub struct SharedClientData {
     pub conn_id: u128,
     /// Number of running tests
     pub running_tests: AtomicUsize,
+    /// The message id of the ongoing job request
+    pub waiting_for_jobs: ArcSwapOption<FlowSnake>,
     /// Whether this client is aborting
     pub aborting: AtomicBool,
     /// HTTP client
@@ -73,6 +76,7 @@ impl SharedClientData {
                 .build()
                 .unwrap(),
             aborting: AtomicBool::new(false),
+            waiting_for_jobs: ArcSwapOption::new(None),
             running_tests: AtomicUsize::new(0),
             locked_test_suite: dashmap::DashMap::new(),
             running_job_handles: Mutex::new(HashMap::new()),
