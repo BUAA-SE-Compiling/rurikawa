@@ -577,6 +577,18 @@ pub async fn accept_job(job: Job, send: Arc<WsSink>, client_config: Arc<SharedCl
     let job_id = job.id;
     let cancel_handle = client_config.cancel_handle.child_token();
     let cancel_token = cancel_handle.child_token();
+
+    // Cancel job after timeout
+    tokio::spawn({
+        let cancel_token = cancel_token.clone();
+        async move {
+            // Hardcoded 30mins.
+            // TODO: change this
+            tokio::time::sleep(std::time::Duration::from_secs(30 * 60)).await;
+            cancel_token.cancel();
+        }
+    });
+
     let handle = tokio::spawn(handle_job_wrapper(
         job,
         send,
