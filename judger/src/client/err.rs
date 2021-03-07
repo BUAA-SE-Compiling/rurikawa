@@ -10,6 +10,9 @@ pub enum JobExecErr {
     #[error(display = "No such config: {}", _0)]
     NoSuchConfig(String),
 
+    #[error(display = "Git clone error: {}", _0)]
+    Git(std::io::Error),
+
     #[error(display = "IO error: {}", _0)]
     Io(#[error(source)] std::io::Error),
 

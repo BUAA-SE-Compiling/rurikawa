@@ -391,7 +391,10 @@ pub async fn handle_job(
             depth: 3,
         },
     )
-    .await?;
+    .with_cancel(cancel.clone())
+    .await
+    .ok_or(JobExecErr::Aborted)?
+    .map_err(JobExecErr::Git)?;
 
     tracing::info!("fetched");
 
@@ -774,7 +777,6 @@ pub async fn client_loop(
             tracing::warn!("Unsupported message: {:?}", x);
         }
     }
-    ws_send.clear_socket();
 
     let _ = keepalive_handle.await;
     let _ = poll_jobs_handle.await;

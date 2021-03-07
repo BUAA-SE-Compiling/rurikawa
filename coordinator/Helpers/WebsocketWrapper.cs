@@ -68,8 +68,6 @@ namespace Karenia.Rurikawa.Helpers {
                     }
                     writtenBytes += result.Count;
 
-                    logger?.LogInformation($"Received message with {writtenBytes} bytes, type {result.MessageType}");
-
                     switch (result.MessageType) {
                         case WebSocketMessageType.Text:
                             var message = JsonSerializer.Deserialize<TRecvMessage>(
@@ -77,7 +75,7 @@ namespace Karenia.Rurikawa.Helpers {
                                 serializerOptions
                             );
                             if (message is null) continue;
-                            logger?.LogInformation("{0}", message);
+
                             this.messages.OnNext(message);
                             break;
                         case WebSocketMessageType.Binary:

@@ -158,7 +158,7 @@ namespace Karenia.Rurikawa.Coordinator.Services {
 
         IDisposable AssignObservables(string clientId, JudgerWebsocketWrapperTy client) {
             return client.Messages.Subscribe((msg) => {
-                logger.LogInformation($"Judger {clientId} sent message of type {msg.GetType().Name}");
+                logger.LogTrace($"Judger {clientId} sent message of type {msg.GetType().Name}");
                 switch (msg) {
                     case JobResultMsg msg1:
                         OnJobResultMessage(clientId, msg1); break;
@@ -204,11 +204,10 @@ namespace Karenia.Rurikawa.Coordinator.Services {
                     conn.CanAcceptNewTask = msg.ActiveTaskCount > 0;
                     conn.ActiveTaskCount = msg.ActiveTaskCount;
 
-                    logger.LogInformation("Judger {0} asked for {1} jobs", clientId, msg.RequestForNewTask);
-
                     var dispatchedCount = await TryDispatchJobFromDatabase(conn, msg.RequestForNewTask, msg.MessageId);
 
-                    logger.LogInformation("Sent {1} jobs to {0}", dispatchedCount, clientId);
+                    if (dispatchedCount > 0)
+                        logger.LogInformation("Sent {1} jobs to {0}", dispatchedCount, clientId);
                 }
             }
         }
@@ -461,6 +460,7 @@ namespace Karenia.Rurikawa.Coordinator.Services {
                         && j.Stage != JobStage.Aborted
                         && j.Stage != JobStage.Skipped
                         && j.Stage != JobStage.Queued
+                        && j.Stage != JobStage.Finished
                         && j.DispatchTime != null
                         && j.DispatchTime < timeoutTaskStartsBeforeThis)
                 );
