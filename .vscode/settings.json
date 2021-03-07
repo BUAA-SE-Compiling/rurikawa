@@ -5,6 +5,7 @@
         "Popen",
         "canonicalize",
         "deserialization",
+        "forcerm",
         "golemc",
         "mkdir",
         "rurikawa",

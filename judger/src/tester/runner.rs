@@ -97,7 +97,7 @@ pub struct DockerCommandRunner {
     instance: Docker,
     /// Options while operating the runner.
     options: DockerCommandRunnerOptions,
-    /// Intermediate images created by this runner
+    /// Intermediate images created by this runner.
     pub intermediate_images: Vec<String>,
     /// A bomb that must be defused. Prevents drops without explicit kills.
     bomb: DropBomb,
@@ -113,6 +113,8 @@ pub struct DockerCommandRunnerOptions {
     pub build_image: bool,
     /// If the image needs to be removed after run.
     pub remove_image: bool,
+    /// If the list of intermediate images created by this runner needs to be recorded.
+    pub record_intermediate_images: bool,
     /// `host-src:container-dest` volume bindings for the container.
     /// For details see [here](https://docs.rs/bollard/0.7.2/bollard/service/struct.HostConfig.html#structfield.binds).
     pub binds: Option<Vec<Mount>>,
@@ -130,6 +132,7 @@ impl Default for DockerCommandRunnerOptions {
             mem_limit: None,
             build_image: false,
             remove_image: false,
+            record_intermediate_images: false,
             binds: None,
             copies: None,
             cancellation_token: Default::default(),
@@ -164,7 +167,7 @@ impl DockerCommandRunner {
 
         /// The equivalent of Rust's `try` macro, with the only difference that
         /// right before early returning errors, `DockerCommandRunner` is killed.
-        /// TODO: When `AsyncDrop` is stabled, use RAII + kill() instead of this workaround.
+        // TODO: When `AsyncDrop` is stabled, use RAII + kill() instead of this workaround.
         macro_rules! try_or_kill {
             ($res:expr $(,)?) => {
                 match $res {
@@ -191,7 +194,9 @@ impl DockerCommandRunner {
         };
 
         let mut image_name = r.image.tag();
-        r.intermediate_images.push(image_name.clone());
+        if r.options.record_intermediate_images {
+            r.intermediate_images.push(image_name.clone());
+        }
 
         // Copy data into the container.
         if let Some(copies) = &r.options.copies {
@@ -323,7 +328,9 @@ impl DockerCommandRunner {
                     .await
             );
 
-            r.intermediate_images.push(after_copy_image_name.clone());
+            if r.options.record_intermediate_images {
+                r.intermediate_images.push(after_copy_image_name.clone());
+            }
             image_name = after_copy_image_name;
 
             try_or_kill!(r.instance.stop_container(&container_name, None).await);
