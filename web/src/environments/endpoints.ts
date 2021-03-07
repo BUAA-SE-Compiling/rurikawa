@@ -37,6 +37,7 @@ export const endpoints = {
     get: 'job/:id',
     new: 'job',
     query: 'job',
+    respawn: (id: string) => `job/respawn/${id}`,
   },
   file: {
     get: (filename: string) => `file/${filename}`,
