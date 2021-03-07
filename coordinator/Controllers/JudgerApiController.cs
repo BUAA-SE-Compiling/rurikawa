@@ -44,7 +44,7 @@ namespace Karenia.Rurikawa.Coordinator.Controllers {
                 var result = await judgerService.RegisterJudger(msg.Token, msg.AlternateName, msg.Tags);
                 return Ok(result.Id);
             } catch (KeyNotFoundException) {
-                return BadRequest("No such token was found");
+                return BadRequest(new ErrorResponse(ErrorCodes.JUDGER_NO_SUCH_REGISTER_TOKEN, "No such token was found"));
             }
         }
 
@@ -58,7 +58,9 @@ namespace Karenia.Rurikawa.Coordinator.Controllers {
             [FromQuery] FlowSnake jobId,
             [FromQuery] string testId) {
             if (Request.ContentLength == null)
-                return BadRequest("ContentLength must be specified!");
+                return BadRequest(new ErrorResponse(
+                    ErrorCodes.UNSPECIFIED_CONTENT_LENGTH,
+                    "ContentLength must be specified!"));
 
             var filename = $"results/{jobId}/{testId}.json";
             await fs.UploadFile(filename, Request.Body, Request.ContentLength.Value, true);

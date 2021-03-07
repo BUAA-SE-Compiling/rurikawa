@@ -33,6 +33,10 @@ import { tap } from 'rxjs/operators';
 import { TestSuiteAndJobCache } from 'src/services/test_suite_cacher';
 import { Subscription } from 'rxjs';
 import { TitleService } from 'src/services/title_service';
+import {
+  errorCodeToDescription,
+  errorResponseToDescription,
+} from 'src/models/errors';
 
 @Component({
   selector: 'app-test-suite-view',
@@ -295,7 +299,7 @@ export class TestSuiteViewComponent implements OnInit, OnDestroy {
         error: (e) => {
           this.submittingTest = false;
           if (e instanceof HttpErrorResponse) {
-            this.repoMessage = e.message;
+            this.repoMessage = errorResponseToDescription(e);
           }
         },
       });

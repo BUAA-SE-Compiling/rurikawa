@@ -317,11 +317,11 @@ namespace Karenia.Rurikawa.Coordinator.Controllers {
             } catch (AccountService.AlreadyInitializedException) {
                 return BadRequest(
                     new ErrorResponse(
-                        "already_initialzed",
+                        ErrorCodes.ALREADY_INITIALIZED,
                         "Root account is already initialized!"));
             } catch (AccountService.InvalidUsernameException e) {
                 return BadRequest(new ErrorResponse(
-                    "invalid_username",
+                    ErrorCodes.INVALID_USERNAME,
                     $"Username '{e.Username}' must be 1 to 64 characters long, and must only contain letter, number, dash '-' and underscore '_'."
                 ));
             }
@@ -351,7 +351,7 @@ namespace Karenia.Rurikawa.Coordinator.Controllers {
                 await fs.Check();
             } catch (AccountService.UsernameNotUniqueException e) {
                 return BadRequest(new ErrorResponse(
-                    "username_not_unique",
+                    ErrorCodes.USERNAME_NOT_UNIQUE,
                     $"Username {e.Username} is not unique inside database"));
             }
             return NoContent();

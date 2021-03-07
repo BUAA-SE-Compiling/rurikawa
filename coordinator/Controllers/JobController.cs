@@ -98,19 +98,19 @@ namespace Karenia.Rurikawa.Coordinator.Controllers {
                 if (result.isSuccess) {
                     job.Revision = result.rev!;
                 } else {
-                    return BadRequest(new ErrorResponse("no_such_revision", result.message));
+                    return BadRequest(new ErrorResponse(ErrorCodes.GIT_NO_SUCH_REVISION, result.message));
                 }
                 logger.LogInformation("Scheduleing job {0}", job.Id);
                 await coordinatorService.ScheduleJob(job);
             } catch (KeyNotFoundException) {
                 logger.LogInformation("No such test suite {1} for job {0}", job.Id, job.TestSuite);
-                return BadRequest(new ErrorResponse("no_such_suite"));
+                return BadRequest(new ErrorResponse(ErrorCodes.NO_SUCH_SUITE));
             } catch (TaskCanceledException) {
                 logger.LogInformation("Fetching for job {0} timed out", job.Id);
-                return BadRequest(new ErrorResponse("revision_fetch_timeout"));
+                return BadRequest(new ErrorResponse(ErrorCodes.REVISION_FETCH_TIMEOUT));
             } catch (OutOfActiveTimeException) {
                 logger.LogInformation("Fetching for job {0} timed out", job.Id);
-                return BadRequest(new ErrorResponse("not_in_active_timespan"));
+                return BadRequest(new ErrorResponse(ErrorCodes.NOT_IN_ACTIVE_TIMESPAN));
             }
             return Ok(id.ToString());
         }

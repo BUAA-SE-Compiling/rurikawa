@@ -33,7 +33,7 @@ namespace Karenia.Rurikawa.Coordinator.Controllers {
             [FromBody] Profile profile) {
             var username_ = AuthHelper.ExtractUsername(HttpContext.User);
             if (username_ != username) {
-                return Unauthorized(new ErrorResponse("not_owner"));
+                return Unauthorized(new ErrorResponse(ErrorCodes.NOT_OWNER));
             }
             await service.UpsertProfile(username, profile);
             return NoContent();
@@ -44,7 +44,7 @@ namespace Karenia.Rurikawa.Coordinator.Controllers {
             [FromRoute] string username) {
             var username_ = AuthHelper.ExtractUsername(HttpContext.User);
             if (username_ != username) {
-                return Unauthorized(new ErrorResponse("not_owner"));
+                return Unauthorized(new ErrorResponse(ErrorCodes.NOT_OWNER));
             }
             await service.InitializeProfileIfNotExists(username);
             return NoContent();
