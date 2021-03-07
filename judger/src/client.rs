@@ -15,7 +15,7 @@ use crate::{
 };
 use anyhow::{Context, Result};
 use config::SharedClientData;
-use futures::StreamExt;
+use futures::{StreamExt, TryFutureExt};
 use http::Method;
 use model::*;
 use serde_json::from_slice;
@@ -301,7 +301,7 @@ pub async fn handle_job_wrapper(
                     JobResultKind::CompileError,
                     format!("Cannot find config for {} in `judger.toml`", f),
                 ),
-                JobExecErr::Io(e) => (JobResultKind::JudgerError, format!("IO error: {:?}", e)),
+                JobExecErr::Io(e) => (JobResultKind::JudgerError, format!("IO error: {}", e)),
                 JobExecErr::Ws(e) => (
                     JobResultKind::JudgerError,
                     format!("Websocket error: {:?}", e),
@@ -318,7 +318,10 @@ pub async fn handle_job_wrapper(
                 JobExecErr::Build(e) => (JobResultKind::CompileError, format!("{}", e)),
                 JobExecErr::Exec(e) => (JobResultKind::PipelineError, format!("{:?}", e)),
                 JobExecErr::Any(e) => (JobResultKind::OtherError, format!("{:?}", e)),
-                _ => unreachable!(),
+                JobExecErr::Git(e) => (JobResultKind::CompileError, format!("{}", e)),
+                JobExecErr::Cancelled | JobExecErr::Aborted => {
+                    unreachable!()
+                }
             };
 
             ClientMsg::JobResult(JobResultMsg {
@@ -336,10 +339,29 @@ pub async fn handle_job_wrapper(
         if let Some(token) = &cfg.cfg.access_token {
             req = req.header("authorization", token.as_str());
         }
-        req.send().await.and_then(|x| x.error_for_status())
-    } {
-        tracing::error!("Error when sending job result mesage:\n{}", e)
-    }
+        let req = req.send().await;
+        match req {
+            Ok(r) => {
+                if !r.status().is_success() {
+                    let status = r.status();
+                    match r.text().await {
+                        Ok(t) => {
+                            tracing::error!(
+                                "Error when sending job result mesage: {}\n{}",
+                                status,
+                                t
+                            );
+                            Ok(())
+                        }
+                        Err(e) => Err(e),
+                    }
+                } else {
+                    Ok(())
+                }
+            }
+            Err(e) => Err(e),
+        }
+    } {}
 
     flag_finished_job(cfg.clone()).await;
 
@@ -383,7 +405,8 @@ pub async fn handle_job(
     // Clone the repo specified in job
     let job_path = cfg.job_folder(job.id);
     let _ = fs::ensure_removed_dir(&job_path).await;
-    fs::net::git_clone(
+
+    let git_result = fs::net::git_clone(
         &job_path,
         fs::net::GitCloneOptions {
             repo: job.repo,
@@ -393,8 +416,16 @@ pub async fn handle_job(
     )
     .with_cancel(cancel.clone())
     .await
-    .ok_or(JobExecErr::Aborted)?
-    .map_err(JobExecErr::Git)?;
+    .ok_or(JobExecErr::Aborted)?;
+
+    // Git might exit before we receive the cancel signal. Yield once and wait
+    // for the signal to strike at us.
+    // TODO: This is a workaround. Replace with better code.
+    tokio::task::yield_now().await;
+    if cancel.is_cancelled() {
+        return Err(JobExecErr::Aborted);
+    }
+    git_result.map_err(JobExecErr::Git)?;
 
     tracing::info!("fetched");
 

@@ -212,7 +212,7 @@ namespace Karenia.Rurikawa.Coordinator.Services {
             }
         }
 
-        async void OnJobProgressMessage(string clientId, JobProgressMsg msg) {
+        public async void OnJobProgressMessage(string clientId, JobProgressMsg msg) {
             using var scope = scopeProvider.CreateScope();
             var db = GetDb(scope);
 

@@ -73,13 +73,18 @@ namespace Karenia.Rurikawa.Models.Judger {
     public class ClientMsg { }
 
     /// <summary>
+    /// A stub interface for messages that can be used as a result.
+    /// </summary>
+    public interface IClientResultMsg { }
+
+    /// <summary>
     /// Message that reports the result of a single job in judger.
     /// <br/>
     /// The state of this job SHOULD be changed to "completed" after this 
     /// message is received.
     /// </summary>
     [JsonDiscriminator("job_result")]
-    public class JobResultMsg : ClientMsg {
+    public class JobResultMsg : ClientMsg, IClientResultMsg {
         public FlowSnake JobId { get; set; }
 
         /// <summary>
@@ -100,7 +105,7 @@ namespace Karenia.Rurikawa.Models.Judger {
     /// Message that reports the progress of a single job in judger.
     /// </summary>
     [JsonDiscriminator("job_progress")]
-    public class JobProgressMsg : ClientMsg {
+    public class JobProgressMsg : ClientMsg, IClientResultMsg {
         public FlowSnake JobId { get; set; }
 
         /// <summary>

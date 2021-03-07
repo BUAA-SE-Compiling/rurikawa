@@ -27,5 +27,6 @@ namespace Karenia.Rurikawa.Models {
 
         public const string JUDGER_NO_SUCH_REGISTER_TOKEN = "judger_no_such_register_token";
         public const string UNSPECIFIED_CONTENT_LENGTH = "unspecified_content_length";
+        public const string INVALID_MESSAGE_TYPE = "invalid_message_type";
     }
 }

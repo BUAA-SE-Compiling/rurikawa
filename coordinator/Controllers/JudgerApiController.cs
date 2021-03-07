@@ -68,15 +68,25 @@ namespace Karenia.Rurikawa.Coordinator.Controllers {
         }
 
         /// <summary>
-        /// This is a backup method for sending job results.
+        /// This is a backup method for sending job results. This endpoint only
+        /// accepts <c>JobResultMsg</c> and <c>JobProgressMsg</c>.
         /// </summary>
         /// <returns></returns>
         [HttpPost("result")]
         public ActionResult SendJobResult(
-            [FromBody] JobResultMsg resultMsg,
+            [FromBody] IClientResultMsg resultMsg,
             [FromServices] JudgerCoordinatorService coordinator) {
             var judger = AuthHelper.ExtractUsername(HttpContext.User);
-            coordinator.OnJobResultMessage(judger!, resultMsg);
+            switch (resultMsg) {
+                case JobResultMsg msg:
+                    coordinator.OnJobResultMessage(judger!, msg); break;
+                case JobProgressMsg msg:
+                    coordinator.OnJobProgressMessage(judger!, msg); break;
+                default:
+                    return BadRequest(new ErrorResponse(
+                        ErrorCodes.INVALID_MESSAGE_TYPE,
+                        "This endpoint only accepts JobResultMsg and JobProgressMsg"));
+            }
             return NoContent();
         }
 
