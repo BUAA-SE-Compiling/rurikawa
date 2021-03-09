@@ -24,13 +24,10 @@ static ABORT_HANDLE: OnceCell<CancellationTokenHandle> = OnceCell::new();
 
 fn main() {
     let opt = opt::Opts::parse();
-    tracing_log::LogTracer::builder()
-        .with_max_level(log::LevelFilter::Info)
-        .init()
-        .unwrap();
+    tracing_log::LogTracer::builder().init().unwrap();
 
     let subscriber = FmtSubscriber::builder()
-        .with_max_level(tracing::Level::INFO)
+        .with_max_level(opt.opt.log_level)
         .finish();
 
     tracing::subscriber::set_global_default(subscriber).expect("setting default subscriber failed");
@@ -140,6 +137,7 @@ async fn client(cmd: opt::ConnectSubCmd) {
         }
     }
 
+    tokio::fs::create_dir_all(&cache_folder).await.unwrap();
     if !cmd.no_save {
         update_client_config(&cache_folder, &cfg.cfg).await.unwrap();
     }
@@ -155,6 +153,7 @@ async fn client(cmd: opt::ConnectSubCmd) {
     let client_sink = Arc::new(WsSink::new());
 
     loop {
+        client_sink.clear_socket();
         let (sink, stream) = match connect_to_coordinator(&client_config).await {
             Ok(e) => e,
             Err(e) => {
@@ -174,42 +173,46 @@ async fn client(cmd: opt::ConnectSubCmd) {
         }
     }
 
-    tracing::warn!("Stopping jobs!");
+    tracing::warn!("Preparing to stop jobs.");
 
+    tracing::warn!("Collecting cancelling jobs.");
     let mut cancelling_guard = client_config.cancelling_job_handles.lock().await;
     let mut cancelling = cancelling_guard.drain().collect::<Vec<_>>();
+    drop(cancelling_guard);
+
+    tracing::warn!("Collecting running jobs.");
     let mut running_guard = client_config.running_job_handles.lock().await;
     let mut running = running_guard.drain().collect::<Vec<_>>();
-    drop(cancelling_guard);
     drop(running_guard);
 
     {
-        let res = client_sink
-            .send_all(&mut futures::stream::iter(
-                cancelling
-                    .iter()
-                    .map(|x| x.0)
-                    .chain(running.iter().map(|x| x.0))
-                    .map(|id| JobResultMsg {
-                        job_id: id,
-                        job_result: rurikawa_judger::client::model::JobResultKind::Aborted,
-                        results: HashMap::new(),
-                        message: Some("This job was aborted by judger".into()),
-                    })
-                    .map(|result| {
-                        Ok(tungstenite::Message::Text(
-                            serde_json::to_string(&result).unwrap(),
-                        ))
-                    }),
-            ))
-            .await;
+        // tracing::warn!("Awaiting pending jobs.");
+        // let res = client_sink
+        //     .send_all(&mut futures::stream::iter(
+        //         cancelling
+        //             .iter()
+        //             .map(|x| x.0)
+        //             .chain(running.iter().map(|x| x.0))
+        //             .map(|id| JobResultMsg {
+        //                 job_id: id,
+        //                 job_result: rurikawa_judger::client::model::JobResultKind::Aborted,
+        //                 results: HashMap::new(),
+        //                 message: Some("This job was aborted by judger".into()),
+        //             })
+        //             .map(|result| {
+        //                 Ok(tungstenite::Message::Text(
+        //                     serde_json::to_string(&result).unwrap(),
+        //                 ))
+        //             }),
+        //     ))
+        //     .await;
 
-        if res.is_err() {
-            log::error!("Failed to send abort messages: {}", res.unwrap_err())
-        }
+        // if res.is_err() {
+        //     log::error!("Failed to send abort messages: {}", res.unwrap_err())
+        // }
     }
 
-    tracing::warn!("Abort messages sent");
+    // tracing::warn!("Abort messages sent.");
 
     let cancelling = cancelling.drain(..).map(|(id, fut)| {
         log::info!("Waiting for job {} to cancel...", id);

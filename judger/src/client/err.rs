@@ -10,6 +10,9 @@ pub enum JobExecErr {
     #[error(display = "No such config: {}", _0)]
     NoSuchConfig(String),
 
+    #[error(display = "Git clone error: {}", _0)]
+    Git(std::io::Error),
+
     #[error(display = "IO error: {}", _0)]
     Io(#[error(source)] std::io::Error),
 
@@ -31,8 +34,13 @@ pub enum JobExecErr {
     #[error(display = "Execution error: {}", _0)]
     Exec(#[error(source)] crate::tester::ExecError),
 
+    /// This job was cancelled by the user
     #[error(display = "Job was cancelled")]
     Cancelled,
+
+    /// This job was aborted because of internal reasons
+    #[error(display = "Job was aborted")]
+    Aborted,
 
     #[error(display = "{:#}", _0)]
     Any(anyhow::Error),

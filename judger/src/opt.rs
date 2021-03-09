@@ -11,7 +11,12 @@ pub struct Opts {
 }
 
 #[derive(Clap, Debug, Clone)]
-pub struct GlobalOpts {}
+pub struct GlobalOpts {
+    #[clap(long, short = 'l', default_value = "info")]
+    pub log_level: tracing::level_filters::LevelFilter,
+    // #[clap(long = "docker")]
+    // pub docker_path: String,
+}
 
 #[derive(Clap, Debug, Clone)]
 pub enum SubCmd {

@@ -58,11 +58,11 @@ namespace Karenia.Rurikawa.Coordinator.Controllers {
                 return NoContent();
             } catch (AccountService.UsernameNotUniqueException e) {
                 return BadRequest(new ErrorResponse(
-                    "username_not_unique",
+                    ErrorCodes.USERNAME_NOT_UNIQUE,
                     $"Username '{e.Username}' is not unique inside database"));
             } catch (AccountService.InvalidUsernameException e) {
                 return BadRequest(new ErrorResponse(
-                    "invalid_username",
+                    ErrorCodes.INVALID_USERNAME,
                     $"Username '{e.Username}' must be 1 to 64 characters long, and must only contain letter, number, dash '-' and underscore '_'."
                 ));
             }
@@ -96,12 +96,12 @@ namespace Karenia.Rurikawa.Coordinator.Controllers {
                     case "refresh_token":
                         return Ok(await LoginUsingRefreshToken(msg));
                     default:
-                        return BadRequest(new ErrorResponse("invalid_grant_type"));
+                        return BadRequest(new ErrorResponse(ErrorCodes.INVALID_GRANT_TYPE));
                 }
             } catch (InvalidLoginInformationException e) {
-                return BadRequest(new ErrorResponse("invalid_login_info", e.Message));
+                return BadRequest(new ErrorResponse(ErrorCodes.INVALID_LOGIN_INFO, e.Message));
             } catch (NotEnoughInformationException e) {
-                return BadRequest(new ErrorResponse("not_enough_login_info", e.Message));
+                return BadRequest(new ErrorResponse(ErrorCodes.NOT_ENOUGH_LOGIN_INFO, e.Message));
             }
         }
 

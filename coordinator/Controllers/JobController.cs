@@ -46,9 +46,9 @@ namespace Karenia.Rurikawa.Coordinator.Controllers {
             } else {
                 {
                     // authorize
-                    var role = HttpContext.User.FindFirst(ClaimTypes.Role).Value;
+                    var role = HttpContext.User.FindFirst(ClaimTypes.Role)?.Value;
                     if (role != "Admin" && role != "Root") {
-                        var account = HttpContext.User.FindFirst(ClaimTypes.NameIdentifier).Value;
+                        var account = HttpContext.User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
                         if (res.Account != account) return NotFound();
                     }
                 }
@@ -78,8 +78,10 @@ namespace Karenia.Rurikawa.Coordinator.Controllers {
         /// PUTs a new job
         /// </summary>
         [HttpPost("")]
-        public async Task<IActionResult> NewJob([FromBody] NewJobMessage m) {
-            var account = HttpContext.User.FindFirst(ClaimTypes.NameIdentifier).Value;
+        public async Task<ActionResult<string>> NewJob([FromBody] NewJobMessage m) {
+            var account = HttpContext.User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+            if (account == null) return BadRequest();
+
             FlowSnake id = FlowSnake.Generate();
             var job = new Job
             {
@@ -96,21 +98,40 @@ namespace Karenia.Rurikawa.Coordinator.Controllers {
                 if (result.isSuccess) {
                     job.Revision = result.rev!;
                 } else {
-                    return BadRequest(new ErrorResponse("no_such_revision", result.message));
+                    return BadRequest(new ErrorResponse(ErrorCodes.GIT_NO_SUCH_REVISION, result.message));
                 }
                 logger.LogInformation("Scheduleing job {0}", job.Id);
                 await coordinatorService.ScheduleJob(job);
             } catch (KeyNotFoundException) {
                 logger.LogInformation("No such test suite {1} for job {0}", job.Id, job.TestSuite);
-                return BadRequest(new ErrorResponse("no_such_suite"));
+                return BadRequest(new ErrorResponse(ErrorCodes.NO_SUCH_SUITE));
             } catch (TaskCanceledException) {
                 logger.LogInformation("Fetching for job {0} timed out", job.Id);
-                return BadRequest(new ErrorResponse("revision_fetch_timeout"));
+                return BadRequest(new ErrorResponse(ErrorCodes.REVISION_FETCH_TIMEOUT));
             } catch (OutOfActiveTimeException) {
                 logger.LogInformation("Fetching for job {0} timed out", job.Id);
-                return BadRequest(new ErrorResponse("not_in_active_timespan"));
+                return BadRequest(new ErrorResponse(ErrorCodes.NOT_IN_ACTIVE_TIMESPAN));
             }
             return Ok(id.ToString());
+        }
+
+        /// <summary>
+        /// Submit a job with identical parameters as the given job.
+        /// </summary>
+        /// <param name="id"></param>
+        /// <returns></returns>
+        [HttpPost("respawn/{id}")]
+        public async Task<ActionResult<String>> RespawnJob([FromRoute] FlowSnake id) {
+            // the returned job is non-tracking, so we can safely modify its data
+            var job = await dbsvc.GetJob(id);
+            if (job == null) return NotFound();
+
+            // clear job stats, reset id
+            job.ClearStats();
+            job.Id = FlowSnake.Generate();
+
+            await coordinatorService.ScheduleJob(job);
+            return Ok(job.Id.ToString());
         }
 
         /// <summary>

@@ -4,7 +4,11 @@
   <div class="blk title">
     <div class="id">#{{ id }}</div>
     <div class="title">
-      <h1>评测结果</h1>
+      <div class="row text">
+        <h1>评测结果</h1>
+        <div class="spacer"></div>
+        <a (click)="respawnTest()" *ngIf="showRespawn()">重测</a>
+      </div>
       <div class="repo-rows">
         <div class="row text" *ngIf="job">
           <span class="job-info repo">

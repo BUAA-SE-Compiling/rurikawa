@@ -55,7 +55,7 @@ export class JobViewComponent implements OnInit, OnChanges, OnDestroy {
   constructor(
     private route: ActivatedRoute,
     private router: Router,
-    private cleanHttpClient: HttpClient,
+    private httpClient: HttpClient,
     private service: TestSuiteAndJobCache,
     private title: TitleService
   ) {}
@@ -208,7 +208,7 @@ export class JobViewComponent implements OnInit, OnChanges, OnDestroy {
       this.job?.buildOutputFile !== undefined &&
       this.outputMessage === undefined
     ) {
-      this.cleanHttpClient
+      this.httpClient
         .get<JobBuildOutput>(
           environment.endpointBase() +
             endpoints.file.get(this.job.buildOutputFile),
@@ -223,6 +223,26 @@ export class JobViewComponent implements OnInit, OnChanges, OnDestroy {
           },
         });
     }
+  }
+
+  showRespawn() {
+    return (
+      this.job !== undefined &&
+      this.job.stage === 'Finished' &&
+      this.job.resultKind !== 'Accepted'
+    );
+  }
+
+  respawnTest() {
+    this.httpClient
+      .post(environment.endpointBase() + endpoints.job.respawn(this.id), null, {
+        responseType: 'text',
+      })
+      .subscribe({
+        next: (resp) => {
+          this.router.navigate(['job', resp]);
+        },
+      });
   }
 
   ngOnInit(): void {

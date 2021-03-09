@@ -2,27 +2,32 @@ use crate::prelude::FlowSnake;
 use serde::{Deserialize, Serialize};
 use std::{collections::HashMap, sync::Arc};
 
-/// Message sent from server
+/// Message sent from server. See documentation on the server side.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "_t")]
 #[serde(rename_all = "camelCase")]
 pub enum ServerMsg {
-    #[serde(rename = "new_job")]
-    NewJob(NewJob),
+    // Obsolete: NewJob
+    #[serde(rename = "new_job_multi")]
+    MultiNewJob(MultiNewJob),
     #[serde(rename = "abort_job")]
     AbortJob(AbortJob),
+    #[serde(rename = "server_hello")]
+    ServerHello,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct NewJob {
-    pub job: Job,
+pub struct MultiNewJob {
+    pub reply_to: Option<FlowSnake>,
+    pub jobs: Vec<Job>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct AbortJob {
     pub job_id: FlowSnake,
+    pub as_cancel: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -52,6 +57,9 @@ pub struct TestSuite {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "_t")]
 pub enum ClientMsg {
+    #[serde(rename = "receive_job")]
+    ReceiveJob(ReceiveJobMsg),
+
     #[serde(rename = "job_progress")]
     JobProgress(JobProgressMsg),
 
@@ -64,8 +72,13 @@ pub enum ClientMsg {
     #[serde(rename = "job_result")]
     JobResult(JobResultMsg),
 
-    #[serde(rename = "client_status")]
-    ClientStatus(ClientStatusMsg),
+    // Obsolete
+    // #[serde(rename = "client_status")]
+    // ClientStatus(ClientStatusMsg),
+    //
+    /// Requests some job from coordinator
+    #[serde(rename = "job_request")]
+    JobRequest(JobRequestMsg),
 }
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize)]
@@ -93,6 +106,7 @@ pub enum JobStage {
     Finished,
     Cancelled,
     Skipped,
+    Aborted,
 }
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize)]
@@ -270,6 +284,12 @@ pub async fn upload_test_result(
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ReceiveJobMsg {
+    pub reject: bool,
+    pub job_id: FlowSnake,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct JobProgressMsg {
     pub job_id: FlowSnake,
@@ -307,6 +327,14 @@ pub struct ClientStatusMsg {
     pub active_task_count: i32,
     pub can_accept_new_task: bool,
     pub request_for_new_task: u32,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct JobRequestMsg {
+    pub active_task_count: u32,
+    pub request_for_new_task: u32,
+    pub message_id: Option<FlowSnake>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

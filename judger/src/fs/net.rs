@@ -1,9 +1,11 @@
 //! Functions to download stuff into destinations
+use crate::prelude::CancelFutureExt;
 use futures::StreamExt;
 use std::fmt::Write;
 use std::path::Path;
 use tokio::io::AsyncWriteExt;
 use tokio::process::Command;
+use tokio_util::sync::CancellationToken;
 
 #[derive(Debug)]
 pub struct GitCloneOptions {
@@ -24,22 +26,61 @@ impl Default for GitCloneOptions {
     }
 }
 
+// UNSAFE! This section calls directly into Unix `setpgrp` function to move the
+// child process into a different process group, in order to avoid sending
+// SIGINT into that process.
+#[cfg(unix)]
+extern "C" {
+    fn setpgrp();
+}
+
+/// Avoid the child process from receiving SIGINT. This only works for Unix systems
+/// to avoid having the child exit earlier than this process.
+#[cfg(unix)]
+fn set_no_sigint_handler(cmd: &mut Command) {
+    unsafe {
+        cmd.pre_exec(|| {
+            setpgrp();
+            Ok(())
+        });
+    }
+}
+
+/// Stub for other systems
+#[cfg(not(unix))]
+fn set_no_sigint_handler(_cmd: &mut Command) {}
+
 macro_rules! do_command {
     ($($dir:expr,)? [ $cmd:expr, $($arg:expr),*]) => {
-
-        let cmd = Command::new($cmd)
+        let mut cmd = Command::new($cmd);
+        cmd
             $(.current_dir($dir))?
             .args(&[$($arg),*])
-            .status()
-            .await?;
+            .kill_on_drop(true);
+        set_no_sigint_handler(&mut cmd);
 
-        if !cmd.success(){
+        let cmd = cmd.output().await?;
+
+        if !cmd.status.success(){
             let mut format_string = String::new();
+
             write!(format_string, "Command failed: `{}",$cmd).unwrap();
             $(
                 write!(format_string, " {}",$arg).unwrap();
             )*
-            write!(format_string, "` returned {:?}",cmd.code()).unwrap();
+            write!(format_string, "` returned {:?}",cmd.status.code()).unwrap();
+            writeln!(format_string).unwrap();
+
+            writeln!(format_string,"stdout: ").unwrap();
+            writeln!(
+                format_string,
+                "{}",std::string::String::from_utf8_lossy(&cmd.stdout)).unwrap();
+
+            writeln!(format_string,"stderr: ").unwrap();
+            writeln!(
+                format_string,
+                "{}",std::string::String::from_utf8_lossy(&cmd.stderr)).unwrap();
+
             return Err(std::io::Error::new(std::io::ErrorKind::InvalidInput, format_string))
         }
     };

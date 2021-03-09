@@ -117,8 +117,26 @@ namespace Karenia.Rurikawa.Models.Judger {
         [Column(TypeName = "jsonb")]
         public Dictionary<string, TestResult> Results { get; set; } = new Dictionary<string, TestResult>();
 
-        // TODO: Dunno whether this column is needed...
+        /// <summary>
+        /// The time when this job gets dispatched onto a judger.
+        /// <p>
+        ///     If the job gets dispatched more than once (e.g. aborts and gets 
+        ///     rescheduled), this value will be reset.
+        /// </p>
+        /// </summary>
+        public DateTimeOffset? DispatchTime { get; set; }
+
+        /// <summary>
+        /// The time when this job gets finished.
+        /// </summary>
+        public DateTimeOffset? FinishTime { get; set; }
+
+        /// <summary>
+        /// The judger instance this job dispatches to.
+        /// </summary>
         [JsonIgnore]
+        public string? Judger { get; set; }
+
         public double Score {
             get {
                 var s = 0.0;
@@ -127,6 +145,17 @@ namespace Karenia.Rurikawa.Models.Judger {
                 }
                 return s;
             }
+        }
+
+        /// <summary>
+        /// Clears all running status of this job, allowing this job to be reused.
+        /// </summary>
+        public void ClearStats() {
+            this.Stage = JobStage.Queued;
+            this.BuildOutputFile = null;
+            this.Results = new Dictionary<string, TestResult>();
+            this.ResultMessage = null;
+            this.ResultKind = null;
         }
     }
 

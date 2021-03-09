@@ -15,18 +15,15 @@ use crate::{
 };
 use anyhow::{Context, Result};
 use config::SharedClientData;
-use futures::StreamExt;
+use futures::{StreamExt, TryFutureExt};
 use http::Method;
 use model::*;
 use serde_json::from_slice;
 use sink::*;
 use std::{collections::HashMap, path::PathBuf, sync::atomic::Ordering, sync::Arc};
-
 use tokio_tungstenite::{connect_async, tungstenite::Message};
 use tracing::info_span;
 use tracing_futures::Instrument;
-
-// Arc<Mutex<WsSink>>==>>Arc<WsSink>
 
 /// Try to register at the coordinator if no access token was specified.
 ///
@@ -258,19 +255,40 @@ pub async fn check_download_read_test_suite(
 }
 
 pub async fn handle_job_wrapper(
-    job: NewJob,
+    job: Job,
     send: Arc<WsSink>,
     cancel: CancellationTokenHandle,
     cfg: Arc<SharedClientData>,
 ) {
-    // TODO: Handle failed cases and report
-    let job_id = job.job.id;
+    let job_id = job.id;
     flag_new_job(send.clone(), cfg.clone()).await;
     let msg = match handle_job(job, send.clone(), cancel, cfg.clone())
         .instrument(tracing::info_span!("handle_job", %job_id))
         .await
     {
         Ok(_res) => ClientMsg::JobResult(_res),
+
+        // These two types need explicit handling, since they are not finished
+        Err(JobExecErr::Aborted) => ClientMsg::JobProgress(JobProgressMsg {
+            job_id,
+            stage: JobStage::Aborted,
+        }),
+        Err(JobExecErr::Cancelled) => ClientMsg::JobProgress(JobProgressMsg {
+            job_id,
+            stage: {
+                if cfg
+                    .cancelling_job_info
+                    .get(&job_id)
+                    .map_or(true, |x| x.as_cancel)
+                {
+                    JobStage::Cancelled
+                } else {
+                    JobStage::Aborted
+                }
+            },
+        }),
+
+        // regular result handling
         Err(err) => {
             tracing::warn!("job {} aborted because of error: {:?}", job_id, &err);
 
@@ -283,12 +301,11 @@ pub async fn handle_job_wrapper(
                     JobResultKind::CompileError,
                     format!("Cannot find config for {} in `judger.toml`", f),
                 ),
-                JobExecErr::Io(e) => (JobResultKind::JudgerError, format!("IO error: {:?}", e)),
+                JobExecErr::Io(e) => (JobResultKind::JudgerError, format!("IO error: {}", e)),
                 JobExecErr::Ws(e) => (
                     JobResultKind::JudgerError,
                     format!("Websocket error: {:?}", e),
                 ),
-                JobExecErr::Cancelled => (JobResultKind::Aborted, "Job cancelled by user".into()),
                 JobExecErr::Json(e) => (JobResultKind::JudgerError, format!("JSON error: {:?}", e)),
                 JobExecErr::TomlDes(e) => (
                     JobResultKind::JudgerError,
@@ -301,6 +318,10 @@ pub async fn handle_job_wrapper(
                 JobExecErr::Build(e) => (JobResultKind::CompileError, format!("{}", e)),
                 JobExecErr::Exec(e) => (JobResultKind::PipelineError, format!("{:?}", e)),
                 JobExecErr::Any(e) => (JobResultKind::OtherError, format!("{:?}", e)),
+                JobExecErr::Git(e) => (JobResultKind::CompileError, format!("{}", e)),
+                JobExecErr::Cancelled | JobExecErr::Aborted => {
+                    unreachable!()
+                }
             };
 
             ClientMsg::JobResult(JobResultMsg {
@@ -318,12 +339,31 @@ pub async fn handle_job_wrapper(
         if let Some(token) = &cfg.cfg.access_token {
             req = req.header("authorization", token.as_str());
         }
-        req.send().await.and_then(|x| x.error_for_status())
-    } {
-        tracing::error!("Error when sending job result mesage:\n{}", e)
-    }
+        let req = req.send().await;
+        match req {
+            Ok(r) => {
+                if !r.status().is_success() {
+                    let status = r.status();
+                    match r.text().await {
+                        Ok(t) => {
+                            tracing::error!(
+                                "Error when sending job result mesage: {}\n{}",
+                                status,
+                                t
+                            );
+                            Ok(())
+                        }
+                        Err(e) => Err(e),
+                    }
+                } else {
+                    Ok(())
+                }
+            }
+            Err(e) => Err(e),
+        }
+    } {}
 
-    flag_finished_job(send.clone(), cfg.clone()).await;
+    flag_finished_job(cfg.clone()).await;
 
     tracing::info!("{}: Result message sent", job_id);
 
@@ -339,12 +379,11 @@ pub async fn handle_job_wrapper(
 }
 
 pub async fn handle_job(
-    job: NewJob,
+    job: Job,
     send: Arc<WsSink>,
     cancel: CancellationTokenHandle,
     cfg: Arc<SharedClientData>,
 ) -> Result<JobResultMsg, JobExecErr> {
-    let job = job.job;
     let client = reqwest::Client::new();
 
     tracing::info!("created");
@@ -366,7 +405,8 @@ pub async fn handle_job(
     // Clone the repo specified in job
     let job_path = cfg.job_folder(job.id);
     let _ = fs::ensure_removed_dir(&job_path).await;
-    fs::net::git_clone(
+
+    let git_result = fs::net::git_clone(
         &job_path,
         fs::net::GitCloneOptions {
             repo: job.repo,
@@ -374,7 +414,18 @@ pub async fn handle_job(
             depth: 3,
         },
     )
-    .await?;
+    .with_cancel(cancel.clone())
+    .await
+    .ok_or(JobExecErr::Aborted)?;
+
+    // Git might exit before we receive the cancel signal. Yield once and wait
+    // for the signal to strike at us.
+    // TODO: This is a workaround. Replace with better code.
+    tokio::task::yield_now().await;
+    if cancel.is_cancelled() {
+        return Err(JobExecErr::Aborted);
+    }
+    git_result.map_err(JobExecErr::Git)?;
 
     tracing::info!("fetched");
 
@@ -514,36 +565,30 @@ pub async fn handle_job(
 }
 
 pub async fn flag_new_job(send: Arc<WsSink>, client_config: Arc<SharedClientData>) {
-    let job_count = client_config.new_job();
-    let can_accept_new_task =
-        client_config.running_tests.load(Ordering::SeqCst) < client_config.cfg.max_concurrent_tasks;
-
-    let _ = send
-        .send_msg(&ClientMsg::ClientStatus(ClientStatusMsg {
-            active_task_count: job_count as i32,
-            request_for_new_task: 0,
-            can_accept_new_task,
-        }))
-        .await;
+    client_config.new_job();
 }
 
-pub async fn flag_finished_job(send: Arc<WsSink>, client_config: Arc<SharedClientData>) {
-    let job_count = client_config.finish_job();
-    let aborting = client_config.aborting.load(Ordering::SeqCst);
-    let _ = send
-        .send_msg(&ClientMsg::ClientStatus(ClientStatusMsg {
-            active_task_count: job_count as i32,
-            can_accept_new_task: !aborting,
-            request_for_new_task: if aborting { 0 } else { 1 },
-        }))
-        .await;
+pub async fn flag_finished_job(client_config: Arc<SharedClientData>) {
+    client_config.finish_job();
 }
 
-pub async fn accept_job(job: NewJob, send: Arc<WsSink>, client_config: Arc<SharedClientData>) {
-    tracing::info!("Received job {}", job.job.id);
-    let job_id = job.job.id;
+pub async fn accept_job(job: Job, send: Arc<WsSink>, client_config: Arc<SharedClientData>) {
+    tracing::info!("Received job {}", job.id);
+    let job_id = job.id;
     let cancel_handle = client_config.cancel_handle.child_token();
     let cancel_token = cancel_handle.child_token();
+
+    // Cancel job after timeout
+    tokio::spawn({
+        let cancel_token = cancel_token.clone();
+        async move {
+            // Hardcoded 30mins.
+            // TODO: change this
+            tokio::time::sleep(std::time::Duration::from_secs(30 * 60)).await;
+            cancel_token.cancel();
+        }
+    });
+
     let handle = tokio::spawn(handle_job_wrapper(
         job,
         send,
@@ -557,14 +602,19 @@ pub async fn accept_job(job: NewJob, send: Arc<WsSink>, client_config: Arc<Share
         .insert(job_id, (handle, cancel_handle));
 }
 
-async fn cancel_job(job_id: FlowSnake, client_config: Arc<SharedClientData>) {
-    let job = {
-        client_config
-            .running_job_handles
-            .lock()
-            .await
-            .remove(&job_id)
-    };
+async fn cancel_job(
+    job: AbortJob,
+    client_config: Arc<SharedClientData>,
+    inserted: futures::channel::oneshot::Receiver<()>,
+) {
+    let job_id = job.job_id;
+    client_config.cancelling_job_info.insert(job_id, job);
+    let job = client_config
+        .running_job_handles
+        .lock()
+        .await
+        .remove(&job_id);
+
     if let Some((handle, cancel)) = job {
         cancel.cancel();
         match handle.await {
@@ -572,12 +622,18 @@ async fn cancel_job(job_id: FlowSnake, client_config: Arc<SharedClientData>) {
             Err(e) => tracing::warn!("Unable to cancel job {}: {}", job_id, e),
         };
     }
-    // remove self from cancelling job list
-    client_config
-        .cancelling_job_handles
-        .lock()
-        .await
-        .remove(&job_id);
+
+    // Wait until self gets inserted into cancelling job handles
+    // (it's a racing condition with the main loop)
+    if inserted.await.is_ok() {
+        // remove self from cancelling job list
+        client_config
+            .cancelling_job_handles
+            .lock()
+            .await
+            .remove(&job_id);
+    }
+    client_config.cancelling_job_info.remove(&job_id);
 }
 
 async fn keepalive(
@@ -605,24 +661,87 @@ async fn keepalive(
     }
 }
 
+async fn poll_jobs(
+    client_config: Arc<SharedClientData>,
+    keepalive_token: CancellationTokenHandle,
+    ws: Arc<WsSink>,
+    poll_interval: std::time::Duration,
+    retry_interval: std::time::Duration,
+    poll_timeout: std::time::Duration,
+) {
+    while {
+        while client_config.waiting_for_jobs.load().is_some() {
+            if tokio::time::sleep(retry_interval)
+                .with_cancel(keepalive_token.child_token())
+                .await
+                .is_none()
+            {
+                return;
+            }
+        }
+
+        let message_id = FlowSnake::generate();
+
+        client_config
+            .waiting_for_jobs
+            .store(Some(Arc::new(message_id)));
+
+        let active_task_count = client_config.running_tests.load(Ordering::SeqCst) as u32;
+        let request_for_new_task =
+            client_config.cfg.max_concurrent_tasks as u32 - active_task_count;
+
+        tracing::trace!(
+            "Polling jobs from server. Asking for {} new jobs.",
+            request_for_new_task
+        );
+
+        let msg = ClientMsg::JobRequest(JobRequestMsg {
+            active_task_count,
+            request_for_new_task,
+            message_id: Some(message_id),
+        });
+        if !matches!(
+            ws.send_msg(&msg)
+                .with_cancel(keepalive_token.child_token())
+                .await,
+            Some(Ok(_))
+        ) {
+            return;
+        }
+
+        tokio::spawn({
+            // auto-resetting
+            let client_config = client_config.clone();
+            async move {
+                tokio::time::sleep(poll_timeout).await;
+                let old_val = client_config.waiting_for_jobs.swap(None);
+                if old_val.as_ref().map_or(false, |x| **x == message_id) {
+                    tracing::warn!(
+                        "Job polling timed out at {}s for poll message {}. Please check server!",
+                        poll_timeout.as_secs_f32(),
+                        old_val.unwrap()
+                    );
+                }
+            }
+        });
+
+        tokio::time::sleep(poll_interval)
+            .with_cancel(keepalive_token.child_token())
+            .await
+            .is_some()
+    } {}
+}
+
 #[allow(clippy::if_same_then_else)]
 pub async fn client_loop(
     mut ws_recv: WsStream,
     ws_send: Arc<WsSink>,
     client_config: Arc<SharedClientData>,
 ) -> Arc<WsSink> {
-    // Request for max_concurrent_tasks jobs
-    ws_send
-        .send_msg(&ClientMsg::ClientStatus(ClientStatusMsg {
-            active_task_count: 0,
-            request_for_new_task: client_config.cfg.max_concurrent_tasks as u32,
-            can_accept_new_task: true,
-        }))
-        .await
-        .unwrap();
-
     let keepalive_token = client_config.cancel_handle.child_token();
-    let _keepalive_cancel = keepalive_token.child_token();
+    let keepalive_cancel = keepalive_token.child_token();
+
+    client_config.waiting_for_jobs.store(None);
 
     let keepalive_handle = tokio::spawn(keepalive(
         client_config.clone(),
@@ -631,9 +750,18 @@ pub async fn client_loop(
         std::time::Duration::from_secs(20),
     ));
 
+    let poll_jobs_handle = tokio::spawn(poll_jobs(
+        client_config.clone(),
+        keepalive_cancel.child_token(),
+        ws_send.clone(),
+        std::time::Duration::from_secs(10),
+        std::time::Duration::from_secs(1),
+        std::time::Duration::from_secs(60),
+    ));
+
     while let Some(Some(Ok(x))) = ws_recv
         .next()
-        .with_cancel(client_config.cancel_handle.child_token())
+        .with_cancel(keepalive_cancel.child_token())
         .await
     {
         let x: Message = x;
@@ -642,16 +770,38 @@ pub async fn client_loop(
             let msg = from_slice::<ServerMsg>(&payload);
             match msg {
                 Ok(msg) => match msg {
-                    ServerMsg::NewJob(job) => {
-                        accept_job(job, ws_send.clone(), client_config.clone()).await
+                    ServerMsg::MultiNewJob(msg) => {
+                        let mut proceed = true;
+                        if let Some(id) = msg.reply_to {
+                            if client_config
+                                .waiting_for_jobs
+                                .swap(None)
+                                .map_or(false, |x| id != *x)
+                            {
+                                proceed = false;
+                            }
+                        };
+
+                        if proceed {
+                            for job in msg.jobs {
+                                accept_job(job, ws_send.clone(), client_config.clone()).await
+                            }
+                        }
                     }
                     ServerMsg::AbortJob(job) => {
-                        let abort = tokio::spawn(cancel_job(job.job_id, client_config.clone()));
+                        let job_id = job.job_id;
+                        let (inserted_send, inserted_recv) = futures::channel::oneshot::channel();
+                        let abort =
+                            tokio::spawn(cancel_job(job, client_config.clone(), inserted_recv));
                         client_config
                             .cancelling_job_handles
                             .lock()
                             .await
-                            .insert(job.job_id, abort);
+                            .insert(job_id, abort);
+                        let _ = inserted_send.send(());
+                    }
+                    ServerMsg::ServerHello => {
+                        tracing::info!("Hi, server o/");
                     }
                 },
                 Err(e) => {
@@ -670,9 +820,11 @@ pub async fn client_loop(
             tracing::warn!("Unsupported message: {:?}", x);
         }
     }
-    ws_send.clear_socket();
 
     let _ = keepalive_handle.await;
+    let _ = poll_jobs_handle.await;
+
+    client_config.waiting_for_jobs.store(None);
 
     tracing::warn!("Disconnected!");
     ws_send

@@ -44,7 +44,7 @@ namespace Karenia.Rurikawa.Coordinator.Controllers {
                 var result = await judgerService.RegisterJudger(msg.Token, msg.AlternateName, msg.Tags);
                 return Ok(result.Id);
             } catch (KeyNotFoundException) {
-                return BadRequest("No such token was found");
+                return BadRequest(new ErrorResponse(ErrorCodes.JUDGER_NO_SUCH_REGISTER_TOKEN, "No such token was found"));
             }
         }
 
@@ -58,7 +58,9 @@ namespace Karenia.Rurikawa.Coordinator.Controllers {
             [FromQuery] FlowSnake jobId,
             [FromQuery] string testId) {
             if (Request.ContentLength == null)
-                return BadRequest("ContentLength must be specified!");
+                return BadRequest(new ErrorResponse(
+                    ErrorCodes.UNSPECIFIED_CONTENT_LENGTH,
+                    "ContentLength must be specified!"));
 
             var filename = $"results/{jobId}/{testId}.json";
             await fs.UploadFile(filename, Request.Body, Request.ContentLength.Value, true);
@@ -66,15 +68,25 @@ namespace Karenia.Rurikawa.Coordinator.Controllers {
         }
 
         /// <summary>
-        /// This is a backup method for sending job results.
+        /// This is a backup method for sending job results. This endpoint only
+        /// accepts <c>JobResultMsg</c> and <c>JobProgressMsg</c>.
         /// </summary>
         /// <returns></returns>
         [HttpPost("result")]
         public ActionResult SendJobResult(
-            [FromBody] JobResultMsg resultMsg,
+            [FromBody] IClientResultMsg resultMsg,
             [FromServices] JudgerCoordinatorService coordinator) {
             var judger = AuthHelper.ExtractUsername(HttpContext.User);
-            coordinator.OnJobResultMessage(judger!, resultMsg);
+            switch (resultMsg) {
+                case JobResultMsg msg:
+                    coordinator.OnJobResultMessage(judger!, msg); break;
+                case JobProgressMsg msg:
+                    coordinator.OnJobProgressMessage(judger!, msg); break;
+                default:
+                    return BadRequest(new ErrorResponse(
+                        ErrorCodes.INVALID_MESSAGE_TYPE,
+                        "This endpoint only accepts JobResultMsg and JobProgressMsg"));
+            }
             return NoContent();
         }
 

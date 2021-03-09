@@ -117,7 +117,7 @@ namespace Karenia.Rurikawa.Coordinator.Controllers {
             [FromQuery] bool visible
         ) {
             var original = await db.TestSuites.Where(t => t.Id == suiteId).SingleOrDefaultAsync();
-            if (original == null) { return NotFound(new ErrorResponse("no_such_suite")); }
+            if (original == null) { return NotFound(new ErrorResponse(ErrorCodes.NO_SUCH_SUITE)); }
 
             original.IsPublic = visible;
             await db.SaveChangesAsync();
@@ -133,7 +133,7 @@ namespace Karenia.Rurikawa.Coordinator.Controllers {
             [FromQuery] TestSuite.TestSuitePatch patch
         ) {
             var original = await db.TestSuites.Where(t => t.Id == suiteId).SingleOrDefaultAsync();
-            if (original == null) { return NotFound(new ErrorResponse("no_such_suite")); }
+            if (original == null) { return NotFound(new ErrorResponse(ErrorCodes.NO_SUCH_SUITE)); }
 
             original.Patch(patch);
             await db.SaveChangesAsync();
@@ -161,7 +161,7 @@ namespace Karenia.Rurikawa.Coordinator.Controllers {
             [FromQuery] bool replaceDescription = true
         ) {
             var original = await db.TestSuites.Where(t => t.Id == suiteId).SingleOrDefaultAsync();
-            if (original == null) { return NotFound(new ErrorResponse("no_such_suite")); }
+            if (original == null) { return NotFound(new ErrorResponse(ErrorCodes.NO_SUCH_SUITE)); }
 
             if (!Request.ContentLength.HasValue) {
                 return BadRequest("Content length must be present in header");
