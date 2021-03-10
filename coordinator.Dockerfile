@@ -2,7 +2,7 @@
 FROM mcr.microsoft.com/dotnet/aspnet:5.0-alpine AS base
 
 # Add git
-RUN if [ $CI ] \
+RUN if [ $CI ] then\
     sed -i 's/dl-cdn.alpinelinux.org/mirrors.tuna.tsinghua.edu.cn/g' /etc/apk/repositories \
     fi
 RUN apk add git
