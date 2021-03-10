@@ -2,27 +2,58 @@
 
 ![Rurikawa Header pic](res/header-pic.png)
 
-Rurikawa is a simple Docker-based build & judge system for complex multi-file projects.
+Rurikawa is a simple Docker-based online judge system for complex multi-file projects with changing building scripts and multi-stage assignments.
 
-Rurikawa 是一个简易的自动评测系统，主要面向多文件项目和较为复杂的构建、评测步骤。
+Rurikawa 是一个简易的自动评测系统，主要面向构建流程多变、复杂的多文件项目，以及多阶段的作业。
 
-## 运行
+## Features
 
-- 阅读 `dev.docker-compose.yml` 并进行相应修改
+- Online judging system
+- Customizable assignment building backed by Docker
+- Standalone judgers that connects from machines outside backend servers
+- "Special judge" scripts for complex judging dynamic scoring
+- Horizontally-scalable backend design
 
-- `docker-compose -f dev.docker-compose.yml up`
+### Not-yet implemented
 
-### Coordinator
+- I18n (Currently only supports Chinese)
 
-运行（或购买相关服务）：
+## Running
 
-- PostgreSQL 数据库
-- 兼容 Amazon S3 的对象存储服务（如 Minio）
+### Before running
 
-将以上服务配置填写在 `appsettings.json` 中：
+You'll need these tools to run a Rurikawa server (coordinator + web):
+
+- A [`PostgreSQL`][postgres]-compatible database (You can try [`CockroachDB`][cockroach], though it hasn't been tested).
+- A Amazon S3-compatible object storage service (I would recommend [`Minio`][minio] if you're serving your own files).
+- Redis.
+- Any recent version of `git` inside coordinator environment.
+
+You can refer to the development docker compose file (`dev.docker-compose.yml`) for an example.
+
+You'll need these tools to run a Rurikawa judger:
+
+- A Unix-family operating system (Sadly, windows doesn't work for now).
+- Any recent version of `openssl`.
+- Any recent version of `git`.
+- Any recent version of `docker`, with API exposed at the default path.
+  - You might need to log into a paid account if your clients use many different kinds of build environments - Docker now limits access rates for unpaid accounts.
+  - You might need to run [`docuum`][docuum] to manage Docker's build image cache.
+
+[postgres]: https://postgresql.org/
+[cockroach]: https://cockroachlabs.com/
+[minio]: https://min.io/
+[docuum]: https://github.com/stepchowfun/docuum
+
+You can check out the corresponding dockerfiles provided for detailed building instructions.
+
+### Backend
+
+Configure `coordinator/appsettings.json` before running:
 
 ```json
 {
+  // These parts are for controlling logging behavior. Change if you need.
   "Logging": {
     "LogLevel": {
       "Default": "Information",
@@ -31,10 +62,13 @@ Rurikawa 是一个简易的自动评测系统，主要面向多文件项目和�
     }
   },
 
-  // Your postgresql database
+  // Enter information about your database here:
   "pgsqlLink": "Host=<host>;Database=<db>;Port=<port>;Username=<username>;Password=<password>",
 
-  // Your S3-compatible bucket
+  // Enter your Redis host here:
+  "redisLink": "<redis>",
+
+  // Enter information about your OSS here:
   "testStorage": {
     "endpoint": "<your_endpoint>",
     "accessKey": "<your_access_key>",
@@ -45,7 +79,9 @@ Rurikawa 是一个简易的自动评测系统，主要面向多文件项目和�
 }
 ```
 
-运行程序。
+You can find an example of this file at `coordinator/appsettings.dev.json`. 
+
+To run coordinator, run:
 
 ```
 $ dotnet run
@@ -53,18 +89,14 @@ $ dotnet run
 
 ### Judger
 
-构建。
+You'll need coordinator running before running judger.
+
+To run the judger the first time, you'll need a register token from coordinator. Visit `<your_web_host>/admin/judger` to get a token, and then run:
 
 ```
-$ cargo build
+$ path/to/rurikawa connect <your_coordinator_host> --register-token <token>
 ```
 
-运行。
+In subsequent runs, only `rurikawa connect` is needed if the configuration stays the same. 
 
-```
-$ path/to/rurikawa connect <your_coordinator_host>
-```
-
-#### 限制
-
-目前不能在 Windows 下运行
+Data created by the judger will be stored at `~/.rurikawa`.
