@@ -5,8 +5,11 @@
         "Popen",
         "canonicalize",
         "deserialization",
+        "forcerm",
         "golemc",
+        "mkdir",
         "rurikawa",
+        "stablized",
         "tungstenite",
         "unsync"
     ],

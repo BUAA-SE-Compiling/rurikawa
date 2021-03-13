@@ -1,15 +1,13 @@
 use super::{
     model::*,
-    spj::{self, SpjEnvironment},
-};
-use super::{
     runner::{CommandRunner, DockerCommandRunner, DockerCommandRunnerOptions},
-    ExecError, ExecErrorKind, JobFailure, OutputMismatch, ProcessInfo, ShouldFailFailure,
+    spj::{self, SpjEnvironment},
+    utils::diff,
+    BuildError, ExecError, ExecErrorKind, JobFailure, OutputMismatch, ProcessInfo,
+    ShouldFailFailure,
 };
-use super::{utils::diff, BuildError};
 use crate::{
-    client::model::ResultUploadConfig,
-    client::model::{upload_test_result, TestResult, TestResultKind},
+    client::model::{upload_test_result, ResultUploadConfig, TestResult, TestResultKind},
     config::JudgeTomlTestConfig,
     prelude::*,
 };
@@ -18,11 +16,8 @@ use bollard::models::{BuildInfo, Mount};
 use futures::stream::StreamExt;
 use once_cell::sync::Lazy;
 use path_slash::PathBufExt;
-use std::path::Path;
-use std::time;
-use std::{collections::HashMap, io, path::PathBuf, string::String, sync::Arc};
-use tokio::io::{AsyncReadExt};
-use tokio::sync::mpsc::UnboundedSender;
+use std::{collections::HashMap, io, path::Path, path::PathBuf, sync::Arc, time};
+use tokio::{io::AsyncReadExt, sync::mpsc::UnboundedSender};
 use tokio_util::compat::*;
 
 #[cfg(unix)]
@@ -196,7 +191,7 @@ impl Test {
     }
 
     // ? Should `runner` be mutable?
-    /// Run this specific test. Returns the score of this test (`1` when scoring mode is off)
+    /// Run this specific test. Returns the score of this test (`1` when scoring mode is off).
     pub async fn run<R>(
         self,
         runner: &R,
@@ -388,7 +383,7 @@ impl Image {
                         bollard::image::BuildImageOptions {
                             dockerfile: file
                                 .as_ref()
-                                .map(|x| x.to_string_lossy().to_string())
+                                .map(|x| x.to_string_lossy().into_owned())
                                 .unwrap_or_else(|| "Dockerfile".into()),
                             t: tag.into(),
                             rm: true,
@@ -803,5 +798,5 @@ fn construct_case_index(pub_cfg: &JudgerPublicConfig) -> HashMap<String, &TestCa
     idx
 }
 
-mod tests;
 mod test_suite;
+mod tests;

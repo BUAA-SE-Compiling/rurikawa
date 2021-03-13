@@ -15,6 +15,7 @@ pub enum ExecErrorKind {
     TimedOut,
 }
 
+/// The result returned by running a subprocess.
 #[derive(Debug, Clone, Serialize, Deserialize, Eq, PartialEq, IntoJsByRef)]
 pub struct ProcessInfo {
     pub ret_code: i32,
@@ -30,11 +31,10 @@ pub struct OutputMismatch {
     pub output: Vec<ProcessInfo>,
 }
 
-
 #[derive(Debug, Clone, Serialize, Deserialize, Eq, PartialEq)]
-pub struct SpjFailure{
+pub struct SpjFailure {
     pub reason: Option<String>,
-    pub output: Vec<ProcessInfo>
+    pub output: Vec<ProcessInfo>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Eq, PartialEq, Error)]
