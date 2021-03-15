@@ -12,7 +12,7 @@ import { ApiService } from 'src/services/api_service';
   styleUrls: ['./admin-create-test-suite-view.component.styl'],
 })
 export class AdminCreateTestSuiteViewComponent implements OnInit {
-  constructor(private api:ApiService, private router: Router) {}
+  constructor(private api: ApiService, private router: Router) {}
 
   testSuite?: TestSuite;
 
@@ -20,19 +20,12 @@ export class AdminCreateTestSuiteViewComponent implements OnInit {
 
   getUploadFileFunction() {
     return (files, started, progress, finished, aborted) => {
-      this.uploadFile(
-        this.api,
-        files,
-        started,
-        progress,
-        finished,
-        aborted
-      );
+      this.uploadFile(this.api, files, started, progress, finished, aborted);
     };
   }
 
   uploadFile(
-    api:ApiService
+    api: ApiService,
     files: File[],
     started: () => void,
     progress: (progress: number) => void,
@@ -44,25 +37,24 @@ export class AdminCreateTestSuiteViewComponent implements OnInit {
       finished(false);
       return;
     }
-    api.testSuite.post_observeEvents(files[0])
-      .subscribe({
-        next: (ev) => {
-          if (ev.type === HttpEventType.UploadProgress) {
-            if (ev.total !== undefined) {
-              progress(ev.loaded / ev.total);
-            }
-          } else if (ev.type === HttpEventType.Response) {
-            finished(ev.status < 300);
-            if (ev.status < 300) {
-              this.testSuite = ev.body;
-              this.router.navigate(['admin', 'suite', this.testSuite.id]);
-            }
+    api.testSuite.post_observeEvents(files[0]).subscribe({
+      next: (ev) => {
+        if (ev.type === HttpEventType.UploadProgress) {
+          if (ev.total !== undefined) {
+            progress(ev.loaded / ev.total);
           }
-        },
-        error: (e) => {
-          finished(false);
-        },
-      });
+        } else if (ev.type === HttpEventType.Response) {
+          finished(ev.status < 300);
+          if (ev.status < 300) {
+            this.testSuite = ev.body;
+            this.router.navigate(['admin', 'suite', this.testSuite.id]);
+          }
+        }
+      },
+      error: (e) => {
+        finished(false);
+      },
+    });
     started();
   }
 }
