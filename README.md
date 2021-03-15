@@ -100,3 +100,9 @@ $ path/to/rurikawa connect <your_coordinator_host> --register-token <token>
 In subsequent runs, only `rurikawa connect` is needed if the configuration stays the same. 
 
 Data created by the judger will be stored at `~/.rurikawa`.
+
+## License
+
+MIT.
+
+Copyright (c) 2020--2021, Karenia Works (Rynco Maekawa & Rami3L Li).
