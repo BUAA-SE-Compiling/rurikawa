@@ -34,7 +34,7 @@ You can refer to the development docker compose file (`dev.docker-compose.yml`) 
 You'll need these tools to run a Rurikawa judger:
 
 - A Unix-family operating system (Sadly, windows doesn't work for now).
-- Any recent version of `openssl`.
+- ~~Any recent version of `openssl`.~~ Judger now uses Rustls for network connections.
 - Any recent version of `git`.
 - Any recent version of `docker`, with API exposed at the default path.
   - You might need to log into a paid account if your clients use many different kinds of build environments - Docker now limits access rates for unpaid accounts.
