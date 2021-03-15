@@ -19,6 +19,7 @@ import {
 } from 'rxjs/webSocket';
 import { Observable, of, Subject } from 'rxjs';
 import { preserveWhitespacesDefault } from '@angular/compiler';
+import { ApiService } from './api_service';
 
 export interface FetchSuiteJobOption {
   suiteId: string;
@@ -43,7 +44,7 @@ const fetchSuiteJobDefault: FetchSuiteJobOption = {
  */
 @Injectable({ providedIn: 'root' })
 export class TestSuiteAndJobCache {
-  public constructor(private httpClient: HttpClient) {
+  public constructor(private httpClient: HttpClient, private api: ApiService) {
     this.testSuiteCache = new LruCache({ maxSize: 1000 });
     this.jobCache = new LruCache({
       maxSize: 1000,
@@ -61,10 +62,7 @@ export class TestSuiteAndJobCache {
   private trackingJobs: Set<string> = new Set();
 
   private getWebsocketToken() {
-    return this.httpClient.get(
-      environment.endpointBase() + endpoints.account.wsToken,
-      { responseType: 'text' }
-    );
+    return this.api.account.wsToken();
   }
 
   public connectWebsocket() {
@@ -177,17 +175,8 @@ export class TestSuiteAndJobCache {
     let opt = fetchSuiteJobDefault;
     assign(opt, optU);
 
-    return this.httpClient
-      .get<Job[]>(
-        environment.endpointBase() + endpoints.testSuite.getJobs(opt.suiteId),
-        {
-          params: {
-            startId: opt.startId,
-            take: opt.take.toString(),
-            asc: opt.asc.toString(),
-          },
-        }
-      )
+    return this.api.testSuite
+      .getJobs(opt.suiteId, opt.startId, opt.take, opt.asc)
       .pipe(
         tap({
           next: (jobs) => {
@@ -203,31 +192,25 @@ export class TestSuiteAndJobCache {
   }
 
   public fetchTestSuite(id: string) {
-    return this.httpClient
-      .get<TestSuite>(environment.endpointBase() + endpoints.testSuite.get(id))
-      .pipe(
-        tap({
-          next: (v) => {
-            this.testSuiteCache.set(v.id, v);
-          },
-        })
-      );
+    return this.api.testSuite.get(id).pipe(
+      tap({
+        next: (v) => {
+          this.testSuiteCache.set(v.id, v);
+        },
+      })
+    );
   }
 
   public fetchJob(id: string, track: boolean) {
-    return this.httpClient
-      .get<Job>(
-        environment.endpointBase() + endpoints.job.get.replace(':id', id)
-      )
-      .pipe(
-        tap({
-          next: (v) => {
-            if (track) {
-              this.startTrackingJob(v.id);
-            }
-            this.cacheJob(v);
-          },
-        })
-      );
+    return this.api.job.get(id).pipe(
+      tap({
+        next: (v) => {
+          if (track) {
+            this.startTrackingJob(v.id);
+          }
+          this.cacheJob(v);
+        },
+      })
+    );
   }
 }

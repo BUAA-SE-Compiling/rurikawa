@@ -4,27 +4,20 @@ import { environment } from 'src/environments/environment';
 import { Observable, of } from 'rxjs';
 import { endpoints } from 'src/environments/endpoints';
 import { catchError } from 'rxjs/operators';
+import { ApiService } from './api_service';
 
 @Injectable({ providedIn: 'root' })
 export class AdminService {
-  public constructor(private httpClient: HttpClient) {}
+  public constructor(private httpClient: HttpClient, private api: ApiService) {}
 
   public isServerInitialized(): Observable<boolean> {
-    return this.httpClient
-      .get<boolean>(environment.endpointBase() + endpoints.admin.readInitStatus)
-      .pipe(catchError((e) => of(false)));
+    return this.api.admin.getIsServerInitialized();
   }
 
   public initializeServer(
     username: string,
     password: string
   ): Observable<void> {
-    return this.httpClient.post<void>(
-      environment.endpointBase() + endpoints.admin.setInitAccount,
-      {
-        username,
-        password,
-      }
-    );
+    return this.api.admin.initializeServer(username, password);
   }
 }

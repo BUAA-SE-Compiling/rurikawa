@@ -7,7 +7,7 @@ export const endpoints = {
   },
   profile: {
     get: (id: string) => `profile/${id}`,
-    set: (id: string) => `profile/${id}`,
+    put: (id: string) => `profile/${id}`,
     init: (id: string) => `profile/${id}/init`,
   },
   admin: {
@@ -34,7 +34,7 @@ export const endpoints = {
     ws: 'tests/ws?token=:token',
   },
   job: {
-    get: 'job/:id',
+    get: (id: string) => `job/${id}`,
     new: 'job',
     query: 'job',
     respawn: (id: string) => `job/respawn/${id}`,

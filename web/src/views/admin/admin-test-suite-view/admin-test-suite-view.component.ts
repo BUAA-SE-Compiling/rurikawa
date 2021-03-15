@@ -9,6 +9,7 @@ import {
 import { TestSuite } from 'src/models/server-types';
 import { environment } from 'src/environments/environment';
 import { endpoints } from 'src/environments/endpoints';
+import { ApiService } from 'src/services/api_service';
 
 @Component({
   selector: 'app-admin-test-suite-view',
@@ -20,31 +21,22 @@ export class AdminTestSuiteViewComponent implements OnInit {
     private route: ActivatedRoute,
     private testSuiteService: TestSuiteAndJobCache,
     private router: Router,
-    private httpClient: HttpClient
+    private httpClient: HttpClient,
+    private api: ApiService
   ) {}
 
   id: string;
   suite?: TestSuite;
 
   togglePublic() {
-    this.httpClient
-      .post(
-        environment.endpointBase() + endpoints.testSuite.setVisibility(this.id),
-        undefined,
-        {
-          params: {
-            visible: this.suite?.isPublic ? 'false' : 'true',
-          },
+    this.api.testSuite.setVisibility(this.id, !this.suite?.isPublic).subscribe({
+      next: () => {
+        if (this.suite) {
+          this.suite.isPublic = !this.suite.isPublic;
         }
-      )
-      .subscribe({
-        next: () => {
-          if (this.suite) {
-            this.suite.isPublic = !this.suite.isPublic;
-          }
-        },
-        error: (e) => console.error(e),
-      });
+      },
+      error: (e) => console.error(e),
+    });
   }
 
   getUploadFileFunction() {
@@ -73,44 +65,29 @@ export class AdminTestSuiteViewComponent implements OnInit {
       finished(false);
       return;
     }
-    http
-      .put(
-        environment.endpointBase() + endpoints.testSuite.setFile(this.id),
-        files[0],
-        {
-          params: { filename: files[0].name },
-          observe: 'events',
-          responseType: 'text',
-          reportProgress: true,
-        }
-      )
-      .subscribe({
-        next: (ev) => {
-          if (ev.type === HttpEventType.UploadProgress) {
-            if (ev.total !== undefined) {
-              progress(ev.loaded / ev.total);
-            }
-          } else if (ev.type === HttpEventType.Response) {
-            finished(ev.status < 300);
-            if (ev.status < 300) {
-              this.suite = JSON.parse(ev.body);
-            }
+    this.api.testSuite.setFile(this.id, files[0]).subscribe({
+      next: (ev) => {
+        if (ev.type === HttpEventType.UploadProgress) {
+          if (ev.total !== undefined) {
+            progress(ev.loaded / ev.total);
           }
-        },
-        error: (e) => {
-          finished(false);
-        },
-      });
+        } else if (ev.type === HttpEventType.Response) {
+          finished(ev.status < 300);
+          if (ev.status < 300) {
+            this.suite = JSON.parse(ev.body);
+          }
+        }
+      },
+      error: (e) => {
+        finished(false);
+      },
+    });
     started();
   }
 
   // HACK: these methods are dirty
   async dumpJobs(): Promise<void> {
-    let code = await this.httpClient
-      .post(environment.endpointBase() + endpoints.admin.getCode, null, {
-        responseType: 'text',
-      })
-      .toPromise();
+    let code = await this.api.admin.getCode().toPromise();
     console.log('code: ', code);
     window.open(
       environment.endpointBase() +
@@ -122,11 +99,7 @@ export class AdminTestSuiteViewComponent implements OnInit {
   }
 
   async dumpAllJobs(): Promise<void> {
-    let code = await this.httpClient
-      .post(environment.endpointBase() + endpoints.admin.getCode, null, {
-        responseType: 'text',
-      })
-      .toPromise();
+    let code = await this.api.admin.getCode().toPromise();
     console.log('code: ', code);
     window.open(
       environment.endpointBase() +
@@ -138,13 +111,11 @@ export class AdminTestSuiteViewComponent implements OnInit {
   }
 
   removeSuite() {
-    this.httpClient
-      .delete(environment.endpointBase() + endpoints.testSuite.remove(this.id))
-      .subscribe({
-        next: () => {
-          this.router.navigate(['admin']);
-        },
-      });
+    this.api.testSuite.remove(this.id).subscribe({
+      next: () => {
+        this.router.navigate(['admin']);
+      },
+    });
   }
 
   ngOnInit(): void {

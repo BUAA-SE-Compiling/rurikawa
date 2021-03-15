@@ -5,12 +5,13 @@ import dayjs, { Dayjs } from 'dayjs';
 import { environment } from 'src/environments/environment';
 import { endpoints } from 'src/environments/endpoints';
 import { Subject, Observable, BehaviorSubject, Subscription } from 'rxjs';
+import { ApiService } from './api_service';
 
 const JUDGER_STATUS_VALID_PERIOD = 120;
 
 @Injectable({ providedIn: 'root' })
 export class JudgerStatusService {
-  constructor(private httpClient: HttpClient) {}
+  constructor(private httpClient: HttpClient, private apiService: ApiService) {}
 
   private updating: boolean;
   private lastData?: { status: JudgerStatus; time: Dayjs };
@@ -31,11 +32,7 @@ export class JudgerStatusService {
     }
     this.updating = true;
     console.log('update');
-    let data = await this.httpClient
-      .get<JudgerStatus>(
-        environment.endpointBase() + endpoints.admin.getJudgerStat
-      )
-      .toPromise();
+    let data = await this.apiService.admin.getJudgerStat().toPromise();
 
     this.lastData = {
       status: data,

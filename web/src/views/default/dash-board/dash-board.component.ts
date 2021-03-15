@@ -1,14 +1,12 @@
 import { Component, OnInit, OnDestroy } from '@angular/core';
-import { SliderItem } from 'src/components/base-components/slider-view/slider-view.component';
 // import { DashboardItem } from 'src/models/job-items';
 import { Router } from '@angular/router';
-import { HttpClient, HttpErrorResponse } from '@angular/common/http';
-import { environment } from 'src/environments/environment';
-import { endpoints } from 'src/environments/endpoints';
+import { HttpErrorResponse } from '@angular/common/http';
 import { DashboardItem, JudgerStatus } from 'src/models/server-types';
 import { TitleService } from 'src/services/title_service';
 import { JudgerStatusService } from 'src/services/judger_status_service';
 import { Subscription } from 'rxjs';
+import { ApiService } from 'src/services/api_service';
 
 @Component({
   selector: 'app-dash-board',
@@ -18,7 +16,7 @@ import { Subscription } from 'rxjs';
 export class DashBoardComponent implements OnInit, OnDestroy {
   constructor(
     private router: Router,
-    private httpClient: HttpClient,
+    private api: ApiService,
     private title: TitleService,
     public judgerStatusService: JudgerStatusService
   ) {}
@@ -46,26 +44,22 @@ export class DashBoardComponent implements OnInit, OnDestroy {
     this.title.setTitle('Rurikawa', 'dashboard');
     this.error = false;
     this.errorMessage = undefined;
-    this.httpClient
-      .get<DashboardItem[]>(
-        environment.endpointBase() + endpoints.dashboard.get
-      )
-      .subscribe({
-        next: (items) => {
-          this.items = items;
-          this.loading = false;
-        },
-        error: (e) => {
-          if (e instanceof HttpErrorResponse) {
-            this.errorMessage = e.message;
-          } else {
-            this.errorMessage = JSON.stringify(e);
-          }
-          console.warn(e);
-          this.error = true;
-          this.loading = false;
-        },
-      });
+    this.api.dashboard.get().subscribe({
+      next: (items) => {
+        this.items = items;
+        this.loading = false;
+      },
+      error: (e) => {
+        if (e instanceof HttpErrorResponse) {
+          this.errorMessage = e.message;
+        } else {
+          this.errorMessage = JSON.stringify(e);
+        }
+        console.warn(e);
+        this.error = true;
+        this.loading = false;
+      },
+    });
     this.fetchJudgerStat();
   }
 

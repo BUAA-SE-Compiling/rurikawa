@@ -1,23 +1,30 @@
 <app-navbar></app-navbar>
 <div class="container body-container">
-  <div class="row text">
-    <h1>作业</h1>
-    <div class="space"></div>
-    <!-- <div class="ghost-btn">添加</div> -->
+  <div class="section">
+    <div class="row text">
+      <h1>公告</h1>
+    </div>
   </div>
-  <div class="test-suite-wrapper">
-    <ng-template #isLoading> 在加载了在加载了 </ng-template>
-    <ng-template [ngIf]="!loading" [ngIfElse]="isLoading">
-      <div class="empty" *ngIf="!error && (!items || items.length == 0)">
-        没有 ouo
-      </div>
-      <div class="empty" *ngIf="error">出错了：{{ errorMessage }}</div>
-      <app-dashboard-item-component
-        *ngFor="let i of items"
-        [item]="i"
-        (click)="gotoJudgeSuite(i.suite.id)"
-      ></app-dashboard-item-component>
-    </ng-template>
+  <div class="section">
+    <div class="row text">
+      <h1>作业</h1>
+      <div class="space"></div>
+      <!-- <div class="ghost-btn">添加</div> -->
+    </div>
+    <div class="test-suite-wrapper">
+      <ng-template #isLoading> 在加载了在加载了 </ng-template>
+      <ng-template [ngIf]="!loading" [ngIfElse]="isLoading">
+        <div class="empty" *ngIf="!error && (!items || items.length == 0)">
+          没有 ouo
+        </div>
+        <div class="empty" *ngIf="error">出错了：{{ errorMessage }}</div>
+        <app-dashboard-item-component
+          *ngFor="let i of items"
+          [item]="i"
+          (click)="gotoJudgeSuite(i.suite.id)"
+        ></app-dashboard-item-component>
+      </ng-template>
+    </div>
   </div>
 </div>
 <div class="judger-status footer">
