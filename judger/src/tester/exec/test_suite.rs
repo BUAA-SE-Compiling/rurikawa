@@ -142,7 +142,7 @@ fn golem_with_volume() -> Result<()> {
 
                 mapped_dir: Bind {
                     from: PathBuf::from(r"../golem/src"),
-                    to: PathBuf::from(r"/golem/src"),
+                    to: PathBuf::from(r"../golem/src"),
                     readonly: false,
                 },
                 binds: Some(vec![]),
