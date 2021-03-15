@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using System.Threading.Tasks;
 using Karenia.Rurikawa.Coordinator.Services;
 using Karenia.Rurikawa.Helpers;
@@ -13,6 +14,11 @@ namespace Karenia.Rurikawa.Coordinator.Controllers {
 
         public AnnouncementController(DbService dbService) {
             this.dbService = dbService;
+        }
+
+        [HttpGet]
+        public async Task<List<Announcement>> GetAnnouncements([FromQuery] FlowSnake startId, int count, bool ascending) {
+            return await dbService.GetAnnouncements(startId, ascending, count);
         }
 
         [HttpGet("{id}")]

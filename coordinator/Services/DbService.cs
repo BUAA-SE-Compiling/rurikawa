@@ -28,6 +28,19 @@ namespace Karenia.Rurikawa.Coordinator.Services {
             return await db.TestSuites.Where(j => j.Id == id).AsNoTracking().SingleOrDefaultAsync();
         }
 
+        public async Task<List<Announcement>> GetAnnouncements(
+            FlowSnake fromId,
+            bool ascending,
+            int count) {
+            var query = db.Announcements.AsQueryable();
+            if (ascending) {
+                query = query.Where(a => a.Id > fromId).OrderBy(a => a.Id);
+            } else {
+                query = query.Where(a => a.Id < fromId).OrderByDescending(a => a.Id);
+            }
+            return await query.Take(count).AsNoTracking().ToListAsync();
+        }
+
         public async Task<Announcement?> GetAnnouncement(FlowSnake id) {
             return await db.Announcements.Where(a => a.Id == id).AsNoTracking().SingleOrDefaultAsync();
         }
