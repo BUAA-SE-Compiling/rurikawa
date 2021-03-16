@@ -18,6 +18,7 @@ import { SettingsViewComponent } from './settings-view/settings-view.component';
 import { JobTestcaseViewComponent } from './job-testcase-view/job-testcase-view.component';
 import { AnnouncementListPageComponent } from './announcement-list-page/announcement-list-page.component';
 import { AnnouncementPageComponent } from './announcement-page/announcement-page.component';
+import { NgxMasonryModule } from 'ngx-masonry';
 
 @NgModule({
   declarations: [
@@ -42,6 +43,7 @@ import { AnnouncementPageComponent } from './announcement-page/announcement-page
     RouterModule,
     IconModule,
     MarkdownModule.forChild(),
+    NgxMasonryModule,
   ],
   exports: [
     AdminForbiddenPageComponent,

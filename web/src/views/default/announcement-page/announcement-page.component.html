@@ -1,1 +1,12 @@
-<p>announcement-page works!</p>
+<div class="container-slim">
+  <div class="header">公告 / {{ id }}</div>
+  <ng-template [ngIf]="announcement">
+    <h1>{{ announcement.title }}</h1>
+    <div class="info">
+      <p>{{ announcement.sender }} @ {{ announcementTime }}</p>
+      <p>标签: {{ announcement.tags }}</p>
+    </div>
+    <markdown [data]="announcement.body"></markdown>
+  </ng-template>
+  <ng-template [ngIf]="error"> </ng-template>
+</div>

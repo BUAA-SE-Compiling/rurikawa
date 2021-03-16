@@ -1,1 +1,12 @@
-<p>announcement-list-page works!</p>
+<div class="container">
+  <h1>公告</h1>
+  <div class="list">
+    <app-announcement-item
+      class="announcement"
+      *ngFor="let item of list"
+      [item]="item"
+      [routerLink]="['/announcement', item.id]"
+    ></app-announcement-item>
+  </div>
+  <div *ngIf="end">没有更多了</div>
+</div>

@@ -18,7 +18,7 @@ export class AnnouncementItemComponent implements OnInit {
   @Input() item: Announcement;
 
   get sendTime() {
-    return dayjs(this.item.sendTime).local().format('YYYY-MM-DD');
+    return dayjs(this.item.sendTime).fromNow();
   }
 
   ngOnInit(): void {
