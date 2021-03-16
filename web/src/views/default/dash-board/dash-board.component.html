@@ -1,6 +1,6 @@
 <app-navbar></app-navbar>
 <div class="container body-container">
-  <div class="section">
+  <div class="section" *ngIf="announcements || loading">
     <div class="row text">
       <h1>公告</h1>
       <div class="space"></div>
@@ -15,7 +15,6 @@
           [routerLink]="['/announcement', item.id]"
         ></app-announcement-item>
       </div>
-      <div *ngIf="!announcements && !loading">没有公告</div>
       <div class="" *ngIf="loading">在加载了</div>
     </div>
   </div>
