@@ -402,11 +402,26 @@ input.input,
 
 .hover-highlight {
   transition: all 100ms ease-in-out
+  cursor: pointer
 
   &:hover {
     // box-shadow: 0px 4px 6px #00000044
     background: var(--alt-background)
   }
+}
+
+.highlight-padding {
+  padding: var(--space-1)
+  margin-left: calc(var(--space-1) * -1)
+  margin-right: calc(var(--space-1) * -1)
+  border-radius: var(--space-0)
+}
+
+.highlight-padding-larger {
+  padding: var(--space-2)
+  margin-left: calc(var(--space-2) * -1)
+  margin-right: calc(var(--space-2) * -1)
+  border-radius: var(--space-0)
 }
 
 ic-icon {

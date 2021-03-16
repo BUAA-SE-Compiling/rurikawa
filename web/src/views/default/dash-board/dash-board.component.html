@@ -3,6 +3,8 @@
   <div class="section">
     <div class="row text">
       <h1>公告</h1>
+      <div class="space"></div>
+      <a class="ghost-btn" [routerLink]="['/announcement']">更多</a>
     </div>
     <div class="wrapper">
       <div class="announcement-items">
@@ -10,6 +12,7 @@
           class="announcement"
           *ngFor="let item of announcements"
           [item]="item"
+          [routerLink]="['/announcement', item.id]"
         ></app-announcement-item>
       </div>
       <div *ngIf="!announcements && !loading">没有公告</div>
