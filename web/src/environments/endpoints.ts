@@ -19,6 +19,12 @@ export const endpoints = {
     dumpSuiteAllJobs: (id: string) => `admin/suite/${id}/dump_all_jobs`,
     judgerRegisterToken: 'admin/judger/register-token',
   },
+  announcement: {
+    query: 'announcement',
+    post: 'announcement',
+    get: (id: string) => `announcement/${id}`,
+    set: (id: string) => `announcement/${id}`,
+  },
   dashboard: {
     get: 'dashboard',
   },

@@ -6,6 +6,7 @@ import { endpoints } from 'src/environments/endpoints';
 import { environment } from 'src/environments/environment';
 import { Job } from 'src/models/job-items';
 import {
+  Announcement,
   DashboardItem,
   JudgerStatus,
   NewJobMessage,
@@ -52,7 +53,33 @@ export class ApiService {
       }),
   };
 
-  announcement = {};
+  announcement = {
+    get: (id: string) =>
+      this.httpClient.get<Announcement>(
+        endpointBase + endpoints.announcement.get(id)
+      ),
+
+    set: (id: string, announcement: Announcement) =>
+      this.httpClient.put(
+        endpointBase + endpoints.announcement.set(id),
+        announcement
+      ),
+
+    post: (item: Announcement) =>
+      this.httpClient.post(endpointBase + endpoints.announcement.post, item),
+
+    query: (startId: string, count: number, ascending: boolean) =>
+      this.httpClient.get<Announcement[]>(
+        endpointBase + endpoints.announcement.query,
+        {
+          params: {
+            startId,
+            count: count.toString(),
+            asc: ascending.toString(),
+          },
+        }
+      ),
+  };
 
   admin = {
     getIsServerInitialized: () =>

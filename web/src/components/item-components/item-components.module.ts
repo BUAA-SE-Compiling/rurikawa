@@ -6,10 +6,21 @@ import { JobItemComponent } from './job-item/job-item.component';
 import { RouterModule } from '@angular/router';
 import { JobTestItemComponent } from './job-test-item/job-test-item.component';
 import { AnnouncementItemComponent } from './announcement-item/announcement-item.component';
+import { MarkdownModule } from 'ngx-markdown';
 
 @NgModule({
-  declarations: [DashboardItemComponentComponent, JobItemComponent, JobTestItemComponent, AnnouncementItemComponent],
-  imports: [CommonModule, BaseComponentsModule, RouterModule],
-  exports: [DashboardItemComponentComponent, JobItemComponent, JobTestItemComponent, AnnouncementItemComponent],
+  declarations: [
+    DashboardItemComponentComponent,
+    JobItemComponent,
+    JobTestItemComponent,
+    AnnouncementItemComponent,
+  ],
+  imports: [CommonModule, BaseComponentsModule, RouterModule, MarkdownModule],
+  exports: [
+    DashboardItemComponentComponent,
+    JobItemComponent,
+    JobTestItemComponent,
+    AnnouncementItemComponent,
+  ],
 })
 export class ItemComponentsModule {}

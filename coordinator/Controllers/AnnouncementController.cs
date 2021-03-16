@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
 using Karenia.Rurikawa.Coordinator.Services;
@@ -28,7 +29,18 @@ namespace Karenia.Rurikawa.Coordinator.Controllers {
             else return NotFound();
         }
 
-        [HttpPost("{id}")]
+        [HttpPut("{id}")]
+        [Authorize("admin")]
+        public async Task<ActionResult> PutAnnouncement([FromBody] Announcement announcement) {
+            try {
+                await dbService.EditAnnouncement(announcement);
+                return Ok();
+            } catch (ArgumentOutOfRangeException) {
+                return NotFound();
+            }
+        }
+
+        [HttpPost()]
         [Authorize("admin")]
         public async Task<ActionResult> PostAnnouncement([FromBody] Announcement announcement) {
             var id = await dbService.CreateAnnouncement(announcement);

@@ -1,2 +1,5 @@
-<h3>{{ announcement.title }}</h3>
-<p>{{ announcement.body }}</p>
+<div class="wrapper">
+  <div class="header"></div>
+  <h3 class="title">{{ item.title }}</h3>
+  <markdown class="body" [data]="bodyBrief"></markdown>
+</div>

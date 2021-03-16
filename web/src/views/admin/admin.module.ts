@@ -12,6 +12,7 @@ import { AdminComponentsModule } from 'src/components/admin-components/admin-com
 import { AdminCreateTestSuiteViewComponent } from './admin-create-test-suite-view/admin-create-test-suite-view.component';
 import { HttpClientModule } from '@angular/common/http';
 import { AdminManageJudgerViewComponent } from './admin-manage-judger-view/admin-manage-judger-view.component';
+import { AdminAnnouncementViewComponent } from './admin-announcement-view/admin-announcement-view.component';
 
 const routes: Routes = [
   {
@@ -43,6 +44,7 @@ const routes: Routes = [
     AdminTestSuiteViewComponent,
     AdminCreateTestSuiteViewComponent,
     AdminManageJudgerViewComponent,
+    AdminAnnouncementViewComponent,
   ],
   imports: [
     CommonModule,
@@ -57,6 +59,7 @@ const routes: Routes = [
     AdminTestSuiteViewComponent,
     AdminCreateTestSuiteViewComponent,
     AdminManageJudgerViewComponent,
+    AdminAnnouncementViewComponent,
   ],
 })
 export class AdminModule {}

@@ -2,11 +2,16 @@ import { Component, OnInit, OnDestroy } from '@angular/core';
 // import { DashboardItem } from 'src/models/job-items';
 import { Router } from '@angular/router';
 import { HttpErrorResponse } from '@angular/common/http';
-import { DashboardItem, JudgerStatus } from 'src/models/server-types';
+import {
+  Announcement,
+  DashboardItem,
+  JudgerStatus,
+} from 'src/models/server-types';
 import { TitleService } from 'src/services/title_service';
 import { JudgerStatusService } from 'src/services/judger_status_service';
 import { Subscription } from 'rxjs';
 import { ApiService } from 'src/services/api_service';
+import { FLOWSNAKE_MAX as FLOWSNAKE_MAX } from 'src/models/flowsnake';
 
 @Component({
   selector: 'app-dash-board',
@@ -23,6 +28,8 @@ export class DashBoardComponent implements OnInit, OnDestroy {
   loading = true;
   items: DashboardItem[] | undefined = undefined;
 
+  announcements: Announcement[] | undefined = undefined;
+
   error: boolean = false;
   errorMessage?: string;
 
@@ -37,6 +44,14 @@ export class DashBoardComponent implements OnInit, OnDestroy {
     this.judgerStatusService.getData().then((v) => {
       this.judgerStat = v;
       console.log(this.judgerStat);
+    });
+  }
+
+  fetchAnnouncements() {
+    this.api.announcement.query(FLOWSNAKE_MAX, 3, false).subscribe({
+      next: (a) => {
+        this.announcements = a;
+      },
     });
   }
 
@@ -61,6 +76,7 @@ export class DashBoardComponent implements OnInit, OnDestroy {
       },
     });
     this.fetchJudgerStat();
+    this.fetchAnnouncements();
   }
 
   ngOnDestroy() {

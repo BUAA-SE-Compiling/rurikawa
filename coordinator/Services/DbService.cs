@@ -57,6 +57,13 @@ namespace Karenia.Rurikawa.Coordinator.Services {
             return announcement.Id;
         }
 
+        public async Task EditAnnouncement(Announcement announcement) {
+            if (!await db.Announcements.Where(a => a.Id == announcement.Id).AnyAsync())
+                throw new ArgumentOutOfRangeException(nameof(announcement), "Announcement does not exist");
+            db.Announcements.Update(announcement);
+            await db.SaveChangesAsync();
+        }
+
         public async Task<IList<Job>> GetJobs(
             FlowSnake? startId = null,
             int take = 20,
