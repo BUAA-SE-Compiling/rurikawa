@@ -1,3 +1,6 @@
+mod test_suite;
+mod tests;
+
 use super::{
     model::*,
     runner::{CommandRunner, DockerCommandRunner, DockerCommandRunnerOptions},
@@ -55,42 +58,56 @@ macro_rules! sh {
 }
 
 /// A `Capturable` represents a pending subprocess call using a [`CommandRunner`]
-/// inside [`sh` (Bourne shell)][sh] or any compatible shell. The command inside
-/// `Capturable` MUST be a valid Bourne shell commandline string, capable of being
-/// called using `sh -c '...'`.
+/// inside [`sh` (Bourne shell)][sh] or any compatible shell.
+///
+/// # Attention
+///
+/// The command inside a [`Capturable`] _must_ be a valid [`sh`][sh] command,
+/// capable of being called using `sh -c '...'`.
 ///
 /// [sh]: https://en.wikipedia.org/wiki/Bourne_shell
 pub struct Capturable(String);
 
 impl Capturable {
+    /// Create a new [`Captureable`] instance out of a command.
+    ///
+    /// # Arguments
+    /// * `cmd` - The command to be run. It _must_ be a valid [`sh` (Bourne shell)][sh] command.
+    ///
+    /// [sh]: https://en.wikipedia.org/wiki/Bourne_shell
     pub fn new(cmd: String) -> Self {
         Capturable(cmd)
     }
 
-    /// Run the command represented by `self` with the given `runner`, with
-    /// `variables` representing commandline variables feeding to `sh` to
-    /// replace corresponding `$...` inside the commandline.
-    async fn capture<R: CommandRunner + Send>(
+    /// Run the command with the given `runner`.
+    ///
+    /// # Arguments
+    ///
+    /// * `runner` - The [`CommandRunner`] instance to be used when running the command.
+    /// * `variables` - The `$...` variable bindings to be fed to `sh` when building the command.
+    async fn capture(
         self,
-        runner: &R,
+        runner: &(impl CommandRunner + Send),
         variables: &HashMap<String, String>,
     ) -> PopenResult<ProcessInfo> {
         runner.run(&self.0, variables).await
     }
 }
 
-/// One step in a `Test`.
+/// One step in a [`Test`].
 pub struct Step {
     /// The command to be executed.
     pub cmd: Capturable,
-    /// The command is created by the user, not the admin.
+
+    /// If the command is created by a user, rather than the admin.
     pub is_user_command: bool,
-    /// The timeout of the command.
+
+    /// The timeout of the command's execution.
     pub timeout: Option<time::Duration>,
 }
 
 impl Step {
-    /// Make a new `Step` with no timeout.
+    /// Make a new [`Step`] with no `timeout`.
     pub fn new(cmd: Capturable, is_user_command: bool) -> Self {
         Step {
             cmd,
@@ -99,13 +116,13 @@ impl Step {
         }
     }
 
-    /// Set `timeout` for a `Step`.
+    /// Set `timeout` for a [`Step`].
     pub fn timeout(mut self, timeout: time::Duration) -> Self {
         self.timeout = Some(timeout);
         self
     }
 
-    /// Make a new `Step` with a `timeout`.
+    /// Make a new [`Step`] with a `timeout`.
     pub fn new_with_timeout(
         cmd: Capturable,
         timeout: Option<time::Duration>,
@@ -118,15 +135,17 @@ impl Step {
         }
     }
 
-    /// Run the `Step` and collect its info, considering the `timeout`.
-    pub async fn capture<R>(
+    /// Run the [`Step`] and collect its output info within the given `timeout`.
+    ///
+    /// # Arguments
+    ///
+    /// * `runner` - The [`CommandRunner`] instance to be used when running the [`Step`].
+    /// * `variables` - The `$...` variable bindings to be fed to `sh` when building the [`Step`].
+    pub async fn capture(
         self,
-        runner: &R,
+        runner: &(impl CommandRunner + Send),
         variables: &HashMap<String, String>,
-    ) -> PopenResult<ProcessInfo>
-    where
-        R: CommandRunner + Send,
-    {
+    ) -> PopenResult<ProcessInfo> {
         let is_user_command = self.is_user_command;
         if let Some(timeout) = self.timeout {
             tokio::time::timeout(timeout, self.cmd.capture(runner, variables))
@@ -137,32 +156,30 @@ impl Step {
                         format!("Popen capture timed out at {}s", timeout.as_secs_f64()),
                     )
                 })?
-                .map(|mut i| {
-                    i.is_user_command = is_user_command;
-                    i
-                })
         } else {
-            self.cmd
-                .capture(runner, variables)
-                .await
-                .map(|i| ProcessInfo {
-                    is_user_command,
-                    ..i
-                })
+            self.cmd.capture(runner, variables).await
         }
+        .map(|i| ProcessInfo {
+            is_user_command,
+            ..i
+        })
     }
 }
 
 static EOF_PATTERN: Lazy<regex::Regex> = Lazy::new(|| regex::Regex::new(r"\r?\n").unwrap());
 
-/// A particular multi-`Step` test.
-/// An I/O match test against `expected` is performed at the last `Step`
+/// A particular [`Test`] consisting of multiple [`Step`]s.
+///
+/// An `stdout` match test against `expected` is performed at the last [`Step`].
 #[derive(Default)]
 pub struct Test {
+    /// The different [`Step`]s in this [`Test`].
     steps: Vec<Step>,
+
     /// The expected `stdout` content.
     expected: Option<String>,
-    /// Should this test fail?
+
+    /// If this [`Test`] is _intended_ to fail.
     should_fail: bool,
 }
 
@@ -190,17 +207,20 @@ impl Test {
         self
     }
 
+    /// Run this specific [`Test`], and return a score (`1.0` when scoring mode is off).
+    ///
+    /// # Arguments
+    ///
+    /// * `runner` - The [`CommandRunner`] instance to be used.
+    /// * `variables` - The `$...` variable bindings to be fed to `sh` when running this [`Test`].
+    /// * `spj` - The special judge environment ([`SpjEnvironment`]) to be used.
     // ? Should `runner` be mutable?
-    /// Run this specific test. Returns the score of this test (`1` when scoring mode is off).
-    pub async fn run<R>(
+    pub async fn run(
         self,
-        runner: &R,
+        runner: &(impl CommandRunner + Send),
         variables: &HashMap<String, String>,
         spj: Option<&mut SpjEnvironment>,
-    ) -> Result<f64, JobFailure>
-    where
-        R: CommandRunner + Send,
-    {
+    ) -> Result<f64, JobFailure> {
         let spj_enabled = spj.as_ref().map_or(false, |x| x.features().case());
         let mut output: Vec<ProcessInfo> = vec![];
         let steps_len = self.steps.len();
@@ -219,16 +239,18 @@ impl Test {
             };
 
             output.push(info.clone());
-            let code = info.ret_code;
-            let is_unix = cfg!(unix);
-            match () {
-                _ if (code > 0 || (code != 0 && !is_unix)) => {
+
+            // Handle non-zero return code.
+            {
+                let code = info.ret_code;
+                let is_unix = cfg!(unix);
+                if code > 0 || (code != 0 && !is_unix) {
                     if self.should_fail {
-                        // bail out of test, but it's totally fine
+                        // Bail out of test, but it's totally fine.
                         test_failed = true;
                         break;
                     } else if spj_enabled {
-                        // continue
+                        // Ignore and continue with the rest.
                     } else {
                         return Err(JobFailure::ExecError(ExecError {
                             stage: i,
@@ -236,8 +258,7 @@ impl Test {
                             output,
                         }));
                     }
-                }
-                _ if code < 0 && is_unix => {
+                } else if code < 0 && is_unix {
                     return Err(JobFailure::ExecError(ExecError {
                         stage: i,
                         kind: ExecErrorKind::RuntimeError(format!(
@@ -247,11 +268,9 @@ impl Test {
                         output,
                     }));
                 }
-                _ => (),
             }
 
-            // Special case for last step
-
+            // Special case for the final step.
             if i == steps_len - 1 && !spj_enabled {
                 if let Some(expected) = self.expected.as_ref() {
                     // * Actually there is a test that should not have passed,
@@ -270,9 +289,11 @@ impl Test {
             }
         }
 
+        // Handle special judge scoring, return the final result.
+        // If special judge system is off, then the default return value should be `Ok(1.0)`.
+        // TODO: Make `1.0` a variable.
         if spj_enabled {
-            // do special judging
-            // spj_enabled would only be true when spj is Some(_)
+            // Unwrapping is safe here: `spj_enabled` would only be true when spj is Some(_).
             let spj = spj.unwrap();
             let judge_result = spj
                 .spj_case_judge(&output)
@@ -288,8 +309,8 @@ impl Test {
                 }))
             }
         } else if self.should_fail && !test_failed {
-            // Tests that _should_ fail but did not should return error here
-            return Err(JobFailure::ShouldFail(ShouldFailFailure { output }));
+            // Tests that _should_ fail but didn't are considered malfunctioning.
+            Err(JobFailure::ShouldFail(ShouldFailFailure { output }))
         } else {
             Ok(1.0)
         }
@@ -313,18 +334,19 @@ impl Image {
         }
     }
 
-    pub fn replace_with_absolute_dir(&mut self, base_dir: PathBuf) {
+    /// Replace the relative `path` in [`Image::Dockerfile`] with the absolute one.
+    pub fn canonicalize(&mut self, base_dir: PathBuf) {
         match self {
-            Image::Image { .. } => {}
-            Image::Dockerfile { path, .. } => {
+            Image::Dockerfile { path, .. } if !path.is_absolute() => {
                 let mut path_base = base_dir;
                 path_base.push(&path);
                 *path = path_base;
             }
+            _ => (),
         }
     }
 
-    /// Build (or pull) a image with the specified config.
+    /// Build (or pull) the [`Image`] to make it usable in Docker.
     pub async fn build(
         &self,
         instance: bollard::Docker,
@@ -608,7 +630,7 @@ impl TestSuite {
             .image
             .take()
             .expect("TestSuite instance not fully constructed");
-        image.replace_with_absolute_dir(base_dir);
+        image.canonicalize(base_dir);
         image.set_dockerfile_tag(format!("{}_{:08x}", image.tag(), rnd_id));
         let runner = DockerCommandRunner::try_new(
             instance,
@@ -797,6 +819,3 @@ fn construct_case_index(pub_cfg: &JudgerPublicConfig) -> HashMap<String, &TestCa
 
     idx
 }
-
-mod test_suite;
-mod tests;

@@ -53,7 +53,7 @@ pub enum Image {
     Dockerfile {
         /// Name to be assigned to the image.
         tag: String,
-        /// Path of the context directory, relative to the context directory.
+        /// Path of the context directory, can be relative or absolute.
         path: PathBuf,
         /// Path of the dockerfile itself, relative to the context directory.
         /// Leaving this value to None means using the default dockerfile: `path/Dockerfile`.
