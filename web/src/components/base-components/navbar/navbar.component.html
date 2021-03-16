@@ -1,4 +1,4 @@
-<div class="navbar" [ngClass]="{ 'admin-mode': adminMode }">
+<div class="navbar" [ngClass]="style">
   <div class="admin-banner" *ngIf="adminMode" @adminBar></div>
   <div class="container navbar-inner">
     <div class="nav-item" *ngIf="!hideLogo" [routerLink]="logoLink">

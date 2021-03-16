@@ -7,12 +7,12 @@ import {
   transition,
   animate,
 } from '@angular/animations';
-import { Router } from '@angular/router';
-
-@Injectable({ providedIn: 'root' })
-export class NavbarHelper {
-  public isAdminMode: boolean = false;
-}
+import { ActivatedRoute, NavigationEnd, Router } from '@angular/router';
+import {
+  NavbarService,
+  NavbarColorScheme,
+  NavbarDisplayKind,
+} from 'src/services/navbar_service';
 
 @Component({
   selector: 'app-navbar',
@@ -33,18 +33,24 @@ export class NavbarHelper {
 export class NavbarComponent implements OnInit {
   constructor(
     public accountService: AccountService,
-    private navbarHelper: NavbarHelper,
-    private router: Router
+    private svc: NavbarService,
+    private router: Router,
+    private route: ActivatedRoute
   ) {
     this.adminMode = false;
+    this.router.events.subscribe((ev) => {
+      console.log(ev);
+      if (ev instanceof NavigationEnd) {
+        if (ev.url.startsWith('/admin')) {
+          this.adminMode = true;
+        } else {
+          this.adminMode = false;
+        }
+      }
+    });
   }
 
-  @Input() set adminMode(val: boolean) {
-    this.navbarHelper.isAdminMode = val;
-  }
-  get adminMode() {
-    return this.navbarHelper.isAdminMode;
-  }
+  adminMode: boolean;
 
   @Input() subdir: string | undefined = undefined;
   @Input() hideLogo: boolean = false;
@@ -52,6 +58,16 @@ export class NavbarComponent implements OnInit {
 
   get realSubir() {
     return this.subdir ?? this.adminMode ? 'admin' : undefined;
+  }
+
+  get style() {
+    return {
+      'admin-mode': this.adminMode,
+      'style-accent': this.svc.currentStyle.color == NavbarColorScheme.Accent,
+      hide: this.svc.currentStyle.display == NavbarDisplayKind.None,
+      'collapse-space':
+        this.svc.currentStyle.display == NavbarDisplayKind.Collapse,
+    };
   }
 
   get username() {
