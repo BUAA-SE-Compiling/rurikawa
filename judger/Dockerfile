@@ -18,7 +18,6 @@ COPY Cargo.toml Cargo.lock ./
 ENV CARGO_NET_GIT_FETCH_WITH_CLI=true
 
 # Cache incremental builds
-COPY ./3rd_party ./3rd_party
 RUN cargo fetch 
 RUN mkdir src && \
     echo "fn main() {println!(\"if you see this, the build broke\")}" > src/main.rs
