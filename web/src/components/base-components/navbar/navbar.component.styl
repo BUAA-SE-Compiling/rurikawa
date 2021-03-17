@@ -1,7 +1,9 @@
+navbar-height = 96px
+
 .navbar {
   width: auto
   margin: 0
-  height: 96px
+  height: navbar-height
   display: flex
   flex-direction: column
   // justify-content: center
@@ -14,6 +16,22 @@
     --accent-color: var(--pal-warning-color)
     --accent-alt: var(--pal-base-03)
     --alt-primary: var(--pal-accent-dull)
+  }
+
+  &.style-accent {
+    --background: var(--pal-accent)
+    --accent-color: var(--pal-base-03)
+    --accent-alt: var(--pal-base-03)
+    --alt-primary: var(--pal-base-04)
+  }
+
+  &.hide {
+    display: none
+  }
+
+  &.collapse-space {
+    margin-bottom: -1 * navbar-height
+    --background: transpaent
   }
 }
 

@@ -7,6 +7,7 @@ import { HttpClientModule, HTTP_INTERCEPTORS } from '@angular/common/http';
 import { LoginInformationInterceptor } from 'src/services/account_service';
 import { MarkdownModule } from 'ngx-markdown';
 import { BrowserAnimationsModule } from '@angular/platform-browser/animations';
+import { NuMarkdownModule } from '@ng-util/markdown';
 
 @NgModule({
   declarations: [AppComponent],
@@ -17,6 +18,7 @@ import { BrowserAnimationsModule } from '@angular/platform-browser/animations';
     BaseComponentsModule,
     HttpClientModule,
     MarkdownModule.forRoot(),
+    NuMarkdownModule.forRoot(),
   ],
   providers: [
     {

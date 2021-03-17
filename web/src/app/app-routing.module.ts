@@ -18,6 +18,8 @@ import { AdminForbiddenPageComponent } from 'src/views/default/admin-forbidden-p
 import { AboutPageComponent } from 'src/views/default/about-page/about-page.component';
 import { SettingsViewComponent } from 'src/views/default/settings-view/settings-view.component';
 import { JobTestcaseViewComponent } from 'src/views/default/job-testcase-view/job-testcase-view.component';
+import { AnnouncementListPageComponent } from 'src/views/default/announcement-list-page/announcement-list-page.component';
+import { AnnouncementPageComponent } from 'src/views/default/announcement-page/announcement-page.component';
 
 const routes: Routes = [
   {
@@ -25,6 +27,14 @@ const routes: Routes = [
     pathMatch: 'full',
     component: MainPageComponent,
     canActivate: [NotLoggedInRedirectToDashboardGuard],
+  },
+  {
+    path: 'announcement',
+    component: AnnouncementListPageComponent,
+  },
+  {
+    path: 'announcement/:id',
+    component: AnnouncementPageComponent,
   },
   {
     path: 'dashboard',

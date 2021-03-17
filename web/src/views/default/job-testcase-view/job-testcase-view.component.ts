@@ -1,6 +1,5 @@
 import { Component, OnInit, OnDestroy } from '@angular/core';
 import { ActivatedRoute, Router } from '@angular/router';
-import { HttpClient } from '@angular/common/http';
 import { TestSuiteAndJobCache } from 'src/services/test_suite_cacher';
 import {
   Job,
@@ -8,13 +7,11 @@ import {
   FailedTestcaseOutput,
   unDiff,
 } from 'src/models/job-items';
-import { environment } from 'src/environments/environment';
-import { endpoints } from 'src/environments/endpoints';
 
 import JobIcon from '@iconify/icons-carbon/list-checked';
 import ReportIcon from '@iconify/icons-carbon/report';
-import { Title } from '@angular/platform-browser';
 import { TitleService } from 'src/services/title_service';
+import { ApiService } from 'src/services/api_service';
 
 @Component({
   selector: 'app-job-testcase-view',
@@ -25,7 +22,7 @@ export class JobTestcaseViewComponent implements OnInit, OnDestroy {
   constructor(
     private route: ActivatedRoute,
     private router: Router,
-    private cleanHttpClient: HttpClient,
+    private api: ApiService,
     private service: TestSuiteAndJobCache,
     private title: TitleService
   ) {}
@@ -69,7 +66,7 @@ export class JobTestcaseViewComponent implements OnInit, OnDestroy {
         this.testCase = job.results[this.testCaseKey];
         this.fetchTestCaseOutput();
       },
-      error: (e) => {},
+      error: () => {},
     });
   }
 
@@ -77,12 +74,8 @@ export class JobTestcaseViewComponent implements OnInit, OnDestroy {
     if (this.testCase === undefined) {
       this.router.navigate(['404']);
     }
-    this.cleanHttpClient
-      .get<FailedTestcaseOutput>(
-        environment.endpointBase() +
-          endpoints.file.get(this.testCase.resultFileId),
-        { headers: { 'bypass-login': 'true' } }
-      )
+    this.api
+      .getFile<FailedTestcaseOutput>(this.testCase.resultFileId)
       .subscribe({
         next: (x) => {
           this.output = x;

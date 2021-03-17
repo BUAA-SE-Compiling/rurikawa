@@ -1144,6 +1144,29 @@
     merge-source-map "^1.1.0"
     schema-utils "^2.7.0"
 
+"@ng-util/lazy@^10.0.0":
+  version "10.2.2"
+  resolved "https://registry.yarnpkg.com/@ng-util/lazy/-/lazy-10.2.2.tgz#5a962204dba3393e5959b955cb57f5d090799aa7"
+  integrity sha512-4VPUTU+I8FT6T3/2zVqw3IGuSh2quJgzxFNnfMpG9tRwrM5Guqv2/mQrneBHBosqxkt0EaIKbd7eIDky78VEPA==
+  dependencies:
+    tslib "^2.0.0"
+
+"@ng-util/markdown@^11.2.0":
+  version "11.2.0"
+  resolved "https://registry.yarnpkg.com/@ng-util/markdown/-/markdown-11.2.0.tgz#6c35ecbc1af2bd00c4a457a1ea94d47a486594fa"
+  integrity sha512-xQIopp2f3O2snAs2gy2nyVn8Yfe13Snf1/WvLlufPHVdt3KJ8TijYECtogZk91tgHVzXarJ51Rkem3euTFkVlg==
+  dependencies:
+    "@ng-util/lazy" "^10.0.0"
+    "@ng-util/util" "^10.0.0"
+    tslib "^2.0.0"
+
+"@ng-util/util@^10.0.0":
+  version "10.2.2"
+  resolved "https://registry.yarnpkg.com/@ng-util/util/-/util-10.2.2.tgz#8a32637a804b7547a3f43763b3e0be62d7429b2a"
+  integrity sha512-Rgi/GTsZav8xS+pmwE+8tKA1HaIpusl/fCFUgZjMxomixTKOntdUgpcNYoUuIAi3CaTcn/kM8DDtxJeBQlcyUQ==
+  dependencies:
+    tslib "^2.0.0"
+
 "@ngtools/webpack@10.1.0":
   version "10.1.0"
   resolved "https://registry.yarnpkg.com/@ngtools/webpack/download/@ngtools/webpack-10.1.0.tgz#70059658d4ec1966026b48ba8bc91634c0ef1381"
@@ -5472,7 +5495,12 @@ map-visit@^1.0.0:
   dependencies:
     object-visit "^1.0.0"
 
-marked@^1.1.0, marked@^1.2.2:
+marked@^1.1.0, marked@^2.0.0:
+  version "2.0.1"
+  resolved "https://registry.yarnpkg.com/marked/-/marked-2.0.1.tgz#5e7ed7009bfa5c95182e4eb696f85e948cefcee3"
+  integrity sha512-5+/fKgMv2hARmMW7DOpykr2iLhl0NgjyELk5yn92iE7z8Se1IS9n3UsFm86hFXIkvMBmVxki8+ckcpjBeyo/hw==
+
+marked@^1.2.2:
   version "1.2.2"
   resolved "https://registry.yarnpkg.com/marked/download/marked-1.2.2.tgz#5d77ffb789c4cb0ae828bfe76250f7140b123f70"
   integrity sha1-XXf/t4nEywroKL/nYlD3FAsSP3A=

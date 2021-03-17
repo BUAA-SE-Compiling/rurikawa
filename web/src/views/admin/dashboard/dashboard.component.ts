@@ -6,6 +6,7 @@ import { environment } from 'src/environments/environment';
 import { endpoints } from 'src/environments/endpoints';
 import { TestSuite, JudgerStatus } from 'src/models/server-types';
 import { JudgerStatusService } from 'src/services/judger_status_service';
+import { ApiService } from 'src/services/api_service';
 
 @Component({
   selector: 'app-dashboard',
@@ -16,7 +17,7 @@ export class DashboardComponent implements OnInit {
   constructor(
     private adminService: AdminService,
     private router: Router,
-    private httpClient: HttpClient,
+    private api: ApiService,
     private judgerStatusService: JudgerStatusService
   ) {}
 
@@ -28,16 +29,9 @@ export class DashboardComponent implements OnInit {
   }
 
   fetchTestSuites() {
-    this.httpClient
-      .get<TestSuite[]>(
-        environment.endpointBase() + endpoints.testSuite.query,
-        {
-          params: { take: '20' },
-        }
-      )
-      .subscribe({
-        next: (v) => (this.suite = v),
-      });
+    this.api.testSuite.query({ take: 20 }).subscribe({
+      next: (v) => (this.suite = v),
+    });
   }
 
   fetchJudgerStat() {

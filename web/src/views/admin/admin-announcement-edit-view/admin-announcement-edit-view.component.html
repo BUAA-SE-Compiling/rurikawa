@@ -1,0 +1,35 @@
+<div class="container-slim">
+  <h3 class="title">
+    <ng-template [ngIf]="editingNew">编写新公告</ng-template>
+    <ng-template [ngIf]="!editingNew"
+      >编辑公告 {{ this.announcement.id }}</ng-template
+    >
+  </h3>
+  <textbox
+    class="title-input"
+    type="text"
+    placeholder="标题"
+    border="none"
+    [(value)]="announcement.title"
+  ></textbox>
+  <div class="row text info-text">
+    {{ this.announcement.sender }}
+  </div>
+  <nu-markdown
+    [options]="nuOptions"
+    class="vditor-custom"
+    [(ngModel)]="announcement.body"
+    (ready)="fetchAnnouncement()"
+  ></nu-markdown>
+  <div class="row">
+    <button
+      class="btn secondary error"
+      *ngIf="!editingNew"
+      (click)="deleteAnnouncement()"
+    >
+      删除
+    </button>
+    <div class="space"></div>
+    <button class="btn info" (click)="saveAnnouncement()">保存</button>
+  </div>
+</div>

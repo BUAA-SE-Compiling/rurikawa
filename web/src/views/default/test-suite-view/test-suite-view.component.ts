@@ -37,6 +37,7 @@ import {
   errorCodeToDescription,
   errorResponseToDescription,
 } from 'src/models/errors';
+import { ApiService } from 'src/services/api_service';
 
 @Component({
   selector: 'app-test-suite-view',
@@ -60,7 +61,7 @@ import {
 export class TestSuiteViewComponent implements OnInit, OnDestroy {
   constructor(
     private route: ActivatedRoute,
-    private httpClient: HttpClient,
+    private api: ApiService,
     private service: TestSuiteAndJobCache,
     private router: Router,
     private title: TitleService
@@ -287,22 +288,18 @@ export class TestSuiteViewComponent implements OnInit, OnDestroy {
       tests,
     };
 
-    this.httpClient
-      .post(environment.endpointBase() + endpoints.job.new, newJobMsg, {
-        responseType: 'text',
-      })
-      .subscribe({
-        next: (id) => {
-          this.submittingTest = false;
-          this.loadFirst();
-        },
-        error: (e) => {
-          this.submittingTest = false;
-          if (e instanceof HttpErrorResponse) {
-            this.repoMessage = errorResponseToDescription(e);
-          }
-        },
-      });
+    this.api.job.new(newJobMsg).subscribe({
+      next: (id) => {
+        this.submittingTest = false;
+        this.loadFirst();
+      },
+      error: (e) => {
+        this.submittingTest = false;
+        if (e instanceof HttpErrorResponse) {
+          this.repoMessage = errorResponseToDescription(e);
+        }
+      },
+    });
   }
 
   ngOnInit(): void {
