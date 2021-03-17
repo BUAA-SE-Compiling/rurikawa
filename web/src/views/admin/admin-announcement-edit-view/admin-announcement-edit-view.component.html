@@ -22,7 +22,13 @@
     (ready)="fetchAnnouncement()"
   ></nu-markdown>
   <div class="row">
-    <button class="btn secondary error" *ngIf="!editingNew">删除</button>
+    <button
+      class="btn secondary error"
+      *ngIf="!editingNew"
+      (click)="deleteAnnouncement()"
+    >
+      删除
+    </button>
     <div class="space"></div>
     <button class="btn info" (click)="saveAnnouncement()">保存</button>
   </div>

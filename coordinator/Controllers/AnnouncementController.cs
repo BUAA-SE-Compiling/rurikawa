@@ -31,9 +31,21 @@ namespace Karenia.Rurikawa.Coordinator.Controllers {
 
         [HttpPut("{id}")]
         [Authorize("admin")]
-        public async Task<ActionResult> PutAnnouncement([FromBody] Announcement announcement) {
+        public async Task<ActionResult> PutAnnouncement([FromRoute] FlowSnake id, [FromBody] Announcement announcement) {
             try {
+                announcement.Id = id;
                 await dbService.EditAnnouncement(announcement);
+                return Ok();
+            } catch (ArgumentOutOfRangeException) {
+                return NotFound();
+            }
+        }
+
+        [HttpDelete("{id}")]
+        [Authorize("admin")]
+        public async Task<ActionResult> DeleteAnnouncement([FromRoute] FlowSnake id) {
+            try {
+                await dbService.DeleteAnnouncement(id);
                 return Ok();
             } catch (ArgumentOutOfRangeException) {
                 return NotFound();

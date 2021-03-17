@@ -59,6 +59,11 @@ export class ApiService {
         endpointBase + endpoints.announcement.get(id)
       ),
 
+    delete: (id: string) =>
+      this.httpClient.delete<Announcement>(
+        endpointBase + endpoints.announcement.delete(id)
+      ),
+
     set: (id: string, announcement: Announcement) =>
       this.httpClient.put(
         endpointBase + endpoints.announcement.set(id),

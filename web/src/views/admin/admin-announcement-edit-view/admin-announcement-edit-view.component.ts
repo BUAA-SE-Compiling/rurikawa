@@ -101,5 +101,13 @@ export class AdminAnnouncementEditViewComponent implements OnInit {
     }
   }
 
+  deleteAnnouncement() {
+    if (this.announcement?.id) {
+      this.api.announcement.delete(this.announcement.id).subscribe((a) => {
+        this.location.back();
+      });
+    }
+  }
+
   ngOnInit(): void {}
 }

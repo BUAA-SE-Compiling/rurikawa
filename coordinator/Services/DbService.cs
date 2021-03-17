@@ -64,6 +64,13 @@ namespace Karenia.Rurikawa.Coordinator.Services {
             await db.SaveChangesAsync();
         }
 
+        public async Task DeleteAnnouncement(FlowSnake id) {
+            var affected = await db.Announcements.Where(a => a.Id == id).DeleteFromQueryAsync();
+            if (affected == 0)
+                throw new ArgumentOutOfRangeException(nameof(id), "Announcement does not exist");
+            await db.SaveChangesAsync();
+        }
+
         public async Task<IList<Job>> GetJobs(
             FlowSnake? startId = null,
             int take = 20,

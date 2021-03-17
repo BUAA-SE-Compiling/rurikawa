@@ -24,6 +24,7 @@ export const endpoints = {
     post: 'announcement',
     get: (id: string) => `announcement/${id}`,
     set: (id: string) => `announcement/${id}`,
+    delete: (id: string) => `announcement/${id}`,
   },
   dashboard: {
     get: 'dashboard',
