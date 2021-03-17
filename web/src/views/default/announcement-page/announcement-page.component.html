@@ -7,6 +7,11 @@
       <p>标签: {{ announcement.tags }}</p>
     </div>
     <markdown [data]="announcement.body"></markdown>
+    <div class="row">
+      <a class="ghost-btn" [routerLink]="['/admin', 'announcement', 'edit', id]"
+        >编辑</a
+      >
+    </div>
   </ng-template>
   <ng-template [ngIf]="error"> </ng-template>
 </div>

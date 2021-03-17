@@ -3,6 +3,12 @@
     <div class="row text">
       <h1>公告</h1>
       <div class="space"></div>
+      <a
+        class="ghost-btn"
+        *ngIf="account.isAdmin"
+        [routerLink]="['/admin', 'announcement', 'new']"
+        >创建</a
+      >
       <a class="ghost-btn" [routerLink]="['/announcement']">更多</a>
     </div>
     <div class="wrapper">

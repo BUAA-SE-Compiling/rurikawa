@@ -1,5 +1,6 @@
 @import 'styles/container.styl'
 @import 'styles/common.styl'
+@import 'styles/vditor.styl'
 @import 'styles/markdown.styl'
 
 .default-palette {
@@ -182,19 +183,19 @@
 .ghost-btn {
   transition: all 100ms ease-in-out
   color: var(--accent-alt)
-  padding-y: var(--space-2)
-  padding-x: var(--space-4)
+  padding-y: var(--space-1)
+  padding-x: var(--space-2)
 
   &:hover {
     color: var(--alt-primary)
   }
 
   .row &:last-child {
-    margin-right: calc(var(--space-4) * -1)
+    margin-right: calc(var(--space-2) * -1)
   }
 
   .row &:first-child {
-    margin-left: calc(var(--space-4) * -1)
+    margin-left: calc(var(--space-2) * -1)
   }
 }
 
@@ -387,8 +388,22 @@ input.input,
   background: var(--background-color)
   border-color: var(--secondary-color)
   border-style: solid
-  border-width: 2px
   border-radius: var(--btn-round-corner)
+
+  &,
+  &.border-all {
+    border-width: 2px
+  }
+
+  &.border-underline {
+    border-width: 0
+    border-bottom-width: 2px
+  }
+
+  &.border-none {
+    border-width: 0
+    padding-x: 0
+  }
 
   &:hover {
     border-color: var(--accent-dull)

@@ -12,12 +12,24 @@ import { AdminComponentsModule } from 'src/components/admin-components/admin-com
 import { AdminCreateTestSuiteViewComponent } from './admin-create-test-suite-view/admin-create-test-suite-view.component';
 import { HttpClientModule } from '@angular/common/http';
 import { AdminManageJudgerViewComponent } from './admin-manage-judger-view/admin-manage-judger-view.component';
-import { AdminAnnouncementViewComponent } from './admin-announcement-view/admin-announcement-view.component';
+import { AdminAnnouncementEditViewComponent } from './admin-announcement-edit-view/admin-announcement-edit-view.component';
+import { NuMarkdownModule } from '@ng-util/markdown';
+import { FormsModule } from '@angular/forms';
 
 const routes: Routes = [
   {
     path: '',
     component: DashboardComponent,
+  },
+  {
+    path: 'announcement/new',
+    data: { new: true },
+    component: AdminAnnouncementEditViewComponent,
+  },
+  {
+    path: 'announcement/edit/:id',
+    data: { new: false },
+    component: AdminAnnouncementEditViewComponent,
   },
   {
     path: 'suite/create',
@@ -44,14 +56,16 @@ const routes: Routes = [
     AdminTestSuiteViewComponent,
     AdminCreateTestSuiteViewComponent,
     AdminManageJudgerViewComponent,
-    AdminAnnouncementViewComponent,
+    AdminAnnouncementEditViewComponent,
   ],
   imports: [
     CommonModule,
     BaseComponentsModule,
     ItemComponentsModule,
     AdminComponentsModule,
+    FormsModule,
     RouterModule.forChild(routes),
+    NuMarkdownModule,
   ],
   exports: [
     DashboardComponent,
@@ -59,7 +73,7 @@ const routes: Routes = [
     AdminTestSuiteViewComponent,
     AdminCreateTestSuiteViewComponent,
     AdminManageJudgerViewComponent,
-    AdminAnnouncementViewComponent,
+    AdminAnnouncementEditViewComponent,
   ],
 })
 export class AdminModule {}

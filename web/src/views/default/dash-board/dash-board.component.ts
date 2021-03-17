@@ -12,6 +12,7 @@ import { JudgerStatusService } from 'src/services/judger_status_service';
 import { Subscription } from 'rxjs';
 import { ApiService } from 'src/services/api_service';
 import { FLOWSNAKE_MAX as FLOWSNAKE_MAX } from 'src/models/flowsnake';
+import { AccountService } from 'src/services/account_service';
 
 @Component({
   selector: 'app-dash-board',
@@ -23,6 +24,7 @@ export class DashBoardComponent implements OnInit, OnDestroy {
     private router: Router,
     private api: ApiService,
     private title: TitleService,
+    public account: AccountService,
     public judgerStatusService: JudgerStatusService
   ) {}
   loading = true;

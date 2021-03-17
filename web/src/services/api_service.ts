@@ -66,7 +66,9 @@ export class ApiService {
       ),
 
     post: (item: Announcement) =>
-      this.httpClient.post(endpointBase + endpoints.announcement.post, item),
+      this.httpClient.post(endpointBase + endpoints.announcement.post, item, {
+        responseType: 'text',
+      }),
 
     query: (startId: string, count: number, ascending: boolean) =>
       this.httpClient.get<Announcement[]>(
