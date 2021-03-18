@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Threading;
 using System.Threading.Tasks;
 using Karenia.Rurikawa.Helpers;
 using Karenia.Rurikawa.Models;
@@ -171,6 +172,10 @@ namespace Karenia.Rurikawa.Coordinator.Services {
 
         public async ValueTask<IDatabase> GetDatabase() {
             return (await GetRedisConnection()).GetDatabase();
+        }
+
+        public async ValueTask<ISubscriber> GetSubscriber() {
+            return (await GetRedisConnection()).GetSubscriber();
         }
 
         public async ValueTask<ConnectionMultiplexer> GetRedisConnection() {

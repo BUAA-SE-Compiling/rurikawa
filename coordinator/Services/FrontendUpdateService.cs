@@ -30,9 +30,7 @@ namespace Karenia.Rurikawa.Coordinator.Services {
             Username = username;
         }
 
-        public SemaphoreSlim SubscriptionLock { get; } = new SemaphoreSlim(1);
-        public Dictionary<FlowSnake, IDisposable> JobOutputSubscriptions { get; } = new Dictionary<FlowSnake, IDisposable>();
-        public Dictionary<FlowSnake, IDisposable> JobSubscriptions { get; } = new Dictionary<FlowSnake, IDisposable>();
+        public ConcurrentDictionary<FlowSnake, ChannelMessageQueue> Sub = new();
     }
 
     public class FrontendUpdateService {
@@ -59,10 +57,7 @@ namespace Karenia.Rurikawa.Coordinator.Services {
         /// This is basically a concurrent hashset, but since C# doesn't support ZST, 
         /// we use a dummy int as value.
         /// </summary>
-        private readonly ConcurrentDictionary<FrontendConnection, int> connectionHandles = new ConcurrentDictionary<FrontendConnection, int>();
-
-        private readonly ConcurrentDictionary<FlowSnake, (Subject<JobStatusUpdateMsg>, IObservable<JobStatusUpdateMsg>)> jobUpdateListeners =
-            new ConcurrentDictionary<FlowSnake, (Subject<JobStatusUpdateMsg>, IObservable<JobStatusUpdateMsg>)>();
+        private readonly ConcurrentDictionary<FrontendConnection, int> connectionHandles = new();
 
         /// <summary>
         /// Try to use the provided HTTP connection to create a WebSocket connection
@@ -95,9 +90,8 @@ namespace Karenia.Rurikawa.Coordinator.Services {
                 } catch (Exception) {
                 }
 
-
                 connectionHandles.TryRemove(conn, out var _);
-                await UnsubscribeAll(conn);
+                UnsubscribeAll(conn);
 
                 return true;
             } else {
@@ -106,12 +100,12 @@ namespace Karenia.Rurikawa.Coordinator.Services {
             return false;
         }
 
-        private ValueTask<string?> Authorize(
+        private static ValueTask<string?> Authorize(
             IServiceScope scope,
             HttpContext ctx) {
-            var account = scope.ServiceProvider.GetService<AccountService>();
+            var account = scope.ServiceProvider.GetService<AccountService>()!;
             if (ctx.Request.Query.TryGetValue("token", out var tokens)) {
-                var token = tokens.First();
+                var token = tokens.First()!;
                 var username = account.VerifyShortLivingToken(token);
                 return new ValueTask<string?>(username);
             } else {
@@ -133,8 +127,7 @@ namespace Karenia.Rurikawa.Coordinator.Services {
             });
         }
 
-        private async void HandleSubscribeMsg(SubscribeMsg msg, FrontendConnection conn) {
-            using var lock_ = await conn.SubscriptionLock.LockAsync();
+        private void HandleSubscribeMsg(SubscribeMsg msg, FrontendConnection conn) {
             if (msg.Sub) {
                 if (msg.Jobs != null) {
                     foreach (var job in msg.Jobs) {
@@ -151,63 +144,39 @@ namespace Karenia.Rurikawa.Coordinator.Services {
         }
 
         public void UnsubscribeJob(FlowSnake id, FrontendConnection conn) {
-            conn.JobSubscriptions.Remove(id, out var val);
-            val?.Dispose();
+            if (conn.Sub.Remove(id, out var sub)) {
+                sub.Unsubscribe(CommandFlags.FireAndForget);
+            }
         }
 
-        public void SubscribeToJob(FlowSnake id, FrontendConnection conn) {
-            if (conn.JobSubscriptions.ContainsKey(id)) return;
-            var sub = jobUpdateListeners.GetOrAdd(
-                id,
-                _x => {
-                    var subject = new Subject<JobStatusUpdateMsg>();
-                    var res = new RefCountFusedObservable<JobStatusUpdateMsg>(
-                    subject.ObserveOn(Scheduler.Default),
-                    () => {
-                        jobUpdateListeners.TryRemove(id, out _);
-                    });
-                    return (subject, res);
-                });
+        public async void SubscribeToJob(FlowSnake id, FrontendConnection conn) {
+            var sub = await redis.GetSubscriber();
+            var subscription = sub.Subscribe(JobSubscribeChannel(id));
 
-            var subscripton = sub.Item2.Subscribe(async (msg) => {
+            conn.Sub.TryAdd(id, subscription);
+
+            subscription.OnMessage(async (val) => {
                 try {
-                    await conn.Conn.SendMessage(msg);
-                } catch (Exception e) { logger.LogError(e, "Failed to send message"); }
-            });
-            conn.JobSubscriptions.Add(id, subscripton);
-        }
-
-        // public async Task SubscribeToJobOutput(FlowSnake id, ConnectionMultiplexer redis, FrontendConnection connection) {
-        //     var createGroupResult = await redis.GetDatabase().StreamCreateConsumerGroupAsync(
-        //         JudgerCoordinatorService.FormatJobStdout(id),
-        //         connection.Username,
-        //         createStream: false,
-        //         position: StreamPosition.Beginning);
-        //     // redis.GetSubscriber().SubscribeAsync()
-        // }
-
-        public async ValueTask UnsubscribeAll(FrontendConnection conn) {
-            using var locked = await conn.SubscriptionLock.LockAsync();
-            foreach (var a in conn.JobOutputSubscriptions) {
-                a.Value.Dispose();
-            }
-            foreach (var a in conn.JobSubscriptions) {
-                a.Value.Dispose();
-            }
-        }
-
-        public void OnJobStautsUpdate(FlowSnake id, JobStatusUpdateMsg msg) {
-            if (jobUpdateListeners.TryGetValue(id, out var val)) {
-                val.Item1.OnNext(msg);
-            }
-        }
-
-        public async ValueTask ClearNotifications(FrontendConnection conn) {
-            using (await conn.SubscriptionLock.LockAsync()) {
-                foreach (var sub in conn.JobSubscriptions) {
-                    sub.Value.Dispose();
+                    var update = JsonSerializer.Deserialize<JobStatusUpdateMsg>(val.Message, this.jsonSerializerOptions);
+                    if (update == null) return;
+                    await conn.Conn.SendMessage(update);
+                } catch (Exception e) {
+                    logger.LogError(e.ToString());
                 }
+            });
+        }
+
+        public void UnsubscribeAll(FrontendConnection conn) {
+            foreach (var val in conn.Sub.Values) {
+                val.Unsubscribe(CommandFlags.FireAndForget);
             }
         }
+
+        public async void OnJobStautsUpdate(FlowSnake id, JobStatusUpdateMsg msg) {
+            var sub = await this.redis.GetSubscriber();
+            sub.Publish(JobSubscribeChannel(id), JsonSerializer.Serialize(msg, this.jsonSerializerOptions));
+        }
+
+        static string JobSubscribeChannel(FlowSnake id) => $"sub:job:{id}";
     }
 }
