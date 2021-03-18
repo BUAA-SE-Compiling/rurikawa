@@ -153,17 +153,19 @@ namespace Karenia.Rurikawa.Coordinator.Services {
             var sub = await redis.GetSubscriber();
             var subscription = sub.Subscribe(JobSubscribeChannel(id));
 
-            conn.Sub.TryAdd(id, subscription);
-
-            subscription.OnMessage(async (val) => {
-                try {
-                    var update = JsonSerializer.Deserialize<JobStatusUpdateMsg>(val.Message, this.jsonSerializerOptions);
-                    if (update == null) return;
-                    await conn.Conn.SendMessage(update);
-                } catch (Exception e) {
-                    logger.LogError(e.ToString());
-                }
-            });
+            if (!conn.Sub.TryAdd(id, subscription)) {
+                await subscription.UnsubscribeAsync();
+            } else {
+                subscription.OnMessage(async (val) => {
+                    try {
+                        var update = JsonSerializer.Deserialize<JobStatusUpdateMsg>(val.Message, this.jsonSerializerOptions);
+                        if (update == null) return;
+                        await conn.Conn.SendMessage(update);
+                    } catch (Exception e) {
+                        logger.LogError(e.ToString());
+                    }
+                });
+            }
         }
 
         public void UnsubscribeAll(FrontendConnection conn) {
