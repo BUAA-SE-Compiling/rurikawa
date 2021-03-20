@@ -17,6 +17,7 @@ use crate::{
 use anyhow::Result;
 use bollard::models::{BuildInfo, Mount};
 use futures::stream::StreamExt;
+use futures::{FutureExt, TryFutureExt, TryStreamExt};
 use once_cell::sync::Lazy;
 use path_slash::PathBufExt;
 use std::{collections::HashMap, io, path::Path, path::PathBuf, sync::Arc, time};
@@ -379,27 +380,29 @@ impl Image {
                 })?;
                 Ok(())
             }
-            Image::Dockerfile { tag, path, file } => {
-                let from_path = path.clone();
-                let (pipe_recv, pipe_send) = tokio::io::duplex(8192);
-                let read_codec = tokio_util::codec::BytesCodec::new();
-                let frame = tokio_util::codec::FramedRead::new(pipe_send, read_codec);
-                let task = async move {
-                    let mut tar = async_tar::Builder::new(futures::io::BufWriter::new(
-                        pipe_recv.compat_write(),
-                    ));
-                    match tar.append_dir_all(".", from_path).await {
-                        Ok(_) => tar.finish().await,
-                        e @ Err(_) => e,
-                    }
-                };
 
+            Image::Dockerfile { tag, path, file } => {
+                let (sender, receiver) = tokio::io::duplex(8192);
+                let codec = tokio_util::codec::BytesCodec::new();
+                let tar_stream = tokio_util::codec::FramedRead::new(receiver, codec);
+
+                // Clone stuff to make `rustc` happy with the `async move` below.
+                let path = path.clone();
+
+                // Launch a task for archiving.
+                let archiving = tokio::spawn(async move {
+                    let mut tar =
+                        async_tar::Builder::new(futures::io::BufWriter::new(sender.compat_write()));
+                    tar.append_dir_all(".", path).await?;
+                    tar.finish().await
+                });
+
+                /// A quick `either` enum to represent a result returned by `docker build`.
                 enum BuildResult {
                     Success,
                     Error(String, Option<bollard::models::ErrorDetail>),
                 }
 
-                let task = tokio::spawn(task);
                 let result = instance
                     .build_image(
                         bollard::image::BuildImageOptions {
@@ -414,43 +417,41 @@ impl Image {
                         },
                         None,
                         // Freeze `path` as a tar archive.
-                        Some(hyper::Body::wrap_stream(frame)),
+                        Some(hyper::Body::wrap_stream(tar_stream)),
                     )
-                    .map(|x| {
-                        // TODO: wait for PR#107 to merge in bollard
-                        match x {
-                            Ok(info) => {
-                                if let Some(e) = info.error {
-                                    return Ok(BuildResult::Error(e, info.error_detail));
-                                }
-                                if let Some(ch) = partial_result_channel.as_ref() {
-                                    let _ = ch.send(info);
-                                }
-                                Ok(BuildResult::Success)
-                            }
-                            Err(e) => Err(e),
+                    .map_ok(|info| {
+                        if let Some(e) = info.error {
+                            return BuildResult::Error(e, info.error_detail);
                         }
-                    })
-                    .fold(Ok(BuildResult::Success), |last, x| async {
-                        match (last, x) {
-                            (Ok(last), Ok(BuildResult::Success)) => Ok(last),
-                            (Ok(_), Ok(e @ BuildResult::Error(..))) => Ok(e),
-                            (Ok(_), Err(e)) => Err(e),
-                            (e @ Err(_), _) => e,
+                        if let Some(ch) = partial_result_channel.as_ref() {
+                            let _ = ch.send(info);
                         }
+                        BuildResult::Success
                     })
+                    .fold(
+                        Ok(BuildResult::Success),
+                        |last: Result<_, bollard::errors::Error>,
+                         x: Result<_, bollard::errors::Error>| async {
+                            // ? Sorry, what's that?
+                            Ok(match (x?, last?) {
+                                (BuildResult::Success, last) => last,
+                                (e @ BuildResult::Error(..), _) => e,
+                            })
+                        },
+                    )
+                    .map_err(|e| BuildError::Internal(e.to_string()))
                     .with_cancel(cancel.clone())
                     .await
-                    .ok_or(BuildError::Cancelled)?
-                    .map_err(|e| BuildError::Internal(e.to_string()))?;
+                    .ok_or(BuildError::Cancelled)??;
 
                 if let BuildResult::Error(err, detail) = result {
                     return Err(BuildError::BuildError { error: err, detail });
                 }
 
-                task.await
+                archiving
+                    .await
                     .map_err(|e| BuildError::Internal(e.to_string()))?
-                    .map_err(|e| BuildError::FileTransferError(e.to_string()))?;
+                    .map_err(|e: io::Error| BuildError::FileTransferError(e.to_string()))?;
 
                 Ok(())
             }
@@ -458,8 +459,10 @@ impl Image {
     }
 
     /// Remove the Image when finished.
-    /// Attention: this action must be done AFTER removing related containers.
-    pub async fn remove(self, instance: bollard::Docker) -> Result<()> {
+    ///
+    /// # Attention
+    /// This action must be done _after_ removing related containers.
+    pub async fn remove_image(self, instance: bollard::Docker) -> Result<()> {
         let tag = self.tag();
         instance
             .remove_image(

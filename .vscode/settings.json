@@ -9,6 +9,7 @@
         "golemc",
         "mkdir",
         "rurikawa",
+        "rustc",
         "stablized",
         "tungstenite",
         "unsync"
