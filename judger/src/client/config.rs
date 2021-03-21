@@ -39,6 +39,12 @@ impl Default for ClientConfig {
     }
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DockerConfig {
+    /// The user every docker container should run in
+    docker_user_id: u16,
+}
+
 #[derive(Debug)]
 pub struct SharedClientData {
     /// Configuration of this client

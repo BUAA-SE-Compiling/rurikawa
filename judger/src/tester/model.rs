@@ -14,9 +14,8 @@ pub struct Bind {
     pub from: PathBuf,
     /// Absolute `to` path (in the container).
     pub to: PathBuf,
-    /// Extra options for this bind. Leave a new `String` for empty.
-    /// For details see [here](https://docs.rs/bollard/0.7.2/bollard/service/struct.HostConfig.html#structfield.binds).
-    pub readonly: bool,
+    // Note: Removed readonly option here, since all binds should be readonly
+    // for security reasons.
 }
 
 impl Bind {
@@ -31,7 +30,8 @@ impl Bind {
             target: Some(self.to.display().to_string()),
             source: Some(self.from.display().to_string()),
             typ: Some(bollard::models::MountTypeEnum::BIND),
-            read_only: self.readonly.into(),
+            // all binds should be readonly for security reasons.
+            read_only: Some(true),
             ..Default::default()
         }
     }
@@ -110,7 +110,8 @@ pub struct JudgerPublicConfig {
     #[quickjs(skip)]
     pub mapped_dir: Bind,
 
-    /// `host-src:container-dest` volume bindings for the container.
+    /// `host-src:container-dest` volume bindings for the container. **Binds are
+    /// always readonly for security reasons.**
     /// For details see [here](https://docs.rs/bollard/0.7.2/bollard/service/struct.HostConfig.html#structfield.binds).
     #[quickjs(skip)]
     pub binds: Option<Vec<Bind>>,

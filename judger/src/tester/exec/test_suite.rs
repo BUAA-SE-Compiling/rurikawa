@@ -55,7 +55,6 @@ fn golem_no_volume() -> Result<()> {
                 mapped_dir: Bind {
                     from: PathBuf::from(r"../golem/src"),
                     to: PathBuf::from(r"../golem/src"),
-                    readonly: false,
                 },
                 binds: None,
                 special_judge_script: None,
@@ -143,7 +142,6 @@ fn golem_with_volume() -> Result<()> {
                 mapped_dir: Bind {
                     from: PathBuf::from(r"../golem/src"),
                     to: PathBuf::from(r"../golem/src"),
-                    readonly: false,
                 },
                 binds: Some(vec![]),
                 special_judge_script: None,
