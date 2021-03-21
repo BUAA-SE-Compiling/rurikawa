@@ -5,7 +5,7 @@ FROM rust:1.50-alpine AS build
 RUN if [ -z "$CI" ]; then sed -i 's/dl-cdn.alpinelinux.org/mirrors.tuna.tsinghua.edu.cn/g' /etc/apk/repositories; fi
 
 # Add necessary build tools
-RUN apk add --no-cache gcc libgcc build-base make openssl openssl-dev git libclang
+RUN apk add --no-cache gcc libgcc build-base make openssl openssl-dev git clang
 
 # Replace more mirrors
 RUN if [ -z "$CI" ]; then \
