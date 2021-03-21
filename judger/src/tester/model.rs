@@ -121,6 +121,37 @@ pub struct JudgerPublicConfig {
     /// The special judger script should be a valid JS script with specified
     /// functions inside global scope.
     pub special_judge_script: Option<String>,
+
+    /// Network options applied to this config
+    #[serde(default)]
+    pub network: NetworkOptions,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, IntoJsByRef)]
+#[serde(rename_all = "camelCase")]
+#[quickjs(rename_all = "camelCase")]
+pub struct NetworkOptions {
+    /// Disable networking when running. Defaults to be true.
+    #[serde(default)]
+    pub enable_running: bool,
+    /// Disable networking when building. Defaults to be false.
+    #[serde(default = "return_true")]
+    pub enable_build: bool,
+}
+
+impl Default for NetworkOptions {
+    fn default() -> Self {
+        NetworkOptions {
+            enable_running: false,
+            enable_build: true,
+        }
+    }
+}
+
+impl NetworkOptions {
+    pub fn use_network(&self) -> bool {
+        !(self.enable_build && self.enable_running)
+    }
 }
 
 /// A raw step for usage in spj scripts
@@ -280,4 +311,8 @@ mod de {
             deserializer.deserialize_any(TestCaseVisitor)
         }
     }
+}
+
+const fn return_true() -> bool {
+    true
 }

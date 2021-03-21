@@ -474,6 +474,7 @@ pub async fn handle_job(
     };
 
     let mut suite = crate::tester::exec::TestSuite::from_config(
+        job.id.to_string(),
         image,
         &suite_root_path,
         private_cfg,

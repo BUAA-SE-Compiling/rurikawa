@@ -382,6 +382,10 @@ mod test {
             },
             binds: Some(vec![]),
             special_judge_script: None,
+            network: super::super::model::NetworkOptions {
+                enable_running: true,
+                enable_build: true,
+            },
         };
 
         spj.load_script(script).unwrap();

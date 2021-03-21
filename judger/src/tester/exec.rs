@@ -330,6 +330,7 @@ impl Image {
         instance: bollard::Docker,
         partial_result_channel: Option<BuildResultChannel>,
         cancel: CancellationTokenHandle,
+        network: Option<&str>,
     ) -> Result<(), BuildError> {
         match &self {
             Image::Image { tag } => {
@@ -388,6 +389,12 @@ impl Image {
                             t: tag.into(),
                             rm: true,
                             forcerm: true,
+
+                            networkmode: if let Some(net) = network {
+                                net.into()
+                            } else {
+                                "none".into()
+                            },
 
                             // TODO: we currently limit the builder to only use 1/2 cpu
                             // i.e. <= 50ms every 100ns
@@ -465,6 +472,9 @@ impl Image {
 /// Attention: a `TestSuite` instance should NOT be constructed manually.
 /// Please use `TestSuite::from_config`, for example.
 pub struct TestSuite {
+    /// An unique ID of this test suite
+    pub id: String,
+
     /// The test contents.
     pub test_cases: Vec<TestCase>,
     /// The image which contains the compiler to be tested.
@@ -492,6 +502,11 @@ pub struct TestSuite {
 
     /// Special Judger environment
     spj_env: Option<spj::SpjEnvironment>,
+
+    /// Network options
+    network: NetworkOptions,
+    /// Name of the network if connected
+    network_name: Option<String>,
 }
 
 impl TestSuite {
@@ -501,6 +516,7 @@ impl TestSuite {
 
     /// Build the test suite from given configs.
     pub async fn from_config(
+        id: String,
         image: Image,
         base_dir: &Path,
         private_cfg: JudgerPrivateConfig,
@@ -564,7 +580,15 @@ impl TestSuite {
             None
         };
 
+        let network_name =
+            if !(public_cfg.network.enable_build && public_cfg.network.enable_running) {
+                Some(format!("network-rurikawa-{}", id))
+            } else {
+                None
+            };
+
         Ok(TestSuite {
+            id,
             image: Some(image),
             test_cases,
             options,
@@ -586,6 +610,8 @@ impl TestSuite {
             spj_env: spj,
             test_root,
             container_test_root,
+            network: public_cfg.network,
+            network_name,
         })
     }
 
@@ -633,6 +659,9 @@ impl TestSuite {
             build_result_channel,
         )
         .await?;
+
+        // NOTE: DO NOT USE `?` OPERATOR AFTERWARDS, OR ELSE THE RUNNER CANNOT
+        // BE DECONSTRUCTED PROPERLY!
 
         log::trace!("{:08x}: runner created", rnd_id);
 

@@ -6,9 +6,10 @@ use crate::{prelude::*, sh};
 use anyhow::Result;
 use async_trait::async_trait;
 use bollard::{
-    container::UploadToContainerOptions,
+    container::{NetworkingConfig, UploadToContainerOptions},
     exec::StartExecResults,
-    models::{HostConfig, Mount},
+    models::{HostConfig, Mount, NetworkConfig},
+    network::ConnectNetworkOptions,
     Docker,
 };
 use drop_bomb::DropBomb;
@@ -127,6 +128,10 @@ pub struct DockerCommandRunnerOptions {
     pub copies: Option<Vec<(String, String)>>,
     /// Token to cancel this runner
     pub cancellation_token: CancellationTokenHandle,
+    /// Network options
+    pub network_options: NetworkOptions,
+    /// Network ID of this command runner
+    pub network_name: Option<String>,
 }
 
 impl Default for DockerCommandRunnerOptions {
@@ -141,6 +146,8 @@ impl Default for DockerCommandRunnerOptions {
             binds: None,
             copies: None,
             cancellation_token: Default::default(),
+            network_options: Default::default(),
+            network_name: None,
         }
     }
 }
@@ -189,11 +196,41 @@ impl DockerCommandRunner {
 
         log::info!("container {}: started building", r.options.container_name);
 
+        // Spin up a network for later use
+        r.options.network_name =
+            if r.options.network_options.use_network() && r.options.network_name.is_none() {
+                try_or_kill!(
+                    r.instance
+                        .create_network(bollard::network::CreateNetworkOptions {
+                            name: r.options.container_name.as_str(),
+                            check_duplicate: false,
+                            driver: "bridge",
+                            internal: true,
+                            enable_ipv6: true,
+                            ..Default::default()
+                        })
+                        .await
+                )
+                .id
+            } else {
+                None
+            };
+
         // Build the image.
         if r.options.build_image {
             try_or_kill!(
                 r.image
-                    .build(r.instance.clone(), partial_result_channel, cancel.clone(),)
+                    .build(
+                        r.instance.clone(),
+                        partial_result_channel,
+                        cancel.clone(),
+                        r.options
+                            .network_options
+                            .enable_build
+                            .then(|| r.options.network_name.as_ref())
+                            .flatten()
+                            .map(String::as_str)
+                    )
                     .await
             )
         };
@@ -230,7 +267,10 @@ impl DockerCommandRunner {
                         open_stdin: Some(true),
                         attach_stdin: Some(true),
                         entrypoint: Some(vec!["sh".into()]),
+
+                        // We don't need network if we're just copying files
                         network_disabled: Some(true),
+
                         ..Default::default()
                     },
                 )
@@ -371,7 +411,8 @@ impl DockerCommandRunner {
                         ..Default::default()
                     }),
                     entrypoint: Some(vec!["sh".into()]),
-                    network_disabled: Some(true),
+                    // Set network availability
+                    network_disabled: Some(!r.options.network_options.enable_running),
                     ..Default::default()
                 },
             )
@@ -384,6 +425,23 @@ impl DockerCommandRunner {
             }));
 
         let container_name = &r.options.container_name;
+
+        // Connect to network
+        if r.options.network_options.enable_running {
+            let res = r
+                .instance
+                .connect_network(
+                    r.options.network_name.as_ref().unwrap(),
+                    ConnectNetworkOptions {
+                        container: r.options.container_name.clone(),
+                        endpoint_config: bollard::models::EndpointSettings {
+                            ..Default::default()
+                        },
+                    },
+                )
+                .await;
+            try_or_kill!(res);
+        }
 
         log::trace!("container {}: starting", r.options.container_name);
         // Start the container
@@ -415,6 +473,7 @@ impl DockerCommandRunner {
 
         let container_name = &self.options.container_name;
 
+        // Stop the active container
         let _res = self
             .instance
             .stop_container(
@@ -423,12 +482,14 @@ impl DockerCommandRunner {
             )
             .await;
 
+        // Wait for the active container to stop
         let _res = self
             .instance
             .wait_container::<String>(container_name, None)
             .for_each(|_| async {})
             .await;
 
+        // Remove the active container
         let _res = self
             .instance
             .remove_container(
@@ -436,6 +497,11 @@ impl DockerCommandRunner {
                 None::<bollard::container::RemoveContainerOptions>,
             )
             .await;
+
+        // Remove the dedicated network
+        if let Some(network) = &self.options.network_name {
+            let _res = self.instance.remove_network(&network).await;
+        }
 
         // Remove the image.
         if self.options.remove_image {
