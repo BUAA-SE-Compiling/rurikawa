@@ -388,9 +388,11 @@ impl Image {
                             t: tag.into(),
                             // rm: true,
                             // forcerm: true,
+                            //
                             // TODO: we currently limit the builder to only use 1/2 cpu
-                            cpuperiod: Some(100),
-                            cpuquota: Some(50),
+                            // i.e. <= 50ms every 100ns
+                            cpuperiod: Some(100_000),
+                            cpuquota: Some(50_000),
                             buildargs: [("CI", "true")]
                                 .iter()
                                 .map(|(k, v)| (k.to_string(), v.to_string()))
