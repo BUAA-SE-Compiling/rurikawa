@@ -386,9 +386,9 @@ impl Image {
                                 .map(|x| x.to_string_lossy().into_owned())
                                 .unwrap_or_else(|| "Dockerfile".into()),
                             t: tag.into(),
-                            // rm: true,
-                            // forcerm: true,
-                            //
+                            rm: true,
+                            forcerm: true,
+
                             // TODO: we currently limit the builder to only use 1/2 cpu
                             // i.e. <= 50ms every 100ns
                             cpuperiod: Some(100_000),
