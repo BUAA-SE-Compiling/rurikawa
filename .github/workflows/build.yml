@@ -103,14 +103,3 @@ jobs:
           add_git_labels: true
           build-args: CI=true
 
-  build-judger:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v2
-        with:
-          submodules: true
-      - name: Build rust
-        run: |
-          cd judger
-          cargo fetch
-          cargo build --frozen
