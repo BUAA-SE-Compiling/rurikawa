@@ -14,7 +14,7 @@ use crate::{
     tester::model::TestSuiteOptions,
 };
 use anyhow::{Context, Result};
-use config::SharedClientData;
+use config::{ClientConfig, SharedClientData};
 use futures::{StreamExt, TryFutureExt};
 use http::Method;
 use model::*;
@@ -32,17 +32,17 @@ use tracing_futures::Instrument;
 pub async fn try_register(cfg: &mut SharedClientData, refresh: bool) -> anyhow::Result<bool> {
     tracing::info!(
         "Registering judger. Access token: {:?}; Register token: {:?}",
-        cfg.cfg.access_token,
-        cfg.cfg.register_token
+        cfg.cfg().access_token,
+        cfg.cfg().register_token
     );
-    if (!refresh && cfg.cfg.access_token.is_some()) || cfg.cfg.register_token.is_none() {
+    if (!refresh && cfg.cfg().access_token.is_some()) || cfg.cfg().register_token.is_none() {
         return Ok(false);
     }
 
     let req_body = JudgerRegisterMessage {
-        token: cfg.cfg.register_token.clone().unwrap(),
-        alternate_name: cfg.cfg.alternate_name.clone(),
-        tags: cfg.cfg.tags.clone(),
+        token: cfg.cfg().register_token.clone().unwrap(),
+        alternate_name: cfg.cfg().alternate_name.clone(),
+        tags: cfg.cfg().tags.clone(),
     };
     let endpoint = cfg.register_endpoint();
     let client = &cfg.client;
@@ -67,15 +67,20 @@ pub async fn try_register(cfg: &mut SharedClientData, refresh: bool) -> anyhow::
     let res = res.text().await?;
 
     tracing::info!("Got new access token: {}", res);
-    cfg.cfg.access_token = Some(res);
+
+    let new_cfg = ClientConfig {
+        access_token: Some(res),
+        ..(**cfg.cfg()).clone()
+    };
+    cfg.swap_cfg(Arc::new(new_cfg));
 
     Ok(true)
 }
 
 /// Verify if the current registration is active.
 pub async fn verify_self(cfg: &SharedClientData) -> anyhow::Result<bool> {
-    tracing::info!("Verifying access token {:?}", cfg.cfg.access_token);
-    if cfg.cfg.access_token.is_none() {
+    tracing::info!("Verifying access token {:?}", cfg.cfg().access_token);
+    if cfg.cfg().access_token.is_none() {
         return Ok(false);
     }
 
@@ -83,7 +88,7 @@ pub async fn verify_self(cfg: &SharedClientData) -> anyhow::Result<bool> {
     let res = cfg
         .client
         .request(Method::GET, &endpoint)
-        .header("authorization", cfg.cfg.access_token.as_ref().unwrap())
+        .header("authorization", cfg.cfg().access_token.as_ref().unwrap())
         .send()
         .await?
         .status()
@@ -203,7 +208,7 @@ pub async fn check_download_read_test_suite(
             cfg.client.clone(),
             cfg.client
                 .get(&endpoint)
-                .header("authorization", cfg.cfg.access_token.as_ref().unwrap())
+                .header("authorization", cfg.cfg().access_token.as_ref().unwrap())
                 .build()?,
             &suite_folder,
             &filename,
@@ -336,7 +341,7 @@ pub async fn handle_job_wrapper(
     while let Err(e) = {
         // Ah yes, do-while pattern
         let mut req = cfg.client.post(&cfg.result_send_endpoint()).json(&msg);
-        if let Some(token) = &cfg.cfg.access_token {
+        if let Some(token) = &cfg.cfg().access_token {
             req = req.header("authorization", token.as_str());
         }
         let req = req.send().await;
@@ -528,7 +533,7 @@ pub async fn handle_job(
     let upload_info = Arc::new(ResultUploadConfig {
         client,
         endpoint: cfg.result_upload_endpoint(),
-        access_token: cfg.cfg.access_token.clone(),
+        access_token: cfg.cfg().access_token.clone(),
         job_id: job.id,
     });
 
@@ -685,7 +690,7 @@ async fn poll_jobs(
 
         let active_task_count = client_config.running_tests.load(Ordering::SeqCst) as u32;
         let request_for_new_task =
-            client_config.cfg.max_concurrent_tasks as u32 - active_task_count;
+            client_config.cfg().max_concurrent_tasks as u32 - active_task_count;
 
         tracing::trace!(
             "Polling jobs from server. Asking for {} new jobs.",

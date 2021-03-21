@@ -139,7 +139,9 @@ async fn client(cmd: opt::ConnectSubCmd) {
 
     tokio::fs::create_dir_all(&cache_folder).await.unwrap();
     if !cmd.no_save {
-        update_client_config(&cache_folder, &cfg.cfg).await.unwrap();
+        update_client_config(&cache_folder, &cfg.cfg())
+            .await
+            .unwrap();
     }
 
     let client_config = Arc::new(cfg);

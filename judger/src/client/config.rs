@@ -1,9 +1,12 @@
 use crate::prelude::{CancellationToken, CancellationTokenHandle, FlowSnake};
-use arc_swap::ArcSwapOption;
+use arc_swap::{ArcSwap, ArcSwapOption};
 use dashmap::DashMap;
 use serde::{Deserialize, Serialize};
 use std::{
-    collections::HashMap, path::PathBuf, sync::atomic::AtomicBool, sync::atomic::AtomicUsize,
+    collections::HashMap,
+    path::PathBuf,
+    sync::atomic::AtomicBool,
+    sync::{atomic::AtomicUsize, Arc},
 };
 use tokio::{sync::Mutex, task::JoinHandle};
 
@@ -39,7 +42,7 @@ impl Default for ClientConfig {
 #[derive(Debug)]
 pub struct SharedClientData {
     /// Configuration of this client
-    pub cfg: ClientConfig,
+    pub cfg: ArcSwap<ClientConfig>,
     /// A unique id for all connection created by this client, similar to
     /// what `state` does in OAuth
     pub conn_id: u128,
@@ -68,7 +71,7 @@ pub struct SharedClientData {
 impl SharedClientData {
     pub fn new(cfg: ClientConfig) -> SharedClientData {
         SharedClientData {
-            cfg,
+            cfg: ArcSwap::new(Arc::new(cfg)),
             conn_id: rand::random(),
             // WORKAROUND: Client hang issue in hyper crate.
             // see: https://github.com/hyperium/hyper/issues/2312
@@ -88,126 +91,132 @@ impl SharedClientData {
         }
     }
 
+    pub fn swap_cfg(&self, cfg: Arc<ClientConfig>) -> Arc<ClientConfig> {
+        self.cfg.swap(cfg)
+    }
+
+    pub fn cfg(&self) -> arc_swap::Guard<Arc<ClientConfig>> {
+        ArcSwap::load(&self.cfg)
+    }
+
+    pub fn cfg_ref(&self) -> Arc<ClientConfig> {
+        ArcSwap::load_full(&self.cfg)
+    }
+
     pub fn register_endpoint(&self) -> String {
-        let ssl = if self.cfg.ssl {
+        let ssl = if self.cfg().ssl {
             format_args!("https")
         } else {
             format_args!("http")
         };
 
-        format!("{}://{}/api/v1/judger/register", ssl, self.cfg.host)
+        format!("{}://{}/api/v1/judger/register", ssl, self.cfg().host)
     }
 
     pub fn verify_endpoint(&self) -> String {
-        let ssl = if self.cfg.ssl {
+        let ssl = if self.cfg().ssl {
             format_args!("https")
         } else {
             format_args!("http")
         };
 
-        format!("{}://{}/api/v1/judger/verify", ssl, self.cfg.host)
+        format!("{}://{}/api/v1/judger/verify", ssl, self.cfg().host)
     }
 
     pub fn websocket_endpoint(&self) -> String {
-        let ssl = if self.cfg.ssl {
+        let ssl = if self.cfg().ssl {
             format_args!("wss")
         } else {
             format_args!("ws")
         };
 
-        if let Some(token) = &self.cfg.access_token {
+        if let Some(token) = &self.cfg().access_token {
             format!(
                 "{}://{}/api/v1/judger/ws?token={}&conn={:x}",
-                ssl, self.cfg.host, token, self.conn_id
+                ssl,
+                self.cfg().host,
+                token,
+                self.conn_id
             )
         } else {
             format!(
                 "{}://{}/api/v1/judger/ws?conn={:x}",
-                ssl, self.cfg.host, self.conn_id
+                ssl,
+                self.cfg().host,
+                self.conn_id
             )
         }
     }
 
     pub fn test_suite_download_endpoint(&self, suite_id: FlowSnake) -> String {
-        let ssl = if self.cfg.ssl {
+        let ssl = if self.cfg().ssl {
             format_args!("https")
         } else {
             format_args!("http")
         };
         format!(
             "{}://{}/api/v1/judger/download-suite/{}",
-            ssl, self.cfg.host, suite_id
+            ssl,
+            self.cfg().host,
+            suite_id
         )
     }
 
     pub fn test_suite_info_endpoint(&self, suite_id: FlowSnake) -> String {
-        let ssl = if self.cfg.ssl {
+        let ssl = if self.cfg().ssl {
             format_args!("https")
         } else {
             format_args!("http")
         };
-        format!("{}://{}/api/v1/tests/{}", ssl, self.cfg.host, suite_id)
+        format!("{}://{}/api/v1/tests/{}", ssl, self.cfg().host, suite_id)
     }
 
     pub fn result_upload_endpoint(&self) -> String {
-        let ssl = if self.cfg.ssl {
+        let ssl = if self.cfg().ssl {
             format_args!("https")
         } else {
             format_args!("http")
         };
-        format!("{}://{}/api/v1/judger/upload", ssl, self.cfg.host)
+        format!("{}://{}/api/v1/judger/upload", ssl, self.cfg().host)
     }
 
     pub fn result_send_endpoint(&self) -> String {
-        let ssl = if self.cfg.ssl {
+        let ssl = if self.cfg().ssl {
             format_args!("https")
         } else {
             format_args!("http")
         };
-        format!("{}://{}/api/v1/judger/result", ssl, self.cfg.host)
+        format!("{}://{}/api/v1/judger/result", ssl, self.cfg().host)
     }
 
     pub fn job_folder_root(&self) -> PathBuf {
-        let mut job_temp_folder = self.cfg.cache_folder.clone();
-        job_temp_folder.push("jobs");
-        job_temp_folder
+        self.cfg().cache_folder.join("jobs")
     }
 
     pub fn test_suite_folder_root(&self) -> PathBuf {
-        let mut test_suite_temp_folder = self.cfg.cache_folder.clone();
-        test_suite_temp_folder.push("suites");
-        test_suite_temp_folder
+        self.cfg().cache_folder.join("suites")
     }
 
     pub fn job_folder(&self, job_id: FlowSnake) -> PathBuf {
-        let mut job_temp_folder = self.job_folder_root();
-        job_temp_folder.push(job_id.to_string());
-        job_temp_folder
+        self.job_folder_root().join(job_id.to_string())
     }
 
     pub fn test_suite_folder(&self, suite_id: FlowSnake) -> PathBuf {
-        let mut test_suite_temp_folder = self.test_suite_folder_root();
-        test_suite_temp_folder.push(suite_id.to_string());
-        test_suite_temp_folder
+        self.test_suite_folder_root().join(suite_id.to_string())
     }
 
     pub fn test_suite_folder_lockfile(&self, suite_id: FlowSnake) -> PathBuf {
-        let mut test_suite_temp_folder = self.test_suite_folder_root();
-        test_suite_temp_folder.push(format!("{}.lock", suite_id));
-        test_suite_temp_folder
+        self.test_suite_folder_root()
+            .join(format!("{}.lock", suite_id))
     }
 
     pub fn temp_file_folder_root(&self) -> PathBuf {
-        let mut test_suite_temp_folder = self.cfg.cache_folder.clone();
-        test_suite_temp_folder.push("files");
-        test_suite_temp_folder
+        self.cfg().cache_folder.join("files")
     }
 
     pub fn random_temp_file_path(&self) -> PathBuf {
-        let mut root = self.temp_file_folder_root();
-        let random_filename = FlowSnake::generate().to_string();
-        root.push(random_filename);
-        root
+        self.temp_file_folder_root()
+            .join(FlowSnake::generate().to_string())
     }
 
     pub async fn obtain_suite_lock(&self, suite_id: FlowSnake) -> Option<CancellationTokenHandle> {
