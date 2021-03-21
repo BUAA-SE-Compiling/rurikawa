@@ -406,7 +406,7 @@ pub async fn handle_job(
     let job_path = cfg.job_folder(job.id);
     let _ = fs::ensure_removed_dir(&job_path).await;
 
-    let git_result = fs::net::git_clone(
+    fs::net::git_clone(
         &job_path,
         fs::net::GitCloneOptions {
             repo: job.repo,
@@ -416,16 +416,8 @@ pub async fn handle_job(
     )
     .with_cancel(cancel.clone())
     .await
-    .ok_or(JobExecErr::Aborted)?;
-
-    // Git might exit before we receive the cancel signal. Yield once and wait
-    // for the signal to strike at us.
-    // TODO: This is a workaround. Replace with better code.
-    tokio::task::yield_now().await;
-    if cancel.is_cancelled() {
-        return Err(JobExecErr::Aborted);
-    }
-    git_result.map_err(JobExecErr::Git)?;
+    .ok_or(JobExecErr::Aborted)?
+    .map_err(JobExecErr::Git)?;
 
     tracing::info!("fetched");
 
@@ -446,6 +438,11 @@ pub async fn handle_job(
         .ok_or_else(|| JobExecErr::NoSuchConfig(public_cfg.name.to_owned()))?;
 
     let image = judge_job_cfg.image.clone();
+
+    // Check job paths to be relative & does not navigate into parent
+    if let crate::tester::model::Image::Dockerfile { path, .. } = &image {
+        crate::util::path_security::enforce_relative_path(path).map_err(anyhow::Error::msg)?;
+    }
 
     tracing::info!("prepare to run");
 
