@@ -505,8 +505,6 @@ pub struct TestSuite {
 
     /// Network options
     network: NetworkOptions,
-    /// Name of the network if connected
-    network_name: Option<String>,
 }
 
 impl TestSuite {
@@ -611,7 +609,6 @@ impl TestSuite {
             test_root,
             container_test_root,
             network: public_cfg.network,
-            network_name,
         })
     }
 
@@ -653,6 +650,7 @@ impl TestSuite {
                     binds: self.binds.clone(),
                     copies: self.copies.clone(),
                     cancellation_token: cancellation_token.clone(),
+                    network_options: self.network.clone(),
                     ..Default::default()
                 }
             },

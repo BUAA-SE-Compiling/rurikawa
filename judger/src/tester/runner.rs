@@ -206,7 +206,6 @@ impl DockerCommandRunner {
                             check_duplicate: false,
                             driver: "bridge",
                             internal: true,
-                            enable_ipv6: true,
                             ..Default::default()
                         })
                         .await
