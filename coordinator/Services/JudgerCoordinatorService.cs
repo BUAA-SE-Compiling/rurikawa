@@ -222,6 +222,10 @@ namespace Karenia.Rurikawa.Coordinator.Services {
                 logger.LogError("Cannot find job {0}, error?", jobId);
                 return;
             }
+            if (!ShouldChangeStage(job)) {
+                logger.LogError("Judger {0} tried to progress a stopped job {1}, error?", clientId, jobId);
+                return;
+            }
 
             frontendService.OnJobStautsUpdate(jobId, new Models.WebsocketApi.JobStatusUpdateMsg
             {
@@ -246,35 +250,40 @@ namespace Karenia.Rurikawa.Coordinator.Services {
 
         public async void OnJobResultMessage(string clientId, JobResultMsg msg) {
             using var scope = scopeProvider.CreateScope();
+            var db = GetDb(scope);
+
+            using var tx = await db.Database.BeginTransactionAsync();
+            var job = await db.Jobs.Where(job => job.Id == msg.JobId).SingleOrDefaultAsync();
+
+            if (!ShouldAddResult(job)) {
+                logger.LogError("Judger {0} tried to add result to a stopped job {1}, error?", clientId, msg.JobId);
+                return;
+            }
 
             var buildResultFilename = await UploadJobBuildOutput(msg.JobId);
 
-            var db = GetDb(scope);
-            using (var tx = await db.Database.BeginTransactionAsync()) {
-                var job = await db.Jobs.Where(job => job.Id == msg.JobId).SingleOrDefaultAsync();
-                if (job == null) {
-                    logger.LogError("Unable to find job {0} ({1}) in database! Please recheck", msg.JobId, msg.JobId.Num);
-                    return;
-                }
-
-                frontendService.OnJobStautsUpdate(msg.JobId, new Models.WebsocketApi.JobStatusUpdateMsg
-                {
-                    JobId = msg.JobId,
-                    BuildOutputFile = buildResultFilename,
-                    Stage = JobStage.Finished,
-                    JobResult = msg.JobResult,
-                    TestResult = msg.Results
-                });
-
-                job.BuildOutputFile = buildResultFilename;
-                job.Results = msg.Results ?? new Dictionary<string, TestResult>();
-                job.Stage = JobStage.Finished;
-                job.ResultKind = msg.JobResult;
-                job.ResultMessage = msg.Message;
-                job.FinishTime = DateTimeOffset.Now;
-                await db.SaveChangesAsync();
-                await tx.CommitAsync();
+            if (job == null) {
+                logger.LogError("Unable to find job {0} ({1}) in database! Please recheck", msg.JobId, msg.JobId.Num);
+                return;
             }
+
+            frontendService.OnJobStautsUpdate(msg.JobId, new Models.WebsocketApi.JobStatusUpdateMsg
+            {
+                JobId = msg.JobId,
+                BuildOutputFile = buildResultFilename,
+                Stage = JobStage.Finished,
+                JobResult = msg.JobResult,
+                TestResult = msg.Results
+            });
+
+            job.BuildOutputFile = buildResultFilename;
+            job.Results = msg.Results ?? new Dictionary<string, TestResult>();
+            job.Stage = JobStage.Finished;
+            job.ResultKind = msg.JobResult;
+            job.ResultMessage = msg.Message;
+            job.FinishTime = DateTimeOffset.Now;
+            await db.SaveChangesAsync();
+            await tx.CommitAsync();
         }
 
         async Task<string> UploadJobBuildOutput(FlowSnake jobId) {
@@ -306,10 +315,17 @@ namespace Karenia.Rurikawa.Coordinator.Services {
         async void OnPartialResultMessage(string clientId, PartialResultMsg msg) {
             using var scope = scopeProvider.CreateScope();
             var db = GetDb(scope);
+            using var tx = await db.Database.BeginTransactionAsync();
 
             var job = await db.Jobs.Where(j => j.Id == msg.JobId).SingleAsync();
+            if (!ShouldAddResult(job)) {
+                logger.LogError("Judger {0} tried to add result to a stopped job {1}, error?", clientId, msg.JobId);
+                return;
+            }
+
             job.Results.Add(msg.TestId, msg.TestResult);
             await db.SaveChangesAsync();
+            await tx.CommitAsync();
 
             frontendService.OnJobStautsUpdate(msg.JobId, new Models.WebsocketApi.JobStatusUpdateMsg
             {
@@ -359,6 +375,14 @@ namespace Karenia.Rurikawa.Coordinator.Services {
 
         public static string FormatJobError(FlowSnake id) => $"job:{id}:error";
         public static string FormatJobStdout(FlowSnake id) => $"job:{id}:stream";
+
+        static bool ShouldChangeStage(Job job) {
+            return job.Stage != JobStage.Aborted && job.Stage != JobStage.Cancelled && job.Stage != JobStage.Finished;
+        }
+
+        static bool ShouldAddResult(Job job) {
+            return job.Stage == JobStage.Running || job.Stage == JobStage.Finished;
+        }
 
         /// <summary>
         /// Check if the authorization header is valid. 
