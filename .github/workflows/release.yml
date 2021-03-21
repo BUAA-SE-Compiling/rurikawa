@@ -115,8 +115,9 @@ jobs:
             artifact_name: rurikawa
             asset_name: rurikawa-linux-amd64-musl
             target_name: x86_64-unknown-linux-musl
-          - os: windows-latest
+          - os: ubuntu-latest
             artifact_name: rurikawa.exe
+            target_name: x86_64-pc-windows-gnu
             asset_name: rurikawa-windows-amd64.exe
           - os: macos-latest
             artifact_name: rurikawa
@@ -139,13 +140,13 @@ jobs:
         if: ${{ matrix.target_name == 'x86_64-unknown-linux-musl' }}
         run: sudo apt update && sudo apt install musl musl-dev musl-tools
 
+      - name: install windows tools
+        if: ${{ matrix.target_name == 'x86_64-pc-windows-gnu' }}
+        run: sudo apt update && sudo apt install mingw-w64
+
       - name: install libclang (ubuntu)
         if: ${{ matrix.os=='ubuntu-latest' }}
         run: sudo apt-get install pkg-config libclang1
-
-      - name: install libclang (windows)
-        if: ${{ matrix.os == 'windows-latest' }}
-        run: choco install llvm -y
 
       - name: Install rust target
         if: ${{ matrix.target_name != 0 }}
