@@ -386,28 +386,32 @@ impl Image {
                                 .map(|x| x.to_string_lossy().into_owned())
                                 .unwrap_or_else(|| "Dockerfile".into()),
                             t: tag.into(),
-                            rm: true,
-                            forcerm: true,
+                            // rm: true,
+                            // forcerm: true,
+                            // TODO: we currently limit the builder to only use 1/2 cpu
+                            cpuperiod: Some(100),
+                            cpuquota: Some(50),
+                            buildargs: [("CI", "true")]
+                                .iter()
+                                .map(|(k, v)| (k.to_string(), v.to_string()))
+                                .collect(),
                             ..Default::default()
                         },
                         None,
                         // Freeze `path` as a tar archive.
                         Some(hyper::Body::wrap_stream(frame)),
                     )
-                    .map(|x| {
-                        // TODO: wait for PR#107 to merge in bollard
-                        match x {
-                            Ok(info) => {
-                                if let Some(e) = info.error {
-                                    return Ok(BuildResult::Error(e, info.error_detail));
-                                }
-                                if let Some(ch) = partial_result_channel.as_ref() {
-                                    let _ = ch.send(info);
-                                }
-                                Ok(BuildResult::Success)
+                    .map(|x| match x {
+                        Ok(info) => {
+                            if let Some(e) = info.error {
+                                return Ok(BuildResult::Error(e, info.error_detail));
                             }
-                            Err(e) => Err(e),
+                            if let Some(ch) = partial_result_channel.as_ref() {
+                                let _ = ch.send(info);
+                            }
+                            Ok(BuildResult::Success)
                         }
+                        Err(e) => Err(e),
                     })
                     .fold(Ok(BuildResult::Success), |last, x| async {
                         match (last, x) {

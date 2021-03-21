@@ -5,7 +5,12 @@ use super::{JobFailure, ProcessInfo};
 use crate::{prelude::*, sh};
 use anyhow::Result;
 use async_trait::async_trait;
-use bollard::{container::UploadToContainerOptions, exec::StartExecResults, models::Mount, Docker};
+use bollard::{
+    container::UploadToContainerOptions,
+    exec::StartExecResults,
+    models::{HostConfig, Mount},
+    Docker,
+};
 use drop_bomb::DropBomb;
 use futures::stream::StreamExt;
 use names::{Generator, Name};
@@ -225,6 +230,7 @@ impl DockerCommandRunner {
                         open_stdin: Some(true),
                         attach_stdin: Some(true),
                         entrypoint: Some(vec!["sh".into()]),
+                        network_disabled: Some(true),
                         ..Default::default()
                     },
                 )
@@ -358,9 +364,14 @@ impl DockerCommandRunner {
                     tty: Some(true),
                     host_config: Some(bollard::service::HostConfig {
                         mounts: r.options.binds.clone(),
+                        // set memory limits
+                        memory_swap: r.options.mem_limit.map(|n| n as i64),
+                        // TODO: Currently we limit each container to run 33% of a cpu core
+                        nano_cpus: Some(330_000_000),
                         ..Default::default()
                     }),
                     entrypoint: Some(vec!["sh".into()]),
+                    network_disabled: Some(true),
                     ..Default::default()
                 },
             )
@@ -373,24 +384,6 @@ impl DockerCommandRunner {
             }));
 
         let container_name = &r.options.container_name;
-
-        // Set memory limit
-        try_or_kill!(r
-            .instance
-            .update_container(
-                container_name,
-                bollard::container::UpdateContainerOptions::<String> {
-                    memory: r.options.mem_limit.map(|n| n as i64),
-                    ..Default::default()
-                },
-            )
-            .await
-            .map_err(|e| {
-                JobFailure::internal_err_from(format!(
-                    "Failed to update container `{}`: {}",
-                    container_name, e
-                ))
-            }));
 
         log::trace!("container {}: starting", r.options.container_name);
         // Start the container
