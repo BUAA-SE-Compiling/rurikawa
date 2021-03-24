@@ -8,6 +8,8 @@
         "forcerm",
         "golemc",
         "mkdir",
+        "quickjs",
+        "rquickjs",
         "rurikawa",
         "rustc",
         "stablized",

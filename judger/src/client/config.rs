@@ -1,4 +1,4 @@
-use crate::prelude::{CancellationToken, CancellationTokenHandle, FlowSnake};
+use crate::prelude::{CancellationTokenHandle, FlowSnake};
 use arc_swap::ArcSwapOption;
 use dashmap::DashMap;
 use serde::{Deserialize, Serialize};

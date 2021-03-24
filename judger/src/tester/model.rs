@@ -20,10 +20,8 @@ pub struct Bind {
 }
 
 impl Bind {
-    pub fn canonical_from(&mut self, base_dir: &Path) {
-        let mut from_base = base_dir.to_owned();
-        from_base.push(&self.from);
-        self.from = from_base.absolutize().unwrap().into_owned();
+    pub fn canonicalize(&mut self, base: &Path) {
+        self.from = canonical_push(base, &self.from)
     }
 
     pub fn to_mount(&self) -> Mount {
@@ -37,10 +35,11 @@ impl Bind {
     }
 }
 
-pub fn path_canonical_from(path: &Path, base_dir: &Path) -> PathBuf {
-    let mut from_base = base_dir.to_owned();
-    from_base.push(path);
-    from_base.absolutize().unwrap().into_owned()
+/// Push the `relative` path to `base` path and canonicalize the result.
+pub fn canonical_push(base: &Path, relative: &Path) -> PathBuf {
+    let mut base = base.to_owned();
+    base.push(relative);
+    base.absolutize().unwrap().into_owned()
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -122,7 +121,7 @@ pub struct JudgerPublicConfig {
     pub special_judge_script: Option<String>,
 }
 
-/// A raw step for usage in spj scripts
+/// A wrapper for a unix command [`String`] to be used in special judge scripts.
 #[derive(IntoJsByRef, FromJs)]
 #[quickjs(rename_all = "camelCase")]
 pub struct RawStep {

@@ -15,7 +15,7 @@ use crate::{
 };
 use anyhow::{Context, Result};
 use config::SharedClientData;
-use futures::{StreamExt, TryFutureExt};
+use futures::StreamExt;
 use http::Method;
 use model::*;
 use serde_json::from_slice;

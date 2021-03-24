@@ -17,7 +17,7 @@ use crate::{
 use anyhow::Result;
 use bollard::models::{BuildInfo, Mount};
 use futures::stream::StreamExt;
-use futures::{FutureExt, TryFutureExt, TryStreamExt};
+use futures::{TryFutureExt, TryStreamExt};
 use once_cell::sync::Lazy;
 use path_slash::PathBufExt;
 use std::{collections::HashMap, io, path::Path, path::PathBuf, sync::Arc, time};
@@ -335,7 +335,7 @@ impl Image {
         }
     }
 
-    /// Replace the relative `path` in [`Image::Dockerfile`] with the absolute one.
+    /// Replace the relative `path` with respect to `base_dir` in [`Image::Dockerfile`] with the absolute one.
     pub fn canonicalize(&mut self, base_dir: PathBuf) {
         match self {
             Image::Dockerfile { path, .. } if !path.is_absolute() => {
@@ -479,46 +479,52 @@ impl Image {
 
 // pub type JudgerPublicConfig = crate::client::model::TestSuite;
 
-/// A suite of `TestCase`s to be run.
+/// A suite of [`TestCase`]s to be run.
 ///
-/// Attention: a `TestSuite` instance should NOT be constructed manually.
+/// Attention: a [`TestSuite`] instance should NOT be constructed manually.
 /// Please use `TestSuite::from_config`, for example.
 pub struct TestSuite {
-    /// The test contents.
+    /// The collection of [`TestCase`]s in this [`TestSuite`].
     pub test_cases: Vec<TestCase>,
-    /// The image which contains the compiler to be tested.
+
+    /// The [`Image`] which contains the compiler to be tested.
     image: Option<Image>,
-    /// `host-src:container-dest` volume bindings for the container.
-    /// For details see [here](https://docs.rs/bollard/0.7.2/bollard/service/struct.HostConfig.html#structfield.binds).
+
+    /// The volumes [`Mount`] bindings to be used in this [`TestCase`].
     pub binds: Option<Vec<Mount>>,
+
     ///`(source, dest)` pairs of data to be copied into the container.
     pub copies: Option<Vec<(String, String)>>,
-    /// Initialization options for `Testsuite`.
+
+    /// Initialization options for [`TestSuite`].
     pub options: TestSuiteOptions,
-    /// Command to execute within each test case. Commands should be regular shell commands
-    /// inside a unix shell.
+
+    /// The collection of commands to execute within each test case.
     pub exec: Vec<RawStep>,
+
     /// Variables to be expanded at testing.
     ///
     /// Variables in this field are in the form of `{"$var": "dest"}`, which for example then
     /// expands `$var` inside test case `123` to `123.dest`.
     pub vars: HashMap<String, String>,
 
-    /// Root folder inside **this** machine
+    /// Root folder of the [`TestSuite`] inside **this** machine.
     pub test_root: PathBuf,
-    /// Root folder inside **container**
+
+    /// Root folder of the [`TestSuite`] inside **container**.
     pub container_test_root: PathBuf,
 
-    /// Special Judger environment
+    /// Special Judger exectution environment used in this [`TestSuite`].
     spj_env: Option<spj::SpjEnvironment>,
 }
 
 impl TestSuite {
+    /// Push a [`TestCase`] to the current [`TestSuite`].
     pub fn add_case(&mut self, case: TestCase) {
         self.test_cases.push(case)
     }
 
-    /// Build the test suite from given configs.
+    /// Build the [`TestSuite`] from given configurations.
     pub async fn from_config(
         image: Image,
         base_dir: &Path,
@@ -593,13 +599,13 @@ impl TestSuite {
                 bs.iter()
                     .map(|b| {
                         let mut b = b.clone();
-                        b.canonical_from(base_dir);
+                        b.canonicalize(base_dir);
                         b.to_mount()
                     })
                     .collect()
             }),
             copies: Some(vec![(
-                path_canonical_from(&public_cfg.mapped_dir.from, base_dir).to_slash_lossy(),
+                canonical_push(base_dir, &public_cfg.mapped_dir.from).to_slash_lossy(),
                 public_cfg.mapped_dir.to.to_slash_lossy(),
             )]),
             spj_env: spj,
