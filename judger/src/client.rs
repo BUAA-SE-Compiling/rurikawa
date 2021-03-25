@@ -137,8 +137,9 @@ pub async fn check_download_read_test_suite(
     struct AutoReleaseToken<'a>(CancellationTokenHandle, &'a SharedClientData, FlowSnake);
     impl<'a> Drop for AutoReleaseToken<'a> {
         fn drop(&mut self) {
-            self.0.cancel();
-            self.1.suite_unlock(self.2);
+            let Self(canceller, client_data, suite_id) = self;
+            canceller.cancel();
+            client_data.suite_unlock(*suite_id);
         }
     }
 

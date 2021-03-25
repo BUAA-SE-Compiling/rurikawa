@@ -16,8 +16,8 @@ use crate::{
 };
 use anyhow::Result;
 use bollard::models::{BuildInfo, Mount};
-use futures::stream::StreamExt;
-use futures::{TryFutureExt, TryStreamExt};
+use futures::{StreamExt, TryFutureExt, TryStreamExt};
+use itertools::Itertools;
 use once_cell::sync::Lazy;
 use path_slash::PathBufExt;
 use std::{collections::HashMap, io, path::Path, path::PathBuf, sync::Arc, time};
@@ -321,11 +321,11 @@ impl Test {
 pub type BuildResultChannel = UnboundedSender<BuildInfo>;
 
 impl Image {
-    pub fn set_dockerfile_tag(&mut self, new_tag: String) {
-        match self {
-            Image::Image { .. } => {}
-            Image::Dockerfile { tag, .. } => *tag = new_tag,
+    pub fn set_dockerfile_tag(&mut self, new_tag: String) -> &mut Self {
+        if let Image::Dockerfile { tag, .. } = self {
+            *tag = new_tag;
         }
+        self
     }
 
     pub fn tag(&self) -> String {
@@ -336,15 +336,15 @@ impl Image {
     }
 
     /// Replace the relative `path` with respect to `base_dir` in [`Image::Dockerfile`] with the absolute one.
-    pub fn canonicalize(&mut self, base_dir: PathBuf) {
-        match self {
-            Image::Dockerfile { path, .. } if !path.is_absolute() => {
+    pub fn canonicalize(&mut self, base_dir: PathBuf) -> &mut Self {
+        if let Image::Dockerfile { path, .. } = self {
+            if !path.is_absolute() {
                 let mut path_base = base_dir;
                 path_base.push(&path);
                 *path = path_base;
             }
-            _ => (),
         }
+        self
     }
 
     /// Build (or pull) the [`Image`] to make it usable in Docker.
@@ -355,36 +355,28 @@ impl Image {
         cancel: CancellationTokenHandle,
     ) -> Result<(), BuildError> {
         match &self {
-            Image::Image { tag } => {
-                let ms = instance
-                    .create_image(
-                        Some(bollard::image::CreateImageOptions {
-                            from_image: tag.to_owned(),
-                            ..Default::default()
-                        }),
-                        None,
-                        None,
-                    )
-                    .map(|x| match x {
-                        Ok(_) => Ok(()),
-                        Err(e) => Err(e),
-                    })
-                    .collect::<Vec<_>>()
-                    .with_cancel(cancel)
-                    .await
-                    .ok_or(BuildError::Cancelled)?;
-                // ! FIXME: This is not efficient (for not being lazy),
-                // ! but it seems that directly collecting to Result is not possible.
-                ms.into_iter().collect::<Result<Vec<_>, _>>().map_err(|e| {
+            Image::Image { tag } => instance
+                .create_image(
+                    Some(bollard::image::CreateImageOptions {
+                        from_image: tag.to_owned(),
+                        ..Default::default()
+                    }),
+                    None,
+                    None,
+                )
+                .try_collect::<Vec<_>>()
+                .map_ok(drop)
+                .map_err(|e| {
                     BuildError::ImagePullFailure(format!("Failed to pull image `{}`: {}", tag, e))
-                })?;
-                Ok(())
-            }
+                })
+                .with_cancel(cancel)
+                .await
+                .ok_or(BuildError::Cancelled)?,
 
             Image::Dockerfile { tag, path, file } => {
-                let (sender, receiver) = tokio::io::duplex(8192);
+                let (writer, reader) = tokio::io::duplex(8192);
                 let codec = tokio_util::codec::BytesCodec::new();
-                let tar_stream = tokio_util::codec::FramedRead::new(receiver, codec);
+                let tar_stream = tokio_util::codec::FramedRead::new(reader, codec);
 
                 // Clone stuff to make `rustc` happy with the `async move` below.
                 let path = path.clone();
@@ -392,18 +384,12 @@ impl Image {
                 // Launch a task for archiving.
                 let archiving = tokio::spawn(async move {
                     let mut tar =
-                        async_tar::Builder::new(futures::io::BufWriter::new(sender.compat_write()));
+                        async_tar::Builder::new(futures::io::BufWriter::new(writer.compat_write()));
                     tar.append_dir_all(".", path).await?;
                     tar.finish().await
                 });
 
-                /// A quick `either` enum to represent a result returned by `docker build`.
-                enum BuildResult {
-                    Success,
-                    Error(String, Option<bollard::models::ErrorDetail>),
-                }
-
-                let result = instance
+                instance
                     .build_image(
                         bollard::image::BuildImageOptions {
                             dockerfile: file
@@ -419,34 +405,22 @@ impl Image {
                         // Freeze `path` as a tar archive.
                         Some(hyper::Body::wrap_stream(tar_stream)),
                     )
-                    .map_ok(|info| {
+                    .map_err(|e| BuildError::Internal(e.to_string()))
+                    .try_for_each(|info| async {
                         if let Some(e) = info.error {
-                            return BuildResult::Error(e, info.error_detail);
+                            return Err(BuildError::BuildError {
+                                error: e,
+                                detail: info.error_detail,
+                            });
                         }
                         if let Some(ch) = partial_result_channel.as_ref() {
                             let _ = ch.send(info);
                         }
-                        BuildResult::Success
+                        Ok(())
                     })
-                    .fold(
-                        Ok(BuildResult::Success),
-                        |last: Result<_, bollard::errors::Error>,
-                         x: Result<_, bollard::errors::Error>| async {
-                            // ? Sorry, what's that?
-                            Ok(match (x?, last?) {
-                                (BuildResult::Success, last) => last,
-                                (e @ BuildResult::Error(..), _) => e,
-                            })
-                        },
-                    )
-                    .map_err(|e| BuildError::Internal(e.to_string()))
                     .with_cancel(cancel.clone())
                     .await
                     .ok_or(BuildError::Cancelled)??;
-
-                if let BuildResult::Error(err, detail) = result {
-                    return Err(BuildError::BuildError { error: err, detail });
-                }
 
                 archiving
                     .await
@@ -538,22 +512,14 @@ impl TestSuite {
 
         let index = construct_case_index(&public_cfg);
 
-        // create test cases
-        // TODO: Remove drain when this compiler issue gets repaired:
-        // https://github.com/rust-lang/rust/issues/64552
-        let mut test_cases = futures::stream::iter(options.tests.clone().drain(..))
+        let test_cases = futures::stream::iter(options.tests.clone().drain(..))
             .map(|name| {
-                let public_cfg = &public_cfg;
-                let test_root = &test_root;
-                let container_test_root = &container_test_root;
                 let case = index.get(&name).unwrap();
-                create_test_case(public_cfg, test_root, container_test_root, case, name)
+                create_test_case(&public_cfg, &test_root, &container_test_root, case, name)
             })
             .buffer_unordered(16)
-            .collect::<Vec<Result<TestCase>>>()
-            .await;
-
-        let test_cases = test_cases.drain(..).collect::<Result<Vec<_>>>()?;
+            .try_collect::<Vec<_>>()
+            .await?;
 
         // Get command steps
         let mut raw_steps = job_cfg
@@ -567,7 +533,7 @@ impl TestSuite {
                 command: s.to_owned(),
                 is_user_command: false,
             }))
-            .collect::<Vec<_>>();
+            .collect_vec();
 
         // Initialize special judge
         let spj = if let Some(script) = &public_cfg.special_judge_script {
@@ -639,8 +605,10 @@ impl TestSuite {
             .image
             .take()
             .expect("TestSuite instance not fully constructed");
-        image.canonicalize(base_dir);
-        image.set_dockerfile_tag(format!("{}_{:08x}", image.tag(), rnd_id));
+        let tag = image.tag();
+        image
+            .canonicalize(base_dir)
+            .set_dockerfile_tag(format!("{}_{:08x}", tag, rnd_id));
         let runner = DockerCommandRunner::try_new(
             instance,
             image,
@@ -725,8 +693,7 @@ impl TestSuite {
                 .run(&runner, &replacer, self.spj_env.as_mut())
                 .with_cancel(cancellation_token.clone())
                 .await
-                .ok_or(JobFailure::Cancelled)
-                .and_then(|x| x);
+                .unwrap_or(Err(JobFailure::Cancelled));
             log::trace!("{:08x}: runned: {}", rnd_id, case.name);
 
             let (mut res, cache) = TestResult::from_result(res, case.base_score);
@@ -818,13 +785,10 @@ async fn create_test_case(
 }
 
 fn construct_case_index(pub_cfg: &JudgerPublicConfig) -> HashMap<String, &TestCaseDefinition> {
-    let mut idx = HashMap::new();
-
-    for group in pub_cfg.test_groups.values() {
-        for test_case in group {
-            idx.insert(test_case.name.clone(), test_case);
-        }
-    }
-
-    idx
+    pub_cfg
+        .test_groups
+        .values()
+        .flatten()
+        .map(|test| (test.name.clone(), test))
+        .collect()
 }

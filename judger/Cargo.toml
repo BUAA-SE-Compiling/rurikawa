@@ -36,6 +36,7 @@ fern = "0.6.0"
 futures = "0.3.8"
 http = "*"
 hyper = { version = "0.14", features = ["stream"] }
+itertools = "0.10.0"
 libc = "0.2.81"
 log = "*"
 names = "0.11.0"
