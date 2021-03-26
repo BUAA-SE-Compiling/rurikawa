@@ -571,7 +571,7 @@ impl TestSuite {
                     .collect()
             }),
             copies: Some(vec![(
-                canonical_push(base_dir, &public_cfg.mapped_dir.from).to_slash_lossy(),
+                canonical_join(base_dir, &public_cfg.mapped_dir.from).to_slash_lossy(),
                 public_cfg.mapped_dir.to.to_slash_lossy(),
             )]),
             spj_env: spj,

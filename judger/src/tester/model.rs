@@ -21,7 +21,7 @@ pub struct Bind {
 
 impl Bind {
     pub fn canonicalize(&mut self, base: &Path) {
-        self.from = canonical_push(base, &self.from)
+        self.from = canonical_join(base, &self.from)
     }
 
     pub fn to_mount(&self) -> Mount {
@@ -35,11 +35,14 @@ impl Bind {
     }
 }
 
-/// Push the `relative` path to `base` path and canonicalize the result.
-pub fn canonical_push(base: &Path, relative: &Path) -> PathBuf {
-    let mut base = base.to_owned();
-    base.push(relative);
-    base.absolutize().unwrap().into_owned()
+/// Join a `relative` path onto a `base` path and canonicalize the result.
+pub fn canonical_join(base: impl AsRef<Path>, relative: impl AsRef<Path>) -> PathBuf {
+    base.as_ref()
+        .to_owned()
+        .join(relative)
+        .absolutize()
+        .expect("Failed to execute canonical_join on paths")
+        .into_owned()
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
