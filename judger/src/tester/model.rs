@@ -1,10 +1,15 @@
 use anyhow::Result;
 use bollard::models::Mount;
+use names::{Generator, Name};
 use path_absolutize::Absolutize;
 use rquickjs::{FromJs, IntoJsByRef};
 use serde::{self, Deserialize, Serialize};
-use std::{collections::HashMap, path::PathBuf, string::String};
-use std::{path::Path, str::FromStr};
+use std::{
+    collections::HashMap,
+    path::{Path, PathBuf},
+    str::FromStr,
+    string::String,
+};
 
 /// A Host-to-container volume binding for the container.
 #[derive(Serialize, Deserialize, Debug, Clone, Default)]
@@ -50,10 +55,13 @@ pub fn canonical_join(base: impl AsRef<Path>, relative: impl AsRef<Path>) -> Pat
 #[serde(rename_all = "camelCase")]
 pub enum Image {
     /// An existing image.
-    Image { tag: String },
+    #[serde(alias = "image")]
+    Prebuilt { tag: String },
     /// An image to be built with a Dockerfile.
     Dockerfile {
         /// Name to be assigned to the image.
+        /// If no `tag` is given, a placeholder will be generated automatically.
+        #[serde(default = "random_tag")]
         tag: String,
         /// Path of the context directory, can be relative or absolute.
         path: PathBuf,
@@ -61,6 +69,10 @@ pub enum Image {
         /// Leaving this value to None means using the default dockerfile: `path/Dockerfile`.
         file: Option<PathBuf>,
     },
+}
+
+fn random_tag() -> String {
+    Generator::with_naming(Name::Plain).next().unwrap()
 }
 
 /// The definition of a test case

@@ -330,7 +330,7 @@ impl Image {
 
     pub fn tag(&self) -> String {
         match &self {
-            Image::Image { tag, .. } => tag.to_owned(),
+            Image::Prebuilt { tag, .. } => tag.to_owned(),
             Image::Dockerfile { tag, .. } => tag.to_owned(),
         }
     }
@@ -355,7 +355,7 @@ impl Image {
         cancel: CancellationTokenHandle,
     ) -> Result<(), BuildError> {
         match &self {
-            Image::Image { tag } => instance
+            Image::Prebuilt { tag } => instance
                 .create_image(
                     Some(bollard::image::CreateImageOptions {
                         from_image: tag.to_owned(),

@@ -186,7 +186,7 @@ mod docker_runner {
         block_on(async {
             let runner = DockerCommandRunner::try_new(
                 bollard::Docker::connect_with_local_defaults().unwrap(),
-                Image::Image {
+                Image::Prebuilt {
                     tag: "alpine:latest".to_owned(),
                 },
                 DockerCommandRunnerOptions {

@@ -62,7 +62,7 @@ fn golem_no_volume() -> Result<()> {
             },
             &JudgeTomlTestConfig {
                 // TODO: Refine interface
-                image: Image::Image { tag: "".into() },
+                image: Image::Prebuilt { tag: "".into() },
                 build: None,
                 run: vec!["python ./golemc.py $src -o $bin".into()],
             },
@@ -150,7 +150,7 @@ fn golem_with_volume() -> Result<()> {
             },
             &JudgeTomlTestConfig {
                 // TODO: Refine interface
-                image: Image::Image { tag: "".into() },
+                image: Image::Prebuilt { tag: "".into() },
                 build: None,
                 run: vec!["python ./golemc.py $src -o $bin".into()],
             },
