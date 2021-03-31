@@ -3,19 +3,17 @@
 //!
 //! Read more about SPJ in `/docs/dev-manual/special-judger.md`
 
-use std::{
-    collections::HashMap,
-    path::{Path, PathBuf},
-};
-
-use anyhow::Context as AnyhowCtx;
-use rquickjs::{Context, FromJs, Function, Promise, Runtime};
-use tokio::{runtime::Handle, task::JoinHandle};
-
 use super::{
     model::{JudgerPublicConfig, RawStep, TestCase},
     ProcessInfo,
 };
+use anyhow::Context as AnyhowCtx;
+use rquickjs::{Context, FromJs, Function, Promise, Runtime};
+use std::{
+    collections::HashMap,
+    path::{Path, PathBuf},
+};
+use tokio::{runtime::Handle, task::JoinHandle};
 
 pub const SPJ_INIT_FN: &str = "specialJudgeInit";
 pub const SPJ_TRANSFORM_FN: &str = "specialJudgeTransformExec";

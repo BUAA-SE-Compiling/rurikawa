@@ -10,8 +10,7 @@ use crate::{
     config::{JudgeToml, JudgerPublicConfig},
     fs::{self, JUDGE_FILE_NAME},
     prelude::*,
-    tester::model::JudgerPrivateConfig,
-    tester::model::TestSuiteOptions,
+    tester::model::{JudgerPrivateConfig, TestSuiteOptions},
 };
 use anyhow::{Context, Result};
 use config::SharedClientData;

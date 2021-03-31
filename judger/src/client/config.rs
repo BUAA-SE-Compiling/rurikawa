@@ -1,3 +1,4 @@
+use super::model::AbortJob;
 use crate::prelude::{CancellationTokenHandle, FlowSnake};
 use arc_swap::ArcSwapOption;
 use dashmap::DashMap;
@@ -6,8 +7,6 @@ use std::{
     collections::HashMap, path::PathBuf, sync::atomic::AtomicBool, sync::atomic::AtomicUsize,
 };
 use tokio::{sync::Mutex, task::JoinHandle};
-
-use super::model::AbortJob;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ClientConfig {

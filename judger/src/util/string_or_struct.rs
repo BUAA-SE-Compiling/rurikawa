@@ -1,6 +1,5 @@
 use serde::{de, de::MapAccess, de::Visitor, Deserialize, Deserializer};
-use std::fmt;
-use std::{marker::PhantomData, str::FromStr};
+use std::{fmt, marker::PhantomData, str::FromStr};
 
 // Copied from
 // https://serde.rs/string-or-struct.html

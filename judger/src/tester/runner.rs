@@ -1,7 +1,4 @@
-use super::exec::BuildResultChannel;
-use super::model::*;
-use super::utils::convert_code;
-use super::{JobFailure, ProcessInfo};
+use super::{exec::BuildResultChannel, model::*, utils::convert_code, JobFailure, ProcessInfo};
 use crate::{prelude::*, sh};
 use anyhow::Result;
 use async_trait::async_trait;
@@ -11,8 +8,7 @@ use futures::stream::StreamExt;
 use names::{Generator, Name};
 #[cfg(unix)]
 use std::os::unix::process::ExitStatusExt;
-use std::process::ExitStatus;
-use std::{collections::HashMap, default::Default};
+use std::{collections::HashMap, default::Default, process::ExitStatus};
 use tokio::process::Command;
 use tokio_util::compat::*;
 
