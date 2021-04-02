@@ -118,13 +118,13 @@ impl Step {
     }
 
     /// Set `timeout` for a [`Step`].
-    pub fn timeout(mut self, timeout: time::Duration) -> Self {
+    pub fn set_timeout(mut self, timeout: time::Duration) -> Self {
         self.timeout = Some(timeout);
         self
     }
 
     /// Make a new [`Step`] with a `timeout`.
-    pub fn new_with_timeout(
+    pub fn with_timeout(
         cmd: Capturable,
         timeout: Option<time::Duration>,
         is_user_command: bool,
@@ -652,7 +652,7 @@ impl TestSuite {
             let mut t = Test::new();
             t.should_fail = case.should_fail;
             self.exec.iter().for_each(|step| {
-                t.add_step(Step::new_with_timeout(
+                t.add_step(Step::with_timeout(
                     Capturable::new(step.command.clone()),
                     time_limit.map(|n| std::time::Duration::from_secs(n as u64)),
                     step.is_user_command,
