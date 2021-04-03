@@ -16,7 +16,7 @@ use bollard::models::{BuildInfo, Mount};
 use futures::stream::StreamExt;
 use once_cell::sync::Lazy;
 use path_slash::PathBufExt;
-use std::{collections::HashMap, io, path::Path, path::PathBuf, sync::Arc, time};
+use std::{collections::HashMap, convert::TryInto, io, path::Path, path::PathBuf, sync::Arc, time};
 use tokio::{io::AsyncReadExt, sync::mpsc::UnboundedSender};
 use tokio_util::compat::*;
 
@@ -331,6 +331,7 @@ impl Image {
         partial_result_channel: Option<BuildResultChannel>,
         cancel: CancellationTokenHandle,
         network: Option<&str>,
+        cpu_shares: Option<f64>,
     ) -> Result<(), BuildError> {
         match &self {
             Image::Image { tag } => {
@@ -378,6 +379,10 @@ impl Image {
                     Error(String, Option<bollard::models::ErrorDetail>),
                 }
 
+                // We set the CPU quota here by using a period of 100ms
+                let cpuquota = cpu_shares.map(|x| (x * 100_000f64).floor() as u64);
+                let cpuperiod = cpuquota.is_some().then(|| 100_000);
+
                 let task = tokio::spawn(task);
                 let result = instance
                     .build_image(
@@ -396,10 +401,8 @@ impl Image {
                                 "none".into()
                             },
 
-                            // TODO: we currently limit the builder to only use 1/2 cpu
-                            // i.e. <= 50ms every 100ns
-                            cpuperiod: Some(100_000),
-                            cpuquota: Some(50_000),
+                            cpuperiod,
+                            cpuquota,
                             buildargs: [("CI", "true")]
                                 .iter()
                                 .map(|(k, v)| (k.to_string(), v.to_string()))

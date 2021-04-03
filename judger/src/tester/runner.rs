@@ -2,7 +2,7 @@ use super::exec::BuildResultChannel;
 use super::model::*;
 use super::utils::convert_code;
 use super::{JobFailure, ProcessInfo};
-use crate::{prelude::*, sh};
+use crate::{client::config::DockerConfig, prelude::*, sh};
 use anyhow::Result;
 use async_trait::async_trait;
 use bollard::{
@@ -17,8 +17,8 @@ use futures::stream::StreamExt;
 use names::{Generator, Name};
 #[cfg(unix)]
 use std::os::unix::process::ExitStatusExt;
-use std::process::ExitStatus;
 use std::{collections::HashMap, default::Default};
+use std::{process::ExitStatus, sync::Arc};
 use tokio::process::Command;
 use tokio_util::compat::*;
 
@@ -132,6 +132,8 @@ pub struct DockerCommandRunnerOptions {
     pub network_options: NetworkOptions,
     /// Network ID of this command runner
     pub network_name: Option<String>,
+    /// Predefined configurations, e.g. CPU shares
+    pub cfg: Arc<DockerConfig>,
 }
 
 impl Default for DockerCommandRunnerOptions {
@@ -148,6 +150,7 @@ impl Default for DockerCommandRunnerOptions {
             cancellation_token: Default::default(),
             network_options: Default::default(),
             network_name: None,
+            cfg: Default::default(),
         }
     }
 }
@@ -228,7 +231,8 @@ impl DockerCommandRunner {
                             .enable_build
                             .then(|| r.options.network_name.as_ref())
                             .flatten()
-                            .map(String::as_str)
+                            .map(String::as_str),
+                        Some(r.options.cfg.build_cpu_share)
                     )
                     .await
             )
@@ -406,7 +410,7 @@ impl DockerCommandRunner {
                         // set memory limits
                         memory_swap: r.options.mem_limit.map(|n| n as i64),
                         // TODO: Currently we limit each container to run 33% of a cpu core
-                        nano_cpus: Some(330_000_000),
+                        nano_cpus: Some((r.options.cfg.run_cpu_share * 1_000_000_000.0) as i64),
                         ..Default::default()
                     }),
                     entrypoint: Some(vec!["sh".into()]),

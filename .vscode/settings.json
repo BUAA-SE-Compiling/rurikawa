@@ -13,5 +13,6 @@
         "tungstenite",
         "unsync"
     ],
-    "python.pythonPath": "/usr/local/bin/python3"
+    "python.pythonPath": "/usr/local/bin/python3",
+    "VSCord.enabled": true
 }

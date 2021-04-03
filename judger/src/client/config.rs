@@ -1,5 +1,6 @@
 use crate::prelude::{CancellationToken, CancellationTokenHandle, FlowSnake};
 use arc_swap::{ArcSwap, ArcSwapOption};
+use bollard::Docker;
 use dashmap::DashMap;
 use serde::{Deserialize, Serialize};
 use std::{
@@ -22,6 +23,8 @@ pub struct ClientConfig {
     pub alternate_name: Option<String>,
     pub tags: Option<Vec<String>>,
     pub cache_folder: PathBuf,
+    #[serde(default)]
+    pub docker_config: Arc<DockerConfig>,
 }
 
 impl Default for ClientConfig {
@@ -35,14 +38,34 @@ impl Default for ClientConfig {
             alternate_name: None,
             tags: None,
             cache_folder: PathBuf::new(),
+            docker_config: Arc::new(Default::default()),
         }
     }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(default)]
 pub struct DockerConfig {
     /// The user every docker container should run in
-    docker_user_id: u16,
+    // docker_user_id: u16,
+
+    /// CPU share available for image building use. This field will result
+    /// in allowing the CPU to run `build_cpu_share * 100ms` in every 100ms
+    /// CPU time.
+    pub build_cpu_share: f64,
+
+    /// CPU share available for running use. This field will be the upper limit
+    /// of the load factor of all running task in the testing container.
+    pub run_cpu_share: f64,
+}
+
+impl Default for DockerConfig {
+    fn default() -> Self {
+        DockerConfig {
+            build_cpu_share: 0.5,
+            run_cpu_share: 0.3,
+        }
+    }
 }
 
 #[derive(Debug)]
