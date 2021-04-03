@@ -232,7 +232,7 @@ impl DockerCommandRunner {
                             .then(|| r.options.network_name.as_ref())
                             .flatten()
                             .map(String::as_str),
-                        Some(r.options.cfg.build_cpu_share)
+                        r.options.cfg.build_cpu_share
                     )
                     .await
             )
@@ -405,12 +405,18 @@ impl DockerCommandRunner {
                     attach_stdout: Some(true),
                     attach_stderr: Some(true),
                     tty: Some(true),
+                    // set docker user
+                    user: r.options.cfg.docker_user.clone(),
                     host_config: Some(bollard::service::HostConfig {
                         mounts: r.options.binds.clone(),
                         // set memory limits
                         memory_swap: r.options.mem_limit.map(|n| n as i64),
-                        // TODO: Currently we limit each container to run 33% of a cpu core
-                        nano_cpus: Some((r.options.cfg.run_cpu_share * 1_000_000_000.0) as i64),
+                        // set cpu limits
+                        nano_cpus: r
+                            .options
+                            .cfg
+                            .run_cpu_share
+                            .map(|x| (x * 1_000_000_000.0) as i64),
                         ..Default::default()
                     }),
                     entrypoint: Some(vec!["sh".into()]),

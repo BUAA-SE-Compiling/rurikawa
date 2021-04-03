@@ -46,24 +46,25 @@ impl Default for ClientConfig {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(default)]
 pub struct DockerConfig {
-    /// The user every docker container should run in
-    // docker_user_id: u16,
+    /// The user every docker container should run in.
+    pub docker_user: Option<String>,
 
     /// CPU share available for image building use. This field will result
     /// in allowing the CPU to run `build_cpu_share * 100ms` in every 100ms
     /// CPU time.
-    pub build_cpu_share: f64,
+    pub build_cpu_share: Option<f64>,
 
     /// CPU share available for running use. This field will be the upper limit
     /// of the load factor of all running task in the testing container.
-    pub run_cpu_share: f64,
+    pub run_cpu_share: Option<f64>,
 }
 
 impl Default for DockerConfig {
     fn default() -> Self {
         DockerConfig {
-            build_cpu_share: 0.5,
-            run_cpu_share: 0.3,
+            docker_user: None,
+            build_cpu_share: Some(0.5),
+            run_cpu_share: Some(0.3),
         }
     }
 }
