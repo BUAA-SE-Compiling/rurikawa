@@ -57,8 +57,8 @@ fn golem_no_volume() -> Result<()> {
                     to: PathBuf::from(r"../golem/src"),
                     readonly: false,
                 },
-                binds: None,
-                special_judge_script: None,
+                test_ignore: None,
+                ..Default::default()
             },
             &JudgeTomlTestConfig {
                 // TODO: Refine interface
@@ -146,7 +146,7 @@ fn golem_with_volume() -> Result<()> {
                     readonly: false,
                 },
                 binds: Some(vec![]),
-                special_judge_script: None,
+                ..Default::default()
             },
             &JudgeTomlTestConfig {
                 // TODO: Refine interface

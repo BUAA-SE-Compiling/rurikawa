@@ -376,6 +376,7 @@ mod test {
             test_groups: HashMap::new(),
             vars: HashMap::new(),
             run: vec![],
+            test_ignore: None,
             mapped_dir: Bind {
                 from: PathBuf::from(r"../golem/src"),
                 to: PathBuf::from(r"/golem/src"),

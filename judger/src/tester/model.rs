@@ -89,7 +89,7 @@ impl FromStr for TestCaseDefinition {
 
 /// Judger's public config, specific to a paticular repository,
 /// Maintained by the owner of the project to be tested.
-#[derive(Serialize, Deserialize, Debug, Clone, IntoJsByRef)]
+#[derive(Serialize, Deserialize, Debug, Clone, IntoJsByRef, Default)]
 #[serde(rename_all = "camelCase")]
 #[quickjs(rename_all = "camelCase")]
 pub struct JudgerPublicConfig {
@@ -101,6 +101,7 @@ pub struct JudgerPublicConfig {
     /// Variables and extensions of test files
     /// (`$src`, `$bin`, `$stdin`, `$stdout`, etc...).
     /// For example: `"$src" => "go"`.
+    #[serde(default)]
     pub vars: HashMap<String, String>,
 
     /// Sequence of commands necessary to perform an IO check.
@@ -109,6 +110,10 @@ pub struct JudgerPublicConfig {
     /// The path of test root directory to be mapped inside test container
     #[quickjs(skip)]
     pub mapped_dir: Bind,
+
+    /// The glob pattern file for files to be ignored when sending to test root
+    #[quickjs(skip)]
+    pub test_ignore: Option<PathBuf>,
 
     /// `host-src:container-dest` volume bindings for the container.
     /// For details see [here](https://docs.rs/bollard/0.7.2/bollard/service/struct.HostConfig.html#structfield.binds).

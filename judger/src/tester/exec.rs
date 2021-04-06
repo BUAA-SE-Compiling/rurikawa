@@ -17,7 +17,7 @@ use futures::stream::StreamExt;
 use once_cell::sync::Lazy;
 use path_slash::PathBufExt;
 use std::{collections::HashMap, io, path::Path, path::PathBuf, sync::Arc, time};
-use tokio::{io::AsyncReadExt, sync::mpsc::UnboundedSender};
+use tokio::{io::AsyncBufReadExt, io::AsyncReadExt, sync::mpsc::UnboundedSender};
 use tokio_util::compat::*;
 
 #[cfg(unix)]
@@ -358,26 +358,15 @@ impl Image {
                 Ok(())
             }
             Image::Dockerfile { tag, path, file } => {
-                let from_path = path.clone();
-                let (pipe_recv, pipe_send) = tokio::io::duplex(8192);
-                let read_codec = tokio_util::codec::BytesCodec::new();
-                let frame = tokio_util::codec::FramedRead::new(pipe_send, read_codec);
-                let task = async move {
-                    let mut tar = async_tar::Builder::new(futures::io::BufWriter::new(
-                        pipe_recv.compat_write(),
-                    ));
-                    match tar.append_dir_all(".", from_path).await {
-                        Ok(_) => tar.finish().await,
-                        e @ Err(_) => e,
-                    }
-                };
-
                 enum BuildResult {
                     Success,
                     Error(String, Option<bollard::models::ErrorDetail>),
                 }
 
-                let task = tokio::spawn(task);
+                let ignore = ignore::gitignore::Gitignore::empty();
+                let (frame, task) = crate::util::tar::pack_as_tar(path.clone(), ignore)
+                    .map_err(|e| BuildError::FileTransferError(e.to_string()))?;
+
                 let result = instance
                     .build_image(
                         bollard::image::BuildImageOptions {
@@ -468,6 +457,8 @@ pub struct TestSuite {
     pub binds: Option<Vec<Mount>>,
     ///`(source, dest)` pairs of data to be copied into the container.
     pub copies: Option<Vec<(String, String)>>,
+    /// Ignored file pattern when copying data into the container
+    pub copy_ignore: Vec<String>,
     /// Initialization options for `Testsuite`.
     pub options: TestSuiteOptions,
     /// Command to execute within each test case. Commands should be regular shell commands
@@ -538,6 +529,23 @@ impl TestSuite {
             }))
             .collect::<Vec<_>>();
 
+        // get ignored pattern
+        let copy_ignore = if let Some(file) = &public_cfg.test_ignore {
+            let f = tokio::fs::File::open(file).await?;
+            tokio_stream::wrappers::LinesStream::new(tokio::io::BufReader::new(f).lines())
+                .fold(Ok(vec![]), |v, f| {
+                    futures::future::ready(v.and_then(|mut v| {
+                        f.map(|f| {
+                            v.push(f);
+                            v
+                        })
+                    }))
+                })
+                .await?
+        } else {
+            Vec::new()
+        };
+
         // Initialize special judge
         let spj = if let Some(script) = &public_cfg.special_judge_script {
             let script_path = base_dir.join(script);
@@ -577,6 +585,7 @@ impl TestSuite {
                 path_canonical_from(&public_cfg.mapped_dir.from, base_dir).to_slash_lossy(),
                 public_cfg.mapped_dir.to.to_slash_lossy(),
             )]),
+            copy_ignore,
             spj_env: spj,
             test_root,
             container_test_root,
