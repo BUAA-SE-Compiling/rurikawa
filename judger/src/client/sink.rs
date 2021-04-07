@@ -5,8 +5,8 @@ use anyhow::Result;
 use arc_swap::{ArcSwapAny, ArcSwapOption};
 use async_trait::async_trait;
 use futures::{
+    prelude::*,
     stream::{SplitSink, SplitStream},
-    Sink, SinkExt, Stream, TryStream,
 };
 use serde::Serialize;
 use std::{fmt::Debug, sync::Arc};

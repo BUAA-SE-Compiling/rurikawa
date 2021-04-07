@@ -4,6 +4,7 @@ pub mod model;
 pub mod sink;
 
 pub use self::err::*;
+use self::{config::SharedClientData, model::*, sink::*};
 use crate::{
     client::model::JobResultKind,
     config::{JudgeToml, JudgerPublicConfig},
@@ -12,13 +13,10 @@ use crate::{
     tester::model::{JudgerPrivateConfig, TestSuiteOptions},
 };
 use anyhow::{Context, Result};
-use config::SharedClientData;
 use futures::prelude::*;
 use http::Method;
-use model::*;
 use respector::prelude::*;
 use serde_json::from_slice;
-use sink::*;
 use std::{collections::HashMap, path::PathBuf, sync::atomic::Ordering, sync::Arc};
 use tokio_tungstenite::{connect_async, tungstenite::Message};
 use tracing::info_span;

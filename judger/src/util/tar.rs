@@ -5,7 +5,7 @@
 use async_compat::CompatExt;
 use async_tar::{Builder, Header};
 use bytes::BytesMut;
-use futures::{AsyncWrite, Future, FutureExt, Stream, StreamExt};
+use futures::prelude::*;
 use ignore::gitignore::{Gitignore, GitignoreBuilder};
 use std::{path::Path, pin::Pin};
 use tokio::task::JoinHandle;

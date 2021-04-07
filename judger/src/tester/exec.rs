@@ -16,7 +16,7 @@ use crate::{
 };
 use anyhow::Result;
 use bollard::models::{BuildInfo, Mount};
-use futures::{StreamExt, TryFutureExt, TryStreamExt};
+use futures::prelude::*;
 use itertools::Itertools;
 use once_cell::sync::Lazy;
 use path_slash::PathBufExt;

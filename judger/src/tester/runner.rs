@@ -4,7 +4,7 @@ use anyhow::Result;
 use async_trait::async_trait;
 use bollard::{container::UploadToContainerOptions, exec::StartExecResults, models::Mount, Docker};
 use drop_bomb::DropBomb;
-use futures::stream::StreamExt;
+use futures::prelude::*;
 use names::{Generator, Name};
 #[cfg(unix)]
 use std::os::unix::process::ExitStatusExt;
