@@ -33,3 +33,29 @@ pub fn enforce_relative_path(path: &Path) -> Result<(), String> {
     }
     Ok(())
 }
+
+#[cfg(test)]
+mod test {
+    use super::*;
+
+    #[test]
+    fn test_enforce_relative_path() {
+        enforce_relative_path("./cat.rs".as_ref()).unwrap();
+        enforce_relative_path("cat.rs".as_ref()).unwrap();
+        enforce_relative_path("src/dog/cat.rs".as_ref()).unwrap();
+        enforce_relative_path("src/cat/../dog/dog.rs".as_ref()).unwrap();
+        enforce_relative_path("src/cat/../dog/dog.rs".as_ref()).unwrap();
+        enforce_relative_path("src/../dog/dog.rs".as_ref()).unwrap();
+    }
+
+    #[test]
+    fn test_enforce_relative_path_fail() {
+        enforce_relative_path("/dog/src/dog.rs".as_ref()).unwrap_err();
+        enforce_relative_path("/dog.rs".as_ref()).unwrap_err();
+        enforce_relative_path("../dog.rs".as_ref()).unwrap_err();
+        enforce_relative_path("../dog/dog.rs".as_ref()).unwrap_err();
+        enforce_relative_path("cat/nip/../../../dog/dog.rs".as_ref()).unwrap_err();
+        enforce_relative_path("./cat/../../lib/dog/dog.rs".as_ref()).unwrap_err();
+        enforce_relative_path("./../lib/dog/dog.rs".as_ref()).unwrap_err();
+    }
+}
