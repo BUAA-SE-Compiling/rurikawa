@@ -81,6 +81,8 @@ Configure `coordinator/appsettings.json` before running:
 
 You can find an example of this file at `coordinator/appsettings.dev.json`. 
 
+You'll also need an ECDSA private key in PFX format next to the coordinator CWD, as `certs/dev.pfx` (Subject to change), in order to sign JWTs.
+
 To run coordinator, run:
 
 ```
