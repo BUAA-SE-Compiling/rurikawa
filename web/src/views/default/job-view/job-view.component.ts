@@ -45,6 +45,7 @@ import {
 import stripAnsi from 'strip-ansi';
 import { TitleService } from 'src/services/title_service';
 import { resultBriefMain, resultBriefSub } from 'src/util/brief-calc';
+import { ApiService } from 'src/services/api_service';
 
 @Component({
   selector: 'app-job-view',
@@ -56,6 +57,7 @@ export class JobViewComponent implements OnInit, OnChanges, OnDestroy {
     private route: ActivatedRoute,
     private router: Router,
     private httpClient: HttpClient,
+    private api: ApiService,
     private service: TestSuiteAndJobCache,
     private title: TitleService
   ) {}
@@ -208,20 +210,14 @@ export class JobViewComponent implements OnInit, OnChanges, OnDestroy {
       this.job?.buildOutputFile !== undefined &&
       this.outputMessage === undefined
     ) {
-      this.httpClient
-        .get<JobBuildOutput>(
-          environment.endpointBase() +
-            endpoints.file.get(this.job.buildOutputFile),
-          { headers: { 'bypass-login': 'true' } }
-        )
-        .subscribe({
-          next: (x) => {
-            this.outputMessage = x;
-          },
-          error: () => {
-            this.outputMessage = {};
-          },
-        });
+      this.api.getFile<JobBuildOutput>(this.job.buildOutputFile).subscribe({
+        next: (x) => {
+          this.outputMessage = x;
+        },
+        error: () => {
+          this.outputMessage = {};
+        },
+      });
     }
   }
 
@@ -234,15 +230,11 @@ export class JobViewComponent implements OnInit, OnChanges, OnDestroy {
   }
 
   respawnTest() {
-    this.httpClient
-      .post(environment.endpointBase() + endpoints.job.respawn(this.id), null, {
-        responseType: 'text',
-      })
-      .subscribe({
-        next: (resp) => {
-          this.router.navigate(['job', resp]);
-        },
-      });
+    this.api.job.respawn(this.id).subscribe({
+      next: (resp) => {
+        this.router.navigate(['job', resp]);
+      },
+    });
   }
 
   ngOnInit(): void {

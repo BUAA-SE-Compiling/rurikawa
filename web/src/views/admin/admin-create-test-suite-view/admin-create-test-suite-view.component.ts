@@ -4,6 +4,7 @@ import { environment } from 'src/environments/environment';
 import { endpoints } from 'src/environments/endpoints';
 import { TestSuite } from 'src/models/server-types';
 import { Router } from '@angular/router';
+import { ApiService } from 'src/services/api_service';
 
 @Component({
   selector: 'app-admin-create-test-suite-view',
@@ -11,7 +12,7 @@ import { Router } from '@angular/router';
   styleUrls: ['./admin-create-test-suite-view.component.styl'],
 })
 export class AdminCreateTestSuiteViewComponent implements OnInit {
-  constructor(private httpClient: HttpClient, private router: Router) {}
+  constructor(private api: ApiService, private router: Router) {}
 
   testSuite?: TestSuite;
 
@@ -19,19 +20,12 @@ export class AdminCreateTestSuiteViewComponent implements OnInit {
 
   getUploadFileFunction() {
     return (files, started, progress, finished, aborted) => {
-      this.uploadFile(
-        this.httpClient,
-        files,
-        started,
-        progress,
-        finished,
-        aborted
-      );
+      this.uploadFile(this.api, files, started, progress, finished, aborted);
     };
   }
 
   uploadFile(
-    http: HttpClient,
+    api: ApiService,
     files: File[],
     started: () => void,
     progress: (progress: number) => void,
@@ -43,34 +37,24 @@ export class AdminCreateTestSuiteViewComponent implements OnInit {
       finished(false);
       return;
     }
-    http
-      .post<TestSuite>(
-        environment.endpointBase() + endpoints.testSuite.post,
-        files[0],
-        {
-          params: { filename: files[0].name },
-          observe: 'events',
-          reportProgress: true,
-        }
-      )
-      .subscribe({
-        next: (ev) => {
-          if (ev.type === HttpEventType.UploadProgress) {
-            if (ev.total !== undefined) {
-              progress(ev.loaded / ev.total);
-            }
-          } else if (ev.type === HttpEventType.Response) {
-            finished(ev.status < 300);
-            if (ev.status < 300) {
-              this.testSuite = ev.body;
-              this.router.navigate(['admin', 'suite', this.testSuite.id]);
-            }
+    api.testSuite.post_observeEvents(files[0]).subscribe({
+      next: (ev) => {
+        if (ev.type === HttpEventType.UploadProgress) {
+          if (ev.total !== undefined) {
+            progress(ev.loaded / ev.total);
           }
-        },
-        error: (e) => {
-          finished(false);
-        },
-      });
+        } else if (ev.type === HttpEventType.Response) {
+          finished(ev.status < 300);
+          if (ev.status < 300) {
+            this.testSuite = ev.body;
+            this.router.navigate(['admin', 'suite', this.testSuite.id]);
+          }
+        }
+      },
+      error: (e) => {
+        finished(false);
+      },
+    });
     started();
   }
 }

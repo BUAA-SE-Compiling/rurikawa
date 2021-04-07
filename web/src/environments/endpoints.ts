@@ -7,7 +7,7 @@ export const endpoints = {
   },
   profile: {
     get: (id: string) => `profile/${id}`,
-    set: (id: string) => `profile/${id}`,
+    put: (id: string) => `profile/${id}`,
     init: (id: string) => `profile/${id}/init`,
   },
   admin: {
@@ -18,6 +18,13 @@ export const endpoints = {
     dumpSuiteJobs: (id: string) => `admin/suite/${id}/dump_jobs`,
     dumpSuiteAllJobs: (id: string) => `admin/suite/${id}/dump_all_jobs`,
     judgerRegisterToken: 'admin/judger/register-token',
+  },
+  announcement: {
+    query: 'announcement',
+    post: 'announcement',
+    get: (id: string) => `announcement/${id}`,
+    set: (id: string) => `announcement/${id}`,
+    delete: (id: string) => `announcement/${id}`,
   },
   dashboard: {
     get: 'dashboard',
@@ -34,7 +41,7 @@ export const endpoints = {
     ws: 'tests/ws?token=:token',
   },
   job: {
-    get: 'job/:id',
+    get: (id: string) => `job/${id}`,
     new: 'job',
     query: 'job',
     respawn: (id: string) => `job/respawn/${id}`,

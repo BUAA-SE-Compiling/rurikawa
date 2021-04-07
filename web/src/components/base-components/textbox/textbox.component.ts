@@ -9,6 +9,7 @@ import {
 } from '@angular/core';
 
 type style = undefined | 'success' | 'warn' | 'error';
+type borderType = 'all' | 'underline' | 'none';
 
 @Component({
   // tslint:disable-next-line: component-selector
@@ -21,6 +22,7 @@ export class TextboxComponent implements OnInit {
 
   @Input() type: string = 'text';
   @Input() style: style;
+  @Input() border: borderType = 'all';
   @Input() caption: string = '';
   @Input() placeholder: string = '';
   @Input() message: string = '';
@@ -55,6 +57,13 @@ export class TextboxComponent implements OnInit {
       styleClass.disabled = true;
     }
     return styleClass;
+  }
+
+  get inputClass() {
+    let inputClass: any = {};
+    inputClass['border-' + this.border] = true;
+
+    return inputClass;
   }
 
   constructor() {}

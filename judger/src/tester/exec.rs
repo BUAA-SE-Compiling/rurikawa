@@ -21,7 +21,7 @@ use itertools::Itertools;
 use once_cell::sync::Lazy;
 use path_slash::PathBufExt;
 use std::{collections::HashMap, io, path::Path, path::PathBuf, sync::Arc, time};
-use tokio::{io::AsyncReadExt, sync::mpsc::UnboundedSender};
+use tokio::{io::AsyncBufReadExt, io::AsyncReadExt, sync::mpsc::UnboundedSender};
 use tokio_util::compat::*;
 
 #[cfg(unix)]
@@ -374,20 +374,11 @@ impl Image {
                 .ok_or(BuildError::Cancelled)?,
 
             Image::Dockerfile { tag, path, file } => {
-                let (writer, reader) = tokio::io::duplex(8192);
-                let codec = tokio_util::codec::BytesCodec::new();
-                let tar_stream = tokio_util::codec::FramedRead::new(reader, codec);
-
-                // Clone stuff to make `rustc` happy with the `async move` below.
-                let path = path.clone();
-
+                let ignore = ignore::gitignore::Gitignore::empty();
+              
                 // Launch a task for archiving.
-                let archiving = tokio::spawn(async move {
-                    let mut tar =
-                        async_tar::Builder::new(futures::io::BufWriter::new(writer.compat_write()));
-                    tar.append_dir_all(".", path).await?;
-                    tar.finish().await
-                });
+                let (tar_stream, archiving) = crate::util::tar::pack_as_tar(path.clone(), ignore)
+                    .map_err(|e| BuildError::FileTransferError(e.to_string()))?;
 
                 instance
                     .build_image(
@@ -470,6 +461,9 @@ pub struct TestSuite {
     ///`(source, dest)` pairs of data to be copied into the container.
     pub copies: Option<Vec<(String, String)>>,
 
+    /// Ignored file pattern when copying data into the container
+    pub copy_ignore: Vec<String>,
+  
     /// Initialization options for [`TestSuite`].
     pub options: TestSuiteOptions,
 
@@ -535,6 +529,23 @@ impl TestSuite {
             }))
             .collect_vec();
 
+        // get ignored pattern
+        let copy_ignore = if let Some(file) = &public_cfg.test_ignore {
+            let f = tokio::fs::File::open(file).await?;
+            tokio_stream::wrappers::LinesStream::new(tokio::io::BufReader::new(f).lines())
+                .fold(Ok(vec![]), |v, f| {
+                    futures::future::ready(v.and_then(|mut v| {
+                        f.map(|f| {
+                            v.push(f);
+                            v
+                        })
+                    }))
+                })
+                .await?
+        } else {
+            Vec::new()
+        };
+
         // Initialize special judge
         let spj = if let Some(script) = &public_cfg.special_judge_script {
             let script_path = base_dir.join(script);
@@ -574,6 +585,7 @@ impl TestSuite {
                 canonical_join(base_dir, &public_cfg.mapped_dir.from).to_slash_lossy(),
                 public_cfg.mapped_dir.to.to_slash_lossy(),
             )]),
+            copy_ignore,
             spj_env: spj,
             test_root,
             container_test_root,

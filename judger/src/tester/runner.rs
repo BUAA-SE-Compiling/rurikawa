@@ -116,6 +116,8 @@ pub struct DockerCommandRunnerOptions {
     pub binds: Option<Vec<Mount>>,
     /// Data to be copied into container before build, in format of `(source_dir, target_dir)`
     pub copies: Option<Vec<(String, String)>>,
+    /// Patterns to ignore when copying data
+    pub copy_ignore: Vec<String>,
     /// Token to cancel this runner
     pub cancellation_token: CancellationTokenHandle,
 }
@@ -132,6 +134,7 @@ impl Default for DockerCommandRunnerOptions {
             binds: None,
             copies: None,
             cancellation_token: Default::default(),
+            copy_ignore: vec![],
         }
     }
 }
@@ -283,19 +286,14 @@ impl DockerCommandRunner {
                     .collect::<Result<Vec<_>, bollard::errors::Error>>());
 
                 let from_path = from_path.clone();
-                let (pipe_recv, pipe_send) = tokio::io::duplex(8192);
-                let read_codec = tokio_util::codec::BytesCodec::new();
-                let frame = tokio_util::codec::FramedRead::new(pipe_send, read_codec);
-                let task = async move {
-                    let mut tar = async_tar::Builder::new(futures::io::BufWriter::new(
-                        pipe_recv.compat_write(),
-                    ));
-                    match tar.append_dir_all(".", from_path).await {
-                        Ok(_) => tar.finish().await,
-                        e @ Err(_) => e,
-                    }
-                };
-                let task = tokio::spawn(task);
+
+                let ignore = try_or_kill!(crate::util::tar::ignore_from_string_list(
+                    from_path.as_str().as_ref(),
+                    r.options.copy_ignore.iter().map(|x| x.as_str()),
+                ));
+                let res = crate::util::tar::pack_as_tar(from_path.into(), ignore);
+                let (frame, task) = try_or_kill!(res);
+
                 try_or_kill!(
                     r.instance
                         .upload_to_container(

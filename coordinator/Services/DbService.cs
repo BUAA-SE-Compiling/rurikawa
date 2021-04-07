@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Threading;
 using System.Threading.Tasks;
 using Karenia.Rurikawa.Helpers;
 using Karenia.Rurikawa.Models;
@@ -28,6 +29,19 @@ namespace Karenia.Rurikawa.Coordinator.Services {
             return await db.TestSuites.Where(j => j.Id == id).AsNoTracking().SingleOrDefaultAsync();
         }
 
+        public async Task<List<Announcement>> GetAnnouncements(
+            FlowSnake fromId,
+            bool ascending,
+            int count) {
+            var query = db.Announcements.AsQueryable();
+            if (ascending) {
+                query = query.Where(a => a.Id > fromId).OrderBy(a => a.Id);
+            } else {
+                query = query.Where(a => a.Id < fromId).OrderByDescending(a => a.Id);
+            }
+            return await query.Take(count).AsNoTracking().ToListAsync();
+        }
+
         public async Task<Announcement?> GetAnnouncement(FlowSnake id) {
             return await db.Announcements.Where(a => a.Id == id).AsNoTracking().SingleOrDefaultAsync();
         }
@@ -42,6 +56,20 @@ namespace Karenia.Rurikawa.Coordinator.Services {
             db.Announcements.Add(announcement);
             await db.SaveChangesAsync();
             return announcement.Id;
+        }
+
+        public async Task EditAnnouncement(Announcement announcement) {
+            if (!await db.Announcements.Where(a => a.Id == announcement.Id).AnyAsync())
+                throw new ArgumentOutOfRangeException(nameof(announcement), "Announcement does not exist");
+            db.Announcements.Update(announcement);
+            await db.SaveChangesAsync();
+        }
+
+        public async Task DeleteAnnouncement(FlowSnake id) {
+            var affected = await db.Announcements.Where(a => a.Id == id).DeleteFromQueryAsync();
+            if (affected == 0)
+                throw new ArgumentOutOfRangeException(nameof(id), "Announcement does not exist");
+            await db.SaveChangesAsync();
         }
 
         public async Task<IList<Job>> GetJobs(
@@ -144,6 +172,10 @@ namespace Karenia.Rurikawa.Coordinator.Services {
 
         public async ValueTask<IDatabase> GetDatabase() {
             return (await GetRedisConnection()).GetDatabase();
+        }
+
+        public async ValueTask<ISubscriber> GetSubscriber() {
+            return (await GetRedisConnection()).GetSubscriber();
         }
 
         public async ValueTask<ConnectionMultiplexer> GetRedisConnection() {

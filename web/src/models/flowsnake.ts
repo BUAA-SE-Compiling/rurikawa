@@ -147,6 +147,7 @@ export function extractTime(flowsnake: string): Dayjs {
           charcode
         )}'`
       );
+      11;
     }
     let base32 = charToBase32[charcode];
     // timestamp is 42 bits long, so no bitwise operations here
@@ -154,3 +155,6 @@ export function extractTime(flowsnake: string): Dayjs {
   }
   return dayjs.unix(timestamp);
 }
+
+export const FLOWSNAKE_MAX = '7ffffffffffff';
+export const FLOWSNAKE_MIN = '0000000000000';

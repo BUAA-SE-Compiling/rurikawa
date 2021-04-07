@@ -1,6 +1,6 @@
 <div class="textbox" [ngClass]="styleClass">
   <div class="caption">{{ caption }}</div>
-  <div class="input input-wrapper" (click)="focus()">
+  <div class="input input-wrapper" [ngClass]="inputClass" (click)="focus()">
     <ic-icon
       *ngIf="icon"
       [icon]="icon"

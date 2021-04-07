@@ -16,6 +16,8 @@ import { AdminForbiddenPageComponent } from './admin-forbidden-page/admin-forbid
 import { AboutPageComponent } from './about-page/about-page.component';
 import { SettingsViewComponent } from './settings-view/settings-view.component';
 import { JobTestcaseViewComponent } from './job-testcase-view/job-testcase-view.component';
+import { AnnouncementListPageComponent } from './announcement-list-page/announcement-list-page.component';
+import { AnnouncementPageComponent } from './announcement-page/announcement-page.component';
 
 @NgModule({
   declarations: [
@@ -30,6 +32,8 @@ import { JobTestcaseViewComponent } from './job-testcase-view/job-testcase-view.
     AboutPageComponent,
     SettingsViewComponent,
     JobTestcaseViewComponent,
+    AnnouncementListPageComponent,
+    AnnouncementPageComponent,
   ],
   imports: [
     CommonModule,
@@ -51,6 +55,8 @@ import { JobTestcaseViewComponent } from './job-testcase-view/job-testcase-view.
     AboutPageComponent,
     SettingsViewComponent,
     JobTestcaseViewComponent,
+    AnnouncementListPageComponent,
+    AnnouncementPageComponent,
   ],
 })
 export class DefaultModule {}
