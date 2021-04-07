@@ -451,7 +451,12 @@ pub async fn handle_job(
 
     // Check job paths to be relative & does not navigate into parent
     if let crate::tester::model::Image::Dockerfile { path, .. } = &image {
-        crate::util::path_security::enforce_child_path(path).map_err(anyhow::Error::msg)?;
+        crate::util::path_security::assert_child_path(path)?;
+        // Note: There's no hard links in a git repository, and also we can't
+        // detect them. However, soft (symbolic) links are possible and may
+        // point to strange places. We make sure that we haven't got any of
+        // those in our paths.
+        crate::util::path_security::assert_no_symlink_in_path(path).await?;
     }
 
     tracing::info!("prepare to run");
