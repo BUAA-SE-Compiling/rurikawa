@@ -3,8 +3,9 @@
 
 use std::path::Path;
 
-/// Enforces a path to be a relative path that does not navigate to its parent.
-pub fn enforce_relative_path(path: &Path) -> Result<(), String> {
+/// Checks if a path is a relative path that does not navigate to its parent.
+/// Returns `Err` if it's not.
+pub fn enforce_child_path(path: &Path) -> Result<(), String> {
     let mut depth = 0;
     for part in path.components() {
         match part {
@@ -40,22 +41,22 @@ mod test {
 
     #[test]
     fn test_enforce_relative_path() {
-        enforce_relative_path("./cat.rs".as_ref()).unwrap();
-        enforce_relative_path("cat.rs".as_ref()).unwrap();
-        enforce_relative_path("src/dog/cat.rs".as_ref()).unwrap();
-        enforce_relative_path("src/cat/../dog/dog.rs".as_ref()).unwrap();
-        enforce_relative_path("src/cat/../dog/dog.rs".as_ref()).unwrap();
-        enforce_relative_path("src/../dog/dog.rs".as_ref()).unwrap();
+        enforce_child_path("./cat.rs".as_ref()).unwrap();
+        enforce_child_path("cat.rs".as_ref()).unwrap();
+        enforce_child_path("src/dog/cat.rs".as_ref()).unwrap();
+        enforce_child_path("src/cat/../dog/dog.rs".as_ref()).unwrap();
+        enforce_child_path("src/cat/../dog/dog.rs".as_ref()).unwrap();
+        enforce_child_path("src/../dog/dog.rs".as_ref()).unwrap();
     }
 
     #[test]
     fn test_enforce_relative_path_fail() {
-        enforce_relative_path("/dog/src/dog.rs".as_ref()).unwrap_err();
-        enforce_relative_path("/dog.rs".as_ref()).unwrap_err();
-        enforce_relative_path("../dog.rs".as_ref()).unwrap_err();
-        enforce_relative_path("../dog/dog.rs".as_ref()).unwrap_err();
-        enforce_relative_path("cat/nip/../../../dog/dog.rs".as_ref()).unwrap_err();
-        enforce_relative_path("./cat/../../lib/dog/dog.rs".as_ref()).unwrap_err();
-        enforce_relative_path("./../lib/dog/dog.rs".as_ref()).unwrap_err();
+        enforce_child_path("/dog/src/dog.rs".as_ref()).unwrap_err();
+        enforce_child_path("/dog.rs".as_ref()).unwrap_err();
+        enforce_child_path("../dog.rs".as_ref()).unwrap_err();
+        enforce_child_path("../dog/dog.rs".as_ref()).unwrap_err();
+        enforce_child_path("cat/nip/../../../dog/dog.rs".as_ref()).unwrap_err();
+        enforce_child_path("./cat/../../lib/dog/dog.rs".as_ref()).unwrap_err();
+        enforce_child_path("./../lib/dog/dog.rs".as_ref()).unwrap_err();
     }
 }

@@ -451,7 +451,7 @@ pub async fn handle_job(
 
     // Check job paths to be relative & does not navigate into parent
     if let crate::tester::model::Image::Dockerfile { path, .. } = &image {
-        crate::util::path_security::enforce_relative_path(path).map_err(anyhow::Error::msg)?;
+        crate::util::path_security::enforce_child_path(path).map_err(anyhow::Error::msg)?;
     }
 
     tracing::info!("prepare to run");
