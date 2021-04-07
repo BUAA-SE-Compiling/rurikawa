@@ -2,16 +2,12 @@
 //!
 //!
 
-use std::{
-    path::{Path, PathBuf},
-    pin::Pin,
-};
-
 use async_compat::CompatExt;
 use async_tar::{Builder, Header};
-use bytes::{Bytes, BytesMut};
+use bytes::BytesMut;
 use futures::{AsyncWrite, Future, FutureExt, Stream, StreamExt};
 use ignore::gitignore::{Gitignore, GitignoreBuilder};
+use std::{path::Path, pin::Pin};
 use tokio::task::JoinHandle;
 use tokio_util::compat::TokioAsyncWriteCompatExt;
 
@@ -38,7 +34,7 @@ pub fn ignore_from_string_list<'a>(
 /// Returns the tar file stream to read from and the join handle to the packing
 /// task.
 pub fn pack_as_tar(
-    path: PathBuf,
+    path: &Path,
     ignore: Gitignore,
 ) -> Result<
     (
@@ -51,15 +47,20 @@ pub fn pack_as_tar(
     let read_codec = tokio_util::codec::BytesCodec::new();
     let frame = tokio_util::codec::FramedRead::new(pipe_send, read_codec);
 
-    let task = async move {
+    // Own the `path` to make `tokio` happy.
+    let path = path.to_owned();
+
+    // Launch a task for archiving.
+    let archiving = tokio::spawn(async move {
         let mut tar =
             async_tar::Builder::new(futures::io::BufWriter::new(pipe_recv.compat_write()));
 
         add_dir_glob(&path, &path, &ignore, &mut tar).await?;
         tar.finish().await?;
         Ok(())
-    };
-    Ok((frame, tokio::spawn(task)))
+    });
+
+    Ok((frame, archiving))
 }
 
 /// Add the given directory into the given tar, using the given glob pattern.

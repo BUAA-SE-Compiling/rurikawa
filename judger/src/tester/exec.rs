@@ -22,7 +22,6 @@ use once_cell::sync::Lazy;
 use path_slash::PathBufExt;
 use std::{collections::HashMap, io, path::Path, path::PathBuf, sync::Arc, time};
 use tokio::{io::AsyncBufReadExt, io::AsyncReadExt, sync::mpsc::UnboundedSender};
-use tokio_util::compat::*;
 
 #[cfg(unix)]
 use super::utils::strsignal;
@@ -375,9 +374,9 @@ impl Image {
 
             Image::Dockerfile { tag, path, file } => {
                 let ignore = ignore::gitignore::Gitignore::empty();
-              
+
                 // Launch a task for archiving.
-                let (tar_stream, archiving) = crate::util::tar::pack_as_tar(path.clone(), ignore)
+                let (tar_stream, archiving) = crate::util::tar::pack_as_tar(&path, ignore)
                     .map_err(|e| BuildError::FileTransferError(e.to_string()))?;
 
                 instance
@@ -463,7 +462,7 @@ pub struct TestSuite {
 
     /// Ignored file pattern when copying data into the container
     pub copy_ignore: Vec<String>,
-  
+
     /// Initialization options for [`TestSuite`].
     pub options: TestSuiteOptions,
 

@@ -8,9 +8,9 @@ use futures::stream::StreamExt;
 use names::{Generator, Name};
 #[cfg(unix)]
 use std::os::unix::process::ExitStatusExt;
+use std::path::PathBuf;
 use std::{collections::HashMap, default::Default, process::ExitStatus};
 use tokio::process::Command;
-use tokio_util::compat::*;
 
 /// An evaluation environment for commands.
 #[async_trait]
@@ -291,7 +291,7 @@ impl DockerCommandRunner {
                     from_path.as_str().as_ref(),
                     r.options.copy_ignore.iter().map(|x| x.as_str()),
                 ));
-                let res = crate::util::tar::pack_as_tar(from_path.into(), ignore);
+                let res = crate::util::tar::pack_as_tar(&PathBuf::from(from_path), ignore);
                 let (frame, task) = try_or_kill!(res);
 
                 try_or_kill!(
