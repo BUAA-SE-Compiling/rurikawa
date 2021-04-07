@@ -29,23 +29,28 @@ use tracing_futures::Instrument;
 ///
 /// Returns `Ok(true)` if register was success, `Ok(false)` if register is not
 /// needed or not applicable.
-pub async fn try_register(cfg: &mut SharedClientData, refresh: bool) -> anyhow::Result<bool> {
+pub async fn try_register(
+    client_data: &mut SharedClientData,
+    refresh: bool,
+) -> anyhow::Result<bool> {
     tracing::info!(
         "Registering judger. Access token: {:?}; Register token: {:?}",
-        cfg.cfg().access_token,
-        cfg.cfg().register_token
+        client_data.cfg().access_token,
+        client_data.cfg().register_token
     );
-    if (!refresh && cfg.cfg().access_token.is_some()) || cfg.cfg().register_token.is_none() {
+    if (!refresh && client_data.cfg().access_token.is_some())
+        || client_data.cfg().register_token.is_none()
+    {
         return Ok(false);
     }
 
     let req_body = JudgerRegisterMessage {
-        token: cfg.cfg().register_token.clone().unwrap(),
-        alternate_name: cfg.cfg().alternate_name.clone(),
-        tags: cfg.cfg().tags.clone(),
+        token: client_data.cfg().register_token.clone().unwrap(),
+        alternate_name: client_data.cfg().alternate_name.clone(),
+        tags: client_data.cfg().tags.clone(),
     };
-    let endpoint = cfg.register_endpoint();
-    let client = &cfg.client;
+    let endpoint = client_data.register_endpoint();
+    let client = &client_data.client;
     let res = client
         .request(Method::POST, &endpoint)
         .json(&req_body)
@@ -70,9 +75,9 @@ pub async fn try_register(cfg: &mut SharedClientData, refresh: bool) -> anyhow::
 
     let new_cfg = ClientConfig {
         access_token: Some(res),
-        ..(**cfg.cfg()).clone()
+        ..(**client_data.cfg()).clone()
     };
-    cfg.swap_cfg(Arc::new(new_cfg));
+    client_data.swap_cfg(Arc::new(new_cfg));
 
     Ok(true)
 }
@@ -338,7 +343,7 @@ pub async fn handle_job_wrapper(
         }
     };
 
-    while let Err(e) = {
+    while let Err(_e) = {
         // Ah yes, do-while pattern
         let mut req = cfg.client.post(&cfg.result_send_endpoint()).json(&msg);
         if let Some(token) = &cfg.cfg().access_token {
@@ -567,7 +572,7 @@ pub async fn handle_job(
     Ok(job_result)
 }
 
-pub async fn flag_new_job(send: Arc<WsSink>, client_config: Arc<SharedClientData>) {
+pub async fn flag_new_job(_send: Arc<WsSink>, client_config: Arc<SharedClientData>) {
     client_config.new_job();
 }
 

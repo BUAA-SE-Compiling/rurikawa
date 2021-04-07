@@ -127,6 +127,7 @@ pub struct JudgerPublicConfig {
     pub network: NetworkOptions,
 }
 
+/// Network options for judge containers.
 #[derive(Serialize, Deserialize, Debug, Clone, IntoJsByRef)]
 #[serde(rename_all = "camelCase")]
 #[quickjs(rename_all = "camelCase")]

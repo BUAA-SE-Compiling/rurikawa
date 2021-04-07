@@ -16,7 +16,7 @@ use bollard::models::{BuildInfo, Mount};
 use futures::stream::StreamExt;
 use once_cell::sync::Lazy;
 use path_slash::PathBufExt;
-use std::{collections::HashMap, convert::TryInto, io, path::Path, path::PathBuf, sync::Arc, time};
+use std::{collections::HashMap, io, path::Path, path::PathBuf, sync::Arc, time};
 use tokio::{io::AsyncReadExt, sync::mpsc::UnboundedSender};
 use tokio_util::compat::*;
 
@@ -395,11 +395,7 @@ impl Image {
                             rm: true,
                             forcerm: true,
 
-                            networkmode: if let Some(net) = network {
-                                net.into()
-                            } else {
-                                "none".into()
-                            },
+                            networkmode: network.unwrap_or("none").into(),
 
                             cpuperiod,
                             cpuquota,
@@ -580,13 +576,6 @@ impl TestSuite {
         } else {
             None
         };
-
-        let network_name =
-            if !(public_cfg.network.enable_build && public_cfg.network.enable_running) {
-                Some(format!("network-rurikawa-{}", id))
-            } else {
-                None
-            };
 
         Ok(TestSuite {
             id,

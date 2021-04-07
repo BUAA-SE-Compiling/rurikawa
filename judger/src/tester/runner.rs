@@ -229,9 +229,8 @@ impl DockerCommandRunner {
                         r.options
                             .network_options
                             .enable_build
-                            .then(|| r.options.network_name.as_ref())
-                            .flatten()
-                            .map(String::as_str),
+                            .then(|| r.options.network_name.as_deref())
+                            .flatten(),
                         r.options.cfg.build_cpu_share
                     )
                     .await
@@ -412,11 +411,7 @@ impl DockerCommandRunner {
                         // set memory limits
                         memory_swap: r.options.mem_limit.map(|n| n as i64),
                         // set cpu limits
-                        nano_cpus: r
-                            .options
-                            .cfg
-                            .run_cpu_share
-                            .map(|x| (x * 1_000_000_000.0) as i64),
+                        nano_cpus: r.options.cfg.run_cpu_share.map(|x| (x * 1e9) as i64),
                         ..Default::default()
                     }),
                     entrypoint: Some(vec!["sh".into()]),
@@ -449,7 +444,15 @@ impl DockerCommandRunner {
                     },
                 )
                 .await;
-            try_or_kill!(res);
+
+            try_or_kill!(res.map_err(|e| {
+                JobFailure::internal_err_from(format!(
+                    "Failed to connect container `{}` to network `{}`: {}",
+                    r.options.container_name,
+                    r.options.network_name.as_deref().unwrap(),
+                    e
+                ))
+            }));
         }
 
         log::trace!("container {}: starting", r.options.container_name);
