@@ -1939,6 +1939,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "respector"
+version = "0.1.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "8f6a91658072269afd4a4e95023217f733a4a4ecf9c6180ac686fed3241c9730"
+
+[[package]]
 name = "ring"
 version = "0.16.20"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2042,6 +2048,7 @@ dependencies = [
  "rand 0.8.3",
  "regex",
  "reqwest",
+ "respector",
  "rquickjs",
  "serde",
  "serde_json",

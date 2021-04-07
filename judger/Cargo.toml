@@ -61,6 +61,7 @@ tracing = "0.1.21"
 tracing-futures = "0.2.4"
 tracing-log = "0.1.1"
 tracing-subscriber = "0.2.15"
+respector = "0.1.1"
 
 [dev-dependencies]
 pretty_assertions = "0.6.1"
