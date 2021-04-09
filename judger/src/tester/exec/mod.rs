@@ -1,3 +1,6 @@
+mod test_suite;
+mod tests;
+
 use super::{
     model::*,
     runner::{CommandRunner, DockerCommandRunner, DockerCommandRunnerOptions},
@@ -13,12 +16,14 @@ use crate::{
 };
 use anyhow::Result;
 use bollard::models::{BuildInfo, Mount};
-use futures::stream::StreamExt;
+use futures::prelude::*;
+use itertools::Itertools;
 use once_cell::sync::Lazy;
 use path_slash::PathBufExt;
 use std::{collections::HashMap, io, path::Path, path::PathBuf, sync::Arc, time};
+use tokio::io::BufReader;
 use tokio::{io::AsyncBufReadExt, io::AsyncReadExt, sync::mpsc::UnboundedSender};
-use tokio_util::compat::*;
+use tokio_stream::wrappers::LinesStream;
 
 #[cfg(unix)]
 use super::utils::strsignal;
@@ -55,42 +60,56 @@ macro_rules! sh {
 }
 
 /// A `Capturable` represents a pending subprocess call using a [`CommandRunner`]
-/// inside [`sh` (Bourne shell)][sh] or any compatible shell. The command inside
-/// `Capturable` MUST be a valid Bourne shell commandline string, capable of being
-/// called using `sh -c '...'`.
+/// inside [`sh` (Bourne shell)][sh] or any compatible shell.
+///
+/// # Attention
+///
+/// The command inside a [`Capturable`] _must_ be a valid [`sh`][sh] command,
+/// capable of being called using `sh -c '...'`.
 ///
 /// [sh]: https://en.wikipedia.org/wiki/Bourne_shell
 pub struct Capturable(String);
 
 impl Capturable {
+    /// Create a new [`Captureable`] instance out of a command.
+    ///
+    /// # Arguments
+    /// * `cmd` - The command to be run. It _must_ be a valid [`sh` (Bourne shell)][sh] command.
+    ///
+    /// [sh]: https://en.wikipedia.org/wiki/Bourne_shell
     pub fn new(cmd: String) -> Self {
         Capturable(cmd)
     }
 
-    /// Run the command represented by `self` with the given `runner`, with
-    /// `variables` representing commandline variables feeding to `sh` to
-    /// replace corresponding `$...` inside the commandline.
-    async fn capture<R: CommandRunner + Send>(
+    /// Run the command with the given `runner`.
+    ///
+    /// # Arguments
+    ///
+    /// * `runner` - The [`CommandRunner`] instance to be used when running the command.
+    /// * `variables` - The `$...` variable bindings to be fed to `sh` when building the command.
+    async fn capture(
         self,
-        runner: &R,
+        runner: &(impl CommandRunner + Send),
         variables: &HashMap<String, String>,
     ) -> PopenResult<ProcessInfo> {
         runner.run(&self.0, variables).await
     }
 }
 
-/// One step in a `Test`.
+/// One step in a [`Test`].
 pub struct Step {
     /// The command to be executed.
     pub cmd: Capturable,
-    /// The command is created by the user, not the admin.
+
+    /// If the command is created by a user, rather than the admin.
     pub is_user_command: bool,
-    /// The timeout of the command.
+
+    /// The timeout of the command's execution.
     pub timeout: Option<time::Duration>,
 }
 
 impl Step {
-    /// Make a new `Step` with no timeout.
+    /// Make a new [`Step`] with no `timeout`.
     pub fn new(cmd: Capturable, is_user_command: bool) -> Self {
         Step {
             cmd,
@@ -99,14 +118,14 @@ impl Step {
         }
     }
 
-    /// Set `timeout` for a `Step`.
-    pub fn timeout(mut self, timeout: time::Duration) -> Self {
+    /// Set `timeout` for a [`Step`].
+    pub fn set_timeout(mut self, timeout: time::Duration) -> Self {
         self.timeout = Some(timeout);
         self
     }
 
-    /// Make a new `Step` with a `timeout`.
-    pub fn new_with_timeout(
+    /// Make a new [`Step`] with a `timeout`.
+    pub fn with_timeout(
         cmd: Capturable,
         timeout: Option<time::Duration>,
         is_user_command: bool,
@@ -118,15 +137,17 @@ impl Step {
         }
     }
 
-    /// Run the `Step` and collect its info, considering the `timeout`.
-    pub async fn capture<R>(
+    /// Run the [`Step`] and collect its output info within the given `timeout`.
+    ///
+    /// # Arguments
+    ///
+    /// * `runner` - The [`CommandRunner`] instance to be used when running the [`Step`].
+    /// * `variables` - The `$...` variable bindings to be fed to `sh` when building the [`Step`].
+    pub async fn capture(
         self,
-        runner: &R,
+        runner: &(impl CommandRunner + Send),
         variables: &HashMap<String, String>,
-    ) -> PopenResult<ProcessInfo>
-    where
-        R: CommandRunner + Send,
-    {
+    ) -> PopenResult<ProcessInfo> {
         let is_user_command = self.is_user_command;
         if let Some(timeout) = self.timeout {
             tokio::time::timeout(timeout, self.cmd.capture(runner, variables))
@@ -137,32 +158,30 @@ impl Step {
                         format!("Popen capture timed out at {}s", timeout.as_secs_f64()),
                     )
                 })?
-                .map(|mut i| {
-                    i.is_user_command = is_user_command;
-                    i
-                })
         } else {
-            self.cmd
-                .capture(runner, variables)
-                .await
-                .map(|i| ProcessInfo {
-                    is_user_command,
-                    ..i
-                })
+            self.cmd.capture(runner, variables).await
         }
+        .map(|i| ProcessInfo {
+            is_user_command,
+            ..i
+        })
     }
 }
 
 static EOF_PATTERN: Lazy<regex::Regex> = Lazy::new(|| regex::Regex::new(r"\r?\n").unwrap());
 
-/// A particular multi-`Step` test.
-/// An I/O match test against `expected` is performed at the last `Step`
+/// A particular [`Test`] consisting of multiple [`Step`]s.
+///
+/// An `stdout` match test against `expected` is performed at the last [`Step`].
 #[derive(Default)]
 pub struct Test {
+    /// The different [`Step`]s in this [`Test`].
     steps: Vec<Step>,
+
     /// The expected `stdout` content.
     expected: Option<String>,
-    /// Should this test fail?
+
+    /// If this [`Test`] is _intended_ to fail.
     should_fail: bool,
 }
 
@@ -190,17 +209,20 @@ impl Test {
         self
     }
 
+    /// Run this specific [`Test`], and return a score (`1.0` when scoring mode is off).
+    ///
+    /// # Arguments
+    ///
+    /// * `runner` - The [`CommandRunner`] instance to be used.
+    /// * `variables` - The `$...` variable bindings to be fed to `sh` when running this [`Test`].
+    /// * `spj` - The special judge environment ([`SpjEnvironment`]) to be used.
     // ? Should `runner` be mutable?
-    /// Run this specific test. Returns the score of this test (`1` when scoring mode is off).
-    pub async fn run<R>(
+    pub async fn run(
         self,
-        runner: &R,
+        runner: &(impl CommandRunner + Send),
         variables: &HashMap<String, String>,
         spj: Option<&mut SpjEnvironment>,
-    ) -> Result<f64, JobFailure>
-    where
-        R: CommandRunner + Send,
-    {
+    ) -> Result<f64, JobFailure> {
         let spj_enabled = spj.as_ref().map_or(false, |x| x.features().case());
         let mut output: Vec<ProcessInfo> = vec![];
         let steps_len = self.steps.len();
@@ -219,16 +241,18 @@ impl Test {
             };
 
             output.push(info.clone());
-            let code = info.ret_code;
-            let is_unix = cfg!(unix);
-            match () {
-                _ if (code > 0 || (code != 0 && !is_unix)) => {
+
+            // Handle non-zero return code.
+            {
+                let code = info.ret_code;
+                let is_unix = cfg!(unix);
+                if code > 0 || (code != 0 && !is_unix) {
                     if self.should_fail {
-                        // bail out of test, but it's totally fine
+                        // Bail out of test, but it's totally fine.
                         test_failed = true;
                         break;
                     } else if spj_enabled {
-                        // continue
+                        // Ignore and continue with the rest.
                     } else {
                         return Err(JobFailure::ExecError(ExecError {
                             stage: i,
@@ -236,8 +260,7 @@ impl Test {
                             output,
                         }));
                     }
-                }
-                _ if code < 0 && is_unix => {
+                } else if code < 0 && is_unix {
                     return Err(JobFailure::ExecError(ExecError {
                         stage: i,
                         kind: ExecErrorKind::RuntimeError(format!(
@@ -247,11 +270,9 @@ impl Test {
                         output,
                     }));
                 }
-                _ => (),
             }
 
-            // Special case for last step
-
+            // Special case for the final step.
             if i == steps_len - 1 && !spj_enabled {
                 if let Some(expected) = self.expected.as_ref() {
                     // * Actually there is a test that should not have passed,
@@ -270,9 +291,11 @@ impl Test {
             }
         }
 
+        // Handle special judge scoring, return the final result.
+        // If special judge system is off, then the default return value should be `Ok(1.0)`.
+        // TODO: Make `1.0` a variable.
         if spj_enabled {
-            // do special judging
-            // spj_enabled would only be true when spj is Some(_)
+            // Unwrapping is safe here: `spj_enabled` would only be true when spj is Some(_).
             let spj = spj.unwrap();
             let judge_result = spj
                 .spj_case_judge(&output)
@@ -288,8 +311,8 @@ impl Test {
                 }))
             }
         } else if self.should_fail && !test_failed {
-            // Tests that _should_ fail but did not should return error here
-            return Err(JobFailure::ShouldFail(ShouldFailFailure { output }));
+            // Tests that _should_ fail but didn't are considered malfunctioning.
+            Err(JobFailure::ShouldFail(ShouldFailFailure { output }))
         } else {
             Ok(1.0)
         }
@@ -299,32 +322,33 @@ impl Test {
 pub type BuildResultChannel = UnboundedSender<BuildInfo>;
 
 impl Image {
-    pub fn set_dockerfile_tag(&mut self, new_tag: String) {
-        match self {
-            Image::Image { .. } => {}
-            Image::Dockerfile { tag, .. } => *tag = new_tag,
+    pub fn set_dockerfile_tag(&mut self, new_tag: String) -> &mut Self {
+        if let Image::Dockerfile { tag, .. } = self {
+            *tag = new_tag;
         }
+        self
     }
 
     pub fn tag(&self) -> String {
         match &self {
-            Image::Image { tag, .. } => tag.to_owned(),
+            Image::Prebuilt { tag, .. } => tag.to_owned(),
             Image::Dockerfile { tag, .. } => tag.to_owned(),
         }
     }
 
-    pub fn replace_with_absolute_dir(&mut self, base_dir: PathBuf) {
-        match self {
-            Image::Image { .. } => {}
-            Image::Dockerfile { path, .. } => {
+    /// Replace the relative `path` with respect to `base_dir` in [`Image::Dockerfile`] with the absolute one.
+    pub fn canonicalize(&mut self, base_dir: PathBuf) -> &mut Self {
+        if let Image::Dockerfile { path, .. } = self {
+            if !path.is_absolute() {
                 let mut path_base = base_dir;
                 path_base.push(&path);
                 *path = path_base;
             }
         }
+        self
     }
 
-    /// Build (or pull) a image with the specified config.
+    /// Build (or pull) the [`Image`] to make it usable in Docker.
     pub async fn build(
         &self,
         instance: bollard::Docker,
@@ -334,46 +358,36 @@ impl Image {
         cpu_shares: Option<f64>,
     ) -> Result<(), BuildError> {
         match &self {
-            Image::Image { tag } => {
-                let ms = instance
-                    .create_image(
-                        Some(bollard::image::CreateImageOptions {
-                            from_image: tag.to_owned(),
-                            ..Default::default()
-                        }),
-                        None,
-                        None,
-                    )
-                    .map(|x| match x {
-                        Ok(_) => Ok(()),
-                        Err(e) => Err(e),
-                    })
-                    .collect::<Vec<_>>()
-                    .with_cancel(cancel)
-                    .await
-                    .ok_or(BuildError::Cancelled)?;
-                // ! FIXME: This is not efficient (for not being lazy),
-                // ! but it seems that directly collecting to Result is not possible.
-                ms.into_iter().collect::<Result<Vec<_>, _>>().map_err(|e| {
+            Image::Prebuilt { tag } => instance
+                .create_image(
+                    Some(bollard::image::CreateImageOptions {
+                        from_image: tag.to_owned(),
+                        ..Default::default()
+                    }),
+                    None,
+                    None,
+                )
+                .try_collect::<Vec<_>>()
+                .map_ok(drop)
+                .map_err(|e| {
                     BuildError::ImagePullFailure(format!("Failed to pull image `{}`: {}", tag, e))
-                })?;
-                Ok(())
-            }
-            Image::Dockerfile { tag, path, file } => {
-                enum BuildResult {
-                    Success,
-                    Error(String, Option<bollard::models::ErrorDetail>),
-                }
+                })
+                .with_cancel(cancel)
+                .await
+                .ok_or(BuildError::Cancelled)?,
 
+            Image::Dockerfile { tag, path, file } => {
                 // We set the CPU quota here by using a period of 100ms
                 let cpuquota = cpu_shares.map(|x| (x * 100_000f64).floor() as u64);
                 let cpuperiod = cpuquota.is_some().then(|| 100_000);
 
                 let ignore = ignore::gitignore::Gitignore::empty();
-                let (frame, task) = crate::util::tar::pack_as_tar(path.clone(), ignore)
+
+                // Launch a task for archiving.
+                let (tar_stream, archiving) = crate::util::tar::pack_as_tar(&path, ignore)
                     .map_err(|e| BuildError::FileTransferError(e.to_string()))?;
 
-                let result = instance
+                instance
                     .build_image(
                         bollard::image::BuildImageOptions {
                             dockerfile: file
@@ -396,40 +410,29 @@ impl Image {
                         },
                         None,
                         // Freeze `path` as a tar archive.
-                        Some(hyper::Body::wrap_stream(frame)),
+                        Some(hyper::Body::wrap_stream(tar_stream)),
                     )
-                    .map(|x| match x {
-                        Ok(info) => {
-                            if let Some(e) = info.error {
-                                return Ok(BuildResult::Error(e, info.error_detail));
-                            }
-                            if let Some(ch) = partial_result_channel.as_ref() {
-                                let _ = ch.send(info);
-                            }
-                            Ok(BuildResult::Success)
+                    .map_err(|e| BuildError::Internal(e.to_string()))
+                    .try_for_each(|info| async {
+                        if let Some(e) = info.error {
+                            return Err(BuildError::BuildError {
+                                error: e,
+                                detail: info.error_detail,
+                            });
                         }
-                        Err(e) => Err(e),
-                    })
-                    .fold(Ok(BuildResult::Success), |last, x| async {
-                        match (last, x) {
-                            (Ok(last), Ok(BuildResult::Success)) => Ok(last),
-                            (Ok(_), Ok(e @ BuildResult::Error(..))) => Ok(e),
-                            (Ok(_), Err(e)) => Err(e),
-                            (e @ Err(_), _) => e,
+                        if let Some(ch) = partial_result_channel.as_ref() {
+                            let _ = ch.send(info);
                         }
+                        Ok(())
                     })
                     .with_cancel(cancel.clone())
                     .await
-                    .ok_or(BuildError::Cancelled)?
-                    .map_err(|e| BuildError::Internal(e.to_string()))?;
+                    .ok_or(BuildError::Cancelled)??;
 
-                if let BuildResult::Error(err, detail) = result {
-                    return Err(BuildError::BuildError { error: err, detail });
-                }
-
-                task.await
+                archiving
+                    .await
                     .map_err(|e| BuildError::Internal(e.to_string()))?
-                    .map_err(|e| BuildError::FileTransferError(e.to_string()))?;
+                    .map_err(|e: io::Error| BuildError::FileTransferError(e.to_string()))?;
 
                 Ok(())
             }
@@ -437,8 +440,10 @@ impl Image {
     }
 
     /// Remove the Image when finished.
-    /// Attention: this action must be done AFTER removing related containers.
-    pub async fn remove(self, instance: bollard::Docker) -> Result<()> {
+    ///
+    /// # Attention
+    /// This action must be done _after_ removing related containers.
+    pub async fn remove_image(self, instance: bollard::Docker) -> Result<()> {
         let tag = self.tag();
         instance
             .remove_image(
@@ -455,42 +460,48 @@ impl Image {
 
 // pub type JudgerPublicConfig = crate::client::model::TestSuite;
 
-/// A suite of `TestCase`s to be run.
+/// A suite of [`TestCase`]s to be run.
 ///
-/// Attention: a `TestSuite` instance should NOT be constructed manually.
+/// Attention: a [`TestSuite`] instance should NOT be constructed manually.
 /// Please use `TestSuite::from_config`, for example.
 pub struct TestSuite {
     /// An unique ID of this test suite
     pub id: String,
 
-    /// The test contents.
+    /// The collection of [`TestCase`]s in this [`TestSuite`].
     pub test_cases: Vec<TestCase>,
-    /// The image which contains the compiler to be tested.
+
+    /// The [`Image`] which contains the compiler to be tested.
     image: Option<Image>,
-    /// `host-src:container-dest` volume bindings for the container.
-    /// For details see [here](https://docs.rs/bollard/0.7.2/bollard/service/struct.HostConfig.html#structfield.binds).
+
+    /// The volumes [`Mount`] bindings to be used in this [`TestCase`].
     pub binds: Option<Vec<Mount>>,
+
     ///`(source, dest)` pairs of data to be copied into the container.
     pub copies: Option<Vec<(String, String)>>,
+
     /// Ignored file pattern when copying data into the container
     pub copy_ignore: Vec<String>,
-    /// Initialization options for `Testsuite`.
+
+    /// Initialization options for [`TestSuite`].
     pub options: TestSuiteOptions,
-    /// Command to execute within each test case. Commands should be regular shell commands
-    /// inside a unix shell.
+
+    /// The collection of commands to execute within each test case.
     pub exec: Vec<RawStep>,
+
     /// Variables to be expanded at testing.
     ///
     /// Variables in this field are in the form of `{"$var": "dest"}`, which for example then
     /// expands `$var` inside test case `123` to `123.dest`.
     pub vars: HashMap<String, String>,
 
-    /// Root folder inside **this** machine
+    /// Root folder of the [`TestSuite`] inside **this** machine.
     pub test_root: PathBuf,
-    /// Root folder inside **container**
+
+    /// Root folder of the [`TestSuite`] inside **container**.
     pub container_test_root: PathBuf,
 
-    /// Special Judger environment
+    /// Special Judger exectution environment used in this [`TestSuite`].
     spj_env: Option<spj::SpjEnvironment>,
 
     /// Network options
@@ -498,11 +509,12 @@ pub struct TestSuite {
 }
 
 impl TestSuite {
+    /// Push a [`TestCase`] to the current [`TestSuite`].
     pub fn add_case(&mut self, case: TestCase) {
         self.test_cases.push(case)
     }
 
-    /// Build the test suite from given configs.
+    /// Build the [`TestSuite`] from given configurations.
     pub async fn from_config(
         id: String,
         image: Image,
@@ -517,22 +529,14 @@ impl TestSuite {
 
         let index = construct_case_index(&public_cfg);
 
-        // create test cases
-        // TODO: Remove drain when this compiler issue gets repaired:
-        // https://github.com/rust-lang/rust/issues/64552
-        let mut test_cases = futures::stream::iter(options.tests.clone().drain(..))
+        let test_cases = futures::stream::iter(options.tests.clone().drain(..))
             .map(|name| {
-                let public_cfg = &public_cfg;
-                let test_root = &test_root;
-                let container_test_root = &container_test_root;
                 let case = index.get(&name).unwrap();
-                create_test_case(public_cfg, test_root, container_test_root, case, name)
+                create_test_case(&public_cfg, &test_root, &container_test_root, case, name)
             })
             .buffer_unordered(16)
-            .collect::<Vec<Result<TestCase>>>()
-            .await;
-
-        let test_cases = test_cases.drain(..).collect::<Result<Vec<_>>>()?;
+            .try_collect::<Vec<_>>()
+            .await?;
 
         // Get command steps
         let mut raw_steps = job_cfg
@@ -546,23 +550,16 @@ impl TestSuite {
                 command: s.to_owned(),
                 is_user_command: false,
             }))
-            .collect::<Vec<_>>();
+            .collect_vec();
 
-        // get ignored pattern
+        // Get ignored pattern.
         let copy_ignore = if let Some(file) = &public_cfg.test_ignore {
-            let f = tokio::fs::File::open(file).await?;
-            tokio_stream::wrappers::LinesStream::new(tokio::io::BufReader::new(f).lines())
-                .fold(Ok(vec![]), |v, f| {
-                    futures::future::ready(v.and_then(|mut v| {
-                        f.map(|f| {
-                            v.push(f);
-                            v
-                        })
-                    }))
-                })
+            let file = tokio::fs::File::open(file).await?;
+            LinesStream::new(BufReader::new(file).lines())
+                .try_collect()
                 .await?
         } else {
-            Vec::new()
+            vec![]
         };
 
         // Initialize special judge
@@ -596,13 +593,13 @@ impl TestSuite {
                 bs.iter()
                     .map(|b| {
                         let mut b = b.clone();
-                        b.canonical_from(base_dir);
+                        b.canonicalize(base_dir);
                         b.to_mount()
                     })
                     .collect()
             }),
             copies: Some(vec![(
-                path_canonical_from(&public_cfg.mapped_dir.from, base_dir).to_slash_lossy(),
+                canonical_join(base_dir, &public_cfg.mapped_dir.from).to_slash_lossy(),
                 public_cfg.mapped_dir.to.to_slash_lossy(),
             )]),
             copy_ignore,
@@ -638,8 +635,10 @@ impl TestSuite {
             .image
             .take()
             .expect("TestSuite instance not fully constructed");
-        image.replace_with_absolute_dir(base_dir);
-        image.set_dockerfile_tag(format!("{}_{:08x}", image.tag(), rnd_id));
+        let tag = image.tag();
+        image
+            .canonicalize(base_dir)
+            .set_dockerfile_tag(format!("{}_{:08x}", tag, rnd_id));
         let runner = DockerCommandRunner::try_new(
             instance,
             image,
@@ -687,7 +686,7 @@ impl TestSuite {
             let mut t = Test::new();
             t.should_fail = case.should_fail;
             self.exec.iter().for_each(|step| {
-                t.add_step(Step::new_with_timeout(
+                t.add_step(Step::with_timeout(
                     Capturable::new(step.command.clone()),
                     time_limit.map(|n| std::time::Duration::from_secs(n as u64)),
                     step.is_user_command,
@@ -728,8 +727,7 @@ impl TestSuite {
                 .run(&runner, &replacer, self.spj_env.as_mut())
                 .with_cancel(cancellation_token.clone())
                 .await
-                .ok_or(JobFailure::Cancelled)
-                .and_then(|x| x);
+                .unwrap_or(Err(JobFailure::Cancelled));
             log::trace!("{:08x}: runned: {}", rnd_id, case.name);
 
             let (mut res, cache) = TestResult::from_result(res, case.base_score);
@@ -821,16 +819,10 @@ async fn create_test_case(
 }
 
 fn construct_case_index(pub_cfg: &JudgerPublicConfig) -> HashMap<String, &TestCaseDefinition> {
-    let mut idx = HashMap::new();
-
-    for group in pub_cfg.test_groups.values() {
-        for test_case in group {
-            idx.insert(test_case.name.clone(), test_case);
-        }
-    }
-
-    idx
+    pub_cfg
+        .test_groups
+        .values()
+        .flatten()
+        .map(|test| (test.name.clone(), test))
+        .collect()
 }
-
-mod test_suite;
-mod tests;

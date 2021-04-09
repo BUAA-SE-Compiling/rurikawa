@@ -1,6 +1,6 @@
 //! File-system-related stuff. Including manipulating test folders, performing git operations and so on.
 
-use futures::{future::BoxFuture, FutureExt, StreamExt};
+use futures::{future::BoxFuture, prelude::*};
 use std::path::{Path, PathBuf};
 use tokio::fs::read_dir;
 

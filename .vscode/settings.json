@@ -1,6 +1,7 @@
 {
     "cSpell.words": [
         "Capturable",
+        "Itertools",
         "Karenia",
         "Popen",
         "canonicalize",
@@ -8,7 +9,10 @@
         "forcerm",
         "golemc",
         "mkdir",
+        "quickjs",
+        "rquickjs",
         "rurikawa",
+        "rustc",
         "stablized",
         "tungstenite",
         "unsync"

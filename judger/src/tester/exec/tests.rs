@@ -154,7 +154,7 @@ mod tokio_runner {
             ));
             t.add_step(
                 Step::new(Capturable::new("echo 0; sleep 3; echo 1".into()), true)
-                    .timeout(time::Duration::from_millis(100)),
+                    .set_timeout(time::Duration::from_millis(100)),
             );
             t.expected("Hello,\nworld!\n");
             let got = t.run(&TokioCommandRunner {}, &HashMap::new(), None).await;
@@ -186,7 +186,7 @@ mod docker_runner {
         block_on(async {
             let runner = DockerCommandRunner::try_new(
                 bollard::Docker::connect_with_local_defaults().unwrap(),
-                Image::Image {
+                Image::Prebuilt {
                     tag: "alpine:latest".to_owned(),
                 },
                 DockerCommandRunnerOptions {
@@ -350,7 +350,7 @@ mod docker_runner {
             ));
             t.add_step(
                 Step::new(Capturable::new("echo 0; sleep 3; echo 1".into()), true)
-                    .timeout(time::Duration::from_millis(100)),
+                    .set_timeout(time::Duration::from_millis(100)),
             );
             t.expected("Hello,\nworld!\n");
             let got = t.run(&runner, &HashMap::new(), None).await;

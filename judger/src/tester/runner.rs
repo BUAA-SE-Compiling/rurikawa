@@ -1,26 +1,19 @@
-use super::exec::BuildResultChannel;
-use super::model::*;
-use super::utils::convert_code;
-use super::{JobFailure, ProcessInfo};
-use crate::{client::config::DockerConfig, prelude::*, sh};
+use super::{exec::BuildResultChannel, model::*, utils::convert_code, JobFailure, ProcessInfo};
+use crate::client::config::DockerConfig;
+use crate::{prelude::*, sh};
 use anyhow::Result;
 use async_trait::async_trait;
 use bollard::{
-    container::{NetworkingConfig, UploadToContainerOptions},
-    exec::StartExecResults,
-    models::{HostConfig, Mount, NetworkConfig},
-    network::ConnectNetworkOptions,
-    Docker,
+    container::UploadToContainerOptions, exec::StartExecResults, models::Mount,
+    network::ConnectNetworkOptions, Docker,
 };
 use drop_bomb::DropBomb;
-use futures::stream::StreamExt;
+use futures::prelude::*;
 use names::{Generator, Name};
 #[cfg(unix)]
 use std::os::unix::process::ExitStatusExt;
-use std::{collections::HashMap, default::Default};
-use std::{process::ExitStatus, sync::Arc};
+use std::{collections::HashMap, default::Default, path::PathBuf, process::ExitStatus, sync::Arc};
 use tokio::process::Command;
-use tokio_util::compat::*;
 
 /// An evaluation environment for commands.
 #[async_trait]
@@ -343,7 +336,7 @@ impl DockerCommandRunner {
                     from_path.as_str().as_ref(),
                     r.options.copy_ignore.iter().map(|x| x.as_str()),
                 ));
-                let res = crate::util::tar::pack_as_tar(from_path.into(), ignore);
+                let res = crate::util::tar::pack_as_tar(&PathBuf::from(from_path), ignore);
                 let (frame, task) = try_or_kill!(res);
 
                 try_or_kill!(

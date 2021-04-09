@@ -1,9 +1,10 @@
 use difference::{Changeset, Difference};
-#[cfg(unix)]
-use libc::{c_char, c_int};
-#[cfg(unix)]
-use std::ffi::CStr;
 use std::str;
+#[cfg(unix)]
+use {
+    libc::{c_char, c_int},
+    std::ffi::CStr,
+};
 
 /// Generate a diff String of two Strings.
 pub fn diff<'a>(got: &'a str, expected: &'a str) -> (bool, String) {

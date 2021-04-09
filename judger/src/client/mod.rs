@@ -3,23 +3,24 @@ mod err;
 pub mod model;
 pub mod sink;
 
-pub use err::*;
-
+pub use self::err::*;
+use self::{
+    config::{ClientConfig, SharedClientData},
+    model::*,
+    sink::*,
+};
 use crate::{
     client::model::JobResultKind,
     config::{JudgeToml, JudgerPublicConfig},
     fs::{self, JUDGE_FILE_NAME},
     prelude::*,
-    tester::model::JudgerPrivateConfig,
-    tester::model::TestSuiteOptions,
+    tester::model::{JudgerPrivateConfig, TestSuiteOptions},
 };
 use anyhow::{Context, Result};
-use config::{ClientConfig, SharedClientData};
-use futures::{StreamExt, TryFutureExt};
+use futures::prelude::*;
 use http::Method;
-use model::*;
+use respector::prelude::*;
 use serde_json::from_slice;
-use sink::*;
 use std::{collections::HashMap, path::PathBuf, sync::atomic::Ordering, sync::Arc};
 use tokio_tungstenite::{connect_async, tungstenite::Message};
 use tracing::info_span;
@@ -147,8 +148,9 @@ pub async fn check_download_read_test_suite(
     struct AutoReleaseToken<'a>(CancellationTokenHandle, &'a SharedClientData, FlowSnake);
     impl<'a> Drop for AutoReleaseToken<'a> {
         fn drop(&mut self) {
-            self.0.cancel();
-            self.1.suite_unlock(self.2);
+            let Self(canceller, client_data, suite_id) = self;
+            canceller.cancel();
+            client_data.suite_unlock(*suite_id);
         }
     }
 
@@ -272,10 +274,11 @@ pub async fn handle_job_wrapper(
 ) {
     let job_id = job.id;
     flag_new_job(send.clone(), cfg.clone()).await;
-    let msg = match handle_job(job, send.clone(), cancel, cfg.clone())
+
+    let res_handle = handle_job(job, send.clone(), cancel, cfg.clone())
         .instrument(tracing::info_span!("handle_job", %job_id))
-        .await
-    {
+        .await;
+    let msg = match res_handle {
         Ok(_res) => ClientMsg::JobResult(_res),
 
         // These two types need explicit handling, since they are not finished
@@ -343,35 +346,31 @@ pub async fn handle_job_wrapper(
         }
     };
 
-    while let Err(_e) = {
+    loop {
         // Ah yes, do-while pattern
         let mut req = cfg.client.post(&cfg.result_send_endpoint()).json(&msg);
         if let Some(token) = &cfg.cfg().access_token {
             req = req.header("authorization", token.as_str());
         }
-        let req = req.send().await;
-        match req {
-            Ok(r) => {
-                if !r.status().is_success() {
-                    let status = r.status();
-                    match r.text().await {
-                        Ok(t) => {
-                            tracing::error!(
-                                "Error when sending job result mesage: {}\n{}",
-                                status,
-                                t
-                            );
-                            Ok(())
-                        }
-                        Err(e) => Err(e),
-                    }
-                } else {
-                    Ok(())
+        let res = req
+            .send()
+            .and_then(|r| async {
+                let status = r.status();
+                if status.is_success() {
+                    return Ok(());
                 }
-            }
-            Err(e) => Err(e),
+                r.text()
+                    .await
+                    .inspect(|t| {
+                        tracing::error!("Error when sending job result mesage: {}\n{}", status, t)
+                    })
+                    .map(drop)
+            })
+            .await;
+        if res.is_ok() {
+            break;
         }
-    } {}
+    }
 
     flag_finished_job(cfg.clone()).await;
 

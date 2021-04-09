@@ -36,6 +36,7 @@ fern = "0.6.0"
 futures = "0.3.8"
 http = "*"
 hyper = { version = "0.14", features = ["stream"] }
+itertools = "0.10.0"
 ignore = "0.4"
 libc = "0.2.81"
 log = "*"
@@ -60,6 +61,7 @@ tracing = "0.1.21"
 tracing-futures = "0.2.4"
 tracing-log = "0.1.1"
 tracing-subscriber = "0.2.15"
+respector = "0.1.1"
 
 [dev-dependencies]
 pretty_assertions = "0.6.1"

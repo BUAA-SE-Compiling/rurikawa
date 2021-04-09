@@ -2,16 +2,20 @@ use clap::Clap;
 use dirs::home_dir;
 use once_cell::sync::OnceCell;
 use rurikawa_judger::{
-    client::config::*,
-    client::{client_loop, connect_to_coordinator, sink::WsSink, try_register, verify_self},
+    client::{
+        client_loop, config::*, connect_to_coordinator, sink::WsSink, try_register, verify_self,
+    },
     prelude::CancellationTokenHandle,
 };
 use std::{
-    sync::atomic::{AtomicBool, Ordering},
+    path::Path,
+    process::exit,
+    sync::{
+        atomic::{AtomicBool, Ordering},
+        Arc,
+    },
+    time::Duration,
 };
-use std::{path::Path, process::exit};
-use std::{sync::Arc, time::Duration};
-
 use tracing_subscriber::FmtSubscriber;
 
 mod opt;

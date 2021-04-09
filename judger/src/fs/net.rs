@@ -1,11 +1,8 @@
 //! Functions to download stuff into destinations
 
-use futures::StreamExt;
-use std::fmt::Write;
-use std::path::Path;
-use tokio::io::AsyncWriteExt;
-use tokio::process::Command;
-
+use futures::prelude::*;
+use std::{fmt::Write, path::Path};
+use tokio::{io::AsyncWriteExt, process::Command};
 
 #[derive(Debug)]
 pub struct GitCloneOptions {

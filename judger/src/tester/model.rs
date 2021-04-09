@@ -1,10 +1,15 @@
 use anyhow::Result;
 use bollard::models::Mount;
+use names::{Generator, Name};
 use path_absolutize::Absolutize;
 use rquickjs::{FromJs, IntoJsByRef};
 use serde::{self, Deserialize, Serialize};
-use std::{collections::HashMap, path::PathBuf, string::String};
-use std::{path::Path, str::FromStr};
+use std::{
+    collections::HashMap,
+    path::{Path, PathBuf},
+    str::FromStr,
+    string::String,
+};
 
 /// A Host-to-container volume binding for the container.
 #[derive(Serialize, Deserialize, Debug, Clone, Default)]
@@ -19,10 +24,8 @@ pub struct Bind {
 }
 
 impl Bind {
-    pub fn canonical_from(&mut self, base_dir: &Path) {
-        let mut from_base = base_dir.to_owned();
-        from_base.push(&self.from);
-        self.from = from_base.absolutize().unwrap().into_owned();
+    pub fn canonicalize(&mut self, base: &Path) {
+        self.from = canonical_join(base, &self.from)
     }
 
     pub fn to_mount(&self) -> Mount {
@@ -37,10 +40,14 @@ impl Bind {
     }
 }
 
-pub fn path_canonical_from(path: &Path, base_dir: &Path) -> PathBuf {
-    let mut from_base = base_dir.to_owned();
-    from_base.push(path);
-    from_base.absolutize().unwrap().into_owned()
+/// Join a `relative` path onto a `base` path and canonicalize the result.
+pub fn canonical_join(base: impl AsRef<Path>, relative: impl AsRef<Path>) -> PathBuf {
+    base.as_ref()
+        .to_owned()
+        .join(relative)
+        .absolutize()
+        .expect("Failed to execute canonical_join on paths")
+        .into_owned()
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -48,17 +55,24 @@ pub fn path_canonical_from(path: &Path, base_dir: &Path) -> PathBuf {
 #[serde(rename_all = "camelCase")]
 pub enum Image {
     /// An existing image.
-    Image { tag: String },
+    #[serde(alias = "image")]
+    Prebuilt { tag: String },
     /// An image to be built with a Dockerfile.
     Dockerfile {
         /// Name to be assigned to the image.
+        /// If no `tag` is given, a placeholder will be generated automatically.
+        #[serde(default = "random_tag")]
         tag: String,
-        /// Path of the context directory, relative to the context directory.
+        /// Path of the context directory, must be relative to the current directory.
         path: PathBuf,
         /// Path of the dockerfile itself, relative to the context directory.
         /// Leaving this value to None means using the default dockerfile: `path/Dockerfile`.
         file: Option<PathBuf>,
     },
+}
+
+fn random_tag() -> String {
+    Generator::with_naming(Name::Plain).next().unwrap()
 }
 
 /// The definition of a test case
@@ -160,7 +174,7 @@ impl NetworkOptions {
     }
 }
 
-/// A raw step for usage in spj scripts
+/// A wrapper for a unix command [`String`] to be used in special judge scripts.
 #[derive(IntoJsByRef, FromJs)]
 #[quickjs(rename_all = "camelCase")]
 pub struct RawStep {

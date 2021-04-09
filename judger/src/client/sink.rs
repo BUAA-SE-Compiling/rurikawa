@@ -1,19 +1,18 @@
 //! Data structures for handling websocket message sinks that preserve message when connection is not available.
 
+use crate::prelude::CancellationTokenHandle;
 use anyhow::Result;
 use arc_swap::{ArcSwapAny, ArcSwapOption};
 use async_trait::async_trait;
 use futures::{
+    prelude::*,
     stream::{SplitSink, SplitStream},
-    Sink, SinkExt, Stream, TryStream,
 };
 use serde::Serialize;
 use std::{fmt::Debug, sync::Arc};
 use tokio::{net::TcpStream, sync::Mutex};
 use tokio_tungstenite::{tungstenite, MaybeTlsStream, WebSocketStream};
 use tungstenite::Message;
-
-use crate::prelude::CancellationTokenHandle;
 
 pub type WsDuplex = WebSocketStream<MaybeTlsStream<TcpStream>>;
 pub type WsSink = WebsocketSink;
