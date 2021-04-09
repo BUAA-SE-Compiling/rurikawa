@@ -330,6 +330,8 @@ impl Image {
         instance: bollard::Docker,
         partial_result_channel: Option<BuildResultChannel>,
         cancel: CancellationTokenHandle,
+        network: Option<&str>,
+        cpu_shares: Option<f64>,
     ) -> Result<(), BuildError> {
         match &self {
             Image::Image { tag } => {
@@ -363,6 +365,10 @@ impl Image {
                     Error(String, Option<bollard::models::ErrorDetail>),
                 }
 
+                // We set the CPU quota here by using a period of 100ms
+                let cpuquota = cpu_shares.map(|x| (x * 100_000f64).floor() as u64);
+                let cpuperiod = cpuquota.is_some().then(|| 100_000);
+
                 let ignore = ignore::gitignore::Gitignore::empty();
                 let (frame, task) = crate::util::tar::pack_as_tar(path.clone(), ignore)
                     .map_err(|e| BuildError::FileTransferError(e.to_string()))?;
@@ -377,26 +383,32 @@ impl Image {
                             t: tag.into(),
                             rm: true,
                             forcerm: true,
+
+                            networkmode: network.unwrap_or("none").into(),
+
+                            cpuperiod,
+                            cpuquota,
+                            buildargs: [("CI", "true")]
+                                .iter()
+                                .map(|(k, v)| (k.to_string(), v.to_string()))
+                                .collect(),
                             ..Default::default()
                         },
                         None,
                         // Freeze `path` as a tar archive.
                         Some(hyper::Body::wrap_stream(frame)),
                     )
-                    .map(|x| {
-                        // TODO: wait for PR#107 to merge in bollard
-                        match x {
-                            Ok(info) => {
-                                if let Some(e) = info.error {
-                                    return Ok(BuildResult::Error(e, info.error_detail));
-                                }
-                                if let Some(ch) = partial_result_channel.as_ref() {
-                                    let _ = ch.send(info);
-                                }
-                                Ok(BuildResult::Success)
+                    .map(|x| match x {
+                        Ok(info) => {
+                            if let Some(e) = info.error {
+                                return Ok(BuildResult::Error(e, info.error_detail));
                             }
-                            Err(e) => Err(e),
+                            if let Some(ch) = partial_result_channel.as_ref() {
+                                let _ = ch.send(info);
+                            }
+                            Ok(BuildResult::Success)
                         }
+                        Err(e) => Err(e),
                     })
                     .fold(Ok(BuildResult::Success), |last, x| async {
                         match (last, x) {
@@ -448,6 +460,9 @@ impl Image {
 /// Attention: a `TestSuite` instance should NOT be constructed manually.
 /// Please use `TestSuite::from_config`, for example.
 pub struct TestSuite {
+    /// An unique ID of this test suite
+    pub id: String,
+
     /// The test contents.
     pub test_cases: Vec<TestCase>,
     /// The image which contains the compiler to be tested.
@@ -477,6 +492,9 @@ pub struct TestSuite {
 
     /// Special Judger environment
     spj_env: Option<spj::SpjEnvironment>,
+
+    /// Network options
+    network: NetworkOptions,
 }
 
 impl TestSuite {
@@ -486,6 +504,7 @@ impl TestSuite {
 
     /// Build the test suite from given configs.
     pub async fn from_config(
+        id: String,
         image: Image,
         base_dir: &Path,
         private_cfg: JudgerPrivateConfig,
@@ -567,6 +586,7 @@ impl TestSuite {
         };
 
         Ok(TestSuite {
+            id,
             image: Some(image),
             test_cases,
             options,
@@ -589,6 +609,7 @@ impl TestSuite {
             spj_env: spj,
             test_root,
             container_test_root,
+            network: public_cfg.network,
         })
     }
 
@@ -630,12 +651,16 @@ impl TestSuite {
                     binds: self.binds.clone(),
                     copies: self.copies.clone(),
                     cancellation_token: cancellation_token.clone(),
+                    network_options: self.network.clone(),
                     ..Default::default()
                 }
             },
             build_result_channel,
         )
         .await?;
+
+        // NOTE: DO NOT USE `?` OPERATOR AFTERWARDS, OR ELSE THE RUNNER CANNOT
+        // BE DECONSTRUCTED PROPERLY!
 
         log::trace!("{:08x}: runner created", rnd_id);
 

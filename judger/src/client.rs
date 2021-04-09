@@ -14,7 +14,7 @@ use crate::{
     tester::model::TestSuiteOptions,
 };
 use anyhow::{Context, Result};
-use config::SharedClientData;
+use config::{ClientConfig, SharedClientData};
 use futures::{StreamExt, TryFutureExt};
 use http::Method;
 use model::*;
@@ -29,23 +29,28 @@ use tracing_futures::Instrument;
 ///
 /// Returns `Ok(true)` if register was success, `Ok(false)` if register is not
 /// needed or not applicable.
-pub async fn try_register(cfg: &mut SharedClientData, refresh: bool) -> anyhow::Result<bool> {
+pub async fn try_register(
+    client_data: &mut SharedClientData,
+    refresh: bool,
+) -> anyhow::Result<bool> {
     tracing::info!(
         "Registering judger. Access token: {:?}; Register token: {:?}",
-        cfg.cfg.access_token,
-        cfg.cfg.register_token
+        client_data.cfg().access_token,
+        client_data.cfg().register_token
     );
-    if (!refresh && cfg.cfg.access_token.is_some()) || cfg.cfg.register_token.is_none() {
+    if (!refresh && client_data.cfg().access_token.is_some())
+        || client_data.cfg().register_token.is_none()
+    {
         return Ok(false);
     }
 
     let req_body = JudgerRegisterMessage {
-        token: cfg.cfg.register_token.clone().unwrap(),
-        alternate_name: cfg.cfg.alternate_name.clone(),
-        tags: cfg.cfg.tags.clone(),
+        token: client_data.cfg().register_token.clone().unwrap(),
+        alternate_name: client_data.cfg().alternate_name.clone(),
+        tags: client_data.cfg().tags.clone(),
     };
-    let endpoint = cfg.register_endpoint();
-    let client = &cfg.client;
+    let endpoint = client_data.register_endpoint();
+    let client = &client_data.client;
     let res = client
         .request(Method::POST, &endpoint)
         .json(&req_body)
@@ -67,15 +72,20 @@ pub async fn try_register(cfg: &mut SharedClientData, refresh: bool) -> anyhow::
     let res = res.text().await?;
 
     tracing::info!("Got new access token: {}", res);
-    cfg.cfg.access_token = Some(res);
+
+    let new_cfg = ClientConfig {
+        access_token: Some(res),
+        ..(**client_data.cfg()).clone()
+    };
+    client_data.swap_cfg(Arc::new(new_cfg));
 
     Ok(true)
 }
 
 /// Verify if the current registration is active.
 pub async fn verify_self(cfg: &SharedClientData) -> anyhow::Result<bool> {
-    tracing::info!("Verifying access token {:?}", cfg.cfg.access_token);
-    if cfg.cfg.access_token.is_none() {
+    tracing::info!("Verifying access token {:?}", cfg.cfg().access_token);
+    if cfg.cfg().access_token.is_none() {
         return Ok(false);
     }
 
@@ -83,7 +93,7 @@ pub async fn verify_self(cfg: &SharedClientData) -> anyhow::Result<bool> {
     let res = cfg
         .client
         .request(Method::GET, &endpoint)
-        .header("authorization", cfg.cfg.access_token.as_ref().unwrap())
+        .header("authorization", cfg.cfg().access_token.as_ref().unwrap())
         .send()
         .await?
         .status()
@@ -203,7 +213,7 @@ pub async fn check_download_read_test_suite(
             cfg.client.clone(),
             cfg.client
                 .get(&endpoint)
-                .header("authorization", cfg.cfg.access_token.as_ref().unwrap())
+                .header("authorization", cfg.cfg().access_token.as_ref().unwrap())
                 .build()?,
             &suite_folder,
             &filename,
@@ -333,10 +343,10 @@ pub async fn handle_job_wrapper(
         }
     };
 
-    while let Err(e) = {
+    while let Err(_e) = {
         // Ah yes, do-while pattern
         let mut req = cfg.client.post(&cfg.result_send_endpoint()).json(&msg);
-        if let Some(token) = &cfg.cfg.access_token {
+        if let Some(token) = &cfg.cfg().access_token {
             req = req.header("authorization", token.as_str());
         }
         let req = req.send().await;
@@ -406,7 +416,7 @@ pub async fn handle_job(
     let job_path = cfg.job_folder(job.id);
     let _ = fs::ensure_removed_dir(&job_path).await;
 
-    let git_result = fs::net::git_clone(
+    fs::net::git_clone(
         &job_path,
         fs::net::GitCloneOptions {
             repo: job.repo,
@@ -416,16 +426,8 @@ pub async fn handle_job(
     )
     .with_cancel(cancel.clone())
     .await
-    .ok_or(JobExecErr::Aborted)?;
-
-    // Git might exit before we receive the cancel signal. Yield once and wait
-    // for the signal to strike at us.
-    // TODO: This is a workaround. Replace with better code.
-    tokio::task::yield_now().await;
-    if cancel.is_cancelled() {
-        return Err(JobExecErr::Aborted);
-    }
-    git_result.map_err(JobExecErr::Git)?;
+    .ok_or(JobExecErr::Aborted)?
+    .map_err(JobExecErr::Git)?;
 
     tracing::info!("fetched");
 
@@ -446,6 +448,16 @@ pub async fn handle_job(
         .ok_or_else(|| JobExecErr::NoSuchConfig(public_cfg.name.to_owned()))?;
 
     let image = judge_job_cfg.image.clone();
+
+    // Check job paths to be relative & does not navigate into parent
+    if let crate::tester::model::Image::Dockerfile { path, .. } = &image {
+        crate::util::path_security::assert_child_path(path)?;
+        // Note: There's no hard links in a git repository, and also we can't
+        // detect them. However, soft (symbolic) links are possible and may
+        // point to strange places. We make sure that we haven't got any of
+        // those in our paths.
+        crate::util::path_security::assert_no_symlink_in_path(path).await?;
+    }
 
     tracing::info!("prepare to run");
 
@@ -472,6 +484,7 @@ pub async fn handle_job(
     };
 
     let mut suite = crate::tester::exec::TestSuite::from_config(
+        job.id.to_string(),
         image,
         &suite_root_path,
         private_cfg,
@@ -531,7 +544,7 @@ pub async fn handle_job(
     let upload_info = Arc::new(ResultUploadConfig {
         client,
         endpoint: cfg.result_upload_endpoint(),
-        access_token: cfg.cfg.access_token.clone(),
+        access_token: cfg.cfg().access_token.clone(),
         job_id: job.id,
     });
 
@@ -564,7 +577,7 @@ pub async fn handle_job(
     Ok(job_result)
 }
 
-pub async fn flag_new_job(send: Arc<WsSink>, client_config: Arc<SharedClientData>) {
+pub async fn flag_new_job(_send: Arc<WsSink>, client_config: Arc<SharedClientData>) {
     client_config.new_job();
 }
 
@@ -688,7 +701,7 @@ async fn poll_jobs(
 
         let active_task_count = client_config.running_tests.load(Ordering::SeqCst) as u32;
         let request_for_new_task =
-            client_config.cfg.max_concurrent_tasks as u32 - active_task_count;
+            client_config.cfg().max_concurrent_tasks as u32 - active_task_count;
 
         tracing::trace!(
             "Polling jobs from server. Asking for {} new jobs.",

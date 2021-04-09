@@ -14,9 +14,8 @@ pub struct Bind {
     pub from: PathBuf,
     /// Absolute `to` path (in the container).
     pub to: PathBuf,
-    /// Extra options for this bind. Leave a new `String` for empty.
-    /// For details see [here](https://docs.rs/bollard/0.7.2/bollard/service/struct.HostConfig.html#structfield.binds).
-    pub readonly: bool,
+    // Note: Removed readonly option here, since all binds should be readonly
+    // for security reasons.
 }
 
 impl Bind {
@@ -31,7 +30,8 @@ impl Bind {
             target: Some(self.to.display().to_string()),
             source: Some(self.from.display().to_string()),
             typ: Some(bollard::models::MountTypeEnum::BIND),
-            read_only: self.readonly.into(),
+            // all binds should be readonly for security reasons.
+            read_only: Some(true),
             ..Default::default()
         }
     }
@@ -115,7 +115,8 @@ pub struct JudgerPublicConfig {
     #[quickjs(skip)]
     pub test_ignore: Option<PathBuf>,
 
-    /// `host-src:container-dest` volume bindings for the container.
+    /// `host-src:container-dest` volume bindings for the container. **Binds are
+    /// always readonly for security reasons.**
     /// For details see [here](https://docs.rs/bollard/0.7.2/bollard/service/struct.HostConfig.html#structfield.binds).
     #[quickjs(skip)]
     pub binds: Option<Vec<Bind>>,
@@ -125,6 +126,38 @@ pub struct JudgerPublicConfig {
     /// The special judger script should be a valid JS script with specified
     /// functions inside global scope.
     pub special_judge_script: Option<String>,
+
+    /// Network options applied to this config
+    #[serde(default)]
+    pub network: NetworkOptions,
+}
+
+/// Network options for judge containers.
+#[derive(Serialize, Deserialize, Debug, Clone, IntoJsByRef)]
+#[serde(rename_all = "camelCase")]
+#[quickjs(rename_all = "camelCase")]
+pub struct NetworkOptions {
+    /// Disable networking when running. Defaults to be true.
+    #[serde(default)]
+    pub enable_running: bool,
+    /// Disable networking when building. Defaults to be false.
+    #[serde(default = "return_true")]
+    pub enable_build: bool,
+}
+
+impl Default for NetworkOptions {
+    fn default() -> Self {
+        NetworkOptions {
+            enable_running: false,
+            enable_build: true,
+        }
+    }
+}
+
+impl NetworkOptions {
+    pub fn use_network(&self) -> bool {
+        !(self.enable_build && self.enable_running)
+    }
 }
 
 /// A raw step for usage in spj scripts
@@ -284,4 +317,8 @@ mod de {
             deserializer.deserialize_any(TestCaseVisitor)
         }
     }
+}
+
+const fn return_true() -> bool {
+    true
 }

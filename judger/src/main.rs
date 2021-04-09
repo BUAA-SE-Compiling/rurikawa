@@ -3,17 +3,15 @@ use dirs::home_dir;
 use once_cell::sync::OnceCell;
 use rurikawa_judger::{
     client::config::*,
-    client::model::JobResultMsg,
     client::{client_loop, connect_to_coordinator, sink::WsSink, try_register, verify_self},
     prelude::CancellationTokenHandle,
 };
 use std::{
-    collections::HashMap,
     sync::atomic::{AtomicBool, Ordering},
 };
 use std::{path::Path, process::exit};
 use std::{sync::Arc, time::Duration};
-use tokio_tungstenite::tungstenite;
+
 use tracing_subscriber::FmtSubscriber;
 
 mod opt;
@@ -139,7 +137,9 @@ async fn client(cmd: opt::ConnectSubCmd) {
 
     tokio::fs::create_dir_all(&cache_folder).await.unwrap();
     if !cmd.no_save {
-        update_client_config(&cache_folder, &cfg.cfg).await.unwrap();
+        update_client_config(&cache_folder, &cfg.cfg())
+            .await
+            .unwrap();
     }
 
     let client_config = Arc::new(cfg);

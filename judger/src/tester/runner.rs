@@ -2,17 +2,23 @@ use super::exec::BuildResultChannel;
 use super::model::*;
 use super::utils::convert_code;
 use super::{JobFailure, ProcessInfo};
-use crate::{prelude::*, sh};
+use crate::{client::config::DockerConfig, prelude::*, sh};
 use anyhow::Result;
 use async_trait::async_trait;
-use bollard::{container::UploadToContainerOptions, exec::StartExecResults, models::Mount, Docker};
+use bollard::{
+    container::{NetworkingConfig, UploadToContainerOptions},
+    exec::StartExecResults,
+    models::{HostConfig, Mount, NetworkConfig},
+    network::ConnectNetworkOptions,
+    Docker,
+};
 use drop_bomb::DropBomb;
 use futures::stream::StreamExt;
 use names::{Generator, Name};
 #[cfg(unix)]
 use std::os::unix::process::ExitStatusExt;
-use std::process::ExitStatus;
 use std::{collections::HashMap, default::Default};
+use std::{process::ExitStatus, sync::Arc};
 use tokio::process::Command;
 use tokio_util::compat::*;
 
@@ -124,6 +130,12 @@ pub struct DockerCommandRunnerOptions {
     pub copy_ignore: Vec<String>,
     /// Token to cancel this runner
     pub cancellation_token: CancellationTokenHandle,
+    /// Network options
+    pub network_options: NetworkOptions,
+    /// Network ID of this command runner
+    pub network_name: Option<String>,
+    /// Predefined configurations, e.g. CPU shares
+    pub cfg: Arc<DockerConfig>,
 }
 
 impl Default for DockerCommandRunnerOptions {
@@ -138,6 +150,9 @@ impl Default for DockerCommandRunnerOptions {
             binds: None,
             copies: None,
             cancellation_token: Default::default(),
+            network_options: Default::default(),
+            network_name: None,
+            cfg: Default::default(),
             copy_ignore: vec![],
         }
     }
@@ -187,11 +202,40 @@ impl DockerCommandRunner {
 
         log::info!("container {}: started building", r.options.container_name);
 
+        // Spin up a network for later use
+        r.options.network_name =
+            if r.options.network_options.use_network() && r.options.network_name.is_none() {
+                try_or_kill!(
+                    r.instance
+                        .create_network(bollard::network::CreateNetworkOptions {
+                            name: r.options.container_name.as_str(),
+                            check_duplicate: false,
+                            driver: "bridge",
+                            internal: true,
+                            ..Default::default()
+                        })
+                        .await
+                )
+                .id
+            } else {
+                None
+            };
+
         // Build the image.
         if r.options.build_image {
             try_or_kill!(
                 r.image
-                    .build(r.instance.clone(), partial_result_channel, cancel.clone(),)
+                    .build(
+                        r.instance.clone(),
+                        partial_result_channel,
+                        cancel.clone(),
+                        r.options
+                            .network_options
+                            .enable_build
+                            .then(|| r.options.network_name.as_deref())
+                            .flatten(),
+                        r.options.cfg.build_cpu_share
+                    )
                     .await
             )
         };
@@ -228,6 +272,10 @@ impl DockerCommandRunner {
                         open_stdin: Some(true),
                         attach_stdin: Some(true),
                         entrypoint: Some(vec!["sh".into()]),
+
+                        // We don't need network if we're just copying files
+                        network_disabled: Some(true),
+
                         ..Default::default()
                     },
                 )
@@ -354,11 +402,19 @@ impl DockerCommandRunner {
                     attach_stdout: Some(true),
                     attach_stderr: Some(true),
                     tty: Some(true),
+                    // set docker user
+                    user: r.options.cfg.docker_user.clone(),
                     host_config: Some(bollard::service::HostConfig {
                         mounts: r.options.binds.clone(),
+                        // set memory limits
+                        memory_swap: r.options.mem_limit.map(|n| n as i64),
+                        // set cpu limits
+                        nano_cpus: r.options.cfg.run_cpu_share.map(|x| (x * 1e9) as i64),
                         ..Default::default()
                     }),
                     entrypoint: Some(vec!["sh".into()]),
+                    // Set network availability
+                    network_disabled: Some(!r.options.network_options.enable_running),
                     ..Default::default()
                 },
             )
@@ -372,23 +428,30 @@ impl DockerCommandRunner {
 
         let container_name = &r.options.container_name;
 
-        // Set memory limit
-        try_or_kill!(r
-            .instance
-            .update_container(
-                container_name,
-                bollard::container::UpdateContainerOptions::<String> {
-                    memory: r.options.mem_limit.map(|n| n as i64),
-                    ..Default::default()
-                },
-            )
-            .await
-            .map_err(|e| {
+        // Connect to network
+        if r.options.network_options.enable_running {
+            let res = r
+                .instance
+                .connect_network(
+                    r.options.network_name.as_ref().unwrap(),
+                    ConnectNetworkOptions {
+                        container: r.options.container_name.clone(),
+                        endpoint_config: bollard::models::EndpointSettings {
+                            ..Default::default()
+                        },
+                    },
+                )
+                .await;
+
+            try_or_kill!(res.map_err(|e| {
                 JobFailure::internal_err_from(format!(
-                    "Failed to update container `{}`: {}",
-                    container_name, e
+                    "Failed to connect container `{}` to network `{}`: {}",
+                    r.options.container_name,
+                    r.options.network_name.as_deref().unwrap(),
+                    e
                 ))
             }));
+        }
 
         log::trace!("container {}: starting", r.options.container_name);
         // Start the container
@@ -420,6 +483,7 @@ impl DockerCommandRunner {
 
         let container_name = &self.options.container_name;
 
+        // Stop the active container
         let _res = self
             .instance
             .stop_container(
@@ -428,12 +492,14 @@ impl DockerCommandRunner {
             )
             .await;
 
+        // Wait for the active container to stop
         let _res = self
             .instance
             .wait_container::<String>(container_name, None)
             .for_each(|_| async {})
             .await;
 
+        // Remove the active container
         let _res = self
             .instance
             .remove_container(
@@ -441,6 +507,11 @@ impl DockerCommandRunner {
                 None::<bollard::container::RemoveContainerOptions>,
             )
             .await;
+
+        // Remove the dedicated network
+        if let Some(network) = &self.options.network_name {
+            let _res = self.instance.remove_network(&network).await;
+        }
 
         // Remove the image.
         if self.options.remove_image {
