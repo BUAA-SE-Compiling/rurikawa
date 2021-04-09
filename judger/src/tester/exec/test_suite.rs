@@ -10,6 +10,7 @@ fn golem_no_volume() -> Result<()> {
         let host_repo_dir = PathBuf::from(r"../golem");
 
         let mut ts = TestSuite::from_config(
+            "golem-no-volume".into(),
             Image::Dockerfile {
                 tag: image_name.to_owned(),
                 path: host_repo_dir,
@@ -55,7 +56,12 @@ fn golem_no_volume() -> Result<()> {
                 mapped_dir: Bind {
                     from: PathBuf::from(r"../golem/src"),
                     to: PathBuf::from(r"../golem/src"),
-                    readonly: false,
+                },
+                binds: None,
+                special_judge_script: None,
+                network: NetworkOptions {
+                    enable_running: false,
+                    enable_build: false,
                 },
                 test_ignore: None,
                 ..Default::default()
@@ -98,6 +104,7 @@ fn golem_with_volume() -> Result<()> {
         let host_repo_dir = PathBuf::from(r"../golem");
 
         let mut ts = TestSuite::from_config(
+            "golem-with-volume".into(),
             Image::Dockerfile {
                 tag: image_name.to_owned(),
                 path: host_repo_dir, // public: c# gives repo remote, rust clone and unzip
@@ -143,9 +150,13 @@ fn golem_with_volume() -> Result<()> {
                 mapped_dir: Bind {
                     from: PathBuf::from(r"../golem/src"),
                     to: PathBuf::from(r"../golem/src"),
-                    readonly: false,
                 },
                 binds: Some(vec![]),
+                special_judge_script: None,
+                network: NetworkOptions {
+                    enable_running: false,
+                    enable_build: false,
+                },
                 ..Default::default()
             },
             &JudgeTomlTestConfig {

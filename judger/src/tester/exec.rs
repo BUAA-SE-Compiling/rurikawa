@@ -352,6 +352,8 @@ impl Image {
         instance: bollard::Docker,
         partial_result_channel: Option<BuildResultChannel>,
         cancel: CancellationTokenHandle,
+        network: Option<&str>,
+        cpu_shares: Option<f64>,
     ) -> Result<(), BuildError> {
         match &self {
             Image::Prebuilt { tag } => instance
@@ -373,6 +375,10 @@ impl Image {
                 .ok_or(BuildError::Cancelled)?,
 
             Image::Dockerfile { tag, path, file } => {
+                // We set the CPU quota here by using a period of 100ms
+                let cpuquota = cpu_shares.map(|x| (x * 100_000f64).floor() as u64);
+                let cpuperiod = cpuquota.is_some().then(|| 100_000);
+
                 let ignore = ignore::gitignore::Gitignore::empty();
 
                 // Launch a task for archiving.
@@ -389,6 +395,15 @@ impl Image {
                             t: tag.into(),
                             rm: true,
                             forcerm: true,
+
+                            networkmode: network.unwrap_or("none").into(),
+
+                            cpuperiod,
+                            cpuquota,
+                            buildargs: [("CI", "true")]
+                                .iter()
+                                .map(|(k, v)| (k.to_string(), v.to_string()))
+                                .collect(),
                             ..Default::default()
                         },
                         None,
@@ -448,6 +463,9 @@ impl Image {
 /// Attention: a [`TestSuite`] instance should NOT be constructed manually.
 /// Please use `TestSuite::from_config`, for example.
 pub struct TestSuite {
+    /// An unique ID of this test suite
+    pub id: String,
+
     /// The collection of [`TestCase`]s in this [`TestSuite`].
     pub test_cases: Vec<TestCase>,
 
@@ -483,6 +501,9 @@ pub struct TestSuite {
 
     /// Special Judger exectution environment used in this [`TestSuite`].
     spj_env: Option<spj::SpjEnvironment>,
+
+    /// Network options
+    network: NetworkOptions,
 }
 
 impl TestSuite {
@@ -493,6 +514,7 @@ impl TestSuite {
 
     /// Build the [`TestSuite`] from given configurations.
     pub async fn from_config(
+        id: String,
         image: Image,
         base_dir: &Path,
         private_cfg: JudgerPrivateConfig,
@@ -566,6 +588,7 @@ impl TestSuite {
         };
 
         Ok(TestSuite {
+            id,
             image: Some(image),
             test_cases,
             options,
@@ -588,6 +611,7 @@ impl TestSuite {
             spj_env: spj,
             test_root,
             container_test_root,
+            network: public_cfg.network,
         })
     }
 
@@ -631,12 +655,16 @@ impl TestSuite {
                     binds: self.binds.clone(),
                     copies: self.copies.clone(),
                     cancellation_token: cancellation_token.clone(),
+                    network_options: self.network.clone(),
                     ..Default::default()
                 }
             },
             build_result_channel,
         )
         .await?;
+
+        // NOTE: DO NOT USE `?` OPERATOR AFTERWARDS, OR ELSE THE RUNNER CANNOT
+        // BE DECONSTRUCTED PROPERLY!
 
         log::trace!("{:08x}: runner created", rnd_id);
 

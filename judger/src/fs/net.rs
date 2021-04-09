@@ -1,4 +1,5 @@
 //! Functions to download stuff into destinations
+
 use futures::prelude::*;
 use std::{fmt::Write, path::Path};
 use tokio::{io::AsyncWriteExt, process::Command};
