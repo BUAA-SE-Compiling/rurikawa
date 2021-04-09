@@ -21,7 +21,9 @@ use itertools::Itertools;
 use once_cell::sync::Lazy;
 use path_slash::PathBufExt;
 use std::{collections::HashMap, io, path::Path, path::PathBuf, sync::Arc, time};
+use tokio::io::BufReader;
 use tokio::{io::AsyncBufReadExt, io::AsyncReadExt, sync::mpsc::UnboundedSender};
+use tokio_stream::wrappers::LinesStream;
 
 #[cfg(unix)]
 use super::utils::strsignal;
@@ -550,21 +552,14 @@ impl TestSuite {
             }))
             .collect_vec();
 
-        // get ignored pattern
+        // Get ignored pattern.
         let copy_ignore = if let Some(file) = &public_cfg.test_ignore {
-            let f = tokio::fs::File::open(file).await?;
-            tokio_stream::wrappers::LinesStream::new(tokio::io::BufReader::new(f).lines())
-                .fold(Ok(vec![]), |v, f| {
-                    futures::future::ready(v.and_then(|mut v| {
-                        f.map(|f| {
-                            v.push(f);
-                            v
-                        })
-                    }))
-                })
+            let file = tokio::fs::File::open(file).await?;
+            LinesStream::new(BufReader::new(file).lines())
+                .try_collect()
                 .await?
         } else {
-            Vec::new()
+            vec![]
         };
 
         // Initialize special judge

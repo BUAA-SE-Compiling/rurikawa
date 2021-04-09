@@ -64,7 +64,6 @@ fn golem_no_volume() -> Result<()> {
                     enable_build: false,
                 },
                 test_ignore: None,
-                ..Default::default()
             },
             &JudgeTomlTestConfig {
                 // TODO: Refine interface
