@@ -63,7 +63,7 @@ pub enum Image {
         /// If no `tag` is given, a placeholder will be generated automatically.
         #[serde(default = "random_tag")]
         tag: String,
-        /// Path of the context directory, can be relative or absolute.
+        /// Path of the context directory, must be relative to the current directory.
         path: PathBuf,
         /// Path of the dockerfile itself, relative to the context directory.
         /// Leaving this value to None means using the default dockerfile: `path/Dockerfile`.
