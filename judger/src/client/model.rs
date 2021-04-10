@@ -1,4 +1,8 @@
-use crate::prelude::FlowSnake;
+use crate::{
+    prelude::FlowSnake,
+    tester::{ExecErrorKind, JobFailure},
+};
+use respector::prelude::*;
 use serde::{Deserialize, Serialize};
 use std::{collections::HashMap, sync::Arc};
 
@@ -157,7 +161,7 @@ impl ToScore for () {
 impl TestResult {
     /// Convert a job result into a protocol-compatible `TestResult`
     pub fn from_result<S: ToScore>(
-        result: Result<S, crate::tester::JobFailure>,
+        result: Result<S, JobFailure>,
         base_score: f64,
     ) -> (TestResult, Option<FailedJobOutputCacheFile>) {
         match result {
@@ -171,7 +175,7 @@ impl TestResult {
             ),
             Err(e) => {
                 let (kind, cache) = match e {
-                    crate::tester::JobFailure::OutputMismatch(m) => (
+                    JobFailure::OutputMismatch(m) => (
                         TestResultKind::WrongAnswer,
                         Some(FailedJobOutputCacheFile {
                             output: m.output,
@@ -180,18 +184,16 @@ impl TestResult {
                         }),
                     ),
 
-                    crate::tester::JobFailure::ExecError(e) => {
+                    JobFailure::ExecError(e) => {
                         let (res, msg) = match e.kind {
-                            crate::tester::ExecErrorKind::RuntimeError(e) => {
+                            ExecErrorKind::RuntimeError(e) => {
                                 (TestResultKind::RuntimeError, Some(e))
                             }
-                            crate::tester::ExecErrorKind::ReturnCodeCheckFailed => (
+                            ExecErrorKind::ReturnCodeCheckFailed => (
                                 TestResultKind::PipelineFailed,
                                 Some("Some command's return code is not 0".into()),
                             ),
-                            crate::tester::ExecErrorKind::TimedOut => {
-                                (TestResultKind::TimeLimitExceeded, None)
-                            }
+                            ExecErrorKind::TimedOut => (TestResultKind::TimeLimitExceeded, None),
                         };
                         (
                             res,
@@ -203,7 +205,7 @@ impl TestResult {
                         )
                     }
 
-                    crate::tester::JobFailure::InternalError(e) => (
+                    JobFailure::InternalError(e) => (
                         TestResultKind::OtherError,
                         Some(FailedJobOutputCacheFile {
                             output: Vec::new(),
@@ -212,7 +214,7 @@ impl TestResult {
                         }),
                     ),
 
-                    crate::tester::JobFailure::ShouldFail(out) => (
+                    JobFailure::ShouldFail(out) => (
                         TestResultKind::ShouldFail,
                         Some(FailedJobOutputCacheFile {
                             output: out.output,
@@ -223,8 +225,8 @@ impl TestResult {
                         }),
                     ),
 
-                    crate::tester::JobFailure::Cancelled => (TestResultKind::NotRunned, None),
-                    crate::tester::JobFailure::SpjWrongAnswer(out) => (
+                    JobFailure::Cancelled => (TestResultKind::NotRunned, None),
+                    JobFailure::SpjWrongAnswer(out) => (
                         TestResultKind::WrongAnswer,
                         Some(FailedJobOutputCacheFile {
                             output: out.output,
@@ -264,23 +266,14 @@ pub async fn upload_test_result(
         .json(&f)
         .send()
         .await;
-    let resp = post.and_then(|x| x.error_for_status());
-    match resp {
-        Ok(resp) => {
-            let resp = resp.text().await;
-            match resp {
-                Ok(t) => Some(t),
-                Err(e) => {
-                    log::warn!("Failed to upload:\n{:?}", e);
-                    None
-                }
-            }
-        }
-        Err(e) => {
-            log::warn!("Failed to upload:\n{:?}", e);
-            None
-        }
-    }
+    let resp = post
+        .and_then(|x| x.error_for_status())
+        .inspect_err(|e| log::warn!("Failed to upload:\n{:?}", e))
+        .ok()?;
+    resp.text()
+        .await
+        .inspect_err(|e| log::warn!("Failed to upload:\n{:?}", e))
+        .ok()
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
