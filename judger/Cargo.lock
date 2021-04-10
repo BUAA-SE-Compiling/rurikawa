@@ -2025,7 +2025,7 @@ dependencies = [
 
 [[package]]
 name = "rurikawa-judger"
-version = "0.3.0"
+version = "0.3.3"
 dependencies = [
  "anyhow",
  "arc-swap",
