@@ -82,8 +82,8 @@ mod tokio_runner {
                 stage: 1,
                 kind: ExecErrorKind::RuntimeError(
                     format!(
-                        "Runtime Error: {}",
-                        strsignal(15)
+                        "Runtime Error: {} (signal 15)",
+                        strsignal(15).unwrap()
                     )
                 ),
                 output: vec![

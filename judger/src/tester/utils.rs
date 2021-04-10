@@ -101,14 +101,14 @@ mod tests {
     #[cfg(target_os = "macos")]
     #[test]
     fn test_strsignal() {
-        let e = strsignal(1);
+        let e = strsignal(1).unwrap();
         assert_eq!(dbg!(e), "Hangup: 1");
     }
 
     #[cfg(target_os = "linux")]
     #[test]
     fn test_strsignal() {
-        let e = strsignal(1);
+        let e = strsignal(1).unwrap();
         assert_eq!(dbg!(e), "Hangup");
     }
 }
