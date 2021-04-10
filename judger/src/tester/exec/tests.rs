@@ -274,14 +274,16 @@ mod docker_runner {
             let got = t.run(&runner, &HashMap::new(), None).await;
             let expected: Result<f64, _> = Err(JobFailure::ExecError(ExecError {
                 stage: 1,
-                kind: if cfg!(unix){ ExecErrorKind::RuntimeError(
-                    format!(
-                        "Runtime Error: {}",
-                        strsignal(15)
-                    )
-                )}else{
-                    ExecErrorKind::ReturnCodeCheckFailed
-                },
+                kind: ExecErrorKind::RuntimeError(
+                    if cfg!(unix){ 
+                        format!(
+                            "Runtime Error: {} (signal 15)",
+                            strsignal(15).unwrap()
+                        )
+                    }else{
+                        "Runtime Error: signal 15".into()
+                    }
+                ),
                 output: vec![
                     ProcessInfo {
                         ret_code: 0,

@@ -25,13 +25,7 @@ use tokio::io::BufReader;
 use tokio::{io::AsyncBufReadExt, io::AsyncReadExt, sync::mpsc::UnboundedSender};
 use tokio_stream::wrappers::LinesStream;
 
-#[cfg(unix)]
 use super::utils::strsignal;
-
-#[cfg(not(unix))]
-fn strsignal(_i: i32) -> String {
-    "".into()
-}
 
 #[macro_export]
 macro_rules! command {
@@ -243,10 +237,10 @@ impl Test {
             output.push(info.clone());
 
             // Handle non-zero return code.
+            #[allow(clippy::comparison_chain)]
             {
                 let code = info.ret_code;
-                let is_unix = cfg!(unix);
-                if code > 0 || (code != 0 && !is_unix) {
+                if code > 0 {
                     if self.should_fail {
                         // Bail out of test, but it's totally fine.
                         test_failed = true;
@@ -260,12 +254,12 @@ impl Test {
                             output,
                         }));
                     }
-                } else if code < 0 && is_unix {
+                } else if code < 0 {
                     return Err(JobFailure::ExecError(ExecError {
                         stage: i,
-                        kind: ExecErrorKind::RuntimeError(format!(
-                            "Runtime Error: {}",
-                            strsignal(-code)
+                        kind: ExecErrorKind::RuntimeError(strsignal(-code).map_or_else(
+                            || format!("Runtime Error: signal {}", -code),
+                            |x| format!("Runtime error: {} (signal {})", x, -code),
                         )),
                         output,
                     }));
@@ -307,6 +301,7 @@ impl Test {
             } else {
                 Err(JobFailure::SpjWrongAnswer(super::SpjFailure {
                     reason: judge_result.reason,
+                    diff: judge_result.diff,
                     output,
                 }))
             }

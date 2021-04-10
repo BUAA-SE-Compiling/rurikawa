@@ -28,17 +28,17 @@ SPJ 的运行环境支持以下 JS 特性：
 
 ```ts
 // 可选，初始化整个 SPJ，在所有样例运行前调用
-function specialJudgeInit(config: JudgerPublicConfig);
+function specialJudgeInit(config: JudgerPublicConfig): Promise | void;
 // 可选，在执行前修改所有样例的执行步骤，可能会被调用多次
-function specialJudgeTransformExec(exec: Step[]): Step[];
+function specialJudgeTransformExec(exec: Step[]): Promise<Step[]> | Step[];
 // 可选，初始化单个样例，在执行样例中操作之前调用
-function specialJudgeCaseInit(case: Case, mapping: Map<string, string>);
+function specialJudgeCaseInit(case: Case, mapping: Map<string, string>): Promise | void;
 
 // 可选，在样例执行完毕后调用。在普通模式下，返回 `1` 是 AC，`-1` 是 WA。
 //
 // 如果开启了 SPJ 评分模式，则还可以返回任意正数作为分值，基准分 1 分。此时 `true` 代表 1 分。
 // 本题的实际得分是 返回值 * 该题分值。
-function specialJudgeCase(results: StepResult[]): SpjResult
+function specialJudgeCase(results: StepResult[]): Promise<SpjResult> | SpjResult;
 
 // 将要执行的指令
 interface Step {
@@ -66,7 +66,9 @@ interface SpjResult {
     // 分值
     score?: number,
     // 错误原因
-    reason?: string
+    reason?: string,
+    // 与正确输出对比的结果
+    diff: string
 }
 ```
 

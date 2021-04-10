@@ -76,6 +76,7 @@ impl SpjEnvironment {
             .with::<rquickjs::intrinsic::TypedArrays>()
             .with::<rquickjs::intrinsic::Eval>()
             .build(&rt)?;
+        ctx.with(|ctx| ctx.globals().init_def::<binding::Diff>().unwrap());
         Ok(SpjEnvironment {
             rt,
             ctx,
@@ -179,6 +180,7 @@ pub struct SpjResult {
     pub accepted: bool,
     pub score: Option<f64>,
     pub reason: Option<String>,
+    pub diff: Option<String>,
 }
 
 /// Represents enabled features of a SPJ instance. Methods of this
@@ -246,7 +248,7 @@ impl rquickjs::ExecutorSpawner for TokioSpawner {
 mod binding {
     use std::{path::PathBuf, sync::Arc};
 
-    use rquickjs::{Async, Func, Function, IntoJs, MutFn};
+    use rquickjs::{bind, Async, Func, Function, IntoJs, MutFn};
     use tokio::io::AsyncReadExt;
     use tracing::info_span;
 
@@ -347,6 +349,20 @@ mod binding {
         let mut result = String::new();
         file.read_to_string(&mut result).await.ok()?;
         Some(result)
+    }
+
+    #[derive(IntoJs)]
+    pub struct DiffResult {
+        eq: bool,
+        diff: String,
+    }
+
+    #[bind(object, public)]
+    /// Utility function for checking difference in JS code
+    pub fn diff(src: String, dst: String) -> DiffResult {
+        use crate::tester::utils::diff;
+        let (eq, diff) = diff(&src, &dst);
+        DiffResult { eq, diff }
     }
 }
 

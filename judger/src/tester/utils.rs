@@ -1,10 +1,5 @@
 use difference::{Changeset, Difference};
 use std::str;
-#[cfg(unix)]
-use {
-    libc::{c_char, c_int},
-    std::ffi::CStr,
-};
 
 /// Generate a diff String of two Strings.
 pub fn diff<'a>(got: &'a str, expected: &'a str) -> (bool, String) {
@@ -38,12 +33,18 @@ pub fn diff<'a>(got: &'a str, expected: &'a str) -> (bool, String) {
     (different, change_string)
 }
 
+#[cfg(not(unix))]
+pub fn strsignal(_i: i32) -> Option<&'static str> {
+    None
+}
+
 #[cfg(unix)]
 /// Describe a signal code (>=0).
-pub fn strsignal(signal: i32) -> String {
-    let c_buf: *const c_char = unsafe { libc::strsignal(signal as c_int) };
-    let c_str: &CStr = unsafe { CStr::from_ptr(c_buf) };
-    c_str.to_str().unwrap().to_owned()
+pub fn strsignal(signal: i32) -> Option<&'static str> {
+    use std::convert::TryFrom;
+    nix::sys::signal::Signal::try_from(signal)
+        .ok()
+        .map(|sig| sig.as_str())
 }
 
 /// Convert a signal (128-254) to a minus error code, retain the others.

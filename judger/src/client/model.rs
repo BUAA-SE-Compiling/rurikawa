@@ -228,7 +228,7 @@ impl TestResult {
                         TestResultKind::WrongAnswer,
                         Some(FailedJobOutputCacheFile {
                             output: out.output,
-                            stdout_diff: None,
+                            stdout_diff: out.diff,
                             message: out.reason,
                         }),
                     ),

@@ -34,6 +34,7 @@ pub struct OutputMismatch {
 #[derive(Debug, Clone, Serialize, Deserialize, Eq, PartialEq)]
 pub struct SpjFailure {
     pub reason: Option<String>,
+    pub diff: Option<String>,
     pub output: Vec<ProcessInfo>,
 }
 
