@@ -259,7 +259,7 @@ impl Test {
                         stage: i,
                         kind: ExecErrorKind::RuntimeError(strsignal(-code).map_or_else(
                             || format!("Runtime Error: signal {}", -code),
-                            |x| format!("Runtime error: {} (signal {})", x, -code),
+                            |x| format!("Runtime Error: {} (signal {})", x, -code),
                         )),
                         output,
                     }));
