@@ -1,5 +1,4 @@
 use difference::{Changeset, Difference};
-use std::str;
 
 /// Returns if the two `&str`s are **different**, along with a diff String of the two.
 ///
@@ -35,15 +34,12 @@ use std::str;
 /// ```
 pub fn diff<'a>(got: &'a str, expected: &'a str) -> (bool, String) {
     let changeset = Changeset::new(got, expected, "\n");
-    let mut change_string = String::new();
+    let mut changes = String::new();
     let mut different = false;
 
     let mut add_diff_ln = |ic: char, s: &str| {
-        for l in s.lines() {
-            change_string.push(ic);
-            change_string.push(' ');
-            change_string.push_str(l);
-            change_string.push('\n');
+        for ln in s.lines() {
+            changes.push_str(&format!("{} {}\n", ic, ln))
         }
     };
 
@@ -61,7 +57,7 @@ pub fn diff<'a>(got: &'a str, expected: &'a str) -> (bool, String) {
         }
     }
 
-    (different, change_string)
+    (different, changes)
 }
 
 /// Describes a signal code (>=0) in `unix`. Returns [`None`] otherwise.
