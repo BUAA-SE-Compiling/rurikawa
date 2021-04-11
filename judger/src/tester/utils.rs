@@ -1,7 +1,38 @@
 use difference::{Changeset, Difference};
 use std::str;
 
-/// Generate a diff String of two Strings.
+/// Returns if the two `&str`s are **different**, along with a diff String of the two.
+///
+/// # Examples
+/// ```rust
+/// use rurikawa_judger::tester::utils::diff;
+///
+/// let s1 = "Hello,\nworld!\nHi!";
+/// let s2 = "Hello,\nthis cruel\nworld!";
+/// assert_eq!(
+///    dbg!(diff(s1, s2)),
+///    (
+///        true,
+///        "  \
+///        Hello,\n\
+///        + this cruel\n  \
+///        world!\n\
+///        - Hi!\n"
+///            .into()
+///    )
+/// );
+/// assert_eq!(
+///    dbg!(diff(s1, s1)),
+///    (
+///        false,
+///        "  \
+///        Hello,\n  \
+///        world!\n  \
+///        Hi!\n"
+///            .into()
+///    )
+/// );
+/// ```
 pub fn diff<'a>(got: &'a str, expected: &'a str) -> (bool, String) {
     let changeset = Changeset::new(got, expected, "\n");
     let mut change_string = String::new();
@@ -33,82 +64,46 @@ pub fn diff<'a>(got: &'a str, expected: &'a str) -> (bool, String) {
     (different, change_string)
 }
 
-#[cfg(not(unix))]
-pub fn strsignal(_i: i32) -> Option<&'static str> {
-    None
+/// Describes a signal code (>=0) in `unix`. Returns [`None`] otherwise.
+///
+/// # Examples
+/// ```rust
+/// #[cfg(unix)]
+/// {
+///     use rurikawa_judger::tester::utils::strsignal;
+///
+///     let sig = strsignal(1);
+///     assert_eq!(dbg!(sig), Some("SIGHUP"));
+/// }
+/// ```
+#[cfg(unix)]
+pub fn strsignal(signal: i32) -> Option<&'static str> {
+    use nix::sys::signal::Signal;
+    use std::convert::TryFrom;
+    Signal::try_from(signal).ok().map(|sig| sig.as_str())
 }
 
-#[cfg(unix)]
-/// Describe a signal code (>=0).
+/// Describes a signal code (>=0) in `unix`. Returns [`None`] otherwise.
+///
+/// # Examples
+/// ```rust
+/// #[cfg(not(unix))]
+/// {
+///     use rurikawa_judger::tester::utils::strsignal;
+///
+///     let sig = strsignal(1);
+///     assert_eq!(dbg!(sig), None);
+/// }
+/// ```
+#[cfg(not(unix))]
 pub fn strsignal(signal: i32) -> Option<&'static str> {
-    use std::convert::TryFrom;
-    nix::sys::signal::Signal::try_from(signal)
-        .ok()
-        .map(|sig| sig.as_str())
+    None
 }
 
 /// Convert a signal (128-254) to a minus error code, retain the others.
 pub fn convert_code(code: i32) -> i32 {
-    if (128..=254).contains(&code) {
-        128 - code
-    } else {
-        code
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_diff() {
-        let s1 = "Hello,\nworld!\nHi!";
-        let s2 = "Hello,\nthis cruel\nworld!";
-        let d = diff(s1, s2);
-        assert_eq!(
-            dbg!(d),
-            (
-                true,
-                "  \
-                Hello,\n\
-                + this cruel\n  \
-                world!\n\
-                - Hi!\n"
-                    .into()
-            )
-        );
-    }
-
-    #[test]
-    fn test_diff_again() {
-        let s1 = "Hello,\nworld!\nHi!";
-        let s2 = "Hello,\nworld!\nHi!";
-        let d = diff(s1, s2);
-        assert_eq!(
-            dbg!(d),
-            (
-                false,
-                "  \
-                Hello,\n  \
-                world!\n  \
-                Hi!\n"
-                    .into()
-            )
-        );
-    }
-
-    // * `strsignal` is implementation-dependant
-    #[cfg(target_os = "macos")]
-    #[test]
-    fn test_strsignal() {
-        let e = strsignal(1).unwrap();
-        assert_eq!(dbg!(e), "Hangup: 1");
-    }
-
-    #[cfg(target_os = "linux")]
-    #[test]
-    fn test_strsignal() {
-        let e = strsignal(1).unwrap();
-        assert_eq!(dbg!(e), "Hangup");
+    match code {
+        128..=254 => 128 - code,
+        _ => code,
     }
 }
