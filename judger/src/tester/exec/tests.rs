@@ -13,11 +13,11 @@ mod tokio_runner {
         block_on(async {
             let mut t = Test::new();
             t.add_step(Step::new(
-                Capturable::new(r"echo 'This does nothing.'".into()),
+                Capturable::new(r"echo 'This does nothing.'"),
                 true,
             ));
             t.add_step(Step::new(
-                Capturable::new("echo 'Hello, world!' | awk '{print $1}'".into()),
+                Capturable::new("echo 'Hello, world!' | awk '{print $1}'"),
                 true,
             ));
             t.expected("Hello,\n");
@@ -31,11 +31,11 @@ mod tokio_runner {
         block_on(async {
             let mut t = Test::new();
             t.add_step(Step::new(
-                Capturable::new(r"echo 'This does nothing.'".into()),
+                Capturable::new(r"echo 'This does nothing.'"),
                 true,
             ));
             t.add_step(Step::new(
-                Capturable::new("echo 'Hello, world!' && false".into()),
+                Capturable::new("echo 'Hello, world!' && false"),
                 true,
             ));
             t.expected("Goodbye, world!");
@@ -69,12 +69,12 @@ mod tokio_runner {
         block_on(async {
             let mut t = Test::new();
             t.add_step(Step::new(
-                Capturable::new(r"echo 'This does nothing.'".into()),
+                Capturable::new(r"echo 'This does nothing.'"),
                 true,
             ));
             t.add_step(Step::new(Capturable::new(
                 // Kill a running task
-                r#"{ sleep 0.1; kill $$; } & i=0; while [ "$i" -lt 4 ]; do echo $i; sleep 1; i=$(( i + 1 )); done"#.into()
+                r#"{ sleep 0.1; kill $$; } & i=0; while [ "$i" -lt 4 ]; do echo $i; sleep 1; i=$(( i + 1 )); done"#
             ),true));
             t.expected("Hello,\nworld!\n");
             let got = t.run(&TokioCommandRunner {}, &HashMap::new(), None).await;
@@ -112,11 +112,11 @@ mod tokio_runner {
         block_on(async {
             let mut t = Test::new();
             t.add_step(Step::new(
-                Capturable::new(r"echo 'This does nothing.'".into()),
+                Capturable::new(r"echo 'This does nothing.'"),
                 true,
             ));
             t.add_step(Step::new(
-                Capturable::new("echo 'Hello, world!' | awk '{print $2}'".into()),
+                Capturable::new("echo 'Hello, world!' | awk '{print $2}'"),
                 true,
             ));
             t.expected("Hello,\nworld!");
@@ -149,11 +149,11 @@ mod tokio_runner {
         block_on(async {
             let mut t = Test::new();
             t.add_step(Step::new(
-                Capturable::new(r"echo 'This does nothing.'".into()),
+                Capturable::new(r"echo 'This does nothing.'"),
                 true,
             ));
             t.add_step(
-                Step::new(Capturable::new("echo 0; sleep 3; echo 1".into()), true)
+                Step::new(Capturable::new("echo 0; sleep 3; echo 1"), true)
                     .set_timeout(time::Duration::from_millis(100)),
             );
             t.expected("Hello,\nworld!\n");
@@ -206,11 +206,11 @@ mod docker_runner {
     fn ok() {
         docker_run(|runner, mut t| async {
             t.add_step(Step::new(
-                Capturable::new(r"echo 'This does nothing.'".into()),
+                Capturable::new(r"echo 'This does nothing.'"),
                 true,
             ));
             t.add_step(Step::new(
-                Capturable::new("echo 'Hello, world!' | awk '{print $1}'".into()),
+                Capturable::new("echo 'Hello, world!' | awk '{print $1}'"),
                 true,
             ));
             t.expected("Hello,\n");
@@ -225,11 +225,11 @@ mod docker_runner {
     fn error_code() {
         docker_run(|runner, mut t| async {
             t.add_step(Step::new(
-                Capturable::new(r"echo 'This does nothing.'".into()),
+                Capturable::new(r"echo 'This does nothing.'"),
                 true,
             ));
             t.add_step(Step::new(
-                Capturable::new("echo 'Hello, world!' && false".into()),
+                Capturable::new("echo 'Hello, world!' && false"),
                 true,
             ));
             t.expected("Hello,\nworld!\n");
@@ -263,12 +263,12 @@ mod docker_runner {
     fn signal() {
         docker_run(|runner, mut t| async {
             t.add_step(Step::new(
-                Capturable::new(r"echo 'This does nothing.'".into()),
+                Capturable::new(r"echo 'This does nothing.'"),
                 true,
             ));
             t.add_step(Step::new(Capturable::new(
                 // Kill a running task
-                r#"{ sleep 0.1; kill $$; } & i=0; while [ "$i" -lt 4 ]; do echo $i; sleep 1; i=$(( i + 1 )); done"#.into()
+                r#"{ sleep 0.1; kill $$; } & i=0; while [ "$i" -lt 4 ]; do echo $i; sleep 1; i=$(( i + 1 )); done"#
             ),true));
             t.expected("Hello,\nworld!\n");
             let got = t.run(&runner, &HashMap::new(), None).await;
@@ -310,11 +310,11 @@ mod docker_runner {
     fn output_mismatch() {
         docker_run(|runner, mut t| async {
             t.add_step(Step::new(
-                Capturable::new(r"echo 'This does nothing.'".into()),
+                Capturable::new(r"echo 'This does nothing.'"),
                 true,
             ));
             t.add_step(Step::new(
-                Capturable::new("echo 'Hello, world!' | awk '{print $2}'".into()),
+                Capturable::new("echo 'Hello, world!' | awk '{print $2}'"),
                 true,
             ));
             t.expected("Hello,\nworld!");
@@ -347,11 +347,11 @@ mod docker_runner {
     fn output_timed_out() {
         docker_run(|runner, mut t| async {
             t.add_step(Step::new(
-                Capturable::new(r"echo 'This does nothing.'".into()),
+                Capturable::new(r"echo 'This does nothing.'"),
                 true,
             ));
             t.add_step(
-                Step::new(Capturable::new("echo 0; sleep 3; echo 1".into()), true)
+                Step::new(Capturable::new("echo 0; sleep 3; echo 1"), true)
                     .set_timeout(time::Duration::from_millis(100)),
             );
             t.expected("Hello,\nworld!\n");
