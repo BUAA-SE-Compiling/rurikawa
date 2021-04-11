@@ -137,8 +137,7 @@ namespace Karenia.Rurikawa.Coordinator.Controllers {
                 DateTimeOffset.Now.Add(RefreshTokenLifespan),
                 true);
 
-            return new OAuth2Response
-            {
+            return new OAuth2Response {
                 AccessToken = accessToken,
                 RefreshToken = refreshToken,
                 ExpiresIn = accessTokenExpireTime.ToUnixTimeSeconds(),

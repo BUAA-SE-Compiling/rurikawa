@@ -227,8 +227,7 @@ namespace Karenia.Rurikawa.Coordinator.Services {
                 return;
             }
 
-            frontendService.OnJobStautsUpdate(jobId, new Models.WebsocketApi.JobStatusUpdateMsg
-            {
+            frontendService.OnJobStautsUpdate(jobId, new Models.WebsocketApi.JobStatusUpdateMsg {
                 JobId = jobId,
                 Stage = msg.Stage
             });
@@ -267,8 +266,7 @@ namespace Karenia.Rurikawa.Coordinator.Services {
                 return;
             }
 
-            frontendService.OnJobStautsUpdate(msg.JobId, new Models.WebsocketApi.JobStatusUpdateMsg
-            {
+            frontendService.OnJobStautsUpdate(msg.JobId, new Models.WebsocketApi.JobStatusUpdateMsg {
                 JobId = msg.JobId,
                 BuildOutputFile = buildResultFilename,
                 Stage = JobStage.Finished,
@@ -292,8 +290,7 @@ namespace Karenia.Rurikawa.Coordinator.Services {
             const int maxLength = 2 * 1024 * 1024;
             string? buildOutput = await db.StringGetRangeAsync(FormatJobStdout(jobId), -maxLength, -1);
             string? buildError = await db.StringGetRangeAsync(FormatJobError(jobId), -maxLength, -1);
-            var res = new JobBuildOutput
-            {
+            var res = new JobBuildOutput {
                 Output = buildOutput,
                 Error = buildError
             };
@@ -327,12 +324,10 @@ namespace Karenia.Rurikawa.Coordinator.Services {
             await db.SaveChangesAsync();
             await tx.CommitAsync();
 
-            frontendService.OnJobStautsUpdate(msg.JobId, new Models.WebsocketApi.JobStatusUpdateMsg
-            {
+            frontendService.OnJobStautsUpdate(msg.JobId, new Models.WebsocketApi.JobStatusUpdateMsg {
                 JobId = msg.JobId,
                 Stage = JobStage.Running,
-                TestResult = new Dictionary<string, TestResult>()
-                {
+                TestResult = new Dictionary<string, TestResult>() {
                     [msg.TestId] = msg.TestResult
                 }
             });
@@ -409,8 +404,7 @@ namespace Karenia.Rurikawa.Coordinator.Services {
             await redis.StringSetAsync(FormatJobError(job.Id), "", expiry: TimeSpan.FromHours(2), flags: CommandFlags.FireAndForget);
 
             try {
-                await judger.Socket.SendMessage(new MultipleNewJobServerMsg()
-                {
+                await judger.Socket.SendMessage(new MultipleNewJobServerMsg() {
                     Jobs = new List<Job> { job },
                     ReplyTo = null
                 });
@@ -435,8 +429,7 @@ namespace Karenia.Rurikawa.Coordinator.Services {
             var redis = await this.redis.GetDatabase();
 
             try {
-                await judger.Socket.SendMessage(new MultipleNewJobServerMsg()
-                {
+                await judger.Socket.SendMessage(new MultipleNewJobServerMsg() {
                     Jobs = jobs,
                     ReplyTo = replyTo
                 });
@@ -474,19 +467,19 @@ namespace Karenia.Rurikawa.Coordinator.Services {
             var timeoutTaskStartsBeforeThis = DateTimeOffset.Now - DISPATH_TIMEOUT;
             return jobs.Where(
                     j =>
-                       // queued jobs
-                       j.Stage == JobStage.Queued
-                    // aborted jobs
-                    || j.Stage == JobStage.Aborted
-                    // stalled jobs
-                    || (
-                        j.Stage != JobStage.Cancelled
-                        && j.Stage != JobStage.Aborted
-                        && j.Stage != JobStage.Skipped
-                        && j.Stage != JobStage.Queued
-                        && j.Stage != JobStage.Finished
-                        && j.DispatchTime != null
-                        && j.DispatchTime < timeoutTaskStartsBeforeThis)
+                    // queued jobs
+                    j.Stage == JobStage.Queued
+                        // aborted jobs
+                        || j.Stage == JobStage.Aborted
+                        // stalled jobs
+                        || (j.Stage != JobStage.Cancelled
+                            && j.Stage != JobStage.Aborted
+                            && j.Stage != JobStage.Skipped
+                            && j.Stage != JobStage.Queued
+                            && j.Stage != JobStage.Finished
+                            && j.DispatchTime != null
+                            && j.DispatchTime < timeoutTaskStartsBeforeThis
+                        )
                 );
         }
 

@@ -83,8 +83,7 @@ namespace Karenia.Rurikawa.Coordinator.Controllers {
             if (account == null) return BadRequest();
 
             FlowSnake id = FlowSnake.Generate();
-            var job = new Job
-            {
+            var job = new Job {
                 Id = id,
                 Account = account,
                 Repo = m.Repo,
@@ -161,14 +160,12 @@ namespace Karenia.Rurikawa.Coordinator.Controllers {
 
             if (exitCode == 0) {
                 var rev = stdout.Split('\t')[0];
-                return new GetRevisionResult
-                {
+                return new GetRevisionResult {
                     isSuccess = true,
                     rev = rev
                 };
             } else {
-                return new GetRevisionResult
-                {
+                return new GetRevisionResult {
                     isSuccess = false,
                     message = stdout
                 };

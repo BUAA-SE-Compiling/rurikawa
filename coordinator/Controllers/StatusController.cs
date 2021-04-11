@@ -53,8 +53,7 @@ namespace Karenia.Rurikawa.Coordinator.Controllers {
             var red = await redis.GetDatabase();
             var judgerStat = await red.StringGetAsync(JUDGER_STAT_CACHE_KEY);
             if (!judgerStat.IsNullOrEmpty) {
-                return new ContentResult()
-                {
+                return new ContentResult() {
                     Content = (string)judgerStat,
                     StatusCode = 200,
                     ContentType = "application/json"
@@ -63,8 +62,7 @@ namespace Karenia.Rurikawa.Coordinator.Controllers {
 
             var judgerCount = await db.Judgers.CountAsync();
             var (connectedCount, runningCount) = await coordinatorService.GetConnectedJudgerInfo();
-            var stat = new JudgerStat
-            {
+            var stat = new JudgerStat {
                 Count = judgerCount,
                 Connected = connectedCount,
                 Running = runningCount
@@ -95,8 +93,7 @@ namespace Karenia.Rurikawa.Coordinator.Controllers {
             var red = await redis.GetDatabase();
             var judgerStat = await red.StringGetAsync(QUEUE_STAT_CACHE_KEY);
             if (!judgerStat.IsNullOrEmpty) {
-                return new ContentResult()
-                {
+                return new ContentResult() {
                     Content = (string)judgerStat,
                     StatusCode = 200,
                     ContentType = "application/json"
@@ -105,8 +102,7 @@ namespace Karenia.Rurikawa.Coordinator.Controllers {
 
             // TODO: Use redis to track jobs count?
             var jobCount = await JudgerCoordinatorService.QueuedCriteria(db.Jobs).CountAsync();
-            var stat = new QueueStat
-            {
+            var stat = new QueueStat {
                 QueuedJobs = jobCount
             };
 

@@ -199,8 +199,7 @@ namespace Karenia.Rurikawa.Models.Test {
                 JsonSerializerOptions options) {
                 if (reader.TokenType == JsonTokenType.String) {
                     string name = reader.GetString()!;
-                    return new TestCaseDefinition()
-                    {
+                    return new TestCaseDefinition() {
                         Name = name,
                         HasOut = true,
                         ShouldFail = false
@@ -254,8 +253,7 @@ namespace Karenia.Rurikawa.Models.Test {
                 }
 
                 if (name == null) throw new JsonException("Expected property 'name'");
-                return new TestCaseDefinition
-                {
+                return new TestCaseDefinition {
                     Name = name,
                     HasOut = hasOut ?? true,
                     ShouldFail = shouldFail ?? false,
