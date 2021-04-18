@@ -21,8 +21,10 @@ use itertools::Itertools;
 use once_cell::sync::Lazy;
 use path_slash::PathBufExt;
 use std::{collections::HashMap, io, path::Path, path::PathBuf, sync::Arc, time};
-use tokio::io::BufReader;
-use tokio::{io::AsyncBufReadExt, io::AsyncReadExt, sync::mpsc::UnboundedSender};
+use tokio::{
+    io::{AsyncBufReadExt, AsyncReadExt, BufReader},
+    sync::mpsc::UnboundedSender,
+};
 use tokio_stream::wrappers::LinesStream;
 
 use super::utils::strsignal;

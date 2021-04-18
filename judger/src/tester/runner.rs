@@ -1,6 +1,5 @@
 use super::{exec::BuildResultChannel, model::*, utils::convert_code, JobFailure, ProcessInfo};
-use crate::client::config::DockerConfig;
-use crate::{prelude::*, sh};
+use crate::{client::config::DockerConfig, prelude::*, sh};
 use anyhow::Result;
 use async_trait::async_trait;
 use bollard::{
@@ -12,7 +11,9 @@ use futures::prelude::*;
 use names::{Generator, Name};
 #[cfg(unix)]
 use std::os::unix::process::ExitStatusExt;
-use std::{collections::HashMap, default::Default, path::PathBuf, process::ExitStatus, sync::Arc};
+use std::{
+    collections::HashMap, default::Default, io, path::PathBuf, process::ExitStatus, sync::Arc,
+};
 use tokio::process::Command;
 
 /// An evaluation environment for commands.
@@ -573,30 +574,29 @@ impl CommandRunner for DockerCommandRunner {
         let mut stderr = String::new();
 
         while let Some(msg) = start_res.next().await {
+            use bollard::container::LogOutput;
+            let msg = msg.map_err(|e| io::Error::new(io::ErrorKind::Other, e))?;
             match msg {
-                Ok(r) => match r {
-                    StartExecResults::Attached { log } => match log {
-                        bollard::container::LogOutput::StdOut { message } => {
-                            let msg = String::from_utf8_lossy(&message);
-                            stdout.push_str(&msg);
-                            if (stdout.len() >= MAX_CONSOLE_FILE_SIZE) {
-                                stdout.push_str("\n--- ERROR: Max output length exceeded");
-                                break;
-                            }
+                StartExecResults::Attached { log } => match log {
+                    LogOutput::StdOut { message } => {
+                        let msg = String::from_utf8_lossy(&message);
+                        stdout.push_str(&msg);
+                        if stdout.len() >= MAX_CONSOLE_FILE_SIZE {
+                            stdout.push_str("\n--- ERROR: Max output length exceeded");
+                            break;
                         }
-                        bollard::container::LogOutput::StdErr { message } => {
-                            let msg = String::from_utf8_lossy(&message);
-                            stderr.push_str(&msg);
-                            if (stderr.len() >= MAX_CONSOLE_FILE_SIZE) {
-                                stderr.push_str("\n--- ERROR: Max output length exceeded");
-                                break;
-                            }
+                    }
+                    LogOutput::StdErr { message } => {
+                        let msg = String::from_utf8_lossy(&message);
+                        stderr.push_str(&msg);
+                        if stderr.len() >= MAX_CONSOLE_FILE_SIZE {
+                            stderr.push_str("\n--- ERROR: Max output length exceeded");
+                            break;
                         }
-                        _ => {}
-                    },
-                    StartExecResults::Detached => {}
+                    }
+                    _ => (),
                 },
-                Err(e) => return Err(std::io::Error::new(std::io::ErrorKind::Other, e)),
+                StartExecResults::Detached => (),
             }
         }
 
