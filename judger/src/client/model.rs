@@ -1,6 +1,6 @@
 use crate::{
     prelude::FlowSnake,
-    tester::{ExecErrorKind, JobFailure},
+    tester::{ExecErrorKind, JobFailure, ProcessInfo},
 };
 use respector::prelude::*;
 use serde::{Deserialize, Serialize};
@@ -94,7 +94,7 @@ pub enum TestResultKind {
     TimeLimitExceeded = 4,
     MemoryLimitExceeded = 5,
     ShouldFail = 6,
-    NotRunned = -1,
+    NotRan = -1,
     Waiting = -2,
     Running = -3,
     OtherError = -100,
@@ -225,7 +225,7 @@ impl TestResult {
                         }),
                     ),
 
-                    JobFailure::Cancelled => (TestResultKind::NotRunned, None),
+                    JobFailure::Cancelled => (TestResultKind::NotRan, None),
                     JobFailure::SpjWrongAnswer(out) => (
                         TestResultKind::WrongAnswer,
                         Some(FailedJobOutputCacheFile {
@@ -333,7 +333,7 @@ pub struct JobRequestMsg {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct FailedJobOutputCacheFile {
-    pub output: Vec<crate::tester::ProcessInfo>,
+    pub output: Vec<ProcessInfo>,
     pub stdout_diff: Option<String>,
     pub message: Option<String>,
 }

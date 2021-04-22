@@ -34,5 +34,5 @@
 | PF   | PipelineFailed      | 运行时有某一步输出不为 0             |
 | TLE  | TimeLimitExceeded   | 超时了                               |
 | MLE  | MemoryLimitExceeded | 占用内存过大                         |
-| NR   | NotRunned           | 没有运行                             |
+| NR   | NotRan              | 没有运行                             |
 | OE   | OtherError          | 出现了其他错误（通常是评测机的问题） |

@@ -79,7 +79,7 @@ Configure `coordinator/appsettings.json` before running:
 }
 ```
 
-You can find an example of this file at `coordinator/appsettings.dev.json`. 
+You can find an example of this file at `coordinator/appsettings.dev.json`.
 
 You'll also need an ECDSA private key in PFX format next to the coordinator CWD, as `certs/dev.pfx` (Subject to change), in order to sign JWTs.
 
@@ -99,7 +99,7 @@ To run the judger the first time, you'll need a register token from coordinator.
 $ path/to/rurikawa connect <your_coordinator_host> --register-token <token>
 ```
 
-In subsequent runs, only `rurikawa connect` is needed if the configuration stays the same. 
+In subsequent runs, only `rurikawa connect` is needed if the configuration stays the same.
 
 Data created by the judger will be stored at `~/.rurikawa`.
 

@@ -356,15 +356,12 @@ pub async fn handle_job_wrapper(
             .send()
             .and_then(|r| async {
                 let status = r.status();
-                if status.is_success() {
-                    return Ok(());
-                }
-                r.text()
-                    .await
-                    .inspect(|t| {
+                if !status.is_success() {
+                    r.text().await.inspect(|t| {
                         tracing::error!("Error when sending job result mesage: {}\n{}", status, t)
-                    })
-                    .map(drop)
+                    })?;
+                }
+                Ok(())
             })
             .await;
         if res.is_ok() {
@@ -713,7 +710,7 @@ async fn poll_jobs(
             .with_cancel(keepalive_token.child_token())
             .await
         {
-            break;
+            break 'outer;
         }
 
         tokio::spawn({
@@ -737,7 +734,7 @@ async fn poll_jobs(
             .await
             .is_none()
         {
-            break;
+            break 'outer;
         }
     }
 }

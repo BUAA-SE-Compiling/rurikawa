@@ -5,6 +5,7 @@
         "Karenia",
         "Popen",
         "canonicalize",
+        "clippy",
         "deserialization",
         "forcerm",
         "golemc",

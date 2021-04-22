@@ -155,7 +155,7 @@ namespace Karenia.Rurikawa.Models.Test {
         TimeLimitExceeded = 4,
         MemoryLimitExceeded = 5,
         ShouldFail = 6,
-        NotRunned = -1,
+        NotRan = -1,
         Waiting = -2,
         Running = -3,
         OtherError = -100,
