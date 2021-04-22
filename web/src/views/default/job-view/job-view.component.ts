@@ -161,7 +161,7 @@ export class JobViewComponent implements OnInit, OnChanges, OnDestroy {
       .map(([key, val]) => [
         key,
         val,
-        this.flatCaseMap?.get(key).baseScore ?? 1,
+        this.flatCaseMap?.get(key)?.baseScore ?? 1,
       ]);
   }
 

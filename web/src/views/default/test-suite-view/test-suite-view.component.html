@@ -14,90 +14,95 @@
       </span>
     </div>
   </div>
-  <div class="row top">
-    <div class="lblk">
-      <div id="job-submit">
-        <h2>提交评测</h2>
-        <div class="input-list">
-          <textbox
-            class="repo-input"
-            type="text"
-            placeholder="https://my-git.com/my-repo.git"
-            caption="仓库地址"
-            [icon]="repoIcon"
-            [(value)]="repo"
-            [message]="this.repoMessage"
-          ></textbox>
-          <textbox
-            class="branch-input"
-            type="text"
-            placeholder="master"
-            caption="分支"
-            [icon]="branchIcon"
-            [(value)]="branch"
-          ></textbox>
-        </div>
-        <div class="section" *ngIf="testGroups?.length > 1">
-          <h3>参与的测试组</h3>
-          <div class="row">
-            <div class="group" *ngFor="let group of testGroups">
-              <app-toggle-button
-                [active]="usingTestGroup.has(group.key)"
-                (activeChanged)="changeGroupActivation(group.key, $event)"
-              >
-                {{ group.key }}
-              </app-toggle-button>
+  <ng-template [ngIf]="suite" [ngIfElse]="loading">
+    <div class="row top">
+      <div class="lblk">
+        <div id="job-submit">
+          <h2>提交评测</h2>
+          <div class="input-list">
+            <textbox
+              class="repo-input"
+              type="text"
+              placeholder="https://my-git.com/my-repo.git"
+              caption="仓库地址"
+              [icon]="repoIcon"
+              [(value)]="repo"
+              [message]="this.repoMessage"
+            ></textbox>
+            <textbox
+              class="branch-input"
+              type="text"
+              placeholder="master"
+              caption="分支"
+              [icon]="branchIcon"
+              [(value)]="branch"
+            ></textbox>
+          </div>
+          <div class="section" *ngIf="testGroups?.length > 1">
+            <h3>参与的测试组</h3>
+            <div class="row">
+              <div class="group" *ngFor="let group of testGroups">
+                <app-toggle-button
+                  [active]="usingTestGroup.has(group.key)"
+                  (activeChanged)="changeGroupActivation(group.key, $event)"
+                >
+                  {{ group.key }}
+                </app-toggle-button>
+              </div>
+            </div>
+          </div>
+          <div class="row submit-btn-row text">
+            <!-- <div class="ghost-btn">添加 Webhook</div> -->
+            <div
+              class="btn dark test-"
+              (click)="submitTest()"
+              [ngClass]="{ disabled: submittingTest }"
+            >
+              提交
             </div>
           </div>
         </div>
-        <div class="row submit-btn-row text">
-          <!-- <div class="ghost-btn">添加 Webhook</div> -->
-          <div
-            class="btn dark test-"
-            (click)="submitTest()"
-            [ngClass]="{ disabled: submittingTest }"
-          >
-            提交
-          </div>
-        </div>
-      </div>
-      <div
-        id="section"
-        *ngIf="suite?.description !== undefined && jobs !== undefined"
-      >
-        <app-collapse-box [initialState]="descCollapsed">
-          <h2 title>测试描述</h2>
-          <div body class="markdown-wrapper">
-            <markdown [data]="suite?.description"></markdown>
-          </div>
-        </app-collapse-box>
-      </div>
-    </div>
-    <div class="rblk" id="job-list" [@staggerLoadJobs]="jobs && jobs.length">
-      <h2>评测记录</h2>
-      <ng-template
-        [ngIf]="jobs === undefined || jobs.length === 0"
-        [ngIfElse]="jobLog"
-      >
-        <div class="no-list">没有评测记录</div>
-      </ng-template>
-      <ng-template #jobLog>
-        <app-job-item
-          class="test-item"
-          *ngFor="let job of jobs; trackBy: trackBy"
-          [job]="job"
-          [testSuite]="suite"
-          (click)="gotoJob(job.id)"
-        ></app-job-item>
         <div
-          class="btn secondary"
-          *ngIf="!allJobsFinished"
-          (click)="loadMore()"
+          id="section"
+          *ngIf="suite?.description !== undefined && jobs !== undefined"
         >
-          加载更多
+          <app-collapse-box [initialState]="descCollapsed">
+            <h2 title>测试描述</h2>
+            <div body class="markdown-wrapper">
+              <markdown [data]="suite?.description"></markdown>
+            </div>
+          </app-collapse-box>
         </div>
-        <div class="" *ngIf="allJobsFinished">没了</div>
-      </ng-template>
+      </div>
+      <div class="rblk" id="job-list" [@staggerLoadJobs]="jobs && jobs.length">
+        <h2>评测记录</h2>
+        <ng-template
+          [ngIf]="jobs === undefined || jobs.length === 0"
+          [ngIfElse]="jobLog"
+        >
+          <div class="no-list">没有评测记录</div>
+        </ng-template>
+        <ng-template #jobLog>
+          <app-job-item
+            class="test-item"
+            *ngFor="let job of jobs; trackBy: trackBy"
+            [job]="job"
+            [testSuite]="suite"
+            (click)="gotoJob(job.id)"
+          ></app-job-item>
+          <div
+            class="btn secondary"
+            *ngIf="!allJobsFinished"
+            (click)="loadMore()"
+          >
+            加载更多
+          </div>
+          <div class="" *ngIf="allJobsFinished">没了</div>
+        </ng-template>
+      </div>
     </div>
-  </div>
+  </ng-template>
+  <ng-template #loading>
+    <div class="row">正在加载测试集 {{ id }}</div>
+  </ng-template>
 </div>

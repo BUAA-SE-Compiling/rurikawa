@@ -5,6 +5,12 @@ use std::{
     fmt::{Debug, Formatter},
 };
 
+/// FlowSnake is a 64-bit unique identifier format.
+///
+/// ```plaintext
+/// | 63 ... 31 | 30 ... 18 | 17 ... 0 |
+/// | timestamp | worker_id | sequence |
+/// ```
 #[derive(Copy, Clone, Ord, PartialOrd, Eq, PartialEq, Hash)]
 pub struct FlowSnake(pub u64);
 
@@ -36,12 +42,14 @@ const CHAR_TO_BASE32: [u8; 128] = [
 
 const ALPHABET: &[u8; 32] = b"0123456789abcdefghjkmnpqrstvwxyz";
 
+#[derive(Debug)]
 pub enum FlowSnakeDeserializeError {
     InvalidLength(usize),
     InvalidChar(usize, char),
 }
 
 impl FlowSnake {
+    /// Create a FlowSnake from its parts.
     pub fn new_parts(timestamp: u64, worker_id: u64, seq: u64) -> FlowSnake {
         let n = ((timestamp & ((1 << TIMESTAMP_BITS) - 1)) << (WORKER_ID_BITS + SEQUENCE_BITS))
             | ((worker_id & ((1 << WORKER_ID_BITS) - 1)) << (SEQUENCE_BITS))
@@ -49,6 +57,15 @@ impl FlowSnake {
         FlowSnake(n)
     }
 
+    /// Disassemble a FlowSnake into its parts (time, worker id, sequence).
+    pub fn parts(self) -> (u64, u64, u64) {
+        let time_bits = self.0 >> (WORKER_ID_BITS + SEQUENCE_BITS);
+        let worker_bits = self.0 >> SEQUENCE_BITS & ((1 << WORKER_ID_BITS) - 1);
+        let seq_bits = self.0 & ((1 << SEQUENCE_BITS) - 1);
+        (time_bits, worker_bits, seq_bits)
+    }
+
+    /// Generate a FlowSnake using its default generation method.
     pub fn generate() -> FlowSnake {
         let time = std::time::SystemTime::now()
             .duration_since(std::time::SystemTime::UNIX_EPOCH)
@@ -74,6 +91,7 @@ impl FlowSnake {
         FlowSnake::new_parts(time, worker_id, seq)
     }
 
+    /// Parse a FlowSnake from string.
     pub fn parse(s: &str) -> Result<FlowSnake, FlowSnakeDeserializeError> {
         if s.len() < 13 {
             return Err(FlowSnakeDeserializeError::InvalidLength(s.len()));
@@ -94,6 +112,7 @@ impl FlowSnake {
         Ok(FlowSnake(n))
     }
 
+    /// Write a FlowSnake to a byte buffer that is more than 13 bytes.
     pub fn write_str_buffered(&self, buf: &mut [u8]) -> Result<(), FlowSnakeFormatErr> {
         if buf.len() < 13 {
             return Err(FlowSnakeFormatErr::SliceTooSmall);
@@ -105,6 +124,7 @@ impl FlowSnake {
         Ok(())
     }
 
+    /// Write a pretty FlowSnake to a byte buffer that is more than 14 bytes.
     pub fn write_str_dashed_buffered(&self, buf: &mut [u8]) -> Result<(), FlowSnakeFormatErr> {
         if buf.len() < 14 {
             return Err(FlowSnakeFormatErr::SliceTooSmall);
