@@ -85,12 +85,9 @@ namespace Karenia.Rurikawa.Coordinator {
             // Setup redis
             var redisConnString = Configuration.GetValue<string>("redisLink");
             services.AddSingleton(_ => new RedisService(redisConnString));
+            services.AddSingleton(_ => testStorageParams);
 
-            services.AddSingleton(
-                svc => new SingleBucketFileStorageService(
-                    testStorageParams,
-                    svc.GetService<ILogger<SingleBucketFileStorageService>>())
-            );
+            services.AddSingleton<SingleBucketFileStorageService>();
             services.AddSingleton<JudgerCoordinatorService>();
             services.AddSingleton<FrontendUpdateService>();
             services.AddScoped<AccountService>();
@@ -100,6 +97,7 @@ namespace Karenia.Rurikawa.Coordinator {
             services.AddScoped<JudgerAuthenticateService>();
             services.AddScoped<TemporaryTokenAuthService>();
             services.AddSingleton<DbVacuumingService>();
+            services.AddSingleton<SingleBucketFileStorageService.MinioRequestLogger>();
             services.AddSingleton<JsonSerializerOptions>(_ =>
                 SetupJsonSerializerOptions(new JsonSerializerOptions())
             );
@@ -209,16 +207,16 @@ namespace Karenia.Rurikawa.Coordinator {
             });
 
             // migrate database if needed
-            if (svc.GetService<DbOptions>().AlwaysMigrate) {
-                svc.GetService<RurikawaDb>().Database.Migrate();
+            if (svc.GetService<DbOptions>()!.AlwaysMigrate) {
+                svc.GetService<RurikawaDb>()!.Database.Migrate();
             }
 
             // pre-initialize long-running services
             var coordinator = svc.GetService<JudgerCoordinatorService>();
             // coordinator.RevertJobStatus().AsTask().Wait();
-            var vacuumingService = svc.GetService<DbVacuumingService>();
+            var vacuumingService = svc.GetService<DbVacuumingService>()!;
             vacuumingService.StartVacuuming();
-            var client = svc.GetService<SingleBucketFileStorageService>();
+            var client = svc.GetService<SingleBucketFileStorageService>()!;
             client.Check().Wait();
 
             app.UseEndpoints(endpoints => {

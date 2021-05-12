@@ -1,10 +1,13 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using Karenia.Rurikawa.Helpers;
 using Microsoft.Extensions.Logging;
+using Minio;
+using Minio.DataModel.Tracing;
 
 namespace Karenia.Rurikawa.Coordinator.Services {
     public class SingleBucketFileStorageService {
@@ -21,7 +24,8 @@ namespace Karenia.Rurikawa.Coordinator.Services {
 
         public SingleBucketFileStorageService(
             Params param,
-            ILogger<SingleBucketFileStorageService> logger
+            ILogger<SingleBucketFileStorageService> logger,
+            MinioRequestLogger? minioRequestLogger
         ) : this(
             param.Bucket,
             param.Endpoint,
@@ -30,7 +34,8 @@ namespace Karenia.Rurikawa.Coordinator.Services {
             param.SecretKey,
             param.Ssl,
             param.PublicSsl,
-            logger
+            logger,
+            minioRequestLogger
         ) { }
 
         public SingleBucketFileStorageService(
@@ -41,9 +46,11 @@ namespace Karenia.Rurikawa.Coordinator.Services {
             string secretKey,
             bool hasSsl,
             bool hasPublicSsl,
-            ILogger<SingleBucketFileStorageService> logger
+            ILogger<SingleBucketFileStorageService> logger,
+            MinioRequestLogger? minioRequestLogger
         ) {
             client = new Minio.MinioClient(endpoint, accessKey, secretKey);
+            client.SetTraceOn(minioRequestLogger);
             if (hasSsl) client = client.WithSSL();
             this.bucket = bucket;
             this.endpoint = endpoint;
@@ -128,5 +135,42 @@ namespace Karenia.Rurikawa.Coordinator.Services {
             logger.LogInformation("Mapped endpoint {0} as {1}", filename, uri.ToString());
             return uri.ToString();
         }
+
+        /// <summary>
+        /// Adaptor to ASP.NET Core's logger
+        /// </summary>
+        public class MinioRequestLogger : Minio.IRequestLogger {
+            private readonly ILogger<MinioClient> logger;
+
+            public MinioRequestLogger(ILogger<MinioClient> logger) {
+                this.logger = logger;
+            }
+
+            public void LogRequest(RequestToLog requestToLog, ResponseToLog responseToLog, double durationMs) {
+                if (!this.logger.IsEnabled(LogLevel.Trace)) return;
+
+                var msg = new StringBuilder();
+                msg.AppendFormat("{0}ms\n", durationMs);
+                msg.AppendFormat("--> {0} {1} : {2}\n", requestToLog.method, requestToLog.uri, requestToLog.resource);
+                foreach (var param in requestToLog.parameters) {
+                    msg.AppendFormat("    {0}: {1}\n", param.name, param.value);
+                }
+
+                msg.AppendFormat("<-- {0}\n", responseToLog.statusCode);
+                foreach (var header in responseToLog.headers) {
+                    msg.AppendFormat("    {0}: {1}\n", header.Name, header.Value);
+                }
+                msg.AppendLine();
+                if (responseToLog.errorMessage != null && responseToLog.errorMessage != "") {
+                    msg.AppendFormat("Err: {0}", responseToLog.errorMessage);
+                } else {
+                    msg.Append(responseToLog.content);
+                }
+
+
+                this.logger.LogTrace(msg.ToString());
+            }
+        }
     }
+
 }
