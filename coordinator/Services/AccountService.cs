@@ -121,6 +121,7 @@ namespace Karenia.Rurikawa.Coordinator.Services {
         }
 
         const int TOKEN_LENGTH = 32;
+        private const int WorkFactor = 7;
         static readonly char[] TOKEN_ALPHABET = "0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ_-.~".ToCharArray();
 
 
@@ -311,7 +312,7 @@ namespace Karenia.Rurikawa.Coordinator.Services {
         }
 
         public string HashPasswordWithGeneratedSalt(string password) {
-            return BCrypt.Net.BCrypt.EnhancedHashPassword(password, 11);
+            return BCrypt.Net.BCrypt.EnhancedHashPassword(password, WorkFactor);
         }
 
         public bool VerifyPassword(string provided, string hashed) {
