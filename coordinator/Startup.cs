@@ -176,7 +176,7 @@ namespace Karenia.Rurikawa.Coordinator {
 
             // Add websocket acceptor
             app.Use(async (ctx, next) => {
-                logger.LogInformation("{0}，{1}", ctx.Request.Path, ctx.WebSockets.IsWebSocketRequest);
+                // logger.LogInformation("{0}，{1}", ctx.Request.Path, ctx.WebSockets.IsWebSocketRequest);
                 if (ctx.Request.Path == "/api/v1/judger/ws") {
                     if (ctx.WebSockets.IsWebSocketRequest) {
                         var svc = app.ApplicationServices.GetService<JudgerCoordinatorService>();
@@ -191,7 +191,7 @@ namespace Karenia.Rurikawa.Coordinator {
                 }
             });
             app.Use(async (ctx, next) => {
-                logger.LogInformation("{0}，{1}", ctx.Request.Path, ctx.WebSockets.IsWebSocketRequest);
+                // logger.LogInformation("{0}，{1}", ctx.Request.Path, ctx.WebSockets.IsWebSocketRequest);
                 if (ctx.Request.Path == "/api/v1/tests/ws") {
                     if (ctx.WebSockets.IsWebSocketRequest) {
                         var svc = app.ApplicationServices.GetService<FrontendUpdateService>();
