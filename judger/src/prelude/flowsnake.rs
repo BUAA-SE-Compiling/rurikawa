@@ -8,7 +8,7 @@ use std::{
 /// FlowSnake is a 64-bit unique identifier format.
 ///
 /// ```plaintext
-/// | 63 ... 31 | 30 ... 18 | 17 ... 0 |
+/// | 63 ... 30 | 29 ... 18 | 17 ... 0 |
 /// | timestamp | worker_id | sequence |
 /// ```
 #[derive(Copy, Clone, Ord, PartialOrd, Eq, PartialEq, Hash)]
