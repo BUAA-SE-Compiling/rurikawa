@@ -255,7 +255,7 @@ pub async fn check_download_read_test_suite(
         Err(e) => match e.kind() {
             std::io::ErrorKind::NotFound => {
                 return Err(JobExecErr::NoSuchFile(
-                    judger_conf_dir.to_string_lossy().to_owned().to_string(),
+                    judger_conf_dir.to_string_lossy().into_owned(),
                 ));
             }
             _ => return Err(JobExecErr::Io(e)),
@@ -356,15 +356,12 @@ pub async fn handle_job_wrapper(
             .send()
             .and_then(|r| async {
                 let status = r.status();
-                if status.is_success() {
-                    return Ok(());
-                }
-                r.text()
-                    .await
-                    .inspect(|t| {
+                if !status.is_success() {
+                    r.text().await.inspect(|t| {
                         tracing::error!("Error when sending job result mesage: {}\n{}", status, t)
-                    })
-                    .map(drop)
+                    })?;
+                }
+                Ok(())
             })
             .await;
         if res.is_ok() {
@@ -380,10 +377,9 @@ pub async fn handle_job_wrapper(
         cfg.running_job_handles.lock().await.remove(&job_id);
     }
 
-    match fs::ensure_removed_dir(&cfg.job_folder(job_id)).await {
-        Ok(_) => {}
-        Err(e) => tracing::error!("Failed to remove directory for job {}: {}", job_id, e),
-    };
+    let _ = fs::ensure_removed_dir(&cfg.job_folder(job_id))
+        .await
+        .inspect_err(|e| tracing::error!("Failed to remove directory for job {}: {}", job_id, e));
     tracing::info!("{}: cleanup complete", job_id);
 }
 
@@ -659,16 +655,13 @@ async fn keepalive(
         .await
         .is_some()
     {
-        match {
-            ws.send_conf(tokio_tungstenite::tungstenite::Message::Ping(vec![]), true)
-                .await
-        } {
-            Ok(_) => {}
-            Err(e) => {
-                keepalive_token.cancel();
-                tracing::error!("Server disconnected: {}", e);
-                break;
-            }
+        if let Err(e) = ws
+            .send_conf(tokio_tungstenite::tungstenite::Message::Ping(vec![]), true)
+            .await
+        {
+            keepalive_token.cancel();
+            tracing::error!("Server disconnected: {}", e);
+            break;
         };
     }
 }
@@ -681,14 +674,14 @@ async fn poll_jobs(
     retry_interval: std::time::Duration,
     poll_timeout: std::time::Duration,
 ) {
-    while {
+    'outer: loop {
         while client_config.waiting_for_jobs.load().is_some() {
             if tokio::time::sleep(retry_interval)
                 .with_cancel(keepalive_token.child_token())
                 .await
                 .is_none()
             {
-                return;
+                break 'outer;
             }
         }
 
@@ -712,13 +705,12 @@ async fn poll_jobs(
             request_for_new_task,
             message_id: Some(message_id),
         });
-        if !matches!(
-            ws.send_msg(&msg)
-                .with_cancel(keepalive_token.child_token())
-                .await,
-            Some(Ok(_))
-        ) {
-            return;
+        if let Some(Ok(_)) = ws
+            .send_msg(&msg)
+            .with_cancel(keepalive_token.child_token())
+            .await
+        {
+            break 'outer;
         }
 
         tokio::spawn({
@@ -737,11 +729,14 @@ async fn poll_jobs(
             }
         });
 
-        tokio::time::sleep(poll_interval)
+        if tokio::time::sleep(poll_interval)
             .with_cancel(keepalive_token.child_token())
             .await
-            .is_some()
-    } {}
+            .is_none()
+        {
+            break 'outer;
+        }
+    }
 }
 
 #[allow(clippy::if_same_then_else)]
@@ -771,65 +766,58 @@ pub async fn client_loop(
         std::time::Duration::from_secs(60),
     ));
 
-    while let Some(Some(Ok(x))) = ws_recv
+    while let Some(Ok(x)) = ws_recv
         .next()
         .with_cancel(keepalive_cancel.child_token())
         .await
+        .flatten()
     {
-        let x: Message = x;
-        if x.is_text() {
-            let payload = x.into_data();
-            let msg = from_slice::<ServerMsg>(&payload);
-            match msg {
-                Ok(msg) => match msg {
-                    ServerMsg::MultiNewJob(msg) => {
-                        let mut proceed = true;
-                        if let Some(id) = msg.reply_to {
-                            if client_config
-                                .waiting_for_jobs
-                                .swap(None)
-                                .map_or(false, |x| id != *x)
-                            {
-                                proceed = false;
-                            }
-                        };
+        match x {
+            Message::Text(payload) => {
+                let msg = from_slice::<ServerMsg>(payload.as_bytes());
+                if let Ok(msg) = msg.inspect_err(|e| {
+                    tracing::warn!("Unable to deserialize mesage: {}\nError: {:?}", &payload, e);
+                }) {
+                    match msg {
+                        ServerMsg::MultiNewJob(msg) => {
+                            let mut proceed = true;
+                            if let Some(id) = msg.reply_to {
+                                if client_config
+                                    .waiting_for_jobs
+                                    .swap(None)
+                                    .map_or(false, |x| id != *x)
+                                {
+                                    proceed = false;
+                                }
+                            };
 
-                        if proceed {
-                            for job in msg.jobs {
-                                accept_job(job, ws_send.clone(), client_config.clone()).await
+                            if proceed {
+                                for job in msg.jobs {
+                                    accept_job(job, ws_send.clone(), client_config.clone()).await
+                                }
                             }
                         }
+                        ServerMsg::AbortJob(job) => {
+                            let job_id = job.job_id;
+                            let (inserted_send, inserted_recv) =
+                                futures::channel::oneshot::channel();
+                            let abort =
+                                tokio::spawn(cancel_job(job, client_config.clone(), inserted_recv));
+                            client_config
+                                .cancelling_job_handles
+                                .lock()
+                                .await
+                                .insert(job_id, abort);
+                            let _ = inserted_send.send(());
+                        }
+                        ServerMsg::ServerHello => {
+                            tracing::info!("Hi, server o/");
+                        }
                     }
-                    ServerMsg::AbortJob(job) => {
-                        let job_id = job.job_id;
-                        let (inserted_send, inserted_recv) = futures::channel::oneshot::channel();
-                        let abort =
-                            tokio::spawn(cancel_job(job, client_config.clone(), inserted_recv));
-                        client_config
-                            .cancelling_job_handles
-                            .lock()
-                            .await
-                            .insert(job_id, abort);
-                        let _ = inserted_send.send(());
-                    }
-                    ServerMsg::ServerHello => {
-                        tracing::info!("Hi, server o/");
-                    }
-                },
-                Err(e) => {
-                    tracing::warn!(
-                        "Unable to deserialize mesage: {}\nError: {:?}",
-                        String::from_utf8_lossy(&payload),
-                        e
-                    );
                 }
             }
-        } else if x.is_ping() {
-            // noop
-        } else if x.is_pong() {
-            // also noop
-        } else {
-            tracing::warn!("Unsupported message: {:?}", x);
+            Message::Ping(_) | Message::Pong(_) => (),
+            _ => tracing::warn!("Unsupported message: {:?}", x),
         }
     }
 

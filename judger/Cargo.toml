@@ -1,5 +1,8 @@
 [package]
-authors = ["Rynco Maekawa <lynzrand@outlook.com>", "Rami3L Li <rami3l@>"]
+authors = [
+    "Rynco Maekawa <lynzrand@outlook.com>",
+    "rami3l <rami3l@outlook.com>",
+]
 edition = "2018"
 name = "rurikawa-judger"
 version = "0.3.5"

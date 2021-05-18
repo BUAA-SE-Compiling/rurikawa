@@ -13,7 +13,7 @@ export function dashboardTypeToSlider(item: TestResultKind): SliderItemKind {
       return 'error';
     case 'MemoryLimitExceeded':
       return 'warn';
-    case 'NotRunned':
+    case 'NotRan':
       return 'cancel';
     case 'OtherError':
       return 'info-alt';
@@ -103,7 +103,7 @@ export type TestResultKind =
   | 'TimeLimitExceeded'
   | 'MemoryLimitExceeded'
   | 'ShouldFail'
-  | 'NotRunned'
+  | 'NotRan'
   | 'Waiting'
   | 'Running'
   | 'OtherError';

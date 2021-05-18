@@ -155,7 +155,7 @@ namespace Karenia.Rurikawa.Models.Test {
         TimeLimitExceeded = 4,
         MemoryLimitExceeded = 5,
         ShouldFail = 6,
-        NotRunned = -1,
+        NotRan = -1,
         Waiting = -2,
         Running = -3,
         OtherError = -100,
@@ -199,8 +199,7 @@ namespace Karenia.Rurikawa.Models.Test {
                 JsonSerializerOptions options) {
                 if (reader.TokenType == JsonTokenType.String) {
                     string name = reader.GetString()!;
-                    return new TestCaseDefinition()
-                    {
+                    return new TestCaseDefinition() {
                         Name = name,
                         HasOut = true,
                         ShouldFail = false
@@ -254,8 +253,7 @@ namespace Karenia.Rurikawa.Models.Test {
                 }
 
                 if (name == null) throw new JsonException("Expected property 'name'");
-                return new TestCaseDefinition
-                {
+                return new TestCaseDefinition {
                     Name = name,
                     HasOut = hasOut ?? true,
                     ShouldFail = shouldFail ?? false,

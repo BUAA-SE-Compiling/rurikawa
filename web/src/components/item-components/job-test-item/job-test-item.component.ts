@@ -26,7 +26,7 @@ export class JobTestItemComponent implements OnInit {
         return 'AC';
       case 'MemoryLimitExceeded':
         return 'MLE';
-      case 'NotRunned':
+      case 'NotRan':
         return 'NR';
       case 'OtherError':
         return 'OE';

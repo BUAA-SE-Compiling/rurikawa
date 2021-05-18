@@ -46,8 +46,7 @@ namespace Karenia.Rurikawa.Coordinator {
             }).AddJwtBearer(opt => {
                 opt.RequireHttpsMetadata = false;
                 opt.SaveToken = true;
-                opt.TokenValidationParameters = new TokenValidationParameters
-                {
+                opt.TokenValidationParameters = new TokenValidationParameters {
                     ValidateIssuerSigningKey = true,
                     IssuerSigningKey = securityKey,
                     ValidateIssuer = false,
@@ -64,16 +63,14 @@ namespace Karenia.Rurikawa.Coordinator {
                 opt.AddPolicy("judger", policy => policy.RequireRole("judger").AddAuthenticationSchemes("judger"));
             });
 
-            services.AddSingleton<Models.Auth.AuthInfo>(_ => new Models.Auth.AuthInfo
-            {
+            services.AddSingleton<Models.Auth.AuthInfo>(_ => new Models.Auth.AuthInfo {
                 SigningKey = securityKey
             });
 
             // Setup database stuff
             var pgsqlLinkParams = Configuration.GetValue<string>("pgsqlLink");
             var alwaysMigrate = Configuration.GetValue<bool>("alwaysMigrate");
-            services.AddSingleton(_ => new DbOptions
-            {
+            services.AddSingleton(_ => new DbOptions {
                 AlwaysMigrate = alwaysMigrate
             });
             var testStorageParams = new SingleBucketFileStorageService.Params();

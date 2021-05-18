@@ -244,9 +244,7 @@ impl Default for TestSuiteOptions {
 mod de {
     use super::TestCaseDefinition;
     use serde::{
-        de::Deserializer,
-        de::MapAccess,
-        de::{self, Visitor},
+        de::{self, Deserializer, MapAccess, Visitor},
         Deserialize,
     };
     use std::str::FromStr;

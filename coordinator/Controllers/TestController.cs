@@ -76,8 +76,7 @@ namespace Karenia.Rurikawa.Coordinator.Controllers {
             if (!bypassCache) {
                 var cached = await cacheService.GetCachedTestSuiteString(id);
                 if (cached != null) {
-                    return new ContentResult()
-                    {
+                    return new ContentResult() {
                         StatusCode = 200,
                         Content = cached,
                         ContentType = "application/json"
@@ -291,8 +290,7 @@ namespace Karenia.Rurikawa.Coordinator.Controllers {
 
         async Task<TestSuite> ParseTestSuite(Stream fileStream, FlowSnake id) {
             logger.LogInformation("Parse started");
-            var opt = new ReaderOptions
-            {
+            var opt = new ReaderOptions {
                 LeaveStreamOpen = true,
             };
             string desc = "";

@@ -54,8 +54,7 @@ namespace Karenia.Rurikawa.Coordinator.Services {
                 throw new InvalidUsernameException(username);
 
             var hashedPassword = HashPasswordWithGeneratedSalt(password);
-            var account = new UserAccount
-            {
+            var account = new UserAccount {
                 Username = username,
                 HashedPassword = hashedPassword,
                 Kind = kind
@@ -136,8 +135,7 @@ namespace Karenia.Rurikawa.Coordinator.Services {
         public string CreateNewJwtAccessToken(UserAccount user, List<string> scope, DateTimeOffset expireTime) {
             var tokenHandler = new JwtSecurityTokenHandler();
             var key = authInfo.SigningKey;
-            var tokenDescriptor = new SecurityTokenDescriptor()
-            {
+            var tokenDescriptor = new SecurityTokenDescriptor() {
                 Claims = new Dictionary<string, object>(){
                     {"sub", user.Username},
                     {"role", user.Kind.ToString()},
@@ -156,8 +154,7 @@ namespace Karenia.Rurikawa.Coordinator.Services {
 
             var expiresBefore = DateTimeOffset.Now.Add(lifespan);
 
-            var wsAuth = new WebsocketAuthInfo()
-            {
+            var wsAuth = new WebsocketAuthInfo() {
                 Username = username,
                 ExpireBefore = expiresBefore
             };
@@ -179,8 +176,7 @@ namespace Karenia.Rurikawa.Coordinator.Services {
             List<string> tags) {
             var token = GenerateToken();
             db.JudgerRegisterTokens.Add(
-                new JudgerTokenEntry
-                {
+                new JudgerTokenEntry {
                     Token = token,
                     IssuedTime = DateTimeOffset.Now,
                     IsSingleUse = isSingleUse,
@@ -221,8 +217,7 @@ namespace Karenia.Rurikawa.Coordinator.Services {
             List<string> scope,
             DateTimeOffset? expireTime) {
             var accessToken = GenerateToken();
-            db.AccessTokens.Add(new AccessTokenEntry
-            {
+            db.AccessTokens.Add(new AccessTokenEntry {
                 Username = username,
                 Token = accessToken,
                 IssuedTime = DateTimeOffset.Now,
@@ -241,8 +236,7 @@ namespace Karenia.Rurikawa.Coordinator.Services {
             DateTimeOffset? expireTime,
             bool isSingleUse) {
             var refreshToken = GenerateToken();
-            db.RefreshTokens.Add(new RefreshTokenEntry
-            {
+            db.RefreshTokens.Add(new RefreshTokenEntry {
                 Username = username,
                 Token = refreshToken,
                 IssuedTime = DateTimeOffset.Now,
@@ -327,8 +321,7 @@ namespace Karenia.Rurikawa.Coordinator.Services {
             if (await db.Accounts.AnyAsync(a => a.Kind == AccountKind.Root)) {
                 throw new AlreadyInitializedException();
             }
-            db.Accounts.Add(new UserAccount
-            {
+            db.Accounts.Add(new UserAccount {
                 Username = username,
                 HashedPassword = HashPasswordWithGeneratedSalt(password),
                 Kind = AccountKind.Root
