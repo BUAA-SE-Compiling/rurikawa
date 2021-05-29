@@ -199,17 +199,22 @@ namespace Karenia.Rurikawa.Coordinator.Services {
 
         async void OnJobRequestMessage(string clientId, JobRequestMsg msg) {
             // should we dispatch a new job for this judger?
-            using (await connectionLock.LockAsync()) {
-                if (connections.TryGetValue(clientId, out var conn)) {
-                    conn.CanAcceptNewTask = msg.ActiveTaskCount > 0;
-                    conn.ActiveTaskCount = msg.ActiveTaskCount;
+            using var reqLock = await connectionLock.LockAsync();
+            if (connections.TryGetValue(clientId, out var conn)) {
+                conn.CanAcceptNewTask = msg.ActiveTaskCount > 0;
+                conn.ActiveTaskCount = msg.ActiveTaskCount;
 
-                    var dispatchedCount = await TryDispatchJobFromDatabase(conn, msg.RequestForNewTask, msg.MessageId);
+                reqLock.Dispose();
 
-                    if (dispatchedCount > 0)
-                        logger.LogInformation("Sent {1} jobs to {0}", dispatchedCount, clientId);
+                var dispatchedCount = await TryDispatchJobFromDatabase(conn, msg.RequestForNewTask, msg.MessageId);
+
+                if (dispatchedCount > 0) {
+                    logger.LogInformation("Sent {1} jobs to {0}", dispatchedCount, clientId);
+                } else {
+                    logger.LogDebug("Sent no jobs to {0}", dispatchedCount, clientId);
                 }
             }
+
         }
 
         public async void OnJobProgressMessage(string clientId, JobProgressMsg msg) {
@@ -376,7 +381,7 @@ namespace Karenia.Rurikawa.Coordinator.Services {
         }
 
         static bool ShouldAddResult(Job job) {
-            return job.Stage == JobStage.Running || job.Stage == JobStage.Finished;
+            return job.Stage != JobStage.Queued && job.Stage != JobStage.Skipped;
         }
 
         /// <summary>
