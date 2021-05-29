@@ -266,6 +266,63 @@ pub async fn check_download_read_test_suite(
     Ok(judger_conf)
 }
 
+fn extract_job_err(job_id: FlowSnake, err: &JobExecErr) -> ClientMsg {
+    tracing::warn!("job {} aborted because of error: {:?}", job_id, &err);
+
+    let (err, msg) = match err {
+        JobExecErr::NoSuchFile(f) => (
+            JobResultKind::CompileError,
+            format!("Cannot find file: {}", f),
+        ),
+        JobExecErr::NoSuchConfig(f) => (
+            JobResultKind::CompileError,
+            format!("Cannot find config for {} in `judger.toml`", f),
+        ),
+        JobExecErr::Io(e) => (JobResultKind::JudgerError, format!("IO error: {}", e)),
+        JobExecErr::Ws(e) => (
+            JobResultKind::JudgerError,
+            format!("Websocket error: {:?}", e),
+        ),
+        JobExecErr::Json(e) => (JobResultKind::JudgerError, format!("JSON error: {:?}", e)),
+        JobExecErr::TomlDes(e) => (
+            JobResultKind::JudgerError,
+            format!("TOML deserialization error: {:?}", e),
+        ),
+        JobExecErr::Request(e) => (
+            JobResultKind::JudgerError,
+            format!("Web request error: {:?}", e),
+        ),
+        JobExecErr::Build(e) => (JobResultKind::CompileError, format!("{}", e)),
+        JobExecErr::Exec(e) => (JobResultKind::PipelineError, format!("{:?}", e)),
+        JobExecErr::Any(e) => {
+            let mut real_err = None;
+            for e in e.chain() {
+                if let Some(err) = e.downcast_ref::<JobExecErr>() {
+                    real_err = Some(err);
+                } else {
+                    tracing::warn!("    ctx: {}", e);
+                }
+            }
+            if let Some(e) = real_err {
+                return extract_job_err(job_id, e);
+            } else {
+                (JobResultKind::OtherError, format!("{:?}", e))
+            }
+        }
+        JobExecErr::Git(e) => (JobResultKind::CompileError, format!("{}", e)),
+        JobExecErr::Cancelled | JobExecErr::Aborted => {
+            unreachable!()
+        }
+    };
+
+    ClientMsg::JobResult(JobResultMsg {
+        job_id,
+        results: HashMap::new(),
+        job_result: err,
+        message: Some(msg),
+    })
+}
+
 pub async fn handle_job_wrapper(
     job: Job,
     send: Arc<WsSink>,
@@ -278,9 +335,9 @@ pub async fn handle_job_wrapper(
     let res_handle = handle_job(job, send.clone(), cancel, cfg.clone())
         .instrument(tracing::info_span!("handle_job", %job_id))
         .await;
+
     let msg = match res_handle {
         Ok(_res) => ClientMsg::JobResult(_res),
-
         // These two types need explicit handling, since they are not finished
         Err(JobExecErr::Aborted) => ClientMsg::JobProgress(JobProgressMsg {
             job_id,
@@ -300,50 +357,7 @@ pub async fn handle_job_wrapper(
                 }
             },
         }),
-
-        // regular result handling
-        Err(err) => {
-            tracing::warn!("job {} aborted because of error: {:?}", job_id, &err);
-
-            let (err, msg) = match err {
-                JobExecErr::NoSuchFile(f) => (
-                    JobResultKind::CompileError,
-                    format!("Cannot find file: {}", f),
-                ),
-                JobExecErr::NoSuchConfig(f) => (
-                    JobResultKind::CompileError,
-                    format!("Cannot find config for {} in `judger.toml`", f),
-                ),
-                JobExecErr::Io(e) => (JobResultKind::JudgerError, format!("IO error: {}", e)),
-                JobExecErr::Ws(e) => (
-                    JobResultKind::JudgerError,
-                    format!("Websocket error: {:?}", e),
-                ),
-                JobExecErr::Json(e) => (JobResultKind::JudgerError, format!("JSON error: {:?}", e)),
-                JobExecErr::TomlDes(e) => (
-                    JobResultKind::JudgerError,
-                    format!("TOML deserialization error: {:?}", e),
-                ),
-                JobExecErr::Request(e) => (
-                    JobResultKind::JudgerError,
-                    format!("Web request error: {:?}", e),
-                ),
-                JobExecErr::Build(e) => (JobResultKind::CompileError, format!("{}", e)),
-                JobExecErr::Exec(e) => (JobResultKind::PipelineError, format!("{:?}", e)),
-                JobExecErr::Any(e) => (JobResultKind::OtherError, format!("{:?}", e)),
-                JobExecErr::Git(e) => (JobResultKind::CompileError, format!("{}", e)),
-                JobExecErr::Cancelled | JobExecErr::Aborted => {
-                    unreachable!()
-                }
-            };
-
-            ClientMsg::JobResult(JobResultMsg {
-                job_id,
-                results: HashMap::new(),
-                job_result: err,
-                message: Some(msg),
-            })
-        }
+        Err(e) => extract_job_err(job_id, &e),
     };
 
     loop {
@@ -397,7 +411,9 @@ pub async fn handle_job(
         .with_cancel(cancel.clone())
         .instrument(info_span!("download_test_suites", %job.test_suite))
         .await
-        .ok_or(JobExecErr::Cancelled)??;
+        .ok_or(JobExecErr::Cancelled)?
+        .context("fetching public config")?;
+
     public_cfg.binds.get_or_insert_with(Vec::new);
     tracing::info!("got test suite");
 
@@ -422,36 +438,45 @@ pub async fn handle_job(
     .with_cancel(cancel.clone())
     .await
     .ok_or(JobExecErr::Aborted)?
-    .map_err(JobExecErr::Git)?;
+    .map_err(JobExecErr::Git)
+    .context("cloning repo")?;
 
     tracing::info!("fetched");
 
-    let job_path: PathBuf = fs::find_judge_root(&job_path).await?;
+    let job_path: PathBuf = fs::find_judge_root(&job_path)
+        .await
+        .context("finding judger root")?;
     let mut judge_cfg = job_path.clone();
     judge_cfg.push(JUDGE_FILE_NAME);
 
     tracing::info!("found job description file at {:?}", &judge_cfg);
 
-    let judge_cfg = tokio::fs::read(judge_cfg).await?;
-    let judge_cfg = toml::from_slice::<JudgeToml>(&judge_cfg)?;
+    let judge_cfg = tokio::fs::read(judge_cfg)
+        .await
+        .context("reading config file")?;
+    let judge_cfg = toml::from_slice::<JudgeToml>(&judge_cfg).context("parsing judger config")?;
 
     tracing::info!("read job description file");
 
     let judge_job_cfg = judge_cfg
         .jobs
         .get(&public_cfg.name)
-        .ok_or_else(|| JobExecErr::NoSuchConfig(public_cfg.name.to_owned()))?;
+        .ok_or_else(|| JobExecErr::NoSuchConfig(public_cfg.name.to_owned()))
+        .context("parsing judger public config")?;
 
     let image = judge_job_cfg.image.clone();
 
     // Check job paths to be relative & does not navigate into parent
     if let crate::tester::model::Image::Dockerfile { path, .. } = &image {
-        crate::util::path_security::assert_child_path(path)?;
+        crate::util::path_security::assert_child_path(path)
+            .context("testing if config references external path")?;
         // Note: There's no hard links in a git repository, and also we can't
         // detect them. However, soft (symbolic) links are possible and may
         // point to strange places. We make sure that we haven't got any of
         // those in our paths.
-        crate::util::path_security::assert_no_symlink_in_path(path).await?;
+        crate::util::path_security::assert_no_symlink_in_path(path)
+            .await
+            .context("testing if config has no symlink in path")?;
     }
 
     tracing::info!("prepare to run");
@@ -676,6 +701,7 @@ async fn poll_jobs(
 ) {
     'outer: loop {
         while client_config.waiting_for_jobs.load().is_some() {
+            tracing::debug!("Loading current poll but it's Some(_)...");
             if tokio::time::sleep(retry_interval)
                 .with_cancel(keepalive_token.child_token())
                 .await
@@ -695,7 +721,7 @@ async fn poll_jobs(
         let request_for_new_task =
             client_config.cfg().max_concurrent_tasks as u32 - active_task_count;
 
-        tracing::trace!(
+        tracing::debug!(
             "Polling jobs from server. Asking for {} new jobs.",
             request_for_new_task
         );
@@ -710,6 +736,8 @@ async fn poll_jobs(
             .with_cancel(keepalive_token.child_token())
             .await
         {
+            // wtf here
+        } else {
             break 'outer;
         }
 
@@ -737,6 +765,7 @@ async fn poll_jobs(
             break 'outer;
         }
     }
+    tracing::info!("Stopping current polling session");
 }
 
 #[allow(clippy::if_same_then_else)]
@@ -778,6 +807,7 @@ pub async fn client_loop(
                 if let Ok(msg) = msg.inspect_err(|e| {
                     tracing::warn!("Unable to deserialize mesage: {}\nError: {:?}", &payload, e);
                 }) {
+                    tracing::debug!("Received message: {:?}", msg);
                     match msg {
                         ServerMsg::MultiNewJob(msg) => {
                             let mut proceed = true;
