@@ -1,8 +1,10 @@
 //! Helper functions to disallow absolute paths or relative paths that goes into
 //! parent paths.
 
+use fern::meta;
 use futures::StreamExt;
 use std::path::Path;
+use tracing::warn;
 
 /// Checks if a path is a relative path that does not navigate to its parent.
 /// Returns `Err` if it's not.
@@ -54,7 +56,19 @@ pub async fn assert_no_symlink_in_path(path: &Path) -> Result<(), std::io::Error
 }
 
 async fn assert_not_symlink(path: &Path) -> Result<(), std::io::Error> {
-    if tokio::fs::metadata(path).await?.file_type().is_symlink() {
+    let metadata = tokio::fs::metadata(path).await;
+    let metadata = match metadata {
+        Err(e) => {
+            warn!(
+                "Non-existent path when asserting not symlink: {}; err: {}",
+                path.to_string_lossy(),
+                e
+            );
+            return Ok(());
+        }
+        Ok(m) => m,
+    };
+    if metadata.file_type().is_symlink() {
         Err(std::io::Error::new(
             std::io::ErrorKind::InvalidInput,
             format!("Path {} is a symbolic link.", path.to_string_lossy()),
