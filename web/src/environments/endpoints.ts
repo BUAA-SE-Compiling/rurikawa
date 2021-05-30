@@ -18,6 +18,8 @@ export const endpoints = {
     dumpSuiteJobs: (id: string) => `admin/suite/${id}/dump_jobs`,
     dumpSuiteAllJobs: (id: string) => `admin/suite/${id}/dump_all_jobs`,
     judgerRegisterToken: 'admin/judger/register-token',
+    getUserInfo: (username: string) => `admin/user-info/${username}`,
+    searchUserInfo: `admin/user-info`,
   },
   announcement: {
     query: 'announcement',

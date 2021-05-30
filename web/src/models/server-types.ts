@@ -6,6 +6,13 @@ export interface Profile {
   studentId: string | undefined;
 }
 
+export interface AccountAndProfile {
+  username: string;
+  kind:string,
+  email: string | undefined;
+  studentId: string | undefined;
+}
+
 export interface PartialTestSuite {
   id: string;
   title: string;

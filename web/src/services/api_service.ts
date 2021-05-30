@@ -1,11 +1,13 @@
 import { HttpClient } from '@angular/common/http';
 import { Injectable } from '@angular/core';
+import { fromPairs, toPairs } from 'lodash';
 import { Observable, of } from 'rxjs';
 import { catchError } from 'rxjs/operators';
 import { endpoints } from 'src/environments/endpoints';
 import { environment } from 'src/environments/environment';
 import { Job } from 'src/models/job-items';
 import {
+  AccountAndProfile,
   Announcement,
   DashboardItem,
   JudgerStatus,
@@ -119,6 +121,35 @@ export class ApiService {
         { isSingleUse, tags },
         { responseType: 'text' }
       ),
+
+    getUserInfo: (username: string) =>
+      this.httpClient.get<AccountAndProfile>(
+        endpointBase + endpoints.admin.getUserInfo(username)
+      ),
+
+    searchUserInfo: (
+      param: {
+        usernameLike?: string;
+        kind?: string;
+        studentId?: string;
+        searchNameUsingRegex: boolean;
+      },
+      startUsername: string | undefined = '',
+      descending: boolean = false,
+      take: number = 50
+    ) => {
+      let params = fromPairs(toPairs(param).map(([x, y]) => [x, y.toString()]));
+      params.take = take.toString();
+      if (startUsername !== undefined) params.startUsername = startUsername;
+      params.descending = descending.toString();
+
+      return this.httpClient.get<AccountAndProfile[]>(
+        endpointBase + endpoints.admin.searchUserInfo,
+        {
+          params: params,
+        }
+      );
+    },
   };
 
   testSuite = {
