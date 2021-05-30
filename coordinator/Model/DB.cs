@@ -12,6 +12,7 @@ using Microsoft.EntityFrameworkCore.ChangeTracking;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
+using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
 #pragma warning disable CS8618
 namespace Karenia.Rurikawa.Models {
@@ -39,6 +40,8 @@ namespace Karenia.Rurikawa.Models {
         public DbSet<UserAccount> Accounts { get; set; }
 
         public DbSet<Profile> Profiles { get; set; }
+
+        public DbSet<AccountAndProfile> AccountAndProfileView { get; set; }
 
         public DbSet<AccessTokenEntry> AccessTokens { get; set; }
 
@@ -71,6 +74,7 @@ namespace Karenia.Rurikawa.Models {
             modelBuilder.Entity<UserAccount>().HasKey(x => x.Username);
             modelBuilder.Entity<Profile>().HasKey(x => x.Username);
             modelBuilder.Entity<Announcement>().HasKey(x => x.Id);
+            modelBuilder.Entity<AccountAndProfile>().ToView("account_and_profile").HasNoKey();
 
             modelBuilder.Entity<Job>().HasIndex(x => x.Id).IsUnique();
             modelBuilder.Entity<Job>().HasIndex(x => x.Account);
@@ -82,10 +86,22 @@ namespace Karenia.Rurikawa.Models {
             modelBuilder.Entity<JudgerEntry>().HasIndex(x => x.Id).IsUnique();
             modelBuilder.Entity<JudgerEntry>().HasIndex(x => x.Tags);
             modelBuilder.Entity<JudgerEntry>().HasIndex(x => x.AcceptUntaggedJobs);
-            modelBuilder.Entity<UserAccount>().HasIndex(x => x.Username).IsUnique();
+
+            // Note: usernames are sorted as 'NULLS LAST' so that we can use
+            // 'WHERE username > ""' to search from start, and
+            // 'WHERE username < NULL' to search from last.
+            modelBuilder.Entity<UserAccount>()
+                .HasIndex(x => x.Username)
+                .IsUnique()
+                .HasNullSortOrder(NullSortOrder.NullsLast);
             modelBuilder.Entity<UserAccount>().HasIndex(x => x.Kind);
-            modelBuilder.Entity<Profile>().HasIndex(x => x.Username).IsUnique();
+
+            modelBuilder.Entity<Profile>()
+                .HasIndex(x => x.Username)
+                .IsUnique()
+                .HasNullSortOrder(NullSortOrder.NullsLast);
             modelBuilder.Entity<Profile>().HasIndex(x => x.Email);
+            modelBuilder.Entity<Profile>().HasIndex(x => x.StudentId);
             modelBuilder.Entity<TestSuite>().HasIndex(x => x.Name);
             modelBuilder.Entity<TestSuite>().HasIndex(x => x.Id).IsUnique();
             modelBuilder.Entity<Announcement>().HasIndex(x => x.Id).IsUnique();

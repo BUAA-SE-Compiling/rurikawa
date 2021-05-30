@@ -1,8 +1,9 @@
 using System;
 using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations.Schema;
+using System.Diagnostics;
 
-#pragma warning disable CS8618  
+#pragma warning disable CS8618
 namespace Karenia.Rurikawa.Models.Account {
     public enum AccountKind {
         User,
@@ -26,6 +27,17 @@ namespace Karenia.Rurikawa.Models.Account {
         public string Username { get; set; }
         public string? Email { get; set; }
         public string? StudentId { get; set; }
+    }
+
+    /// <summary>
+    /// A combination of <c>UserAccount</c> and <c>Profile</c>, in order to provide
+    /// some basic account information.
+    /// </summary>
+    public class AccountAndProfile {
+        public string Username { get; set; }
+        public string? Email { get; set; }
+        public string? StudentId { get; set; }
+        public AccountKind Kind { get; set; }
     }
 
     /// <summary>

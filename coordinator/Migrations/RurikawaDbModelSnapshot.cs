@@ -140,9 +140,13 @@ namespace Karenia.Rurikawa.Coordinator.Migrations
                     b.HasIndex("Email")
                         .HasName("ix_profiles_email");
 
+                    b.HasIndex("StudentId")
+                        .HasName("ix_profiles_student_id");
+
                     b.HasIndex("Username")
                         .IsUnique()
-                        .HasName("ix_profiles_username");
+                        .HasName("ix_profiles_username")
+                        .HasNullSortOrder(NullSortOrder.NullsLast);
 
                     b.ToTable("profiles");
                 });
@@ -229,7 +233,8 @@ namespace Karenia.Rurikawa.Coordinator.Migrations
 
                     b.HasIndex("Username")
                         .IsUnique()
-                        .HasName("ix_accounts_username");
+                        .HasName("ix_accounts_username")
+                        .HasNullSortOrder(NullSortOrder.NullsLast);
 
                     b.ToTable("accounts");
                 });

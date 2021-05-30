@@ -357,5 +357,43 @@ namespace Karenia.Rurikawa.Coordinator.Controllers {
             return NoContent();
         }
 
+        /// <summary>
+        /// Get the basic information of the specific user.
+        /// </summary>
+        /// <param name="profileService">the service we will use</param>
+        /// <param name="username">the username of this user</param>
+        [HttpGet("user-info/{username}")]
+        public async Task<ActionResult<AccountAndProfile>> GetUserInfo(
+            [FromServices] ProfileService profileService,
+            [FromRoute] string username) {
+            var result = await profileService.GetAccountAndProfile(username);
+            if (result == null) return NotFound();
+            else return result;
+        }
+
+        /// <summary>
+        /// Search for the specific user in database.
+        /// </summary>
+        [HttpGet("user-info")]
+        public async Task<ActionResult<List<AccountAndProfile>>> GetUserInfoLists(
+            [FromServices] ProfileService profileService,
+            [FromQuery] string? usernameLike,
+            [FromQuery] AccountKind? kind,
+            [FromQuery] string? studentId,
+            [FromQuery] string? startUsername,
+            [FromQuery] bool descending,
+            [FromQuery] bool searchNameUsingRegex = false,
+            [FromQuery] int take = 50
+        ) {
+            var result = await profileService.SearchAccountAndProfile(
+                usernameLike,
+                kind,
+                studentId,
+                startUsername,
+                descending,
+                searchNameUsingRegex,
+                take);
+            return result;
+        }
     }
 }
