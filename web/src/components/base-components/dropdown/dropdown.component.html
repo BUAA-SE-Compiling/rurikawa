@@ -1,0 +1,16 @@
+<div class="textbox" [ngClass]="styleClass">
+  <div class="caption">{{ caption }}</div>
+  <div class="input input-wrapper" [ngClass]="inputClass" (click)="focus()">
+    <ic-icon
+      *ngIf="icon"
+      [icon]="icon"
+      class="icon"
+      [size]="iconSize"
+      [align]="'center,bottom,slice'"
+    ></ic-icon>
+    <select class="textbox" [(ngModel)]="_value" [disabled]="disabled" multiple >
+      <ng-content></ng-content>
+    </select>
+  </div>
+  <div class="message">{{ message }}</div>
+</div>

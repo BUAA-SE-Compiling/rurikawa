@@ -1,0 +1,15 @@
+<div class="container-slim">
+  <div class="section">
+    <div class="row text"><h1>添加用户</h1></div>
+    <textbox caption="用户名"></textbox>
+    <textbox caption="初始密码"></textbox>
+    <dropdown caption="用户类型" type="dropdown">
+      <option value="User">User</option>
+      <option value="Admin">Admin</option>
+      <option value="Root">Root</option>
+    </dropdown>
+    <div class="row right">
+      <button class="btn info" (click)="send()">确定</button>
+    </div>
+  </div>
+</div>
