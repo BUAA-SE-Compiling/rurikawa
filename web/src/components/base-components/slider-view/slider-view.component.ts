@@ -30,7 +30,7 @@ interface InternalSliderItem {
 @Component({
   selector: 'app-slider-view',
   templateUrl: './slider-view.component.html',
-  styleUrls: ['./slider-view.component.styl'],
+  styleUrls: ['./slider-view.component.less'],
 })
 export class SliderViewComponent implements OnInit {
   constructor() {}

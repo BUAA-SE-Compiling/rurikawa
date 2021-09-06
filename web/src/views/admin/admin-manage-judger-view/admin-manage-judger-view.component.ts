@@ -7,7 +7,7 @@ import { ApiService } from 'src/services/api_service';
 @Component({
   selector: 'app-admin-manage-judger-view',
   templateUrl: './admin-manage-judger-view.component.html',
-  styleUrls: ['./admin-manage-judger-view.component.styl'],
+  styleUrls: ['./admin-manage-judger-view.component.less'],
 })
 export class AdminManageJudgerViewComponent implements OnInit {
   constructor(private httpClient: HttpClient, private api: ApiService) {}

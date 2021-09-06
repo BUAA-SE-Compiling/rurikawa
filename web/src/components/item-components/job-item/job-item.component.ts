@@ -12,7 +12,7 @@ import { TestSuite } from 'src/models/server-types';
 @Component({
   selector: 'app-job-item',
   templateUrl: './job-item.component.html',
-  styleUrls: ['./job-item.component.styl'],
+  styleUrls: ['./job-item.component.less'],
 })
 export class JobItemComponent implements OnInit {
   @Input() job: Job;

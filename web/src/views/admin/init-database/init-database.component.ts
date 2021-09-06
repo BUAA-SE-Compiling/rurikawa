@@ -6,7 +6,7 @@ import { HttpErrorResponse } from '@angular/common/http';
 @Component({
   selector: 'app-init-database',
   templateUrl: './init-database.component.html',
-  styleUrls: ['./init-database.component.styl'],
+  styleUrls: ['./init-database.component.less'],
 })
 export class InitDatabaseComponent implements OnInit {
   constructor(private adminService: AdminService, private router: Router) {}

@@ -1,0 +1,15 @@
+@import "/src/styles/common";
+
+.wrapper {
+  max-width: 480px;
+}
+
+.col {
+  display: flex;
+  flex-direction: column;
+  .margin-y(var(--space-2));
+
+  & > * {
+    .margin-y(var(--space-1));
+  }
+}

@@ -14,7 +14,7 @@ import { ApiService } from 'src/services/api_service';
 @Component({
   selector: 'app-admin-test-suite-view',
   templateUrl: './admin-test-suite-view.component.html',
-  styleUrls: ['./admin-test-suite-view.component.styl'],
+  styleUrls: ['./admin-test-suite-view.component.less'],
 })
 export class AdminTestSuiteViewComponent implements OnInit {
   constructor(
@@ -88,7 +88,6 @@ export class AdminTestSuiteViewComponent implements OnInit {
   // HACK: these methods are dirty
   async dumpJobs(): Promise<void> {
     let code = await this.api.admin.getCode().toPromise();
-    console.log('code: ', code);
     window.open(
       environment.endpointBase() +
         endpoints.admin.dumpSuiteJobs(this.id) +
@@ -100,7 +99,6 @@ export class AdminTestSuiteViewComponent implements OnInit {
 
   async dumpAllJobs(): Promise<void> {
     let code = await this.api.admin.getCode().toPromise();
-    console.log('code: ', code);
     window.open(
       environment.endpointBase() +
         endpoints.admin.dumpSuiteAllJobs(this.id) +

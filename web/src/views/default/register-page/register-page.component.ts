@@ -8,7 +8,7 @@ import { Router } from '@angular/router';
 @Component({
   selector: 'app-register-page',
   templateUrl: './register-page.component.html',
-  styleUrls: ['./register-page.component.styl'],
+  styleUrls: ['./register-page.component.less'],
 })
 export class RegisterPageComponent implements OnInit {
   constructor(

@@ -5,7 +5,7 @@ import { TitleService } from 'src/services/title_service';
 @Component({
   selector: 'app-about-page',
   templateUrl: './about-page.component.html',
-  styleUrls: ['./about-page.component.styl'],
+  styleUrls: ['./about-page.component.less'],
 })
 export class AboutPageComponent implements OnInit, OnDestroy {
   constructor(private title: TitleService) {}
