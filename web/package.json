@@ -29,7 +29,6 @@
     "dayjs": "^1.8.36",
     "filesize": "^6.1.0",
     "lodash": "^4.17.20",
-    "lost": "^8.3.1",
     "marked": "^2.0.0",
     "ngx-build-plus": "^12.2.0",
     "ngx-markdown": "^12.0.0",
