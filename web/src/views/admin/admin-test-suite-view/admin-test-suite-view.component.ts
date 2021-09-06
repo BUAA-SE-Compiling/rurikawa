@@ -88,7 +88,6 @@ export class AdminTestSuiteViewComponent implements OnInit {
   // HACK: these methods are dirty
   async dumpJobs(): Promise<void> {
     let code = await this.api.admin.getCode().toPromise();
-    console.log('code: ', code);
     window.open(
       environment.endpointBase() +
         endpoints.admin.dumpSuiteJobs(this.id) +
@@ -100,7 +99,6 @@ export class AdminTestSuiteViewComponent implements OnInit {
 
   async dumpAllJobs(): Promise<void> {
     let code = await this.api.admin.getCode().toPromise();
-    console.log('code: ', code);
     window.open(
       environment.endpointBase() +
         endpoints.admin.dumpSuiteAllJobs(this.id) +

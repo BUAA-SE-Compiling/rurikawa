@@ -39,7 +39,6 @@ export class NavbarComponent implements OnInit {
   ) {
     this.adminMode = false;
     this.router.events.subscribe((ev) => {
-      console.log(ev);
       if (ev instanceof NavigationEnd) {
         if (ev.url.startsWith('/admin')) {
           this.adminMode = true;

@@ -45,7 +45,6 @@ export class DashBoardComponent implements OnInit, OnDestroy {
   fetchJudgerStat() {
     this.judgerStatusService.getData().then((v) => {
       this.judgerStat = v;
-      console.log(this.judgerStat);
     });
   }
 

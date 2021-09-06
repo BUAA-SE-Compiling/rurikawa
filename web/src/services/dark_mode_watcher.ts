@@ -58,7 +58,8 @@ function onLightMode() {
     (document.getElementById('icon-ico') as HTMLLinkElement).href =
       lightModeAssets['iconIco'];
   } catch (e) {
-    console.error(e);
+    // not important, dont log
+    // console.error(e);
   }
 }
 
@@ -75,6 +76,7 @@ function onDarkMode() {
     (document.getElementById('icon-ico') as HTMLLinkElement).href =
       darkModeAssets['iconIco'];
   } catch (e) {
-    console.error(e);
+    // not important, dont log
+    // console.error(e);
   }
 }

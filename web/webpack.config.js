@@ -1,4 +1,3 @@
-var lost = require("lost");
 var CompressionPlugin = require("compression-webpack-plugin");
 
 module.exports = {
@@ -29,7 +28,6 @@ module.exports = {
           {
             loader: "postcss-loader",
             options: {
-              plugins: [lost],
             },
           },
         ],

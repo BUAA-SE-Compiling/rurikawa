@@ -31,14 +31,12 @@ export class JudgerStatusService {
       return;
     }
     this.updating = true;
-    console.log('update');
     let data = await this.apiService.admin.getJudgerStat().toPromise();
 
     this.lastData = {
       status: data,
       time: dayjs(),
     };
-    console.log('updated', data);
 
     this.subject.next(data);
     this.updating = false;

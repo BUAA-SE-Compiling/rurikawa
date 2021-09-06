@@ -32,7 +32,6 @@ export class SettingsViewComponent implements OnInit, OnDestroy {
 
   pullProfile(retry: boolean = false) {
     this.loading = true;
-    console.log(this.accountService.Username);
     return this.api.profile.get(this.accountService.Username).pipe(
       tap({
         next: (p) => {
