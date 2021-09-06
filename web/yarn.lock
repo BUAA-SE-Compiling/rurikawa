@@ -1654,7 +1654,7 @@
 
 "@visurel/iconify-angular@^10.1.2":
   version "10.1.2"
-  resolved "https://registry.npmjs.org/@visurel/iconify-angular/-/iconify-angular-10.1.2.tgz#1a89e5888e8e05d64e06b714598ba176fc3bc80d"
+  resolved "https://registry.yarnpkg.com/@visurel/iconify-angular/-/iconify-angular-10.1.2.tgz#1a89e5888e8e05d64e06b714598ba176fc3bc80d"
   integrity sha512-7Gj8CFKUTuEakPIQj8g5gLf5YIPTFmAIL+KxsvOyFo6ZVTDZgMixZ4PwqwVv7wdUJ2mJ7UdGNLMyxyO2+T+Csg==
   dependencies:
     tslib "^2.0.0"
