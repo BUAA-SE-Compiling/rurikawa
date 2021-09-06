@@ -1,4 +1,4 @@
-@import "../../../../src/styles/common";
+@import "/src/styles/common";
 
 .test-suite-wrapper {
   flex-grow: 1;
@@ -15,20 +15,20 @@
 }
 
 .announcement {
-  .active-above(theme-breakpoint-md, {
-    lost-column: 1 / 3;
+  .active-above(@theme-breakpoint-md, {
+    .column(1, 3);
   });
 
-  .active-between(theme-breakpoint-sm, theme-breakpoint-md, {
-    lost-column: 1 / 2;
+  .active-between(@theme-breakpoint-sm, @theme-breakpoint-md, {
+    .column(1, 2);
 
     &:nth-child(3) {
       display: none;
     }
   });
 
-  .active-below(theme-breakpoint-sm, {
-    lost-column: 1 / 1;
+  .active-below(@theme-breakpoint-sm, {
+    .column(1, 1);
 
     &:nth-child(3),
     &:nth-child(2) {

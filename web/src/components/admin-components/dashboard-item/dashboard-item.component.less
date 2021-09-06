@@ -1,5 +1,4 @@
-@lost flexbox flex;
-
+@import "src/styles/common";
 .wrapper {
   margin-top: var(--space-0);
   margin-bottom: var(--space-0);
@@ -10,17 +9,17 @@
 }
 
 .title {
-  lost-column: 1 / 2;
+  .column(1, 2);
   font-weight: bold;
   font-size: var(--font-size-larger);
 }
 
 .time {
-  lost-column: 1 / 4;
+  .column(1, 4);
 }
 
 .id {
-  lost-column: 1 / 4;
+  .column(1, 4);
   font-size: var(--font-size-smaller);
   color: var(--alt-primary);
 }

@@ -1,5 +1,4 @@
-@lost flexbox flex;
-
+@import "src/styles/common";
 .wrapper {
   margin-top: var(--space-0);
   margin-bottom: var(--space-0);
@@ -11,28 +10,28 @@
 }
 
 .left-wrapper {
-  lost-column: 1 / 4;
+  .column(1, 4);
   display: flex;
   flex-direction: column;
 
   .compact & {
-    lost-column: 1 / 2;
+    .column(1, 2);
   }
 }
 
 .name {
-  lost-column: 1 / 4;
+  .column(1, 4);
   font-size: var(--font-size-larger);
   font-weight: 600;
   margin-bottom: var(--space-0);
 
   .compact & {
-    lost-column: 1 / 2;
+    .column(1, 2);
   }
 }
 
 .time {
-  lost-column: 1 / 1;
+  .column(1, 1);
   color: var(--alt-primary);
   font-variant-numeric: tabular-nums;
 }
@@ -41,11 +40,11 @@
   font-size: var(--font-size-larger);
   text-align: right;
   font-weight: 700;
-  lost-column: 1 / 4;
+  .column(1, 4);
 }
 
 .slider {
-  lost-column: 1 / 2;
+  .column(1, 2);
   align-self: stretch;
   display: flex;
   flex-direction: row;

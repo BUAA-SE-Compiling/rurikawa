@@ -15,17 +15,17 @@
     @media screen and (min-width: extract(@breakpoints,@value)) and (max-width: extract(@breakpoints,@value+1)) {
       margin-left: auto;
       margin-right: auto;
-      width: extract(widths, @value);
+      width: extract(@widths, @value);
     }
   });
 
-  @media screen and (min-width: extract( breakpoints,length(breakpoints))) {
+  @media screen and (min-width: extract(@breakpoints, length(@breakpoints))) {
     margin-left: auto;
     margin-right: auto;
-    width: extract(widths, length(widths));
+    width: extract(@widths, length(@widths));
   }
 
-  @media screen and (max-width: extract(breakpoints,0)) {
+  @media screen and (max-width: extract(@breakpoints,1)) {
     margin-left: var(--container-pad);
     margin-right: var(--container-pad);
     width: auto;
@@ -39,7 +39,7 @@
 }
 
 .active-below(@width, @block) {
-  @media screen and (max-width: width) {
+  @media screen and (max-width: @width) {
     @block();
   }
 }

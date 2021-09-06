@@ -1,8 +1,4 @@
-@import "../../../styles/common";
-
-@lost flexbox flex; // ...
-@lost rounder 99.9; // ...
-@lost gutter 16px;
+@import "/src/styles/common";
 
 .row {
   flex-wrap: wrap;
@@ -45,54 +41,54 @@
 
 .input-list {
   .margin-y(var(--space-2));
-  lost-flex-container: row;
+  .column-container();
 }
 
 .repo-input {
   box-sizing: border-box;
-  lost-column: 2 / 3 2 16px;
+  .column(2, 3, 2);
   .margin-y(var(--space-1));
 
-  .active-above(theme-breakpoint-lg,{
-    lost-column: 1 / 1;
+  .active-above(@theme-breakpoint-lg,{
+    .column(1, 1);
   });
 
-  .active-below(theme-breakpoint-sm, {
-    lost-column: 1 / 1;
+  .active-below(@theme-breakpoint-sm, {
+    .column(1, 1);
   });
 }
 
 .branch-input {
   box-sizing: border-box;
   .margin-y(var(--space-1));
-  lost-column: 1 / 3 2 16px;
+  .column(1, 3, 2);
 
-  .active-above(theme-breakpoint-lg, {
-    lost-column: 1 / 1;
+  .active-above(@theme-breakpoint-lg, {
+    .column(1, 1);
   });
 
-  .active-below(theme-breakpoint-sm, {
-    lost-column: 1 / 1;
+  .active-below(@theme-breakpoint-sm, {
+    .column(1, 1);
   });
 }
 
 .lblk {
-  .active-above(theme-breakpoint-lg, {
-    lost-column: 2 / 5 2 48px;
+  .active-above(@theme-breakpoint-lg, {
+    .column(2, 5, 2, 48px);
   });
 
-  .active-below(theme-breakpoint-lg, {
-    lost-column: 1 / 1;
+  .active-below(@theme-breakpoint-lg, {
+    .column(1, 1);
   });
 }
 
 .rblk {
-  .active-above(theme-breakpoint-lg, {
-    lost-column: 3 / 5 2 48px;
+  .active-above(@theme-breakpoint-lg, {
+    .column(3, 5, 2, 48px);
   });
 
-  .active-below(theme-breakpoint-lg, {
-    lost-column: 1 / 1;
+  .active-below(@theme-breakpoint-lg, {
+    .column(1, 1);
   });
 }
 

@@ -1,0 +1,61 @@
+// A minimal replica of Lost-grid for simple column uses
+
+@col-gutter-default: 16px;
+@col-rounder: 99.9%;
+
+#column-util() {
+  .make-column(@col, @total, @cycle, @col-gutter) {
+    width: calc(
+      @col-rounder * @col / @total - (@col-gutter - @col-gutter * @col / @total)
+    );
+    margin-left: 0;
+    margin-right: @col-gutter;
+    flex-grow: 0;
+    flex-shrink: 0;
+
+    &:nth-child(@{cycle}n) {
+      margin-right: 0;
+    }
+  }
+
+  .make-waffle(@col, @total, @cycle, @col-gutter) {
+    #column-util.make-column(@col, @total, @cycle, @col-gutter);
+    margin-top: 0;
+    margin-bottom: @col-gutter;
+
+    &:nth-last-child(-n + @{cycle}) {
+      margin-bottom: 0;
+    }
+  }
+}
+
+.column-container() {
+  display: flex;
+  flex-direction: row;
+  flex-wrap: wrap;
+}
+
+// Create a column with @col columns in @total columns
+.column(@col, @total) {
+  #column-util.make-column(@col, @total, ceil((@total / @col)), @col-gutter-default);
+}
+
+.column(@col, @total, @cycle) {
+  #column-util.make-column(@col, @total, @cycle, @col-gutter-default);
+}
+
+.column(@col, @total, @cycle, @col-gutter: @col-gutter-default) {
+  #column-util.make-column(@col, @total, @cycle, @col-gutter);
+}
+
+.waffle(@col, @total) {
+  #column-util.make-waffle(@col, @total, ceil((@total / @col)), @col-gutter-default);
+}
+
+.waffle(@col, @total, @cycle) {
+  #column-util.make-waffle(@col, @total, @cycle, @col-gutter-default);
+}
+
+.waffle(@col, @total, @cycle, @col-gutter: @col-gutter-default) {
+  #column-util.make-waffle(@col, @total, @cycle, @col-gutter);
+}

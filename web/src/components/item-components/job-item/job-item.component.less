@@ -1,5 +1,4 @@
-@lost flexbox flex;
-
+@import "src/styles/common";
 .row {
   lost-flex-container: row;
   align-items: baseline;
@@ -7,34 +6,34 @@
 }
 
 .left-wrapper {
-  lost-column: 1 / 4;
+  .column(1, 4);
   display: flex;
   flex-direction: column;
 
   .compact & {
-    lost-column: 1 / 2;
+    .column(1, 2);
   }
 }
 
 .id {
-  lost-column: 1 / 4;
+  .column(1, 4);
   // font-size: var(--font-size-larger)
   font-size: var(--font-size-smaller);
   color: var(--secondary-color);
 
   .compact & {
-    lost-column: 1 / 2;
+    .column(1, 2);
   }
 }
 
 .time {
-  lost-column: 1 / 4;
+  .column(1, 4);
   font-variant-numeric: tabular-nums;
 }
 
 .repo {
   font-size: var(--font-size-smaller);
-  lost-column: 1 / 4;
+  .column(1, 4);
   text-align: right;
   color: var(--secondary-color);
 }
@@ -43,7 +42,7 @@
   font-size: var(--font-size-larger);
   text-align: right;
   font-weight: 700;
-  lost-column: 1 / 4;
+  .column(1, 4);
 
   .score-sub {
     font-weight: 500;
@@ -52,7 +51,7 @@
 }
 
 .slider {
-  lost-column: 1 / 2;
+  .column(1, 2);
   align-self: stretch;
   display: flex;
   flex-direction: row;

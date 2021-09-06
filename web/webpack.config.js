@@ -35,17 +35,14 @@ module.exports = {
         ],
       },
       {
-        test: /\.styl$/,
+        test: /\.less$/,
         use: [
-          {
-            loader: "postcss-loader",
-            options: {
-              plugins: [lost],
-            },
-          },
-          {
-            loader: "stylus-loader",
-          },
+          // "style-loader",
+          // {
+          //   loader: "postcss-loader",
+          // },
+          // { loader: "css-loader" },
+          "less-loader",
         ],
       },
     ],
