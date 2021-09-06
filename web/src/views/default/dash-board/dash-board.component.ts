@@ -17,7 +17,7 @@ import { AccountService } from 'src/services/account_service';
 @Component({
   selector: 'app-dash-board',
   templateUrl: './dash-board.component.html',
-  styleUrls: ['./dash-board.component.styl'],
+  styleUrls: ['./dash-board.component.less'],
 })
 export class DashBoardComponent implements OnInit, OnDestroy {
   constructor(

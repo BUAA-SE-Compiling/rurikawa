@@ -6,7 +6,7 @@ import dayjs from 'dayjs';
 @Component({
   selector: 'app-announcement-item',
   templateUrl: './announcement-item.component.html',
-  styleUrls: ['./announcement-item.component.styl'],
+  styleUrls: ['./announcement-item.component.less'],
 })
 export class AnnouncementItemComponent implements OnInit {
   constructor() {}

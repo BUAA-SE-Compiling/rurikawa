@@ -16,7 +16,7 @@ import { ApiService } from 'src/services/api_service';
 @Component({
   selector: 'app-job-testcase-view',
   templateUrl: './job-testcase-view.component.html',
-  styleUrls: ['./job-testcase-view.component.styl'],
+  styleUrls: ['./job-testcase-view.component.less'],
 })
 export class JobTestcaseViewComponent implements OnInit, OnDestroy {
   constructor(

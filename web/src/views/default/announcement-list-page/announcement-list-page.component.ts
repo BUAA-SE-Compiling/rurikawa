@@ -8,7 +8,7 @@ const FETCH_SIZE = 20;
 @Component({
   selector: 'app-announcement-list-page',
   templateUrl: './announcement-list-page.component.html',
-  styleUrls: ['./announcement-list-page.component.styl'],
+  styleUrls: ['./announcement-list-page.component.less'],
 })
 export class AnnouncementListPageComponent implements OnInit {
   constructor(private api: ApiService) {}

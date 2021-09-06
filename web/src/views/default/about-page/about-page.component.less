@@ -1,4 +1,4 @@
-@import '../../../styles/common.styl';
+@import "../../../styles/common";
 
 .wrapper {
   height: 100vh;
@@ -20,14 +20,14 @@
 }
 
 .about {
-  +active-above(theme-breakpoint-md) {
+  .active-above(theme-breakpoint-md, {
     width: 60%;
     align-self: left;
-  }
+  });
 }
 
 .icon-row {
-  margin-y: var(--space-3);
+  .margin-y(var(--space-3));
   display: flex;
   flex-direction: row;
   justify-content: flex-start;

@@ -9,7 +9,7 @@ import { ApiService } from 'src/services/api_service';
 @Component({
   selector: 'app-admin-announcement-edit-view',
   templateUrl: './admin-announcement-edit-view.component.html',
-  styleUrls: ['./admin-announcement-edit-view.component.styl'],
+  styleUrls: ['./admin-announcement-edit-view.component.less'],
 })
 export class AdminAnnouncementEditViewComponent implements OnInit {
   constructor(

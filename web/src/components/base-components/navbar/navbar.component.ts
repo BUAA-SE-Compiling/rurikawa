@@ -17,7 +17,7 @@ import {
 @Component({
   selector: 'app-navbar',
   templateUrl: './navbar.component.html',
-  styleUrls: ['./navbar.component.styl'],
+  styleUrls: ['./navbar.component.less'],
   animations: [
     trigger('adminBar', [
       transition(':enter', [

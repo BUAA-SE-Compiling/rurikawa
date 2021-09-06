@@ -9,14 +9,14 @@ import { ApiService } from 'src/services/api_service';
 @Component({
   selector: 'app-announcement-page',
   templateUrl: './announcement-page.component.html',
-  styleUrls: ['./announcement-page.component.styl'],
+  styleUrls: ['./announcement-page.component.less'],
 })
 export class AnnouncementPageComponent implements OnInit {
   constructor(
     private api: ApiService,
     private route: ActivatedRoute,
     private router: Router,
-    private account:AccountService
+    private account: AccountService
   ) {}
 
   id: string;
@@ -29,7 +29,9 @@ export class AnnouncementPageComponent implements OnInit {
     return dayjs(this.announcement.sendTime).format('YYYY-MM-DD hh:mm');
   }
 
-  get isAdmin(){return this.account.isAdmin}
+  get isAdmin() {
+    return this.account.isAdmin;
+  }
 
   ngOnInit(): void {
     this.route.paramMap.subscribe((map) => {

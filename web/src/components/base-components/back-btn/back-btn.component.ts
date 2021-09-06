@@ -5,7 +5,7 @@ import LeftIcon from '@iconify/icons-carbon/arrow-left';
 @Component({
   selector: 'app-back-btn',
   templateUrl: './back-btn.component.html',
-  styleUrls: ['./back-btn.component.styl'],
+  styleUrls: ['./back-btn.component.less'],
 })
 export class BackBtnComponent {
   constructor(private location: Location) {}

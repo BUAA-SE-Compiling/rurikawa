@@ -9,7 +9,7 @@ import { ignoreElements } from 'rxjs/operators';
 @Component({
   selector: 'app-login-page',
   templateUrl: './login-page.component.html',
-  styleUrls: ['./login-page.component.styl'],
+  styleUrls: ['./login-page.component.less'],
 })
 export class LoginPageComponent implements OnInit {
   constructor(

@@ -15,7 +15,7 @@ type borderType = 'all' | 'underline' | 'none';
   // tslint:disable-next-line: component-selector
   selector: 'textbox',
   templateUrl: './textbox.component.html',
-  styleUrls: ['./textbox.component.styl'],
+  styleUrls: ['./textbox.component.less'],
 })
 export class TextboxComponent implements OnInit {
   @Input() multiline: boolean = false;

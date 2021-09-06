@@ -1,11 +1,11 @@
-@import '../../../styles/common.styl';
+@import "../../../styles/common";
 
 .job-info {
   color: var(--secondary-color);
   display: flex;
   flex-direction: row;
   align-items: center;
-  margin-x: var(--space-2);
+  .margin-x(var(--space-2));
 
   ic-icon {
     margin-right: var(--space-0);
@@ -54,8 +54,8 @@
       font-weight: bold;
       background-color: var(--diff-bg);
       color: var(--diff-kind-text);
-      padding-y: calc((var(--space-0) / 2));
-      padding-x: calc(var(--space-0));
+      .padding-y(calc((var(--space-0) / 2)));
+      .padding-x(calc(var(--space-0)));
       box-sizing: border-box;
     }
 
@@ -92,10 +92,10 @@
   .command {
     font-family: var(--font-family-mono);
     font-size: var(--font-size-smaller);
-    margin-y: var(--space-1);
+    .margin-y(var(--space-1));
 
     &::before {
-      content: '$ ';
+      content: "$ ";
     }
   }
 
@@ -112,7 +112,7 @@
     }
 
     pre {
-      margin-y: 0;
+      .margin-y(0);
     }
   }
 

@@ -1,9 +1,9 @@
-navbar-height = 96px;
+@navbar-height: 96px;
 
 .navbar {
   width: auto;
   margin: 0;
-  height: navbar-height;
+  height: @navbar-height;
   display: flex;
   flex-direction: column;
   // justify-content: center
@@ -30,8 +30,8 @@ navbar-height = 96px;
   }
 
   &.collapse-space {
-    margin-bottom: -1 * navbar-height;
-    --background: transpaent;
+    margin-bottom: -1 * @navbar-height;
+    --background: transparent;
   }
 }
 

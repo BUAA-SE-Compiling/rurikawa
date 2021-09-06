@@ -3,7 +3,7 @@ import { Component, OnInit, Input, Output, EventEmitter } from '@angular/core';
 @Component({
   selector: 'app-collapse-box',
   templateUrl: './collapse-box.component.html',
-  styleUrls: ['./collapse-box.component.styl'],
+  styleUrls: ['./collapse-box.component.less'],
 })
 export class CollapseBoxComponent implements OnInit {
   constructor() {}

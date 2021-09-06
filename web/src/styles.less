@@ -1,34 +1,34 @@
-@import 'styles/container.styl';
-@import 'styles/common.styl';
-@import 'styles/vditor.styl';
-@import 'styles/markdown.styl';
+@import "styles/container";
+@import "styles/common";
+@import "styles/vditor";
+@import "styles/markdown";
 
 .default-palette {
   --pal-base-00: #fff;
   --pal-base-0h: #f0f0f0;
-  --pal-base-01: #E4E4E4;
-  --pal-base-02: #AFAFAF;
+  --pal-base-01: #e4e4e4;
+  --pal-base-02: #afafaf;
   --pal-base-03: #585858;
-  --pal-base-04: #1B1B1B;
+  --pal-base-04: #1b1b1b;
   --pal-base-05: #000000;
-  --pal-accent: #7BE0DA;
-  --pal-accent-alt: #80AAC8;
+  --pal-accent: #7be0da;
+  --pal-accent-alt: #80aac8;
   --pal-accent-dull: #398994;
-  --pal-error-color: #E74C5E;
-  --pal-info-color: #80AAC8;
-  --pal-warning-color: #E9C133;
-  --pal-success-color: #2CD296;
-  --pal-text-accent: #1D8680;
-  --pal-text-accent-alt: #327BAE;
+  --pal-error-color: #e74c5e;
+  --pal-info-color: #80aac8;
+  --pal-warning-color: #e9c133;
+  --pal-success-color: #2cd296;
+  --pal-text-accent: #1d8680;
+  --pal-text-accent-alt: #327bae;
   --pal-text-accent-dull: #398994;
-  --pal-text-error-color: #E74C5E;
-  --pal-text-info-color: #327BAE;
-  --pal-text-warning-color: #AD8C14;
+  --pal-text-error-color: #e74c5e;
+  --pal-text-info-color: #327bae;
+  --pal-text-warning-color: #ad8c14;
   --pal-text-success-color: #128253;
   --pal-text-over-accent: #ffffff;
-  --pal-selection-bg: #80AAC844;
-  --pal-diff-plus-bg: #2CD29644;
-  --pal-diff-minus-bg: #E74C5E44;
+  --pal-selection-bg: #80aac844;
+  --pal-diff-plus-bg: #2cd29644;
+  --pal-diff-minus-bg: #e74c5e44;
 }
 
 .inverted-palette {
@@ -39,29 +39,32 @@
   --pal-base-03: #c0c0c0;
   --pal-base-04: #dddddd;
   --pal-base-05: #fff;
-  --pal-accent: #1D8680;
-  --pal-accent-alt: #327BAE;
+  --pal-accent: #1d8680;
+  --pal-accent-alt: #327bae;
   --pal-accent-dull: #398994;
-  --pal-error-color: #E74C5E;
-  --pal-info-color: #327BAE;
-  --pal-warning-color: #AD8C14;
+  --pal-error-color: #e74c5e;
+  --pal-info-color: #327bae;
+  --pal-warning-color: #ad8c14;
   --pal-success-color: #128253;
-  --pal-text-accent: #7BE0DA;
-  --pal-text-accent-alt: #80AAC8;
+  --pal-text-accent: #7be0da;
+  --pal-text-accent-alt: #80aac8;
   --pal-text-accent-dull: #398994;
-  --pal-text-error-color: #E74C5E;
-  --pal-text-info-color: #80AAC8;
-  --pal-text-warning-color: #E9C133;
-  --pal-text-success-color: #2CD296;
+  --pal-text-error-color: #e74c5e;
+  --pal-text-info-color: #80aac8;
+  --pal-text-warning-color: #e9c133;
+  --pal-text-success-color: #2cd296;
   --pal-text-over-accent: #ffffff;
-  --pal-selection-bg: #327BAE44;
-  --pal-diff-plus-bg: #2CD29644;
-  --pal-diff-minus-bg: #E74C5E44;
+  --pal-selection-bg: #327bae44;
+  --pal-diff-plus-bg: #2cd29644;
+  --pal-diff-minus-bg: #e74c5e44;
 }
 
 .default-theme {
-  --font-family-sans: 'Work Sans', 'Sarasa Gothic', 'Sarasa UI', 'Noto Sans SC', 'Source Han Sans SC', 'Source Han Sans CN', 'MS Yahei UI', 'PingFang', Arial, 'Helvetica Neue', Helvetica, sans-serif;
-  --font-family-mono: 'IBM Plex Mono', 'Noto Sans SC', 'MS Yahei UI', 'PingFang', Consolas, 'Roboto Mono', monospace;
+  --font-family-sans: "Work Sans", "Sarasa Gothic", "Sarasa UI", "Noto Sans SC",
+    "Source Han Sans SC", "Source Han Sans CN", "MS Yahei UI", "PingFang", Arial,
+    "Helvetica Neue", Helvetica, sans-serif;
+  --font-family-mono: "IBM Plex Mono", "Noto Sans SC", "MS Yahei UI", "PingFang",
+    Consolas, "Roboto Mono", monospace;
   --background-color: var(--pal-base-00);
   --primary-color: var(--pal-base-04);
   --secondary-color: var(--pal-base-02);
@@ -124,8 +127,8 @@
 
 .btn {
   transition: all 100ms ease-in-out;
-  padding-y: var(--space-2);
-  padding-x: var(--space-4);
+  .padding-y(var(--space-2));
+  .padding-x(var(--space-4));
   background: var(--text-accent-color);
   border-color: var(--text-accent-color);
   color: var(--accent-primary);
@@ -154,8 +157,8 @@
 
 .btn.secondary {
   transition: all 100ms ease-in-out;
-  padding-y: var(--space-2);
-  padding-x: var(--space-4);
+  .padding-y(var(--space-2));
+  .padding-x(var(--space-4));
   background: transparent;
   border-color: var(--accent-color);
   color: var(--accent-color);
@@ -183,8 +186,8 @@
 .ghost-btn {
   transition: all 100ms ease-in-out;
   color: var(--accent-alt);
-  padding-y: var(--space-1);
-  padding-x: var(--space-2);
+  .padding-y(var(--space-1));
+  .padding-x(var(--space-2));
 
   &:hover {
     color: var(--alt-primary);
@@ -287,7 +290,7 @@ div {
 }
 
 p {
-  margin-y: var(--space-3);
+  .margin-y(var(--space-3));
 }
 
 pre,
@@ -310,7 +313,7 @@ a {
 }
 
 p {
-  margin-y: var(--space-0);
+  .margin-y(var(--space-0));
 }
 
 h1 {
@@ -402,7 +405,7 @@ input.input,
 
   &.border-none {
     border-width: 0;
-    padding-x: 0;
+    .padding-x(0);
   }
 
   &:hover {
@@ -446,7 +449,7 @@ ic-icon {
 }
 
 .footer {
-  padding-y: var(--space-2);
+  .padding-y(var(--space-2));
   background: var(--alt-background);
   font-size: var(--font-size-smaller);
   color: var(--secondary-color);

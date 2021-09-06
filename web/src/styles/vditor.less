@@ -1,4 +1,4 @@
-@import 'common/styl';
+@import "common";
 
 // This file contains customizations of Vditor
 .vditor.vditor-custom {
@@ -32,7 +32,7 @@
     font-family: var(--font-family-sans);
 
     p {
-      margin-y: var(--space-0);
+      .margin-y(var(--space-0));
     }
 
     h1 {
@@ -89,7 +89,7 @@
 
   .vditor-ir,
   .vditor-toolbar {
-    +active-above(theme-breakpoint-sm) {
+    .active-above(@theme-breakpoint-sm) {
       margin-left: -35px;
     }
   }

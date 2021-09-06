@@ -1,4 +1,4 @@
-@import '../../../styles/common.styl';
+@import "../../../styles/common";
 
 @lost flex flexbox;
 
@@ -22,7 +22,7 @@
   display: flex;
   flex-direction: row;
   align-items: center;
-  margin-x: var(--space-2);
+  .margin-x(var(--space-2));
 
   ic-icon {
     margin-right: var(--space-0);
@@ -38,14 +38,14 @@
 }
 
 .blk {
-  margin-y: var(--space-6);
+  .margin-y(var(--space-6));
 }
 
-.title>h1 {
+.title > h1 {
   margin-top: var(--space-0);
 }
 
-.test-points>h2 {
+.test-points > h2 {
   margin-bottom: var(--space-2);
 }
 
@@ -65,7 +65,7 @@
   flex-direction: column;
 
   app-slider-view {
-    margin-y: var(--space-2);
+    .margin-y(var(--space-2));
   }
 }
 
@@ -79,22 +79,22 @@
 }
 
 app-job-test-item {
-  +active-above(theme-breakpoint-lg) {
+  .active-above(theme-breakpoint-lg, {
     lost-waffle: 1 / 4 4 16px;
-  }
+  });
 
-  +active-between(theme-breakpoint-md, theme-breakpoint-lg) {
+  .active-between(theme-breakpoint-md, theme-breakpoint-lg, {
     lost-waffle: 1 / 3 3 16px;
     lost-utility: edit;
-  }
+  });
 
-  +active-between(theme-breakpoint-sm, theme-breakpoint-md) {
+  .active-between(theme-breakpoint-sm, theme-breakpoint-md, {
     lost-waffle: 1 / 2 2 16px;
-  }
+  });
 
-  +active-below(theme-breakpoint-sm) {
+  .active-below(theme-breakpoint-sm, {
     lost-waffle: 1 / 1 1 16px;
-  }
+  });
 
   &.clickable {
     cursor: pointer;
@@ -103,6 +103,6 @@ app-job-test-item {
   align-self: stretch;
 }
 
-.repo-rows>* {
-  margin-y: var(--space-0);
+.repo-rows > * {
+  .margin-y(var(--space-0));
 }

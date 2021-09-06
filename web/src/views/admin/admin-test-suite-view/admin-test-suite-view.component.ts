@@ -14,7 +14,7 @@ import { ApiService } from 'src/services/api_service';
 @Component({
   selector: 'app-admin-test-suite-view',
   templateUrl: './admin-test-suite-view.component.html',
-  styleUrls: ['./admin-test-suite-view.component.styl'],
+  styleUrls: ['./admin-test-suite-view.component.less'],
 })
 export class AdminTestSuiteViewComponent implements OnInit {
   constructor(

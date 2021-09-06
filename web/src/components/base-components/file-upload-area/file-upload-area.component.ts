@@ -25,7 +25,7 @@ type uploadStatus = 'waiting' | 'uploading' | 'success' | 'failed';
 @Component({
   selector: 'app-file-upload-area',
   templateUrl: './file-upload-area.component.html',
-  styleUrls: ['./file-upload-area.component.styl'],
+  styleUrls: ['./file-upload-area.component.less'],
 })
 export class FileUploadAreaComponent implements OnInit {
   constructor(private changeDetector: ChangeDetectorRef) {

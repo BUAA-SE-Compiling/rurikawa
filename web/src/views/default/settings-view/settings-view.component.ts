@@ -9,7 +9,7 @@ import { ApiService } from 'src/services/api_service';
 @Component({
   selector: 'app-settings-view',
   templateUrl: './settings-view.component.html',
-  styleUrls: ['./settings-view.component.styl'],
+  styleUrls: ['./settings-view.component.less'],
 })
 export class SettingsViewComponent implements OnInit, OnDestroy {
   constructor(
