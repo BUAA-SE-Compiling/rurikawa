@@ -1,40 +1,40 @@
-@import '../../../styles/common.styl'
+@import '../../../styles/common.styl';
 
 .wrapper {
-  height: 100vh
-  width: 100%
-  --background-color: var(--pal-accent)
-  --accent-color: var(--pal-base-03)
-  --accent-alt: var(--pal-base-03)
-  --alt-primary: var(--pal-base-04)
-  display: flex
-  flex-direction: column
-  align-items: stretch
-  background: var(--background-color)
+  height: 100vh;
+  width: 100%;
+  --background-color: var(--pal-accent);
+  --accent-color: var(--pal-base-03);
+  --accent-alt: var(--pal-base-03);
+  --alt-primary: var(--pal-base-04);
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  background: var(--background-color);
 }
 
 .about-page-container {
-  flex-grow: 1
-  margin-top: 15vh
-  color: var(--pal-base-03)
+  flex-grow: 1;
+  margin-top: 15vh;
+  color: var(--pal-base-03);
 }
 
 .about {
   +active-above(theme-breakpoint-md) {
-    width: 60%
-    align-self: left
+    width: 60%;
+    align-self: left;
   }
 }
 
 .icon-row {
-  margin-y: var(--space-3)
-  display: flex
-  flex-direction: row
-  justify-content: flex-start
+  margin-y: var(--space-3);
+  display: flex;
+  flex-direction: row;
+  justify-content: flex-start;
 }
 
 .logo {
-  font-size: var(--font-size-title)
-  font-weight: 900
-  color: var(--pal-base-03)
+  font-size: var(--font-size-title);
+  font-weight: 900;
+  color: var(--pal-base-03);
 }

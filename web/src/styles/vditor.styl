@@ -1,96 +1,96 @@
-@import 'common/styl'
+@import 'common/styl';
 
 // This file contains customizations of Vditor
 .vditor.vditor-custom {
-  --border-color: transparent
-  --second-color: var(--secondary-color)
-  --panel-background-color: transparent
-  --panel-shadow: none
-  --toolbar-height: 48px
-  --toolbar-divider-margin-top: 8px
-  --toolbar-background-color: transparent
-  --toolbar-icon-color: var(--secondary-color)
-  --toolbar-icon-hover-color: var(--alt-primary)
-  --textarea-background-color: transparent
-  --textarea-text-color: var(--primary-color)
-  --resize-icon-color: var(--border-color)
-  --resize-background-color: var(--second-color)
-  --resize-hover-icon-color: var(--toolbar-icon-hover-color)
-  --resize-hover-background-color: transparent
-  --count-background-color: transparent
-  --heading-border-color: transparent
-  --blockquote-color: var(--accent-color)
-  --ir-heading-color: var(--text-accent-color)
-  --ir-title-color: var(--text-accent-color)
-  --ir-bi-color: var(--text-info-color)
-  --ir-link-color: var(--text-info-alt-color)
-  --ir-bracket-color: var(--text-accent-alt)
-  --ir-paren-color: var(--text-accent-alt)
+  --border-color: transparent;
+  --second-color: var(--secondary-color);
+  --panel-background-color: transparent;
+  --panel-shadow: none;
+  --toolbar-height: 48px;
+  --toolbar-divider-margin-top: 8px;
+  --toolbar-background-color: transparent;
+  --toolbar-icon-color: var(--secondary-color);
+  --toolbar-icon-hover-color: var(--alt-primary);
+  --textarea-background-color: transparent;
+  --textarea-text-color: var(--primary-color);
+  --resize-icon-color: var(--border-color);
+  --resize-background-color: var(--second-color);
+  --resize-hover-icon-color: var(--toolbar-icon-hover-color);
+  --resize-hover-background-color: transparent;
+  --count-background-color: transparent;
+  --heading-border-color: transparent;
+  --blockquote-color: var(--accent-color);
+  --ir-heading-color: var(--text-accent-color);
+  --ir-title-color: var(--text-accent-color);
+  --ir-bi-color: var(--text-info-color);
+  --ir-link-color: var(--text-info-alt-color);
+  --ir-bracket-color: var(--text-accent-alt);
+  --ir-paren-color: var(--text-accent-alt);
 
   .vditor-reset {
-    color: var(--primary-color)
-    font-family: var(--font-family-sans)
+    color: var(--primary-color);
+    font-family: var(--font-family-sans);
 
     p {
-      margin-y: var(--space-0)
+      margin-y: var(--space-0);
     }
 
     h1 {
-      margin-bottom: var(--space-2)
+      margin-bottom: var(--space-2);
     }
 
     h2,
     h3 {
-      margin-bottom: calc(((var(--space-1) + var(--space-2)) / 2))
+      margin-bottom: calc(((var(--space-1) + var(--space-2)) / 2));
     }
 
     h4,
     h5,
     h6 {
-      margin-top: calc(((var(--space-1) + var(--space-0)) / 2))
-      margin-bottom: var(--space-0)
+      margin-top: calc(((var(--space-1) + var(--space-0)) / 2));
+      margin-bottom: var(--space-0);
     }
 
     h1 {
-      font-size: var(--font-size-large)
-      color: var(--alt-color)
-      font-weight: 300
-      margin-top: var(--space-3)
+      font-size: var(--font-size-large);
+      color: var(--alt-color);
+      font-weight: 300;
+      margin-top: var(--space-3);
     }
 
     h2 {
-      font-size: calc(var(--font-size-large) / 2 + var(--font-size-larger) / 2)
-      color: var(--alt-color)
-      font-weight: 400
+      font-size: calc(var(--font-size-large) / 2 + var(--font-size-larger) / 2);
+      color: var(--alt-color);
+      font-weight: 400;
     }
 
     h3 {
-      font-size: var(--font-size-larger)
-      color: var(--alt-color)
-      font-weight: 500
+      font-size: var(--font-size-larger);
+      color: var(--alt-color);
+      font-weight: 500;
     }
 
     h4 {
-      font-size: var(--font-size-larger)
-      font-weight: 700
+      font-size: var(--font-size-larger);
+      font-weight: 700;
     }
 
     h5 {
-      font-size: var(--font-size-base)
-      font-weight: 700
+      font-size: var(--font-size-base);
+      font-weight: 700;
     }
 
     h6 {
-      font-size: var(--font-size-larger)
-      font-style: italic
-      font-weight: 500
+      font-size: var(--font-size-larger);
+      font-style: italic;
+      font-weight: 500;
     }
   }
 
   .vditor-ir,
   .vditor-toolbar {
     +active-above(theme-breakpoint-sm) {
-      margin-left: -35px
+      margin-left: -35px;
     }
   }
 }
