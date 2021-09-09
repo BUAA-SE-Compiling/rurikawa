@@ -113,10 +113,14 @@ export class ApiService {
         responseType: 'text',
       }),
 
-    getJudgerRegisterToken: (isSingleUse: boolean, tags: string[]) =>
+    getJudgerRegisterToken: (
+      isSingleUse: boolean,
+      tags: string[],
+      expiresAt?: Date
+    ) =>
       this.httpClient.post(
         endpointBase + endpoints.admin.judgerRegisterToken,
-        { isSingleUse, tags },
+        { isSingleUse, tags, expires: expiresAt },
         { responseType: 'text' }
       ),
   };

@@ -1,15 +1,19 @@
-<div class="container">
+<div class="container" *ngIf="suite">
   <div class="title-row">
     <div class="row text">
       <div class="id">{{ suite?.name }}:{{ id }}</div>
       <div class="space"></div>
-      <a (click)="togglePublic()">
+      <a class="link-btn" (click)="togglePublic()">
         {{ suite.isPublic ? "公开" : "未公开" }}
       </a>
       <a [routerLink]="'/suite/' + id">测试界面</a>
-      <a (click)="removeSuite()">删除</a>
+      <a class="link-btn" (click)="removeSuite()">删除</a>
     </div>
     <h1>{{ suite?.title }}</h1>
+    <div class="tags">
+      <div class="tag" *ngFor="let tag of suite.tags">#{{ tag }}</div>
+      <div class="tag" *ngIf="!suite.tags">没有标签</div>
+    </div>
   </div>
   <div class="section">
     <h2>替换题目</h2>

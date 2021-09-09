@@ -312,6 +312,10 @@ a {
   }
 }
 
+.link-btn {
+  cursor: pointer;
+}
+
 p {
   .margin-y(var(--space-0));
 }
@@ -378,6 +382,10 @@ input {
   &::placeholder {
     color: var(--secondary-color);
     opacity: 1;
+  }
+
+  &:disabled {
+    color: var(--secondary-color);
   }
 }
 

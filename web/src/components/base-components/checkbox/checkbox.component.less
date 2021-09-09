@@ -1,0 +1,78 @@
+@import "/src/styles/common";
+
+input {
+  width: 0;
+  opacity: 0;
+}
+
+label {
+  display: flex;
+  align-items: center;
+  .padding-x(var(--space-1));
+  .padding-y(var(--space-1));
+  transition: all 200ms ease-in-out;
+
+  &.hovered,
+  &:hover {
+    background-color: var(--alt-background);
+  }
+}
+
+.box {
+  width: 16px;
+  height: 16px;
+
+  border-radius: 2px;
+  border: 2px solid;
+
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  flex-grow: 0;
+  flex-shrink: 0;
+
+  transition: all 200ms ease-in-out;
+
+  & > * {
+    display: none;
+  }
+
+  path {
+    stroke: var(--background-color);
+  }
+
+  &.indeterminate > .box-indeterminate,
+  &.active > .box-active {
+    display: block;
+  }
+
+  &:not(.disabled) {
+    border-color: var(--secondary-color);
+    background-color: var(--background-color);
+
+    &.active {
+      border-color: var(--info-color);
+      background-color: var(--info-color);
+    }
+
+    &.indeterminate {
+      border-color: var(--accent-dull);
+      background-color: var(--accent-dull);
+    }
+  }
+
+  &.disabled {
+    border-color: var(--secondary-color);
+    background-color: var(--background-color);
+
+    &.active {
+      border-color: var(--alt-background);
+      background-color: var(--alt-background);
+    }
+  }
+}
+
+.caption {
+  margin-left: var(--space-1);
+  user-select: none;
+}
