@@ -70,10 +70,10 @@ namespace Karenia.Rurikawa.Coordinator.Services {
                         case PostgresErrorCodes.DuplicateObject:
                             throw new UsernameNotUniqueException(username, e);
                         default:
-                            throw e;
+                            throw;
                     }
                 } else {
-                    throw e;
+                    throw;
                 }
             }
             return;
@@ -170,7 +170,7 @@ namespace Karenia.Rurikawa.Coordinator.Services {
             return token;
         }
 
-        public async Task<string> CreateNewJudgerToken(
+        public async Task<string> GenerateAndSaveNewJudgerToken(
             DateTimeOffset? expireAt,
             bool isSingleUse,
             List<string> tags) {
@@ -187,6 +187,7 @@ namespace Karenia.Rurikawa.Coordinator.Services {
             await db.SaveChangesAsync();
             return token;
         }
+
 
         public string? VerifyShortLivingToken(string token) {
             token = token.Replace('_', '+');
@@ -378,7 +379,7 @@ namespace Karenia.Rurikawa.Coordinator.Services {
             var res = await redisDb.StringGetAsync(key);
 
             if (res.IsNullOrEmpty) {
-                var db = serviceProvider.GetService<RurikawaDb>();
+                var db = serviceProvider.GetService<RurikawaDb>()!;
                 var valueExists = await db.Judgers.Where(judger => judger.Id == token)
                     .AnyAsync();
 

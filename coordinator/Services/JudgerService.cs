@@ -1,7 +1,10 @@
+using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Threading;
 using System.Threading.Tasks;
 using Karenia.Rurikawa.Models;
+using Karenia.Rurikawa.Models.Account;
 using Karenia.Rurikawa.Models.Judger;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
@@ -43,6 +46,47 @@ namespace Karenia.Rurikawa.Coordinator.Services {
                 .AsNoTracking()
                 .SingleOrDefaultAsync();
             return judger;
+        }
+
+        public async Task<List<JudgerEntry>> QueryJudger(
+            List<string> tag, string fromId = "", int count = 50) {
+            var judger = await db.Judgers
+                .Where(j => j.Tags != null && j.Tags.All(t => tag.Contains(t)))
+                .Where(j => j.Id.CompareTo(fromId) > 0)
+                .Take(count)
+                .AsNoTracking()
+                .ToListAsync();
+            return judger;
+        }
+
+        public async Task<List<JudgerTokenEntry>> QueryJudgerRegisterToken(
+            List<string> tags,
+            bool? expired,
+            string start,
+            int take) {
+            var query = db.JudgerRegisterTokens.AsQueryable();
+            if (tags.Count > 0) {
+                query = query.Where(token => tags.All(tag => token.Tags.Contains(tag)));
+            }
+            if (expired != null) {
+                var now = DateTimeOffset.Now;
+                if (expired.Value) {
+                    query = query.Where(token => token.Expires < now);
+                } else {
+                    query = query.Where(token => token.Expires >= now);
+                }
+            }
+            return await query.Where(token => token.Token.CompareTo(start) > 0)
+                .Take(take)
+                .ToListAsync();
+        }
+
+        public async Task<int> DeleteJudger(string id) {
+            return await db.Judgers.Where(j => j.Id == id).DeleteFromQueryAsync();
+        }
+
+        public async Task<int> DeleteToken(string id) {
+            return await db.JudgerRegisterTokens.Where(j => j.Token == id).DeleteFromQueryAsync();
         }
     }
 }

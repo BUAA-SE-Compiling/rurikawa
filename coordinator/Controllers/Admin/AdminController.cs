@@ -15,7 +15,7 @@ using Microsoft.EntityFrameworkCore;
 using NReco.Csv;
 using static Karenia.Rurikawa.Coordinator.Controllers.AccountController;
 
-namespace Karenia.Rurikawa.Coordinator.Controllers {
+namespace Karenia.Rurikawa.Coordinator.Controllers.Admin {
     [ApiController]
     [Route("api/v1/admin")]
     [Authorize("admin", AuthenticationSchemes = JwtBearerDefaults.AuthenticationScheme + "," + "token")]
@@ -27,6 +27,8 @@ namespace Karenia.Rurikawa.Coordinator.Controllers {
             this.dbService = dbService;
             this.accountService = accountService;
         }
+
+
 
         [HttpGet]
         [Route("profile/dump")]
@@ -288,19 +290,7 @@ namespace Karenia.Rurikawa.Coordinator.Controllers {
             csv.NextRecord();
         }
 
-        public class CreateJudgerTokenRequest {
-            public DateTimeOffset? ExpireAt { get; set; }
-            public bool IsSingleUse { get; set; }
-            public List<string> Tags { get; set; }
-        }
 
-        [HttpPost("judger/register-token")]
-        public async Task<string> GetJudgerRegisterToken(
-            [FromServices] AccountService accountService,
-            [FromBody] CreateJudgerTokenRequest req
-            ) {
-            return await accountService.CreateNewJudgerToken(req.ExpireAt, req.IsSingleUse, req.Tags);
-        }
 
         [HttpGet("init")]
         [AllowAnonymous]
