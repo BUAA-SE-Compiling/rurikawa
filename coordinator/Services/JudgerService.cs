@@ -48,10 +48,22 @@ namespace Karenia.Rurikawa.Coordinator.Services {
             return judger;
         }
 
+        /// <summary>
+        /// Search <see cref="JudgerEntry"/>s by tags.
+        /// 
+        /// <para>
+        ///     If a future version adds more properties to judgers, they should also be 
+        ///     able to be queried by this method.
+        /// </para>
+        /// </summary>
+        /// <param name="tags">Judger tags. A judger should contain all tags specified to apperar in the result.</param>
+        /// <param name="fromId">The starting judger id to be queried</param>
+        /// <param name="count">The number of judgers to return</param>
+        /// <returns></returns>
         public async Task<List<JudgerEntry>> QueryJudger(
-            List<string> tag, string fromId = "", int count = 50) {
+            List<string> tags, string fromId = "", int count = 50) {
             var judger = await db.Judgers
-                .Where(j => j.Tags != null && j.Tags.All(t => tag.Contains(t)))
+                .Where(j => j.Tags != null && j.Tags.All(t => tags.Contains(t)))
                 .Where(j => j.Id.CompareTo(fromId) > 0)
                 .Take(count)
                 .AsNoTracking()
@@ -59,6 +71,14 @@ namespace Karenia.Rurikawa.Coordinator.Services {
             return judger;
         }
 
+        /// <summary>
+        /// Search <see cref="JudgerTokenEntry"/>s by their properties.
+        /// </summary>
+        /// <param name="tags">Token tags. A token must contain all tags to appear in the results.</param>
+        /// <param name="expired">Whether the token is already expired</param>
+        /// <param name="start">The starting token to be queried</param>
+        /// <param name="take">The number of tokens to return</param>
+        /// <returns></returns>
         public async Task<List<JudgerTokenEntry>> QueryJudgerRegisterToken(
             List<string> tags,
             bool? expired,
@@ -81,12 +101,23 @@ namespace Karenia.Rurikawa.Coordinator.Services {
                 .ToListAsync();
         }
 
+        /// <summary>
+        /// Remove the specified judger from database. The judger will <b>not</b> be 
+        /// disconnected immediately.
+        /// </summary>
+        /// <param name="id"></param>
+        /// <returns></returns>
         public async Task<int> DeleteJudger(string id) {
             return await db.Judgers.Where(j => j.Id == id).DeleteFromQueryAsync();
         }
 
-        public async Task<int> DeleteToken(string id) {
-            return await db.JudgerRegisterTokens.Where(j => j.Token == id).DeleteFromQueryAsync();
+        /// <summary>
+        /// Remove the specified Judger Register Token from database.
+        /// </summary>
+        /// <param name="token"></param>
+        /// <returns></returns>
+        public async Task<int> DeleteToken(string token) {
+            return await db.JudgerRegisterTokens.Where(j => j.Token == token).DeleteFromQueryAsync();
         }
     }
 }

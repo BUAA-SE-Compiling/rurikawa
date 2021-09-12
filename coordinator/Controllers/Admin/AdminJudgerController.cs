@@ -37,13 +37,13 @@ namespace Karenia.Rurikawa.Coordinator.Controllers.Admin {
         }
 
         /// <summary>
-        /// Query existing judger register tokens
+        /// Search <see cref="JudgerTokenEntry"/>s by their properties.
         /// </summary>
-        /// <param name="judgerService"></param>
-        /// <param name="tags">judger tags; leave empty for none</param>
-        /// <param name="expired">whether the token has expired</param>
-        /// <param name="start"></param>
-        /// <param name="take"></param>
+        /// <param name="tags">Token tags. A token must contain all tags to appear in the results.</param>
+        /// <param name="judgerService"/>
+        /// <param name="expired">Whether the token is already expired</param>
+        /// <param name="start">The starting token to be queried</param>
+        /// <param name="take">The number of tokens to return</param>
         /// <returns></returns>
         [HttpGet("register-token")]
         public async Task<ActionResult<List<JudgerTokenEntry>>> GetJudgerTokenList(
@@ -56,13 +56,19 @@ namespace Karenia.Rurikawa.Coordinator.Controllers.Admin {
             return await judgerService.QueryJudgerRegisterToken(tags, expired, start, take);
         }
 
+
         /// <summary>
-        /// Query existing judgers
+        /// Search <see cref="JudgerEntry"/>s by tags.
+        /// 
+        /// <para>
+        ///     If a future version adds more properties to judgers, they should also be 
+        ///     able to be queried by this method.
+        /// </para>
         /// </summary>
-        /// <param name="judgerService"></param>
-        /// <param name="tags"></param>
-        /// <param name="start"></param>
-        /// <param name="take"></param>
+        /// <param name="judgerService"/>
+        /// <param name="tags">Judger tags. A judger should contain all tags specified to apperar in the result.</param>
+        /// <param name="start">The starting judger id to be queried</param>
+        /// <param name="take">The number of judgers to return</param>
         /// <returns></returns>
         [HttpGet("")]
         public async Task<ActionResult<List<JudgerEntry>>> GetJudgerList(
