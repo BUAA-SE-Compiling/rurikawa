@@ -116,7 +116,7 @@ namespace Karenia.Rurikawa.Coordinator.Services {
         /// </summary>
         /// <param name="token"></param>
         /// <returns></returns>
-        public async Task<int> DeleteToken(string token) {
+        public async Task<int> DeleteJudgerToken(string token) {
             return await db.JudgerRegisterTokens.Where(j => j.Token == token).DeleteFromQueryAsync();
         }
     }

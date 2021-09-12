@@ -166,7 +166,7 @@ namespace Karenia.Rurikawa.Coordinator.Services {
             return token;
         }
 
-        public async Task<string> GenerateAndSaveNewJudgerToken(
+        public async Task<string> GenerateAndSaveJudgerToken(
             DateTimeOffset? expireAt,
             bool isSingleUse,
             List<string> tags) {
