@@ -84,9 +84,9 @@ namespace Karenia.Rurikawa.Coordinator.Controllers.Admin {
         public async Task<ActionResult> DeleteJudger(
             [FromServices] JudgerService judgerService,
             [FromRoute] string id) {
-            var result = await judgerService.DeleteJudger(id);
+            var deletedRows = await judgerService.DeleteJudger(id);
             // TODO: Disconnect from that judger
-            if (result == 0) {
+            if (deletedRows == 0) {
                 return NotFound();
             } else {
                 return NoContent();
@@ -97,8 +97,8 @@ namespace Karenia.Rurikawa.Coordinator.Controllers.Admin {
         public async Task<ActionResult> DeleteJudgerToken(
             [FromServices] JudgerService judgerService,
             [FromRoute] string id) {
-            var result = await judgerService.DeleteToken(id);
-            if (result == 0) {
+            var deletedRows = await judgerService.DeleteToken(id);
+            if (deletedRows == 0) {
                 return NotFound();
             } else {
                 return NoContent();

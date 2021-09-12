@@ -64,17 +64,13 @@ namespace Karenia.Rurikawa.Coordinator.Services {
                 await db.Accounts.AddAsync(account);
                 await db.SaveChangesAsync();
             } catch (DbUpdateException e) {
-                if (e.InnerException is PostgresException ex) {
-                    switch (ex.SqlState) {
-                        case PostgresErrorCodes.UniqueViolation:
-                        case PostgresErrorCodes.DuplicateObject:
-                            throw new UsernameNotUniqueException(username, e);
-                        default:
-                            throw;
-                    }
-                } else {
-                    throw;
-                }
+                throw e.InnerException switch {
+                    PostgresException {
+                        SqlState: PostgresErrorCodes.UniqueViolation
+                        or PostgresErrorCodes.DuplicateObject
+                    } => new UsernameNotUniqueException(username, e),
+                    _ => e,
+                };
             }
             return;
         }
