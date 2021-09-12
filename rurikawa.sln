@@ -5,6 +5,8 @@ VisualStudioVersion = 15.0.26124.0
 MinimumVisualStudioVersion = 15.0.26124.0
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Karenia.Rurikawa.Coordinator", "coordinator\Karenia.Rurikawa.Coordinator.csproj", "{E1EA5ECC-4568-4017-A794-C3CB684C06CA}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Karenia.Rurikawa.Coordinator.Tests", "coordinator-tests\Karenia.Rurikawa.Coordinator.Tests.csproj", "{589E3CB0-4696-45BD-B242-915B8325A589}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -30,5 +32,17 @@ Global
 		{E1EA5ECC-4568-4017-A794-C3CB684C06CA}.Release|x64.Build.0 = Release|Any CPU
 		{E1EA5ECC-4568-4017-A794-C3CB684C06CA}.Release|x86.ActiveCfg = Release|Any CPU
 		{E1EA5ECC-4568-4017-A794-C3CB684C06CA}.Release|x86.Build.0 = Release|Any CPU
+		{589E3CB0-4696-45BD-B242-915B8325A589}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{589E3CB0-4696-45BD-B242-915B8325A589}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{589E3CB0-4696-45BD-B242-915B8325A589}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{589E3CB0-4696-45BD-B242-915B8325A589}.Debug|x64.Build.0 = Debug|Any CPU
+		{589E3CB0-4696-45BD-B242-915B8325A589}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{589E3CB0-4696-45BD-B242-915B8325A589}.Debug|x86.Build.0 = Debug|Any CPU
+		{589E3CB0-4696-45BD-B242-915B8325A589}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{589E3CB0-4696-45BD-B242-915B8325A589}.Release|Any CPU.Build.0 = Release|Any CPU
+		{589E3CB0-4696-45BD-B242-915B8325A589}.Release|x64.ActiveCfg = Release|Any CPU
+		{589E3CB0-4696-45BD-B242-915B8325A589}.Release|x64.Build.0 = Release|Any CPU
+		{589E3CB0-4696-45BD-B242-915B8325A589}.Release|x86.ActiveCfg = Release|Any CPU
+		{589E3CB0-4696-45BD-B242-915B8325A589}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 EndGlobal
