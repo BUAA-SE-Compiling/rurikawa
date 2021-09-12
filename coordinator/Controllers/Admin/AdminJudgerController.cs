@@ -33,7 +33,7 @@ namespace Karenia.Rurikawa.Coordinator.Controllers.Admin {
             [FromServices] AccountService accountService,
             [FromBody] CreateJudgerTokenRequest req
             ) {
-            return await accountService.GenerateAndSaveNewJudgerToken(req.ExpireAt, req.IsSingleUse, req.Tags);
+            return await accountService.GenerateAndSaveJudgerToken(req.ExpireAt, req.IsSingleUse, req.Tags);
         }
 
         /// <summary>
@@ -46,7 +46,7 @@ namespace Karenia.Rurikawa.Coordinator.Controllers.Admin {
         /// <param name="take">The number of tokens to return</param>
         /// <returns></returns>
         [HttpGet("register-token")]
-        public async Task<ActionResult<List<JudgerTokenEntry>>> GetJudgerTokenList(
+        public async Task<ActionResult<List<JudgerTokenEntry>>> QueryJudgerRegisterToken(
             [FromServices] JudgerService judgerService,
             [FromQuery] List<string> tags,
             [FromQuery] bool? expired,
@@ -71,7 +71,7 @@ namespace Karenia.Rurikawa.Coordinator.Controllers.Admin {
         /// <param name="take">The number of judgers to return</param>
         /// <returns></returns>
         [HttpGet("")]
-        public async Task<ActionResult<List<JudgerEntry>>> GetJudgerList(
+        public async Task<ActionResult<List<JudgerEntry>>> QueryJudger(
             [FromServices] JudgerService judgerService,
             [FromQuery] List<string> tags,
             [FromQuery] string start = "",
@@ -97,7 +97,7 @@ namespace Karenia.Rurikawa.Coordinator.Controllers.Admin {
         public async Task<ActionResult> DeleteJudgerToken(
             [FromServices] JudgerService judgerService,
             [FromRoute] string id) {
-            var deletedRows = await judgerService.DeleteToken(id);
+            var deletedRows = await judgerService.DeleteJudgerToken(id);
             if (deletedRows == 0) {
                 return NotFound();
             } else {
