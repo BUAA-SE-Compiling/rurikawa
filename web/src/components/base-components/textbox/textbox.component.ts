@@ -15,7 +15,7 @@ type borderType = 'all' | 'underline' | 'none';
   // tslint:disable-next-line: component-selector
   selector: 'textbox',
   templateUrl: './textbox.component.html',
-  styleUrls: ['./textbox.component.styl'],
+  styleUrls: ['./textbox.component.less'],
 })
 export class TextboxComponent implements OnInit {
   @Input() multiline: boolean = false;
@@ -38,6 +38,7 @@ export class TextboxComponent implements OnInit {
     return this._value;
   }
 
+  @Input() id: string | undefined;
   @Input() icon: any | undefined;
   @Input() iconSize: number = 16;
   @Output() valueChange = new EventEmitter<string>();

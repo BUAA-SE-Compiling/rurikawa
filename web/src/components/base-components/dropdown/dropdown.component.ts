@@ -15,7 +15,7 @@ type borderType = 'all' | 'underline' | 'none';
   // tslint:disable-next-line: component-selector
   selector: 'dropdown',
   templateUrl: './dropdown.component.html',
-  styleUrls: ['./dropdown.component.styl'],
+  styleUrls: ['./dropdown.component.less'],
 })
 export class DropdownComponent implements OnInit {
   @Input() type: string = 'text';

@@ -1,0 +1,65 @@
+@import "/src/styles/common";
+
+.row {
+  .column-container();
+  align-items: baseline;
+  margin-bottom: var(--space-0);
+}
+
+.left-wrapper {
+  .column(1, 4);
+  display: flex;
+  flex-direction: column;
+
+  .compact & {
+    .column(1, 2);
+  }
+}
+
+.id {
+  .column(1, 4);
+  // font-size: var(--font-size-larger)
+  font-size: var(--font-size-smaller);
+  color: var(--secondary-color);
+
+  .compact & {
+    .column(1, 2);
+  }
+}
+
+.time {
+  .column(1, 4);
+  font-variant-numeric: tabular-nums;
+}
+
+.repo {
+  font-size: var(--font-size-smaller);
+  .column(1, 4);
+  text-align: right;
+  color: var(--secondary-color);
+}
+
+.score {
+  font-size: var(--font-size-larger);
+  text-align: right;
+  font-weight: 700;
+  .column(1, 4);
+
+  .score-sub {
+    font-weight: 500;
+    color: var(--secondary-color);
+  }
+}
+
+.slider {
+  .column(1, 2,   3);
+  align-self: stretch;
+  display: flex;
+  flex-direction: row;
+  justify-content: stretch;
+  align-items: center;
+
+  app-slider-view {
+    width: 100%;
+  }
+}

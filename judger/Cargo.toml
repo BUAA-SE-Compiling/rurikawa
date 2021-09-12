@@ -5,7 +5,7 @@ authors = [
 ]
 edition = "2018"
 name = "rurikawa-judger"
-version = "0.3.6"
+version = "0.4.0"
 
 [[bin]]
 name = "rurikawa"
@@ -49,8 +49,17 @@ path-absolutize = "3.0.6"
 path-slash = "0.1.3"
 rand = "0.8"
 regex = "1.4.2"
-reqwest = { version = "0.11", default-features = false, features = ["json", "stream", "rustls-tls"] }
-rquickjs = { version = "0.1.1", features = ["bindgen", "parallel", "futures", "macro"] }
+reqwest = { version = "0.11", default-features = false, features = [
+    "json",
+    "stream",
+    "rustls-tls",
+] }
+rquickjs = { version = "0.1.1", features = [
+    "bindgen",
+    "parallel",
+    "futures",
+    "macro",
+] }
 serde = { version = "1.0.118", features = ["derive", "rc"] }
 serde_json = "1.0.60"
 shell-words = "1"

@@ -9,7 +9,7 @@ import { ApiService } from 'src/services/api_service';
 @Component({
   selector: 'app-admin-create-test-suite-view',
   templateUrl: './admin-create-test-suite-view.component.html',
-  styleUrls: ['./admin-create-test-suite-view.component.styl'],
+  styleUrls: ['./admin-create-test-suite-view.component.less'],
 })
 export class AdminCreateTestSuiteViewComponent implements OnInit {
   constructor(private api: ApiService, private router: Router) {}

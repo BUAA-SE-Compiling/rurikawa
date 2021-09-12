@@ -12,7 +12,7 @@ import { extractTime } from 'src/models/flowsnake';
 @Component({
   selector: 'app-dashboard-item-component',
   templateUrl: './dashboard-item-component.component.html',
-  styleUrls: ['./dashboard-item-component.component.styl'],
+  styleUrls: ['./dashboard-item-component.component.less'],
 })
 export class DashboardItemComponentComponent implements OnInit {
   constructor() {}

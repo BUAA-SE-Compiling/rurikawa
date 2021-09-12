@@ -17,7 +17,7 @@ import {
 @Component({
   selector: 'app-navbar',
   templateUrl: './navbar.component.html',
-  styleUrls: ['./navbar.component.styl'],
+  styleUrls: ['./navbar.component.less'],
   animations: [
     trigger('adminBar', [
       transition(':enter', [
@@ -39,7 +39,6 @@ export class NavbarComponent implements OnInit {
   ) {
     this.adminMode = false;
     this.router.events.subscribe((ev) => {
-      console.log(ev);
       if (ev instanceof NavigationEnd) {
         if (ev.url.startsWith('/admin')) {
           this.adminMode = true;

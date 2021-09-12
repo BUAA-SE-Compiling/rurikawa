@@ -42,7 +42,7 @@ import { ApiService } from 'src/services/api_service';
 @Component({
   selector: 'app-test-suite-view',
   templateUrl: './test-suite-view.component.html',
-  styleUrls: ['./test-suite-view.component.styl'],
+  styleUrls: ['./test-suite-view.component.less'],
   animations: [
     trigger('staggerLoadJobs', [
       transition('*=>*', [

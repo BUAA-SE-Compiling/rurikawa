@@ -11,6 +11,7 @@ import { CollapseBoxComponent } from './collapse-box/collapse-box.component';
 import { BackBtnComponent } from './back-btn/back-btn.component';
 import { ToggleButtonComponent } from './toggle-button/toggle-button.component';
 import { DropdownComponent } from './dropdown/dropdown.component';
+import { CheckboxComponent } from './checkbox/checkbox.component';
 
 @NgModule({
   declarations: [
@@ -22,6 +23,7 @@ import { DropdownComponent } from './dropdown/dropdown.component';
     BackBtnComponent,
     ToggleButtonComponent,
     DropdownComponent,
+    CheckboxComponent,
   ],
   imports: [CommonModule, RouterModule, IconModule, FormsModule],
   exports: [
@@ -33,6 +35,7 @@ import { DropdownComponent } from './dropdown/dropdown.component';
     BackBtnComponent,
     ToggleButtonComponent,
     DropdownComponent,
+    CheckboxComponent,
   ],
 })
 export class BaseComponentsModule {}

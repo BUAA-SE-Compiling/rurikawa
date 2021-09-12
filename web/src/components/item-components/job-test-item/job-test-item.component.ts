@@ -8,7 +8,7 @@ import {
 @Component({
   selector: 'app-job-test-item',
   templateUrl: './job-test-item.component.html',
-  styleUrls: ['./job-test-item.component.styl'],
+  styleUrls: ['./job-test-item.component.less'],
 })
 export class JobTestItemComponent implements OnInit {
   constructor() {}

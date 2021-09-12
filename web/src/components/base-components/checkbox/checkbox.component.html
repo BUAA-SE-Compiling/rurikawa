@@ -1,0 +1,39 @@
+<label class="input-wrapper">
+  <div class="box" [ngClass]="{indeterminate,active:value}">
+    <!-- active icon -->
+    <svg
+      class="box-active"
+      width="14"
+      height="11"
+      viewBox="0 0 14 11"
+      fill="none"
+      xmlns="http://www.w3.org/2000/svg"
+    >
+      <path
+        d="M1.5 6.5L4.5 9.5L12.5 1.5"
+        stroke-width="3"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+      />
+    </svg>
+    <!-- indeterminate icon -->
+    <svg
+      class="box-indeterminate"
+      width="16"
+      height="4"
+      viewBox="0 0 16 4"
+      fill="none"
+      xmlns="http://www.w3.org/2000/svg"
+    >
+      <path d="M2 2H14" stroke-width="3" stroke-linecap="round" />
+    </svg>
+  </div>
+  <div class="caption">{{ caption }}</div>
+  <input
+    type="checkbox"
+    name=""
+    [id]="id"
+    [(ngModel)]="value"
+    [(indeterminate)]="indeterminate"
+  />
+</label>

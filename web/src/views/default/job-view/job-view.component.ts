@@ -50,7 +50,7 @@ import { ApiService } from 'src/services/api_service';
 @Component({
   selector: 'app-job-view',
   templateUrl: './job-view.component.html',
-  styleUrls: ['./job-view.component.styl'],
+  styleUrls: ['./job-view.component.less'],
 })
 export class JobViewComponent implements OnInit, OnChanges, OnDestroy {
   constructor(
@@ -100,7 +100,7 @@ export class JobViewComponent implements OnInit, OnChanges, OnDestroy {
   }
 
   get repo() {
-    return this.job.repo.replace(/(?<=\/\/).+:.+@/, '***@');
+    return this.job.repo.replace(/(:\/\/).+:.+@/, '://***@');
   }
 
   get branch() {

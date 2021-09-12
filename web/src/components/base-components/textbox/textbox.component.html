@@ -1,5 +1,5 @@
 <div class="textbox" [ngClass]="styleClass">
-  <div class="caption">{{ caption }}</div>
+  <label class="caption">{{ caption }}</label>
   <div class="input input-wrapper" [ngClass]="inputClass" (click)="focus()">
     <ic-icon
       *ngIf="icon"
@@ -10,6 +10,7 @@
     ></ic-icon>
     <input
       *ngIf="!multiline"
+      [id]="id"
       [type]="type"
       [disabled]="disabled"
       [(ngModel)]="value"
@@ -22,6 +23,7 @@
     />
     <textarea
       *ngIf="multiline"
+      [id]="id"
       [disabled]="disabled"
       [(ngModel)]="value"
       [placeholder]="placeholder"

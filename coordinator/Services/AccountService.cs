@@ -64,17 +64,13 @@ namespace Karenia.Rurikawa.Coordinator.Services {
                 await db.Accounts.AddAsync(account);
                 await db.SaveChangesAsync();
             } catch (DbUpdateException e) {
-                if (e.InnerException is PostgresException ex) {
-                    switch (ex.SqlState) {
-                        case PostgresErrorCodes.UniqueViolation:
-                        case PostgresErrorCodes.DuplicateObject:
-                            throw new UsernameNotUniqueException(username, e);
-                        default:
-                            throw e;
-                    }
-                } else {
-                    throw e;
-                }
+                throw e.InnerException switch {
+                    PostgresException {
+                        SqlState: PostgresErrorCodes.UniqueViolation
+                        or PostgresErrorCodes.DuplicateObject
+                    } => new UsernameNotUniqueException(username, e),
+                    _ => e,
+                };
             }
             return;
         }
@@ -170,7 +166,7 @@ namespace Karenia.Rurikawa.Coordinator.Services {
             return token;
         }
 
-        public async Task<string> CreateNewJudgerToken(
+        public async Task<string> GenerateAndSaveJudgerToken(
             DateTimeOffset? expireAt,
             bool isSingleUse,
             List<string> tags) {
@@ -187,6 +183,7 @@ namespace Karenia.Rurikawa.Coordinator.Services {
             await db.SaveChangesAsync();
             return token;
         }
+
 
         public string? VerifyShortLivingToken(string token) {
             token = token.Replace('_', '+');
@@ -378,7 +375,7 @@ namespace Karenia.Rurikawa.Coordinator.Services {
             var res = await redisDb.StringGetAsync(key);
 
             if (res.IsNullOrEmpty) {
-                var db = serviceProvider.GetService<RurikawaDb>();
+                var db = serviceProvider.GetService<RurikawaDb>()!;
                 var valueExists = await db.Judgers.Where(judger => judger.Id == token)
                     .AnyAsync();
 

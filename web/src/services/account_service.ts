@@ -11,7 +11,6 @@ import { Observable, observable, throwError } from 'rxjs';
 import 'rxjs/operators';
 import { environment } from 'src/environments/environment';
 import { catchError, map, tap, switchMap } from 'rxjs/operators';
-import { setUncaughtExceptionCaptureCallback } from 'process';
 import {
   CanActivate,
   ActivatedRouteSnapshot,
@@ -281,7 +280,8 @@ export class NotLoggedInGuard implements CanActivate, CanActivateChild {
   providedIn: 'root',
 })
 export class NotLoggedInRedirectToDashboardGuard
-  implements CanActivate, CanActivateChild {
+  implements CanActivate, CanActivateChild
+{
   constructor(private accountService: AccountService, private router: Router) {}
 
   canActivate(route: ActivatedRouteSnapshot, state: RouterStateSnapshot) {

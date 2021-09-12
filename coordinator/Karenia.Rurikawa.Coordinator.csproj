@@ -1,8 +1,8 @@
 <Project Sdk="Microsoft.NET.Sdk.Web">
 
   <PropertyGroup>
-    <Product>RurikawaCoordinator</Product>
-    <Version>0.3.6</Version>
+    <Product>Karenia.Rurikawa.Coordinator</Product>
+    <Version>0.4.0</Version>
     <Authors>Rynco Maekawa; Rami3L Li</Authors>
 
     <TargetFramework>net5</TargetFramework>
@@ -21,8 +21,8 @@
     <PackageReference Include="Marques.EFCorev3.0.SnakeCase" Version="1.0.13" />
     <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="3.1.7" />
     <!-- <PackageReference Include="MicroKnights.IO.SplitStream" Version="1.0.0" /> -->
-    <PackageReference Include="Microsoft.EntityFrameworkCore" Version="3.1.9" />
-    <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="3.1.9">
+    <PackageReference Include="Microsoft.EntityFrameworkCore" Version="3.1.18" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="3.1.18">
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
       <PrivateAssets>all</PrivateAssets>
     </PackageReference>
@@ -38,6 +38,13 @@
     <PackageReference Include="System.Reactive" Version="5.0.0" />
     <PackageReference Include="Z.EntityFramework.Plus.EFCore" Version="3.0.60" />
     <ProjectReference Include="..\3rd_party\SplitStream\src\SplitStream\MicroKnights.IO.SplitStream.csproj" />
+  </ItemGroup>
+
+  <!-- Expose internal for testing -->
+  <ItemGroup>
+    <AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleToAttribute">
+      <_Parameter1>Karenia.Rurikawa.Coordinator.Testing</_Parameter1>
+    </AssemblyAttribute>
   </ItemGroup>
 
   <ItemGroup>

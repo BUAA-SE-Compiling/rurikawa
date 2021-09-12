@@ -76,7 +76,6 @@ export class TestSuiteAndJobCache {
         this.wsTracker.subscribe({
           next: (v) => this.onWebsocketMessage(v),
           error: (e) => {
-            console.log(e);
             this.connectWebsocket();
           },
           complete: () => {

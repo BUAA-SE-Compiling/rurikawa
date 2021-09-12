@@ -9,7 +9,7 @@ import { ApiService } from 'src/services/api_service';
 @Component({
   selector: 'app-settings-view',
   templateUrl: './settings-view.component.html',
-  styleUrls: ['./settings-view.component.styl'],
+  styleUrls: ['./settings-view.component.less'],
 })
 export class SettingsViewComponent implements OnInit, OnDestroy {
   constructor(
@@ -32,7 +32,6 @@ export class SettingsViewComponent implements OnInit, OnDestroy {
 
   pullProfile(retry: boolean = false) {
     this.loading = true;
-    console.log(this.accountService.Username);
     return this.api.profile.get(this.accountService.Username).pipe(
       tap({
         next: (p) => {
