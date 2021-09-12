@@ -38,6 +38,7 @@ export class TextboxComponent implements OnInit {
     return this._value;
   }
 
+  @Input() id: string | undefined;
   @Input() icon: any | undefined;
   @Input() iconSize: number = 16;
   @Output() valueChange = new EventEmitter<string>();

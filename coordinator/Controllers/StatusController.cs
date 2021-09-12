@@ -109,7 +109,7 @@ namespace Karenia.Rurikawa.Coordinator.Controllers {
             await red.StringSetAsync(
                 QUEUE_STAT_CACHE_KEY,
                 JsonSerializer.Serialize(stat, jsonSerializerOptions),
-                expiry: TimeSpan.FromSeconds(10));
+                expiry: TimeSpan.FromSeconds(20));
 
             return stat;
         }

@@ -10,6 +10,7 @@ import { FormsModule } from '@angular/forms';
 import { CollapseBoxComponent } from './collapse-box/collapse-box.component';
 import { BackBtnComponent } from './back-btn/back-btn.component';
 import { ToggleButtonComponent } from './toggle-button/toggle-button.component';
+import { CheckboxComponent } from './checkbox/checkbox.component';
 
 @NgModule({
   declarations: [
@@ -20,6 +21,7 @@ import { ToggleButtonComponent } from './toggle-button/toggle-button.component';
     CollapseBoxComponent,
     BackBtnComponent,
     ToggleButtonComponent,
+    CheckboxComponent,
   ],
   imports: [CommonModule, RouterModule, IconModule, FormsModule],
   exports: [
@@ -30,6 +32,7 @@ import { ToggleButtonComponent } from './toggle-button/toggle-button.component';
     CollapseBoxComponent,
     BackBtnComponent,
     ToggleButtonComponent,
+    CheckboxComponent,
   ],
 })
 export class BaseComponentsModule {}

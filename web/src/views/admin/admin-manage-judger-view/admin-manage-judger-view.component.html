@@ -1,16 +1,54 @@
 <div class="container">
   <div class="section">
     <h2 class="h2">创建评测机令牌</h2>
+
+    <textbox
+      class="tags"
+      [(value)]="tokenParams.tags"
+      caption="标签"
+      [icon]="iconTag"
+    ></textbox>
+
+    <checkbox
+      [(value)]="tokenParams.expires"
+      caption="在一段时间后失效"
+    ></checkbox>
     <div class="row">
-      <input
-        type="text"
-        disabled="true"
-        class="input"
-        [value]="tokenRequested"
-      />
+      <textbox
+        class="expiry-date"
+        [(value)]="tokenParams.expiresAtDate"
+        type="date"
+        caption="失效日期"
+        [icon]="iconCalendar"
+        [disabled]="!tokenParams.expires"
+      ></textbox>
+      <textbox
+        class="expiry-time"
+        [(value)]="tokenParams.expiresAtTime"
+        type="time"
+        caption="失效时间"
+        [icon]="iconTime"
+        [disabled]="!tokenParams.expires"
+      ></textbox>
     </div>
+    <checkbox
+      [(value)]="tokenParams.isSingleUse"
+      caption="仅供单次使用"
+    ></checkbox>
+
     <div class="row right">
       <button class="btn dark" (click)="requestToken()">创建</button>
+    </div>
+    <div class="row">
+      <input
+        #token
+        type="text"
+        readonly="true"
+        class="input result"
+        [value]="tokenRequested"
+        placeholder="生成的令牌"
+        (click)="selectToken()"
+      />
     </div>
   </div>
 </div>

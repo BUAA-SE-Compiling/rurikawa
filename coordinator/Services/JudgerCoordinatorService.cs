@@ -453,11 +453,23 @@ namespace Karenia.Rurikawa.Coordinator.Services {
 
         static readonly TimeSpan DISPATH_TIMEOUT = TimeSpan.FromMinutes(30);
 
-        protected async Task<Job?> GetLastUndispatchedJobFromDatabase(RurikawaDb db) {
-            var res = await QueuedCriteria(db.Jobs)
-                .OrderBy(j => j.Id)
-                .FirstOrDefaultAsync();
-            return res;
+        protected async Task<Job?> GetLastUndispatchedJobFromDatabase(RurikawaDb db, List<string>? tags, bool allowUntagged) {
+            IQueryable<Job> res = QueuedCriteria(db.Jobs);
+            if (tags != null) {
+                // join the test suites for suite tags
+                var query = res.Join(db.TestSuites, j => j.TestSuite, t => t.Id, (job, suite) => new { job, suite });
+                if (allowUntagged) {
+                    query = query.Where(x => x.suite.Tags == null
+                    || x.suite.Tags.Count == 0
+                    || x.suite.Tags.All(tag => tags.Contains(tag)));
+                } else {
+                    query = query.Where(x => x.suite.Tags != null && x.suite.Tags.All(tag => tags.Contains(tag)));
+                }
+                // but still return a job
+                res = query.Select(x => x.job);
+            }
+            return await res
+                .OrderBy(j => j.Id).FirstOrDefaultAsync();
         }
 
         protected async Task<List<Job>> GetUndispatchedJobsFromDatabase(RurikawaDb db, int count) {
@@ -497,7 +509,8 @@ namespace Karenia.Rurikawa.Coordinator.Services {
             using var scope = scopeProvider.CreateScope();
             var db = GetDb(scope);
             using var tx = await db.Database.BeginTransactionAsync(System.Data.IsolationLevel.Serializable);
-            var job = await GetLastUndispatchedJobFromDatabase(db);
+            var job = await GetLastUndispatchedJobFromDatabase(
+                db, judger.DbJudgerEntry.Tags, judger.DbJudgerEntry.AcceptUntaggedJobs);
             if (job == null) return false;
 
             try {

@@ -100,7 +100,7 @@ export class JobViewComponent implements OnInit, OnChanges, OnDestroy {
   }
 
   get repo() {
-    return this.job.repo.replace(/:\/\/.+:.+@/, '://***@');
+    return this.job.repo.replace(/(:\/\/).+:.+@/, '://***@');
   }
 
   get branch() {
