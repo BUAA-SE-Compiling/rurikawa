@@ -28,21 +28,21 @@ export class DropdownComponent implements OnInit {
   _value: string[] = [];
 
   @Input() set value(v: string | string[]) {
-    if (this.multiple) {
-      let val: string[];
+    // if (this.multiple) {
+    //   let val: string[];
 
-      if (typeof v == 'string') val = [v];
-      else val = v;
+    //   if (typeof v == 'string') val = [v];
+    //   else val = v;
 
-      this._value = val;
-      // this.valueChange.emit(val);
-    } else {
-      let val: string;
-      if (v instanceof Array) val = v[0];
-      else val = v;
-      this._value = [val];
-      // this.valueChange.emit(this._value);
-    }
+    //   this._value = val;
+    //   // this.valueChange.emit(val);
+    // } else {
+    let val: string;
+    if (v instanceof Array) val = v[0];
+    else val = v;
+    this._value = [val];
+    // this.valueChange.emit(this._value);
+    // }
   }
   get value() {
     return this._value;
@@ -51,7 +51,7 @@ export class DropdownComponent implements OnInit {
   @Input() multiple: boolean = false;
   @Input() icon: any | undefined;
   @Input() iconSize: number = 16;
-  @Output() valueChange = new EventEmitter<string | string[]>();
+  @Output() valueChange = new EventEmitter<string>();
 
   @ViewChild('input') input: ElementRef;
 
@@ -74,12 +74,10 @@ export class DropdownComponent implements OnInit {
   }
 
   ngModelChange() {
-    if (this.multiple) this.valueChange.emit(this._value);
-    else {
-      if (this._value.length > 1) {
-      }
-      this.valueChange.emit(this._value[0]);
-    }
+    // if (this.multiple) this.valueChange.emit(this._value);
+    // else {
+    this.valueChange.emit(this._value[0]);
+    // }
   }
 
   constructor() {}
