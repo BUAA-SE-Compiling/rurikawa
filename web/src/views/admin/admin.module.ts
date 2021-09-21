@@ -15,6 +15,8 @@ import { AdminManageJudgerViewComponent } from './admin-manage-judger-view/admin
 import { AdminAnnouncementEditViewComponent } from './admin-announcement-edit-view/admin-announcement-edit-view.component';
 import { NuMarkdownModule } from '@ng-util/markdown';
 import { FormsModule } from '@angular/forms';
+import { AdminManageUserViewComponent } from './admin-manage-user-view/admin-manage-user-view.component';
+import { AdminAddUserViewComponent } from './admin-add-user-view/admin-add-user-view.component';
 
 const routes: Routes = [
   {
@@ -47,6 +49,14 @@ const routes: Routes = [
     path: 'judger',
     component: AdminManageJudgerViewComponent,
   },
+  {
+    path: 'user/add',
+    component: AdminAddUserViewComponent,
+  },
+  {
+    path: 'user',
+    component: AdminManageUserViewComponent,
+  },
 ];
 
 @NgModule({
@@ -57,6 +67,8 @@ const routes: Routes = [
     AdminCreateTestSuiteViewComponent,
     AdminManageJudgerViewComponent,
     AdminAnnouncementEditViewComponent,
+    AdminManageUserViewComponent,
+    AdminAddUserViewComponent,
   ],
   imports: [
     CommonModule,
@@ -74,6 +86,8 @@ const routes: Routes = [
     AdminCreateTestSuiteViewComponent,
     AdminManageJudgerViewComponent,
     AdminAnnouncementEditViewComponent,
+    AdminManageUserViewComponent,
+    AdminAddUserViewComponent,
   ],
 })
 export class AdminModule {}

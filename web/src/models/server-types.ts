@@ -1,7 +1,20 @@
 import { Job } from './job-items';
 
+export enum UserKind {
+  User = 'User',
+  Admin = 'Admin',
+  Root = 'Root',
+}
+
 export interface Profile {
   username: string;
+  email: string | undefined;
+  studentId: string | undefined;
+}
+
+export interface AccountAndProfile {
+  username: string;
+  kind: UserKind;
   email: string | undefined;
   studentId: string | undefined;
 }

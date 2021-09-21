@@ -1,17 +1,20 @@
 import { HttpClient } from '@angular/common/http';
 import { Injectable } from '@angular/core';
+import { fromPairs, toPairs } from 'lodash';
 import { Observable, of } from 'rxjs';
 import { catchError } from 'rxjs/operators';
 import { endpoints } from 'src/environments/endpoints';
 import { environment } from 'src/environments/environment';
 import { Job } from 'src/models/job-items';
 import {
+  AccountAndProfile,
   Announcement,
   DashboardItem,
   JudgerStatus,
   NewJobMessage,
   Profile,
   TestSuite,
+  UserKind,
 } from 'src/models/server-types';
 
 const endpointBase = environment.endpointBase();
@@ -123,6 +126,53 @@ export class ApiService {
         { isSingleUse, tags, expires: expiresAt },
         { responseType: 'text' }
       ),
+
+    registerUser: (username: string, password: string, kind: UserKind) =>
+      this.httpClient.post(endpointBase + endpoints.admin.registerUser, {
+        username,
+        password,
+        kind,
+      }),
+
+    getUserInfo: (username: string) =>
+      this.httpClient.get<AccountAndProfile>(
+        endpointBase + endpoints.admin.getUserInfo(username)
+      ),
+
+    searchUserInfo: (
+      param: {
+        usernameLike?: string;
+        kind?: string;
+        studentId?: string;
+        searchNameUsingRegex: boolean;
+      },
+      startUsername: string | undefined = '',
+      descending: boolean = false,
+      take: number = 50
+    ) => {
+      let params = fromPairs(
+        toPairs(param)
+          .filter(([_, y]) => y)
+          .map(([x, y]) => [x, y.toString()])
+      );
+      params.take = take.toString();
+      if (startUsername !== undefined) params.startUsername = startUsername;
+      params.descending = descending.toString();
+
+      return this.httpClient.get<AccountAndProfile[]>(
+        endpointBase + endpoints.admin.searchUserInfo,
+        {
+          params: params,
+        }
+      );
+    },
+
+    editPassword: (username: string, password: string) => {
+      return this.httpClient.post(endpointBase + endpoints.admin.editPassword, {
+        username,
+        password,
+      });
+    },
   };
 
   testSuite = {

@@ -333,12 +333,12 @@ namespace Karenia.Rurikawa.Coordinator.Controllers.Admin {
         /// </summary>
         [HttpPost("register")]
         public async Task<IActionResult> CreateAccount(
-            [FromServices] SingleBucketFileStorageService fs,
+            [FromServices] ProfileService profile,
             [FromBody] RootCreateAccountInfo msg
         ) {
             try {
                 await accountService.CreateAccount(msg.Username, msg.Password, msg.Kind);
-                await fs.Check();
+                await profile.InitializeProfileIfNotExists(msg.Username);
             } catch (AccountService.UsernameNotUniqueException e) {
                 return BadRequest(new ErrorResponse(
                     ErrorCodes.USERNAME_NOT_UNIQUE,
@@ -347,5 +347,65 @@ namespace Karenia.Rurikawa.Coordinator.Controllers.Admin {
             return NoContent();
         }
 
+        public class AdminEditPasswordMessage {
+            public string Username { get; set; }
+            public string Password { get; set; }
+        }
+
+        /// <summary>
+        /// Force edit a user's password using admin rights.
+        /// </summary>
+        /// <param name="msg">The password editing message</param>
+        /// <returns></returns>
+        /// <exception cref="System.Exception"></exception>
+        [HttpPost("edit-password")]
+        public async Task<ActionResult> ChangePassword([FromBody] AdminEditPasswordMessage msg) {
+            switch (await accountService.ForceEditPassword(msg.Username, msg.Password)) {
+                case AccountService.EditPasswordResult.Success:
+                    return NoContent();
+                case AccountService.EditPasswordResult.AccountNotFound:
+                    return NotFound();
+                default: throw new System.Exception("Unreachable!");
+            }
+        }
+
+        /// <summary>
+        /// Get the basic information of the specific user.
+        /// </summary>
+        /// <param name="profileService">the service we will use</param>
+        /// <param name="username">the username of this user</param>
+        [HttpGet("user-info/{username}")]
+        public async Task<ActionResult<AccountAndProfile>> GetUserInfo(
+            [FromServices] ProfileService profileService,
+            [FromRoute] string username) {
+            var result = await profileService.GetAccountAndProfile(username);
+            if (result == null) return NotFound();
+            else return result;
+        }
+
+        /// <summary>
+        /// Search for the specific user in database.
+        /// </summary>
+        [HttpGet("user-info")]
+        public async Task<ActionResult<List<AccountAndProfile>>> GetUserInfoLists(
+            [FromServices] ProfileService profileService,
+            [FromQuery] string? usernameLike,
+            [FromQuery] AccountKind? kind,
+            [FromQuery] string? studentId,
+            [FromQuery] string? startUsername,
+            [FromQuery] bool descending,
+            [FromQuery] bool searchNameUsingRegex = false,
+            [FromQuery] int take = 50
+        ) {
+            var result = await profileService.SearchAccountAndProfile(
+                usernameLike,
+                kind,
+                studentId,
+                startUsername,
+                descending,
+                searchNameUsingRegex,
+                take);
+            return result;
+        }
     }
 }

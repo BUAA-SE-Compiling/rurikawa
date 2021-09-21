@@ -10,6 +10,7 @@ import { FormsModule } from '@angular/forms';
 import { CollapseBoxComponent } from './collapse-box/collapse-box.component';
 import { BackBtnComponent } from './back-btn/back-btn.component';
 import { ToggleButtonComponent } from './toggle-button/toggle-button.component';
+import { DropdownComponent } from './dropdown/dropdown.component';
 import { CheckboxComponent } from './checkbox/checkbox.component';
 
 @NgModule({
@@ -21,6 +22,7 @@ import { CheckboxComponent } from './checkbox/checkbox.component';
     CollapseBoxComponent,
     BackBtnComponent,
     ToggleButtonComponent,
+    DropdownComponent,
     CheckboxComponent,
   ],
   imports: [CommonModule, RouterModule, IconModule, FormsModule],
@@ -32,6 +34,7 @@ import { CheckboxComponent } from './checkbox/checkbox.component';
     CollapseBoxComponent,
     BackBtnComponent,
     ToggleButtonComponent,
+    DropdownComponent,
     CheckboxComponent,
   ],
 })
