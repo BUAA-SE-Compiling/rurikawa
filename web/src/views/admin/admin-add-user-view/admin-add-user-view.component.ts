@@ -5,7 +5,7 @@ import { ApiService } from 'src/services/api_service';
 @Component({
   selector: 'app-admin-add-user-view',
   templateUrl: './admin-add-user-view.component.html',
-  styleUrls: ['./admin-add-user-view.component.styl'],
+  styleUrls: ['./admin-add-user-view.component.less'],
 })
 export class AdminAddUserViewComponent implements OnInit {
   constructor(private api: ApiService) {}
