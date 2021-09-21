@@ -5,10 +5,17 @@
       *ngIf="icon"
       [icon]="icon"
       class="icon"
-      [size]="iconSize"
+      [size]="iconSize.toString()"
       [align]="'center,bottom,slice'"
     ></ic-icon>
-    <select class="textbox" [(ngModel)]="_value" [disabled]="disabled" multiple >
+    <select
+      class="textbox"
+      [(ngModel)]="_value"
+      (ngModelChange)="ngModelChange()"
+      [disabled]="disabled"
+      multiple
+      #input
+    >
       <ng-content></ng-content>
     </select>
   </div>

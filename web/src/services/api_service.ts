@@ -14,6 +14,7 @@ import {
   NewJobMessage,
   Profile,
   TestSuite,
+  UserKind,
 } from 'src/models/server-types';
 
 const endpointBase = environment.endpointBase();
@@ -125,6 +126,13 @@ export class ApiService {
         { isSingleUse, tags, expires: expiresAt },
         { responseType: 'text' }
       ),
+
+    registerUser: (username: string, password: string, kind: UserKind) =>
+      this.httpClient.post(endpointBase + endpoints.admin.registerUser, {
+        username,
+        password,
+        kind,
+      }),
 
     getUserInfo: (username: string) =>
       this.httpClient.get<AccountAndProfile>(
