@@ -1,0 +1,13 @@
+@import "/src/styles/common";
+
+.search-criteria {
+  flex-wrap: wrap;
+  & > * {
+    .active-above(@theme-breakpoint-md,{
+      .column(1,3);
+    });
+    .active-below(@theme-breakpoint-md,{
+      .column(1,1);
+    });
+  }
+}
