@@ -150,7 +150,11 @@ export class ApiService {
       descending: boolean = false,
       take: number = 50
     ) => {
-      let params = fromPairs(toPairs(param).map(([x, y]) => [x, y.toString()]));
+      let params = fromPairs(
+        toPairs(param)
+          .filter(([_, y]) => y)
+          .map(([x, y]) => [x, y.toString()])
+      );
       params.take = take.toString();
       if (startUsername !== undefined) params.startUsername = startUsername;
       params.descending = descending.toString();
@@ -161,6 +165,13 @@ export class ApiService {
           params: params,
         }
       );
+    },
+
+    editPassword: (username: string, password: string) => {
+      return this.httpClient.post(endpointBase + endpoints.admin.editPassword, {
+        username,
+        password,
+      });
     },
   };
 

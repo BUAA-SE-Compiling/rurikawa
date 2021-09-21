@@ -97,6 +97,15 @@ namespace Karenia.Rurikawa.Coordinator.Services {
 
         public enum EditPasswordResult { AccountNotFound, Success, Failure }
 
+
+        /// <summary>
+        /// Edits an account's password. 
+        /// <b>This method verifies the original password before editing.</b>
+        /// </summary>
+        /// <param name="username">The account to edit</param>
+        /// <param name="originalPassword">The user's original password to verify</param>
+        /// <param name="newPassword">The new password's value</param>
+        /// <returns>Whether the edit is successful</returns>
         public async ValueTask<EditPasswordResult> EditPassword(
             string username,
             string originalPassword,
@@ -108,6 +117,27 @@ namespace Karenia.Rurikawa.Coordinator.Services {
 
             var verifyResult = VerifyPassword(originalPassword, account.HashedPassword);
             if (!verifyResult) return EditPasswordResult.Failure;
+
+            var newHashedPassword = HashPasswordWithGeneratedSalt(newPassword);
+            account.HashedPassword = newHashedPassword;
+            await db.SaveChangesAsync();
+            return EditPasswordResult.Success;
+        }
+
+        /// <summary>
+        /// Edits an account's password. 
+        /// <b>This method forces the edit without verifying the original one.</b>
+        /// </summary>
+        /// <param name="username">The account to edit</param>
+        /// <param name="newPassword">The new password's value</param>
+        /// <returns>Whether the edit is successful</returns>
+        public async ValueTask<EditPasswordResult> ForceEditPassword(
+            string username,
+            string newPassword) {
+            var account = await db.Accounts.AsQueryable()
+                .Where(a => a.Username == username)
+                .SingleOrDefaultAsync();
+            if (account == null) return EditPasswordResult.AccountNotFound;
 
             var newHashedPassword = HashPasswordWithGeneratedSalt(newPassword);
             account.HashedPassword = newHashedPassword;

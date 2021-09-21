@@ -126,6 +126,7 @@
 }
 
 .btn {
+  font-size: var(--font-size-base);
   transition: all 100ms ease-in-out;
   .padding-y(var(--space-2));
   .padding-x(var(--space-4));
@@ -182,6 +183,10 @@
     color: var(--secondary-color);
     border-color: var(--secondary-color);
   }
+}
+.btn.inline {
+  .padding-y(var(--space-1));
+  .padding-x(var(--space-2));
 }
 
 .ghost-btn {

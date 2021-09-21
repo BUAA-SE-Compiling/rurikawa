@@ -1,0 +1,30 @@
+<div class="">
+  <div
+    class="row hover-highlight highlight-padding"
+    (click)="toggleCollapsed()"
+  >
+    <span class="username">
+      {{ user.username }}
+    </span>
+    <span class="kind">{{ user.kind }}</span
+    ><span class="student-id" *ngIf="user.studentId">
+      ID={{ user.studentId }}
+    </span>
+  </div>
+  <div class="collapsed" *ngIf="!collapsed">
+    <div class="row extra-info">Email: {{ user.email ?? "None" }}</div>
+    <div class="row actions">
+      <textbox
+        placeholder="新密码"
+        [(value)]="newPassword"
+        type="password"
+      ></textbox>
+      <button
+        class="btn secondary inline warning"
+        (click)="emitPasswordChange()"
+      >
+        修改密码
+      </button>
+    </div>
+  </div>
+</div>

@@ -21,6 +21,7 @@ export const endpoints = {
     getUserInfo: (username: string) => `admin/user-info/${username}`,
     registerUser: `admin/register`,
     searchUserInfo: `admin/user-info`,
+    editPassword: `admin/edit-password`,
   },
   announcement: {
     query: 'announcement',

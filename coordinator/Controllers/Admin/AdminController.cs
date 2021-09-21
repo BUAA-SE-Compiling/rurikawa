@@ -333,18 +333,40 @@ namespace Karenia.Rurikawa.Coordinator.Controllers.Admin {
         /// </summary>
         [HttpPost("register")]
         public async Task<IActionResult> CreateAccount(
-            [FromServices] SingleBucketFileStorageService fs,
+            [FromServices] ProfileService profile,
             [FromBody] RootCreateAccountInfo msg
         ) {
             try {
                 await accountService.CreateAccount(msg.Username, msg.Password, msg.Kind);
-                await fs.Check();
+                await profile.InitializeProfileIfNotExists(msg.Username);
             } catch (AccountService.UsernameNotUniqueException e) {
                 return BadRequest(new ErrorResponse(
                     ErrorCodes.USERNAME_NOT_UNIQUE,
                     $"Username {e.Username} is not unique inside database"));
             }
             return NoContent();
+        }
+
+        public class AdminEditPasswordMessage {
+            public string Username { get; set; }
+            public string Password { get; set; }
+        }
+
+        /// <summary>
+        /// Force edit a user's password using admin rights.
+        /// </summary>
+        /// <param name="msg">The password editing message</param>
+        /// <returns></returns>
+        /// <exception cref="System.Exception"></exception>
+        [HttpPost("edit-password")]
+        public async Task<ActionResult> ChangePassword([FromBody] AdminEditPasswordMessage msg) {
+            switch (await accountService.ForceEditPassword(msg.Username, msg.Password)) {
+                case AccountService.EditPasswordResult.Success:
+                    return NoContent();
+                case AccountService.EditPasswordResult.AccountNotFound:
+                    return NotFound();
+                default: throw new System.Exception("Unreachable!");
+            }
         }
 
         /// <summary>

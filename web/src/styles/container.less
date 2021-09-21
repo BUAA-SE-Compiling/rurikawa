@@ -8,6 +8,18 @@
   .generate-breakpoints(@theme-breakpoint-sm @theme-breakpoint-md @theme-breakpoint-lg, @theme-page-sm-slim @theme-page-md-slim @theme-page-lg-slim);
 }
 
+each(range(1,12),{
+  .col-@{value} {
+    .column(@value,12)
+  }
+});
+
+each(range(1,5),{
+  .col-5-@{value} {
+    .column(@value,5)
+  }
+});
+
 .section {
   width: 100%;
   display: flex;

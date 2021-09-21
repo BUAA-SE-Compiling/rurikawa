@@ -1,12 +1,32 @@
 <div class="container">
   <div class="section row"><h1>搜索用户</h1></div>
   <div class="section row search-criteria">
-    <textbox caption="用户名"></textbox>
-    <textbox caption="学号"></textbox>
-    <textbox caption="用户类型"></textbox>
+    <textbox caption="用户名" [(value)]="searchParams.username"></textbox>
+    <textbox caption="学号" [(value)]="searchParams.studentId"></textbox>
+    <textbox caption="用户类型" [(value)]="searchParams.userType"></textbox>
   </div>
   <div class="section row right">
-    <button class="btn info">搜索</button>
+    <div class="error-result">{{ errorResult }}</div>
+    <button class="btn info" (click)="search()" [disabled]="loading">
+      搜索
+    </button>
   </div>
-  <div class="section search-result"></div>
+  <div class="section search-result" *ngIf="performedSearch">
+    <app-user-item
+      *ngFor="let res of searchResult"
+      [user]="res"
+      (passwordChange)="changePassword(res.username, $event)"
+    >
+    </app-user-item>
+    <ng-template [ngIf]="!loading">
+      <div class="no-result" *ngIf="!searchResult">没有。</div>
+      <div class="no-result" *ngIf="searchExhausted && searchResult">
+        没有更多了。
+      </div>
+      <div class="no-result" *ngIf="!searchExhausted">
+        <button class="btn secondary dark">加载更多</button>
+      </div>
+    </ng-template>
+  </div>
+  <div class="section" *ngIf="!performedSearch">(。・∀・)ノ</div>
 </div>
