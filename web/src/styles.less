@@ -282,6 +282,10 @@ app-root {
   justify-content: stretch;
 }
 
+.spacer {
+  flex-grow: 1;
+}
+
 router-outlet + * {
   flex-grow: 1;
   display: flex;
@@ -312,8 +316,8 @@ a {
   text-decoration: none;
   color: var(--accent-dull);
 
-  &:hover,
-  &:active {
+  &:hover:not(.btn),
+  &:active:not(.btn) {
     color: var(--accent-alt);
   }
 }

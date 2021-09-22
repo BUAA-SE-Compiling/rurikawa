@@ -1,10 +1,35 @@
+@import "/src/styles/common";
+
 .hdr {
   background: var(--pal-accent);
   --background-color: var(--pal-accent);
   --accent-color: var(--pal-base-03);
   --accent-alt: var(--pal-base-03);
   --alt-primary: var(--pal-base-04);
+  padding-top: var(--space-4);
+  padding-bottom: var(--space-3);
   display: flex;
   flex-direction: column;
   align-items: stretch;
+  min-height: 40vh;
+  justify-content: flex-end;
+
+  .login-btns {
+    margin-top: var(--space-2);
+  }
+
+  h1 {
+    font-weight: 900;
+
+    .active-above(@theme-breakpoint-md,{
+      font-size: var(--font-size-title);
+    });
+    .active-below(@theme-breakpoint-md, {
+      font-size: var(--font-size-large);
+    });
+  }
+}
+
+.rest {
+  flex-grow: 1;
 }

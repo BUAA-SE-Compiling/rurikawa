@@ -4,6 +4,10 @@ import { Location } from '@angular/common';
 import { AccountService } from 'src/services/account_service';
 import { HttpErrorResponse } from '@angular/common/http';
 import { Router } from '@angular/router';
+import {
+  NavbarService,
+  NAVBAR_DEFAULT_STYLE,
+} from 'src/services/navbar_service';
 
 @Component({
   selector: 'app-register-page',
@@ -14,8 +18,11 @@ export class RegisterPageComponent implements OnInit {
   constructor(
     private location: Location,
     private router: Router,
-    private accountService: AccountService
-  ) {}
+    private accountService: AccountService,
+    private navbarService: NavbarService
+  ) {
+    navbarService.pushStyle(NAVBAR_DEFAULT_STYLE);
+  }
 
   leftIcon = arrowLeft;
 

@@ -5,6 +5,11 @@ import { AccountService } from 'src/services/account_service';
 import { Router } from '@angular/router';
 import { HttpErrorResponse } from '@angular/common/http';
 import { ignoreElements } from 'rxjs/operators';
+import {
+  NavbarColorScheme,
+  NavbarDisplayKind,
+  NavbarService,
+} from 'src/services/navbar_service';
 
 @Component({
   selector: 'app-login-page',
@@ -15,8 +20,15 @@ export class LoginPageComponent implements OnInit {
   constructor(
     public location: Location,
     public router: Router,
-    private accountService: AccountService
-  ) {}
+    private accountService: AccountService,
+    private navbarService: NavbarService
+  ) {
+    navbarService.pushStyle({
+      color: NavbarColorScheme.Default,
+      display: NavbarDisplayKind.Normal,
+      is_admin_mode: false,
+    });
+  }
 
   leftIcon = arrowLeft;
 

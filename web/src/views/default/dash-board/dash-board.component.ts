@@ -13,6 +13,10 @@ import { Subscription } from 'rxjs';
 import { ApiService } from 'src/services/api_service';
 import { FLOWSNAKE_MAX as FLOWSNAKE_MAX } from 'src/models/flowsnake';
 import { AccountService } from 'src/services/account_service';
+import {
+  NavbarService,
+  NAVBAR_DEFAULT_STYLE,
+} from 'src/services/navbar_service';
 
 @Component({
   selector: 'app-dash-board',
@@ -25,8 +29,11 @@ export class DashBoardComponent implements OnInit, OnDestroy {
     private api: ApiService,
     private title: TitleService,
     public account: AccountService,
-    public judgerStatusService: JudgerStatusService
-  ) {}
+    public judgerStatusService: JudgerStatusService,
+    navbarService: NavbarService
+  ) {
+    navbarService.pushStyle(NAVBAR_DEFAULT_STYLE, false);
+  }
   loading = true;
   items: DashboardItem[] | undefined = undefined;
 

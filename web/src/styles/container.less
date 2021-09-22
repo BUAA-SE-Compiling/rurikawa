@@ -8,6 +8,12 @@
   .generate-breakpoints(@theme-breakpoint-sm @theme-breakpoint-md @theme-breakpoint-lg, @theme-page-sm-slim @theme-page-md-slim @theme-page-lg-slim);
 }
 
+.container,
+.container-slim {
+  display: flex;
+  flex-direction: column;
+}
+
 each(range(1,12),{
   .col-@{value} {
     .column(@value,12)
