@@ -13,6 +13,7 @@ import {
   JudgerStatus,
   NewJobMessage,
   Profile,
+  QueueStatus,
   TestSuite,
   UserKind,
 } from 'src/models/server-types';
@@ -89,6 +90,17 @@ export class ApiService {
           },
         }
       ),
+  };
+
+  status = {
+    judger: () =>
+      this.httpClient.get<JudgerStatus>(endpointBase + endpoints.status.judger),
+    queue: () =>
+      this.httpClient.get<QueueStatus>(endpointBase + endpoints.status.queue),
+    assembly: () =>
+      this.httpClient.get(endpointBase + endpoints.status.assembly, {
+        responseType: 'text',
+      }),
   };
 
   admin = {

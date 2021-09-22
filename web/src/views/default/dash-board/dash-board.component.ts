@@ -6,6 +6,7 @@ import {
   Announcement,
   DashboardItem,
   JudgerStatus,
+  QueueStatus,
 } from 'src/models/server-types';
 import { TitleService } from 'src/services/title_service';
 import { JudgerStatusService } from 'src/services/judger_status_service';
@@ -43,16 +44,14 @@ export class DashBoardComponent implements OnInit, OnDestroy {
   errorMessage?: string;
 
   judgerStat?: JudgerStatus;
+  queueStatus?: QueueStatus;
+  assemblyInfo?: string;
+
   judgerSubscription?: Subscription;
+  queueSubscription?: Subscription;
 
   gotoJudgeSuite(id: string) {
     this.router.navigate(['/suite', id]);
-  }
-
-  fetchJudgerStat() {
-    this.judgerStatusService.getData().then((v) => {
-      this.judgerStat = v;
-    });
   }
 
   fetchAnnouncements() {
@@ -62,6 +61,8 @@ export class DashBoardComponent implements OnInit, OnDestroy {
       },
     });
   }
+
+  intervalId: any;
 
   ngOnInit(): void {
     this.title.setTitle('Rurikawa', 'dashboard');
@@ -83,12 +84,26 @@ export class DashBoardComponent implements OnInit, OnDestroy {
         this.loading = false;
       },
     });
-    this.fetchJudgerStat();
+    this.judgerStatusService.subscribeData(
+      (status) => (this.judgerStat = status)
+    );
+    this.judgerStatusService.subscribeQueueData(
+      (queueStatus) => (this.queueStatus = queueStatus)
+    );
+    this.judgerStatusService
+      .getAssembly()
+      .then((asm) => (this.assemblyInfo = asm));
     this.fetchAnnouncements();
+
+    this.judgerStatusService.triggerUpdate().then();
+    this.intervalId = setInterval(
+      () => this.judgerStatusService.triggerUpdate().then(),
+      10000
+    );
   }
 
   ngOnDestroy() {
     this.title.revertTitle();
-    this.judgerSubscription?.unsubscribe();
+    clearInterval(this.intervalId);
   }
 }

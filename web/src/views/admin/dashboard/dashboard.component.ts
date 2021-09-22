@@ -34,17 +34,12 @@ export class DashboardComponent implements OnInit {
     });
   }
 
-  fetchJudgerStat() {
-    this.judgerStatusService.getData().then((v) => (this.judgerStat = v));
-  }
-
   ngOnInit(): void {
     this.adminService.isServerInitialized().subscribe((v) => {
       if (!v) {
         this.router.navigate(['/admin', 'init-db']);
       }
       this.fetchTestSuites();
-      this.fetchJudgerStat();
     });
   }
 }

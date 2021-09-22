@@ -8,7 +8,6 @@ import {
   Router,
   RouterEvent,
 } from '@angular/router';
-import { upperFirst } from 'lodash';
 
 @Injectable({ providedIn: 'root' })
 export class NavbarService {

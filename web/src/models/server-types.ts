@@ -100,3 +100,7 @@ export interface JudgerStatus {
   connected: number;
   running: number;
 }
+
+export interface QueueStatus {
+  queuedJobs: number;
+}

@@ -23,6 +23,11 @@ export const endpoints = {
     searchUserInfo: `admin/user-info`,
     editPassword: `admin/edit-password`,
   },
+  status: {
+    queue: 'status/job-queue',
+    judger: 'status/judger',
+    assembly: 'status/assembly',
+  },
   announcement: {
     query: 'announcement',
     post: 'announcement',

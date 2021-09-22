@@ -31,7 +31,9 @@ namespace Karenia.Rurikawa.Coordinator.Controllers {
         /// </returns>
         [HttpGet("assembly")]
         public string? GetAssembly() {
-            return Assembly.GetEntryAssembly()?.GetName().FullName;
+            AssemblyName? assemblyName = Assembly.GetEntryAssembly()?.GetName();
+            if (assemblyName == null) return null;
+            else return $"{assemblyName.Name} v{assemblyName.Version}";
         }
 
         public class JudgerStat {

@@ -47,7 +47,20 @@
 </div>
 <div class="judger-status footer">
   <div class="container" *ngIf="judgerStat">
-    <strong>评测机:</strong>
-    {{ judgerStat.connected }} 已连接 / {{ judgerStat.running }} 有任务
+    <div class="row">
+      <div class="col-6">
+        <strong>评测机:</strong>
+        {{ judgerStat?.connected }} 已连接 / {{ judgerStat?.running }} 有任务
+      </div>
+      <div class="col-6" *ngIf="queueStatus">
+        评测队列有 {{ queueStatus?.queuedJobs }} 个任务
+      </div>
+    </div>
+    <div class="row">
+      <a routerLink="/about" class="col-6">关于 Rurikawa</a>
+      <div class="col-6" *ngIf="assemblyInfo">
+        {{ assemblyInfo }}
+      </div>
+    </div>
   </div>
 </div>
