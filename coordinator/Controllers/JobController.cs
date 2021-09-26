@@ -48,21 +48,12 @@ namespace Karenia.Rurikawa.Coordinator.Controllers {
                     // authorize
                     var role = HttpContext.User.FindFirst(ClaimTypes.Role)?.Value;
                     if (role != "Admin" && role != "Root") {
-                        var account = HttpContext.User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+                        var account = AuthHelper.ExtractUsername(HttpContext.User);
                         if (res.Account != account) return NotFound();
                     }
                 }
                 return res;
             }
-        }
-
-
-        [HttpGet("")]
-        public async Task<IList<Job>> GetJobs(
-            [FromQuery] FlowSnake startId = new FlowSnake(),
-            [FromQuery] int take = 20,
-            [FromQuery] bool asc = false) {
-            return await dbsvc.GetJobs(startId, take, asc);
         }
 
 #pragma warning disable 

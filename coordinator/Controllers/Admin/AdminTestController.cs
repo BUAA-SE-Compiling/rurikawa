@@ -20,7 +20,7 @@ namespace Karenia.Rurikawa.Coordinator.Controllers.Admin {
         public async Task<IList<Job>> GetJobsFromSuite(
             [FromServices] DbService dbService,
             [FromRoute] FlowSnake suiteId,
-            [FromQuery] FlowSnake startId = new FlowSnake(),
+            [FromQuery] FlowSnake? startId = null,
             [FromQuery] int take = 20,
             [FromQuery] string? user = null,
             [FromQuery] bool asc = false) {
