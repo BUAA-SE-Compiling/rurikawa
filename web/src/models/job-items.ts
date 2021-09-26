@@ -69,6 +69,7 @@ interface JobStatus {
 
 export interface JobItem {
   id: string;
+  account: string;
   time: Dayjs;
   numberBrief: string;
   numberBriefSub?: string;
@@ -194,6 +195,7 @@ const numberFormatter = Intl.NumberFormat('native', {
 export function JobToJobItem(job: Job, testSuite?: TestSuite): JobItem {
   let res = {
     id: job.id,
+    account: job.account,
     numberBrief: resultBriefMain(job, testSuite, numberFormatter),
     numberBriefSub: resultBriefSub(job, testSuite, numberFormatter),
     status: getStatus(job),

@@ -12,8 +12,13 @@
       <app-slider-view [items]="slider" [height]="8"></app-slider-view>
     </div>
   </div>
-  <div class="row text">
+  <div class="row text" [ngClass]="{ 'show-username': showUsername }">
     <div class="id">{{ item.id }}</div>
-    <div class="repo">{{ item.branch }}</div>
+    <div class="username" *ngIf="showUsername">
+      <ic-icon [icon]="userIcon" [inline]="true"></ic-icon> {{ item.account }}
+    </div>
+    <div class="repo">
+      <ic-icon [icon]="branchIcon" [inline]="true"></ic-icon> {{ item.branch }}
+    </div>
   </div>
 </div>

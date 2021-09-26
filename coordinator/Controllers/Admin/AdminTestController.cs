@@ -20,12 +20,12 @@ namespace Karenia.Rurikawa.Coordinator.Controllers.Admin {
         public async Task<IList<Job>> GetJobsFromSuite(
             [FromServices] DbService dbService,
             [FromRoute] FlowSnake suiteId,
-            [FromQuery] FlowSnake? startId = null,
+            [FromQuery] FlowSnake startId = default,
             [FromQuery] int take = 20,
             [FromQuery] string? user = null,
             [FromQuery] bool asc = false) {
             FlowSnake? startId_ = startId;
-            if (startId_ == FlowSnake.MinValue) startId_ = null;
+            if (startId == default) startId_ = null;
             return await dbService.GetJobs(
                 startId: startId_,
                 take: take,

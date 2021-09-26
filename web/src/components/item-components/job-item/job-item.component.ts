@@ -8,6 +8,8 @@ import {
 import { SliderItem } from 'src/components/base-components/slider-view/slider-view.component';
 import { Dayjs } from 'dayjs';
 import { TestSuite } from 'src/models/server-types';
+import branchIcon from '@iconify/icons-carbon/branch';
+import userIcon from '@iconify/icons-carbon/user';
 
 @Component({
   selector: 'app-job-item',
@@ -18,6 +20,10 @@ export class JobItemComponent implements OnInit {
   @Input() job: Job;
   @Input() testSuite?: TestSuite;
   @Input() compact: boolean = false;
+  @Input() showUsername: boolean = false;
+
+  readonly branchIcon = branchIcon;
+  readonly userIcon = userIcon;
 
   constructor() {}
 

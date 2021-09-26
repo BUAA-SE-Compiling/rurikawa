@@ -43,16 +43,16 @@ each(range(1,5),{
   display: flex;
   flex-direction: row;
   align-items: flex-end;
+  margin-inline-end: calc(-1 * var(--space-1));
 
   & > * {
-    .margin-x(var(--space-1));
+    margin-inline-end: var(--space-1);
+  }
 
-    &:first-child {
-      margin-left: 0;
-    }
-
-    &:last-child {
-      margin-right: 0;
+  &.wrap {
+    flex-wrap: wrap;
+    & > * {
+      margin-bottom: var(--space-1);
     }
   }
 

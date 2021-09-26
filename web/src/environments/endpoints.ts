@@ -15,6 +15,7 @@ export const endpoints = {
     setInitAccount: 'admin/init',
     getJudgerStat: 'status/judger',
     getCode: 'admin/code',
+    // TODO: move these paths to /tests/ & update to v2
     dumpSuiteJobs: (id: string) => `admin/suite/${id}/dump_jobs`,
     dumpSuiteAllJobs: (id: string) => `admin/suite/${id}/dump_all_jobs`,
     judgerRegisterToken: 'admin/judger/register-token',
@@ -22,6 +23,9 @@ export const endpoints = {
     registerUser: `admin/register`,
     searchUserInfo: `admin/user-info`,
     editPassword: `admin/edit-password`,
+    testSuite: {
+      querySuiteJobs: (id: string) => `admin/tests/${id}/jobs`,
+    },
   },
   status: {
     queue: 'status/job-queue',

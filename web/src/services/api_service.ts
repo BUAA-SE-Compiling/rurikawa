@@ -20,6 +20,13 @@ import {
 
 const endpointBase = environment.endpointBase();
 
+export type AdminTestSuiteQueryJobParams = {
+  startId?: string;
+  take?: number;
+  user?: string;
+  asc?: boolean;
+};
+
 @Injectable({ providedIn: 'root' })
 export class ApiService {
   constructor(private httpClient: HttpClient) {}
@@ -184,6 +191,22 @@ export class ApiService {
         username,
         password,
       });
+    },
+
+    testSuite: {
+      querySuiteJobs: (
+        suiteId: string,
+        params: AdminTestSuiteQueryJobParams,
+        take: number,
+        fromId: string
+      ) => {
+        return this.httpClient.get<Job[]>(
+          endpointBase + endpoints.admin.testSuite.querySuiteJobs(suiteId),
+          {
+            params: { take, startId: fromId, ...params },
+          }
+        );
+      },
     },
   };
 

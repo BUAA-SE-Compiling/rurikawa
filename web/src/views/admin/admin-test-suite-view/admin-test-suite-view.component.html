@@ -30,5 +30,46 @@
   </div>
   <div class="section">
     <h2>当前结果</h2>
+    <div class="row wrap col-container">
+      <textbox
+        id="test-suite-search-from-user"
+        caption="来自用户"
+        [(value)]="searchParams.username"
+      ></textbox>
+      <textbox
+        id="test-suite-search-from-id"
+        caption="起始 ID"
+        [(value)]="searchParams.startId"
+      ></textbox>
+      <checkbox
+        id="test-suite-search-asc"
+        caption="正序"
+        [(value)]="searchParams.ascending"
+      ></checkbox>
+      <button
+        id="test-suite-search"
+        class="btn info"
+        (click)="searchItems()"
+        [disabled]="searching"
+      >
+        搜索
+      </button>
+    </div>
+    <div class="section">
+      <app-job-item
+        *ngFor="let item of searchedItems"
+        [testSuite]="suite"
+        [job]="item"
+        [showUsername]="true"
+        [routerLink]="['/job', item.id]"
+      ></app-job-item>
+      <button
+        class="btn secondary dark"
+        *ngIf="!searching && !searchExhausted && initiatedSearch"
+        (click)="appendSearch()"
+      >
+        加载更多
+      </button>
+    </div>
   </div>
 </div>

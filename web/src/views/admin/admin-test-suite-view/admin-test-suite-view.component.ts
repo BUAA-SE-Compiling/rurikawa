@@ -9,7 +9,12 @@ import {
 import { TestSuite } from 'src/models/server-types';
 import { environment } from 'src/environments/environment';
 import { endpoints } from 'src/environments/endpoints';
-import { ApiService } from 'src/services/api_service';
+import {
+  AdminTestSuiteQueryJobParams,
+  ApiService,
+} from 'src/services/api_service';
+import { Job, JobItem, JobToJobItem } from 'src/models/job-items';
+import { FLOWSNAKE_MIN } from 'src/models/flowsnake';
 
 @Component({
   selector: 'app-admin-test-suite-view',
@@ -114,6 +119,59 @@ export class AdminTestSuiteViewComponent implements OnInit {
         this.router.navigate(['admin']);
       },
     });
+  }
+
+  searchParams = {
+    username: '',
+    startId: '',
+    ascending: false,
+  };
+  searchedItems: Job[] = [];
+  largestId: string | undefined = undefined;
+  searching = false;
+  searchExhausted = false;
+  initiatedSearch = false;
+
+  searchItems() {
+    this.initiatedSearch = true;
+    this.searching = true;
+    this.searchExhausted = false;
+    let params: AdminTestSuiteQueryJobParams = this.getSearchParams();
+    this.api.admin.testSuite
+      .querySuiteJobs(this.id, params, 50, FLOWSNAKE_MIN)
+      .subscribe({
+        next: (v) => {
+          this.searchedItems = v;
+          this.searchExhausted = v.length < 50;
+          this.largestId = v.reduce((p: string | undefined, c) => {
+            if (c.id > p) return c.id;
+            else return p;
+          }, undefined);
+        },
+        complete: () => (this.searching = false),
+      });
+  }
+
+  appendSearch() {
+    this.searching = true;
+    let params: AdminTestSuiteQueryJobParams = this.getSearchParams();
+    this.api.admin.testSuite
+      .querySuiteJobs(this.id, params, 50, this.largestId ?? FLOWSNAKE_MIN)
+      .subscribe({
+        next: (v) => {
+          this.searchedItems.push(...v);
+          this.searchExhausted = v.length < 50;
+        },
+        complete: () => (this.searching = false),
+      });
+  }
+
+  private getSearchParams() {
+    let params: AdminTestSuiteQueryJobParams = {};
+    if (this.searchParams.username) params.user = this.searchParams.username;
+    if (this.searchParams.startId) params.startId = this.searchParams.startId;
+    params.asc = this.searchParams.ascending;
+    return params;
   }
 
   ngOnInit(): void {

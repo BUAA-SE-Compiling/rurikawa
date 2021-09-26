@@ -1,4 +1,36 @@
+@import "/src/styles/common";
+
 .tag {
   font-size: var(--font-size-smaller);
   color: var(--secondary-color);
 }
+
+.active-above(@theme-breakpoint-md,{
+  #test-suite-search-from-user{
+    .column(1,3)
+  }
+  #test-suite-search-from-id{
+    .column(1,3)
+  }
+  #test-suite-search-asc{
+    .column(1,6)
+  }
+  #test-suite-search{
+    .column(1,6,4)
+  }
+});
+
+.active-below(@theme-breakpoint-md,{
+  #test-suite-search-from-user{
+    .column(1,2)
+  }
+  #test-suite-search-from-id{
+    .column(1,2)
+  }
+  #test-suite-search-asc{
+    .column(1,2)
+  }
+  #test-suite-search{
+    .column(1,2)
+  }
+});

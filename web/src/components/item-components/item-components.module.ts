@@ -7,6 +7,7 @@ import { RouterModule } from '@angular/router';
 import { JobTestItemComponent } from './job-test-item/job-test-item.component';
 import { AnnouncementItemComponent } from './announcement-item/announcement-item.component';
 import { MarkdownModule } from 'ngx-markdown';
+import { IconModule } from '@visurel/iconify-angular';
 
 @NgModule({
   declarations: [
@@ -15,7 +16,13 @@ import { MarkdownModule } from 'ngx-markdown';
     JobTestItemComponent,
     AnnouncementItemComponent,
   ],
-  imports: [CommonModule, BaseComponentsModule, RouterModule, MarkdownModule],
+  imports: [
+    CommonModule,
+    BaseComponentsModule,
+    RouterModule,
+    MarkdownModule,
+    IconModule,
+  ],
   exports: [
     DashboardItemComponentComponent,
     JobItemComponent,

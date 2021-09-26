@@ -100,7 +100,7 @@ namespace Karenia.Rurikawa.Coordinator.Controllers {
             [FromQuery] int take = 20,
             [FromQuery] bool asc = false) {
             FlowSnake? startId_ = startId;
-            if (startId_ == FlowSnake.MinValue) startId_ = null;
+            if (startId == FlowSnake.MinValue) startId_ = null;
             var username = AuthHelper.ExtractUsername(HttpContext.User);
             return await dbService.GetJobs(
                 startId: startId_,
