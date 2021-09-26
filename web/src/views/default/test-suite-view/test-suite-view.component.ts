@@ -11,6 +11,8 @@ import RepoIcon from '@iconify/icons-mdi/git';
 import DownArrowIcon from '@iconify/icons-mdi/chevron-down';
 import UpArrowIcon from '@iconify/icons-mdi/chevron-up';
 import TimeIcon from '@iconify/icons-carbon/timer';
+import UserIcon from '@iconify/icons-carbon/user';
+import PasswordIcon from '@iconify/icons-carbon/password';
 import MemoryIcon from '@iconify/icons-carbon/chart-treemap';
 import {
   TestSuite,
@@ -38,6 +40,8 @@ import {
   errorResponseToDescription,
 } from 'src/models/errors';
 import { ApiService } from 'src/services/api_service';
+
+const repoParser = /^https:\/\/(?:(.*?)(?::(.*?))?@)?(.+)$/;
 
 @Component({
   selector: 'app-test-suite-view',
@@ -73,9 +77,13 @@ export class TestSuiteViewComponent implements OnInit, OnDestroy {
   readonly upArrowIcon = UpArrowIcon;
   readonly timeIcon = TimeIcon;
   readonly memoryIcon = MemoryIcon;
+  readonly userIcon = UserIcon;
+  readonly passwordIcon = PasswordIcon;
 
   repo: string = '';
   branch: string = '';
+  username: string = '';
+  password: string = '';
 
   repoMessage: string | undefined;
   branchMessage: string | undefined;
@@ -205,7 +213,14 @@ export class TestSuiteViewComponent implements OnInit, OnDestroy {
 
   private initSubmit() {
     if (this.repo === '' && this.jobs && this.jobs.length > 0) {
-      this.repo = this.jobs[0].repo;
+      let repoParseResult = repoParser.exec(this.jobs[0].repo);
+      if (repoParseResult == null) {
+        this.repo = this.jobs[0].repo;
+      } else {
+        this.repo = 'https://' + repoParseResult[3];
+        this.username = repoParseResult[1] ?? '';
+        this.password = repoParseResult[2] ?? '';
+      }
       this.branch = this.jobs[0].branch;
     }
   }
@@ -264,6 +279,19 @@ export class TestSuiteViewComponent implements OnInit, OnDestroy {
     if (!repo) {
       this.repoMessage = '请填写仓库地址';
       return;
+    }
+    let repoParseResult = repoParser.exec(this.repo);
+    if (repoParseResult == null) {
+      this.repoMessage = '你提交的大概不是 HTTPS 仓库地址';
+      return;
+    }
+    let rawRepo = repoParseResult[3];
+    if (this.username) {
+      if (this.password) {
+        repo = `https://${this.username}:${this.password}@${rawRepo}`;
+      } else {
+        repo = `https://${this.username}@${rawRepo}`;
+      }
     }
 
     if (this.usingTestGroup.size === 0) {

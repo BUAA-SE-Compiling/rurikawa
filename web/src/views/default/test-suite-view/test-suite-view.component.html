@@ -19,7 +19,7 @@
       <div class="lblk">
         <div id="job-submit">
           <h2>提交评测</h2>
-          <div class="row col-container">
+          <div class="row col-container top">
             <textbox
               class="repo-input"
               type="text"
@@ -36,6 +36,24 @@
               caption="分支"
               [icon]="branchIcon"
               [(value)]="branch"
+            ></textbox>
+          </div>
+          <div class="row col-container top">
+            <textbox
+              class="branch-input"
+              type="text"
+              placeholder=""
+              caption="用户名"
+              [icon]="userIcon"
+              [(value)]="username"
+            ></textbox>
+            <textbox
+              class="branch-input"
+              type="password"
+              placeholder=""
+              caption="口令"
+              [icon]="passwordIcon"
+              [(value)]="password"
             ></textbox>
           </div>
           <div class="section" *ngIf="testGroups?.length > 1">
