@@ -24,15 +24,15 @@ async-compat = "0.2"
 async-pipe = "0.1"
 async-tar = "0.3.0"
 async-trait = "0.1.42"
-bollard = "0.10"
+bollard = "0.11"
 broadcaster = { version = "1.0.0", features = ["default-channels"] }
 bytes = "1"
 chrono = "0.4.19"
-clap = "3.0.0-beta.1"
+clap = "3.0.0-beta.4"
 ctrlc = "3.1.7"
 dashmap = "4"
 difference = "2.0.0"
-dirs = "3.0.1"
+dirs = "4"
 drop_bomb = "0.1.5"
 err-derive = "*"
 fern = "0.6.0"
@@ -42,8 +42,8 @@ hyper = { version = "0.14", features = ["stream"] }
 itertools = "0.10.0"
 ignore = "0.4"
 log = "*"
-names = "0.11.0"
-nix = "0.20"
+names = { version = "0.12.0", default-features = false }
+nix = "0.23"
 once_cell = "1.5.2"
 path-absolutize = "3.0.6"
 path-slash = "0.1.3"
@@ -66,7 +66,7 @@ shell-words = "1"
 tar = "0.4.30"
 tokio = { version = "1", features = ["full"] }
 tokio-stream = { version = "0.1", features = ["fs", "io-util"] }
-tokio-tungstenite = { version = "0.14.0", features = ["rustls-tls"] }
+tokio-tungstenite = { version = "0.15.0", features = ["rustls-tls"] }
 tokio-util = { version = "0.6", features = ["codec", "compat"] }
 toml = "0.5.7"
 tracing = "0.1.21"
@@ -76,5 +76,5 @@ tracing-subscriber = "0.2.15"
 respector = "0.1.1"
 
 [dev-dependencies]
-pretty_assertions = "0.6.1"
+pretty_assertions = "1"
 tokio-test = "0.4"

@@ -52,11 +52,12 @@ pub async fn try_register(
     };
     let endpoint = client_data.register_endpoint();
     let client = &client_data.client;
-    let res = client
+
+    let req = client
         .request(Method::POST, &endpoint)
         .json(&req_body)
-        .send()
-        .await?;
+        .build()?;
+    let res = client.execute(req).await?;
 
     let status = res.status().as_u16();
     if status >= 300 {

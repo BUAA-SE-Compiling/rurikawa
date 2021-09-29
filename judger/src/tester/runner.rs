@@ -317,19 +317,19 @@ impl DockerCommandRunner {
                         .await
                 );
 
-                let mut exec_res = r
-                    .instance
-                    .start_exec(
-                        &exec.id,
-                        Some(bollard::exec::StartExecOptions { detach: false }),
-                    )
-                    .map(|x| x.map(|_| ()))
-                    .collect::<Vec<_>>()
-                    .await;
-
-                try_or_kill!(exec_res
-                    .drain(..)
-                    .collect::<Result<Vec<_>, bollard::errors::Error>>());
+                let exec_res = try_or_kill!(
+                    r.instance
+                        .start_exec(
+                            &exec.id,
+                            Some(bollard::exec::StartExecOptions { detach: false }),
+                        )
+                        .await
+                );
+                let exec_res = match exec_res {
+                    StartExecResults::Attached { output, input } => (output),
+                    StartExecResults::Detached => unreachable!(),
+                };
+                try_or_kill!(exec_res.try_collect::<Vec<_>>().await);
 
                 let from_path = from_path.clone();
 
@@ -565,10 +565,19 @@ impl CommandRunner for DockerCommandRunner {
             })?;
 
         // Start the Docker Exec
-        let mut start_res = self.instance.start_exec(
-            &message.id,
-            Some(bollard::exec::StartExecOptions { detach: false }),
-        );
+        let start_res = self
+            .instance
+            .start_exec(
+                &message.id,
+                Some(bollard::exec::StartExecOptions { detach: false }),
+            )
+            .await
+            .map_err(|e| io::Error::new(io::ErrorKind::Other, e))?;
+
+        let mut start_res = match start_res {
+            StartExecResults::Attached { output, input: _ } => output,
+            StartExecResults::Detached => unreachable!(),
+        };
 
         let mut stdout = String::new();
         let mut stderr = String::new();
@@ -577,26 +586,23 @@ impl CommandRunner for DockerCommandRunner {
             use bollard::container::LogOutput;
             let msg = msg.map_err(|e| io::Error::new(io::ErrorKind::Other, e))?;
             match msg {
-                StartExecResults::Attached { log } => match log {
-                    LogOutput::StdOut { message } => {
-                        let msg = String::from_utf8_lossy(&message);
-                        stdout.push_str(&msg);
-                        if stdout.len() >= MAX_CONSOLE_FILE_SIZE {
-                            stdout.push_str("\n--- ERROR: Max output length exceeded");
-                            break;
-                        }
+                LogOutput::StdOut { message } => {
+                    let msg = String::from_utf8_lossy(&message);
+                    stdout.push_str(&msg);
+                    if stdout.len() >= MAX_CONSOLE_FILE_SIZE {
+                        stdout.push_str("\n--- ERROR: Max output length exceeded");
+                        break;
                     }
-                    LogOutput::StdErr { message } => {
-                        let msg = String::from_utf8_lossy(&message);
-                        stderr.push_str(&msg);
-                        if stderr.len() >= MAX_CONSOLE_FILE_SIZE {
-                            stderr.push_str("\n--- ERROR: Max output length exceeded");
-                            break;
-                        }
+                }
+                LogOutput::StdErr { message } => {
+                    let msg = String::from_utf8_lossy(&message);
+                    stderr.push_str(&msg);
+                    if stderr.len() >= MAX_CONSOLE_FILE_SIZE {
+                        stderr.push_str("\n--- ERROR: Max output length exceeded");
+                        break;
                     }
-                    _ => (),
-                },
-                StartExecResults::Detached => (),
+                }
+                _ => (),
             }
         }
 
