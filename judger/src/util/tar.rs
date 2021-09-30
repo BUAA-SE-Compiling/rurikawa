@@ -2,14 +2,14 @@
 //!
 //!
 
-use async_compat::CompatExt;
-use async_tar::{Builder, Header};
 use bytes::BytesMut;
-use futures::prelude::*;
+use futures::{Future, FutureExt};
 use ignore::gitignore::{Gitignore, GitignoreBuilder};
 use std::{path::Path, pin::Pin};
+use tokio::io::AsyncWrite;
 use tokio::task::JoinHandle;
-use tokio_util::compat::TokioAsyncWriteCompatExt;
+use tokio_stream::Stream;
+use tokio_tar::{Builder, Header};
 
 #[tracing::instrument(skip(input))]
 pub fn ignore_from_string_list<'a>(
@@ -52,9 +52,7 @@ pub fn pack_as_tar(
 
     // Launch a task for archiving.
     let archiving = tokio::spawn(async move {
-        let mut tar =
-            async_tar::Builder::new(futures::io::BufWriter::new(pipe_recv.compat_write()));
-
+        let mut tar = tokio_tar::Builder::new(pipe_recv);
         add_dir_glob(&path, &path, &ignore, &mut tar).await?;
         tar.finish().await?;
         Ok(())
@@ -85,12 +83,8 @@ fn add_dir_glob<'a, W: AsyncWrite + Send + Sync + Unpin>(
                 let mut file = tokio::fs::File::open(&path).await?;
                 let mut header = Header::new_gnu();
                 header.set_metadata(&meta);
-                tar.append_data(
-                    &mut header,
-                    path.strip_prefix(root).unwrap(),
-                    (&mut file).compat(),
-                )
-                .await?;
+                tar.append_data(&mut header, path.strip_prefix(root).unwrap(), &mut file)
+                    .await?;
             }
         }
         Ok(())

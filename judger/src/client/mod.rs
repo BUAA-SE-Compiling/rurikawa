@@ -201,16 +201,15 @@ pub async fn check_download_read_test_suite(
 
     if !dir_exists || !lockfile_up_to_date {
         let endpoint = cfg.test_suite_download_endpoint(suite_id);
-        let filename = cfg.random_temp_file_path();
         let file_folder_root = cfg.temp_file_folder_root();
 
         fs::ensure_removed_dir(&suite_folder).await?;
         tokio::fs::create_dir_all(file_folder_root).await?;
         tracing::info!(
-            "Test suite does not exist. Initiating download of suite {} from {} to {:?}",
+            "Test suite does not exist. Initiating download of suite {} from {} to {}",
             suite_id,
             &endpoint,
-            &filename
+            &suite_folder.display()
         );
         fs::net::download_unzip(
             cfg.client.clone(),
@@ -219,7 +218,6 @@ pub async fn check_download_read_test_suite(
                 .header("authorization", cfg.cfg().access_token.as_ref().unwrap())
                 .build()?,
             &suite_folder,
-            &filename,
         )
         .await?;
     }

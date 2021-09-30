@@ -1,8 +1,11 @@
 //! Functions to download stuff into destinations
 
-use futures::prelude::*;
+use anyhow::Context;
+use async_compat::CompatExt;
+use futures::TryStreamExt;
 use std::{fmt::Write, path::Path};
 use tokio::{io::AsyncWriteExt, process::Command};
+use tokio_tar::Archive;
 
 #[derive(Debug)]
 pub struct GitCloneOptions {
@@ -122,58 +125,18 @@ pub async fn download_unzip(
     client: reqwest::Client,
     req: reqwest::Request,
     dir: &Path,
-    temp_file_path: &Path,
 ) -> anyhow::Result<()> {
-    let res: anyhow::Result<_> = async {
-        log::info!(
-            "Downloading from {} to {}",
-            req.url(),
-            temp_file_path.display()
-        );
-        let resp = client.execute(req).await?.error_for_status()?;
-        let mut file = tokio::fs::File::create(temp_file_path).await?;
+    log::info!("Downloading from {} to {}", req.url(), dir.display());
+    let resp = client.execute(req).await?.error_for_status()?;
 
-        let mut stream = resp.bytes_stream();
+    let stream = resp
+        .bytes_stream()
+        .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))
+        .into_async_read()
+        .compat();
+    let mut archive = Archive::new(stream);
 
-        while let Some(bytes) = stream.next().await {
-            let bytes = bytes?;
-            log::info!("Writing {} bytes into {}", bytes.len(), dir.display());
-            file.write_all(&bytes).await?;
-        }
-        file.flush().await?;
-        drop(file);
+    archive.unpack(dir).await?;
 
-        let unzip_res = Command::new("7z")
-            .args(&[
-                "x",
-                &temp_file_path.to_string_lossy(),
-                &format!("-o{}", dir.to_string_lossy()),
-            ])
-            .output()
-            .await?;
-        tokio::fs::remove_file(temp_file_path).await?;
-        if unzip_res.status.success() {
-            Ok(())
-        } else {
-            Err(std::io::Error::new(
-                std::io::ErrorKind::InvalidData,
-                format!(
-                    "7zip failed to extract, exited with output:\n{}",
-                    String::from_utf8_lossy(&unzip_res.stdout)
-                ),
-            )
-            .into())
-        }
-    }
-    .await;
-
-    match res {
-        Ok(_) => {}
-        Err(_) => {
-            // cleanup
-            let _ = tokio::fs::remove_file(temp_file_path).await;
-        }
-    }
-
-    res
+    Ok(())
 }
