@@ -54,7 +54,12 @@ pub struct ConnectSubCmd {
     pub concurrent_tasks: Option<usize>,
 
     /// Path of temp folder, defaults to ~/.rurikawa/
-    #[clap(long = "temp-folder", name = "path", env = "RURIKAWA_TEMP_FOLDER_PATH")]
+    #[clap(
+        long = "temp-folder",
+        long = "path",
+        name = "path",
+        env = "RURIKAWA_TEMP_FOLDER_PATH"
+    )]
     pub temp_folder_path: Option<PathBuf>,
 
     /// Supply or override existing access token

@@ -251,6 +251,7 @@ pub async fn check_download_read_test_suite(
 
     let mut judger_conf_dir = suite_folder.clone();
     judger_conf_dir.push("testconf.json");
+    tracing::debug!("Reading test config: {:?}", judger_conf_dir);
     let judger_conf = match tokio::fs::read(&judger_conf_dir).await {
         Ok(c) => c,
         Err(e) => match e.kind() {
