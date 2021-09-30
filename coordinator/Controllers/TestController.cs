@@ -304,11 +304,11 @@ namespace Karenia.Rurikawa.Coordinator.Controllers {
                     using var file = reader.OpenEntryStream();
                     switch (entry.Key.ToLower()) {
                         case "testconf.json":
-                            logger.LogInformation("testconf!");
+                        case "./testconf.json":
                             suite = await ParseTestSuiteJson(file);
                             break;
                         case "readme.md":
-                            logger.LogInformation("readme!");
+                        case "./readme.md":
                             desc = await ParseTestSuiteDesc(file);
                             break;
                         default:
