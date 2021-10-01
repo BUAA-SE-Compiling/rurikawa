@@ -167,6 +167,30 @@ run = [
 ]
 ```
 
+### 简单的 C++ 项目
+
+Dockerfile:
+
+```dockerfile
+FROM frolvlad/alpine-gxx
+WORKDIR /app/
+COPY lexer.cpp ./
+RUN g++ lexer.cpp -o lexer
+RUN chmod +x lexer
+```
+
+judge.toml
+
+```toml
+[jobs.lexer]
+
+image = { source = "dockerfile", path = "." }
+
+run = [
+  "./lexer $input"
+]
+```
+
 ### 使用 CMake 的项目
 
 Dockerfile: 
