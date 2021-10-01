@@ -105,19 +105,18 @@ namespace Karenia.Rurikawa.Coordinator.Services {
                     ctx.Request.Query.TryGetValue("conn", out var connId_);
                     var connId = connId_.FirstOrDefault();
 
-                    var connLock = await connectionLock.LockAsync();
-                    if (connections.TryGetValue(auth, out var lastConn)) {
-                        if (lastConn.ConnectionId != null && connId != null && lastConn.ConnectionId == connId) {
-                            // replace this session
-                            await lastConn.Socket.Close(System.Net.WebSockets.WebSocketCloseStatus.PolicyViolation, "Duplicate connection", CancellationToken.None);
-                            connections.Remove(auth);
-                        } else {
-                            ctx.Response.StatusCode = StatusCodes.Status409Conflict;
-                            connLock.Dispose();
-                            return false;
+                    using (await connectionLock.LockAsync()) {
+                        if (connections.TryGetValue(auth, out var lastConn)) {
+                            if (lastConn.ConnectionId != null && connId != null && lastConn.ConnectionId == connId) {
+                                // replace this session
+                                await lastConn.Socket.Close(System.Net.WebSockets.WebSocketCloseStatus.PolicyViolation, "Duplicate connection", CancellationToken.None);
+                                connections.Remove(auth);
+                            } else {
+                                ctx.Response.StatusCode = StatusCodes.Status409Conflict;
+                                return false;
+                            }
                         }
                     }
-                    connLock.Dispose();
 
                     var ws = await ctx.WebSockets.AcceptWebSocketAsync();
 
@@ -601,16 +600,16 @@ namespace Karenia.Rurikawa.Coordinator.Services {
         /// </summary>
         /// <returns>(connectedCount, runningCount)</returns>
         public async Task<(int, int)> GetConnectedJudgerInfo() {
-            await connectionLock.WaitAsync();
-            var result = connections.Aggregate((0, 0), (cnt, val) => {
-                if (val.Value.ActiveTaskCount > 0) {
-                    return (cnt.Item1 + 1, cnt.Item2 + 1);
-                } else {
-                    return (cnt.Item1 + 1, cnt.Item2);
-                }
-            });
-            connectionLock.Release();
-            return result;
+            using (await connectionLock.LockAsync()) {
+                var result = connections.Aggregate((0, 0), (cnt, val) => {
+                    if (val.Value.ActiveTaskCount > 0) {
+                        return (cnt.Item1 + 1, cnt.Item2 + 1);
+                    } else {
+                        return (cnt.Item1 + 1, cnt.Item2);
+                    }
+                });
+                return result;
+            }
         }
     }
 
