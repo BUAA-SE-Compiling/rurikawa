@@ -276,7 +276,7 @@ fn extract_job_err(job_id: FlowSnake, err: &JobExecErr) -> ClientMsg {
         ),
         JobExecErr::NoSuchConfig(f) => (
             JobResultKind::CompileError,
-            format!("Cannot find config for {} in `judger.toml`", f),
+            format!("Cannot find config for {} in `judge.toml`", f),
         ),
         JobExecErr::Io(e) => (JobResultKind::JudgerError, format!("IO error: {}", e)),
         JobExecErr::Ws(e) => (
