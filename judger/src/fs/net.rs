@@ -129,10 +129,10 @@ pub async fn git_clone(dir: &Path, options: GitCloneOptions) -> std::io::Result<
             // TODO: write command for macos
         }
         else {
-            do_command!(dir, [&("x=`curl --location --request POST 'https://bhpan.buaa.edu.cn/api/v1/link/osdownload' --header 'Content-Type: application/json' --data-raw '{\"link\":\"".to_string()
+            do_command!(dir, ["sh", &("x=`curl --location --request POST 'https://bhpan.buaa.edu.cn/api/v1/link/osdownload' --header 'Content-Type: application/json' --data-raw '{\"link\":\"".to_string()
             + fid 
             + "\",\"reqhost\":\"bhpan.buaa.edu.cn\",\"usehttps\": true}'`&&x=`echo ${x%\\\"]*}`&&x=`echo ${x#*,\\\"}`&&curl --location --request GET $x --output code.zip"
-            ),]);
+            )]);
             do_command!(dir, ["unzip", "code.zip"]);
         }
         Ok(())
