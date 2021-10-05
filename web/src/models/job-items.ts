@@ -178,9 +178,15 @@ export function getStatus(job: Job): JobStatus[] {
       groupBy(job.results, (result) => dashboardTypeToSlider(result.kind)),
       (i) => i.length
     )
-  ).map(([x, y]) => {
-    return { status: x as TestResultKind, cnt: y };
-  });
+  )
+    .map(([x, y]) => {
+      return { status: x as TestResultKind, cnt: y };
+    })
+    .sort((x, y) => {
+      if (x.status == 'Accepted') return -1;
+      else if (y.status == 'Accepted') return 1;
+      return x.status.localeCompare(y.status);
+    });
   if (res.length === 0) {
     return [{ status: 'Waiting', cnt: job.tests.length }];
   } else {
