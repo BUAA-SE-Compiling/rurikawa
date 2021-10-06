@@ -73,10 +73,10 @@ RUN gcc my-program.c -o my-program
 
 在编写完你的 dockerfile 之后，就可以把它保存下来了。一般来说，使用文件名 `Dockerfile` 保存在源代码（或者编译器的配置文件）所在的目录就行。**请注意，评测姬只允许 dockerfile 的位置处在构建环境文件夹之内。**
 
-运行 `docker build .` 就可以使用当前目录和当前目录下的 `Dockerfile` 文件构建出一个包含你的程序的镜像。你可以将 `.` 替换成其他目录，或者使用 `-f <file>` 参数更改使用的 dockerfile。
 
 [docker-intro]: https://docs.docker.com/samples/
 [dockerhub]: https://hub.docker.com/
+
 
 #### `judge.toml`
 
@@ -112,6 +112,49 @@ run = [
   "./target/release/pascal-lexer $input",
 ]
 ```
+
+#### 测试你的配置文件
+
+要测试你编写的 Dockerfile，你需要在本地计算机中安装有一个 Docker 或者兼容的软件。
+
+一般情况下，直接使用 [Docker][] 是最好的选择。Docker 为 Linux, Windows 和 Mac 提供了完善的工具，只要安装好相应系统的版本就可以使用。如果你使用了 Docker Windows，推荐一并开启 WSL2 和 Docker WSL2，体验会更好一些。
+
+如果你更希望使用完全开源的软件，也可以使用 [Podman][] 来实现以下操作。请参考 Podman 官网的文档来配置。
+
+很遗憾，目前还没有自动化在本地运行评测的方法，因此构建和测试只能由你自己手动进行。不过一般运行的时候不会出什么大问题，构建过程中可能出现的问题更多一些。
+
+要构建出含有你的程序的镜像，请在你的源代码所在的目录运行 `docker build .`。为了后续步骤的方便，推荐在构建时加入 `-t <名字>` 的参数为该镜像取名。如果你的 dockerfile 文件名称不是 `Dockerfile` 或者 `dockerfile`，请使用 `-f <文件>` 指定文件名。
+
+构建出镜像之后你还需要运行它并进行测试。Docker 的容器相当于一个和宿主系统隔离的小系统，文件等等并不互通。让容器内的程序访问到外部文件有两种方法，一是将文件拷贝进去，二是将外部文件夹映射到容器以内。在本地测试更推荐第二种方法，因为可以直接与外界进行文件交换。
+
+要运行一个 Docker 镜像，你需要运行 `docker run [选项] <镜像名称> [程序和参数]` 创建一个容器。这个命令的选项有很多，请在官网文档查看详细说明。对于这个用途比较重要的有：
+
+- `--rm`，在运行结束之后立即删除这个容器；
+- `--name <名称>`，给容器取名；
+- `-d` `--detach`，在启动之后立即脱离，让容器在后台运行（可以用 `docker attach` 连接）；
+- `-t` `--tty`，给容器分配一个终端（在进入容器的 shell 的时候比较有用）；
+- `-i` `--interactive`，把你当前终端的标准输入流发送给容器（也是对 shell 比较有用）；
+- `-v` `--volume <容器内路径>:<容器外路径>`，将容器外的文件夹或者文件映射到容器内。
+
+编写的程序不同，运行的方式也不一样。简单的程序可以直接把命令和参数输到 `docker run` 的参数里面运行，面对更复杂的情况你也可以先 `docker run sh` 之后再进 shell 里操作。
+
+参考阅读：
+
+- [`docker build` 文档][docker-build]（构建）
+- [`docker run` 文档][docker-run]（运行）
+- [`docker cp` 文档][docker-cp]（复制文件）
+- [`docker exec` 文档][docker-exec]（额外运行程序）
+- [`docker attach` 文档][docker-attach]（连接标准输入输出）
+- [`docker rm` 文档][docker-rm]（删除容器）
+
+[podman]: https://podman.io
+
+[docker-build]: https://docs.docker.com/engine/reference/commandline/build/
+[docker-run]: https://docs.docker.com/engine/reference/commandline/run/
+[docker-cp]: https://docs.docker.com/engine/reference/commandline/cp/
+[docker-exec]: https://docs.docker.com/engine/reference/commandline/exec/
+[docker-attach]: https://docs.docker.com/engine/reference/commandline/attach/
+[docker-rm]: https://docs.docker.com/engine/reference/commandline/rm/
 
 ### 提交作业
 
