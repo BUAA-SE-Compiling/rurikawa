@@ -721,6 +721,11 @@ async fn poll_jobs(
         let request_for_new_task =
             client_config.cfg().max_concurrent_tasks as u32 - active_task_count;
 
+        if request_for_new_task == 0 {
+            tracing::debug!("No new job is needed.");
+            continue;
+        }
+
         tracing::debug!(
             "Polling jobs from server. Asking for {} new jobs.",
             request_for_new_task
