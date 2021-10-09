@@ -5,4 +5,4 @@
 ## 使用手册
 
 - [提交作业文件格式与方法](manual/submit.md)
-- [评测结果说明](manual/result.md)
+- [评测结果说明](manual/results.md)
