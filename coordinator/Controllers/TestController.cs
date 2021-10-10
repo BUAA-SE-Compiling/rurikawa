@@ -213,6 +213,8 @@ namespace Karenia.Rurikawa.Coordinator.Controllers {
         /// <returns>Test suite spec</returns>
         [HttpPost]
         [Authorize("admin")]
+        // allow up to 100MiB of file
+        [RequestSizeLimit(100 * 1024 * 1024)]
         public async Task<IActionResult> PostNewTestSuite(
             [FromQuery] string filename
             ) {
