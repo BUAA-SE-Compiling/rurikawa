@@ -559,11 +559,14 @@ impl TestSuite {
         let index = construct_case_index(&public_cfg);
 
         let test_cases = futures::stream::iter(options.tests.clone().drain(..))
-            .map(|name| {
-                let case = index.get(&name).unwrap();
-                create_test_case(&public_cfg, &test_root, &container_test_root, case, name)
+            .filter_map(|name| async {
+                let case = index.get(&name)?;
+                Some(
+                    create_test_case(&public_cfg, &test_root, &container_test_root, case, name)
+                        .await,
+                )
             })
-            .buffer_unordered(16)
+            // .buffer_unordered(16)
             .try_collect::<Vec<_>>()
             .await?;
 
