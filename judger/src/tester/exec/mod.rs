@@ -409,7 +409,9 @@ impl Image {
                         // Freeze `path` as a tar archive.
                         Some(hyper::Body::wrap_stream(tar_stream)),
                     )
-                    .map_err(|e| BuildError::Internal(e.to_string()))
+                    .map_err(|e| {
+                        BuildError::Internal(format!("Internal error when building image: {:?}", e))
+                    })
                     .try_for_each(|info| async {
                         if let Some(e) = info.error {
                             return Err(BuildError::BuildError {
@@ -428,7 +430,12 @@ impl Image {
 
                 archiving
                     .await
-                    .map_err(|e| BuildError::Internal(e.to_string()))?
+                    .map_err(|e| {
+                        BuildError::Internal(format!(
+                            "Internal error when joining file transfer task: {}",
+                            e
+                        ))
+                    })?
                     .map_err(|e: io::Error| BuildError::FileTransferError(e.to_string()))?;
 
                 Ok(())
