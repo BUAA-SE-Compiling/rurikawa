@@ -560,7 +560,13 @@ impl TestSuite {
 
         let test_cases = futures::stream::iter(options.tests.clone().drain(..))
             .filter_map(|name| async {
-                let case = index.get(&name)?;
+                let case = match index.get(&name) {
+                    Some(x) => x,
+                    None => {
+                        tracing::warn!("Unknown test case name {} in job {}", name, id);
+                        return None;
+                    }
+                };
                 Some(
                     create_test_case(&public_cfg, &test_root, &container_test_root, case, name)
                         .await,
