@@ -409,20 +409,45 @@ impl Image {
                         // Freeze `path` as a tar archive.
                         Some(hyper::Body::wrap_stream(tar_stream)),
                     )
-                    .map_err(|e| {
-                        BuildError::Internal(format!("Internal error when building image: {:?}", e))
-                    })
-                    .try_for_each(|info| async {
-                        if let Some(e) = info.error {
-                            return Err(BuildError::BuildError {
-                                error: e,
-                                detail: info.error_detail,
-                            });
+                    // Collect all building results, and ignoring errors when decoding data. Only
+                    .fold(Ok(()), |acc, info| async {
+                        match info {
+                            Ok(info) => {
+                                if let Some(e) = info.error {
+                                    return Err(BuildError::BuildError {
+                                        error: e,
+                                        detail: info.error_detail,
+                                    });
+                                }
+                                if let Some(ch) = partial_result_channel.as_ref() {
+                                    let _ = ch.send(info);
+                                }
+                                acc
+                            }
+                            Err(e) => {
+                                let is_recoverable = matches!(
+                                    &e,
+                                    bollard::errors::Error::JsonDataError { .. }
+                                        | bollard::errors::Error::JsonSerdeError { .. }
+                                        | bollard::errors::Error::StrParseError { .. }
+                                        | bollard::errors::Error::StrFmtError { .. }
+                                        | bollard::errors::Error::URLEncodedError { .. }
+                                );
+                                if let Some(ch) = partial_result_channel.as_ref() {
+                                    let e =
+                                        format!("*** Internal error when building image: {:?}", e);
+                                    let _ = ch.send(BuildInfo {
+                                        error: e.into(),
+                                        ..Default::default()
+                                    });
+                                }
+                                if is_recoverable {
+                                    acc
+                                } else {
+                                    acc.and(Err(BuildError::Internal(format!("{:?}", e))))
+                                }
+                            }
                         }
-                        if let Some(ch) = partial_result_channel.as_ref() {
-                            let _ = ch.send(info);
-                        }
-                        Ok(())
                     })
                     .with_cancel(cancel.clone())
                     .await
