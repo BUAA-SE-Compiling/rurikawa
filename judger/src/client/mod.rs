@@ -408,7 +408,7 @@ pub async fn handle_job(
     tracing::info!("created");
 
     let mut public_cfg = check_download_read_test_suite(job.test_suite, &*cfg)
-        .with_cancel(cancel.clone())
+        .with_cancel(cancel.cancelled())
         .instrument(info_span!("download_test_suites", %job.test_suite))
         .await
         .ok_or(JobExecErr::Cancelled)?
@@ -435,7 +435,7 @@ pub async fn handle_job(
             depth: 3,
         },
     )
-    .with_cancel(cancel.clone())
+    .with_cancel(cancel.cancelled())
     .await
     .ok_or(JobExecErr::Aborted)?
     .map_err(JobExecErr::Git)
@@ -655,7 +655,7 @@ async fn keepalive(
     interval: std::time::Duration,
 ) {
     while tokio::time::sleep(interval)
-        .with_cancel(client_config.cancel_handle.child_token())
+        .with_cancel(client_config.cancel_handle.cancelled())
         .await
         .is_some()
     {
@@ -682,7 +682,7 @@ async fn poll_jobs(
         while client_config.waiting_for_jobs.load().is_some() {
             tracing::debug!("Loading current poll but it's Some(_)...");
             if tokio::time::sleep(retry_interval)
-                .with_cancel(keepalive_token.child_token())
+                .with_cancel(keepalive_token.cancelled())
                 .await
                 .is_none()
             {
@@ -712,7 +712,7 @@ async fn poll_jobs(
         });
         if let Some(Ok(_)) = ws
             .send_msg(&msg)
-            .with_cancel(keepalive_token.child_token())
+            .with_cancel(keepalive_token.cancelled())
             .await
         {
             // wtf here
@@ -737,7 +737,7 @@ async fn poll_jobs(
         });
 
         if tokio::time::sleep(poll_interval)
-            .with_cancel(keepalive_token.child_token())
+            .with_cancel(keepalive_token.cancelled())
             .await
             .is_none()
         {
@@ -776,7 +776,7 @@ pub async fn client_loop(
 
     while let Some(Ok(x)) = ws_recv
         .next()
-        .with_cancel(keepalive_cancel.child_token())
+        .with_cancel(keepalive_cancel.cancelled())
         .await
         .flatten()
     {

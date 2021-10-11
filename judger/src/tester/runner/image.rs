@@ -1,7 +1,8 @@
 use std::path::{Path, PathBuf};
 
-use crate::config::Image;
+use crate::prelude::CancelFutureExt;
 use crate::util::tar::pack_as_tar;
+use crate::{config::Image, prelude::CancellationTokenHandle};
 
 use bollard::{image::CreateImageOptions, models::BuildInfo, Docker};
 use derive_builder::Builder;
@@ -21,10 +22,19 @@ pub struct BuildImageOptions {
     tag_as: String,
 
     #[builder(default)]
+    cancellation: CancellationTokenHandle,
+
+    #[builder(default)]
     ignore: Option<Gitignore>,
 
     #[builder(default)]
     build_result_channel: Option<UnboundedSender<BuildInfo>>,
+
+    #[builder(default)]
+    cpu_quota: Option<f64>,
+
+    #[builder(default)]
+    network_mode: Option<String>,
 }
 
 impl BuildImageOptions {
@@ -65,8 +75,16 @@ async fn build_prebuilt_image(
         None,
         None,
     );
-    while let Some(res) = create_img.next().await {
+    while let Some(Some(res)) = create_img
+        .next()
+        .with_cancel(opt.cancellation.cancelled())
+        .await
+    {
         let _res = res.map_err(|e| BuildError::ImagePullFailure(e.to_string()))?;
+    }
+
+    if opt.cancellation.is_cancelled() {
+        return Err(BuildError::Cancelled);
     }
 
     Ok(BuildImageResult {})
@@ -78,9 +96,21 @@ async fn build_image_from_dockerfile(
     mut opt: BuildImageOptions,
 ) -> Result<BuildImageResult, BuildError> {
     let source_path = canonical_join(&opt.base_path, path);
+    let cpu_quota = opt.cpu_quota.map(|x| (x * 100_000f64).floor() as u64);
+    let cpu_period = cpu_quota.map(|_| 100_000);
+
     let build_options = bollard::image::BuildImageOptions {
         dockerfile: file.unwrap_or("Dockerfile"),
         t: &opt.tag_as,
+        cpuquota: cpu_quota,
+        cpuperiod: cpu_period,
+
+        networkmode: opt.network_mode.as_deref().unwrap_or("network"),
+
+        rm: true,
+
+        buildargs: [("CI", "true")].iter().cloned().collect(),
+
         ..Default::default()
     };
 
@@ -94,7 +124,7 @@ async fn build_image_from_dockerfile(
         .docker
         .build_image(build_options, None, Some(Body::wrap_stream(tar)));
 
-    while let Some(info) = res.next().await {
+    while let Some(Some(info)) = res.next().with_cancel(opt.cancellation.cancelled()).await {
         match info {
             Ok(info) => {
                 if let Some(e) = info.error {
@@ -133,6 +163,10 @@ async fn build_image_from_dockerfile(
         .await
         .map_err(|e| BuildError::Internal(format!("Internal panic when archiving files: {}", e)))?
         .map_err(|e| BuildError::Internal(format!("Failed to archive files: {}", e)))?;
+
+    if opt.cancellation.is_cancelled() {
+        return Err(BuildError::Cancelled);
+    }
 
     Ok(BuildImageResult {})
 }
