@@ -503,17 +503,7 @@ pub async fn handle_job(
         remove_image: true,
     };
 
-    let mut suite = crate::tester::exec::TestSuite::from_config(
-        job.id.to_string(),
-        image,
-        &suite_root_path,
-        private_cfg,
-        public_cfg,
-        &judge_job_cfg,
-        options,
-    )
-    .await
-    .context("during TestSuite::from_config")?;
+    let mut suite: TestSuite = todo!("Build test suite");
 
     tracing::info!("options created");
     let (ch_send, ch_recv) = tokio::sync::mpsc::unbounded_channel();
@@ -568,18 +558,7 @@ pub async fn handle_job(
         job_id: job.id,
     });
 
-    let result = suite
-        .run(
-            docker,
-            job_path,
-            Some(build_ch_send),
-            Some(ch_send),
-            Some(upload_info),
-            cancel.clone(),
-        )
-        .instrument(info_span!("run_job"))
-        .await
-        .context("during TestSuite::run")?;
+    let result = todo!("Run test suite");
 
     tracing::info!("finished running");
 

@@ -63,7 +63,7 @@ pub enum Image {
         path: PathBuf,
         /// Path of the dockerfile itself, relative to the context directory.
         /// Leaving this value to None means using the default dockerfile: `path/Dockerfile`.
-        file: Option<PathBuf>,
+        file: Option<String>,
     },
 }
 
@@ -81,7 +81,7 @@ impl<'js, 'a> rquickjs::IntoJs<'js> for &'a Image {
                 obj.set("source", "dockerfile");
                 obj.set("path", path.display().to_string());
                 if let Some(file) = file {
-                    obj.set("file", file.display().to_string());
+                    obj.set("file", file);
                 }
                 obj.into_value()
             }
@@ -175,7 +175,7 @@ pub struct JudgerPublicConfig {
 #[derive(Serialize, Deserialize, Debug, Clone, IntoJsByRef)]
 #[serde(rename_all = "camelCase")]
 #[quickjs(rename_all = "camelCase")]
-enum JudgeExecKind {
+pub enum JudgeExecKind {
     /// Legacy execution, i.e. execute everything in one single container
     Legacy,
     /// Isolated execution, i.e. execute user code and judger code in different containers,
