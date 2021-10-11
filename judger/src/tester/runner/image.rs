@@ -15,8 +15,6 @@ use super::super::{model::canonical_join, BuildError};
 
 #[derive(Builder, Debug)]
 pub struct BuildImageOptions {
-    docker: Docker,
-
     base_path: PathBuf,
 
     tag_as: String,
@@ -51,22 +49,24 @@ pub struct BuildImageResult {}
 
 /// Build an image from the specified [`Image`] instance.
 pub async fn build_image(
+    docker: Docker,
     image: &Image,
     opt: BuildImageOptions,
 ) -> Result<BuildImageResult, BuildError> {
     match image {
-        Image::Prebuilt { tag } => build_prebuilt_image(tag, opt).await,
+        Image::Prebuilt { tag } => build_prebuilt_image(docker, tag, opt).await,
         Image::Dockerfile { path, file } => {
-            build_image_from_dockerfile(path, file.as_deref(), opt).await
+            build_image_from_dockerfile(docker, path, file.as_deref(), opt).await
         }
     }
 }
 
 async fn build_prebuilt_image(
+    docker: Docker,
     tag: &str,
     opt: BuildImageOptions,
 ) -> Result<BuildImageResult, BuildError> {
-    let mut create_img = opt.docker.create_image(
+    let mut create_img = docker.create_image(
         Some(CreateImageOptions {
             from_image: tag,
             tag: &opt.tag_as,
@@ -91,6 +91,7 @@ async fn build_prebuilt_image(
 }
 
 async fn build_image_from_dockerfile(
+    docker: Docker,
     path: &Path,
     file: Option<&str>,
     mut opt: BuildImageOptions,
@@ -120,9 +121,7 @@ async fn build_image_from_dockerfile(
     )
     .map_err(|e| BuildError::FileTransferError(e.to_string()))?;
 
-    let mut res = opt
-        .docker
-        .build_image(build_options, None, Some(Body::wrap_stream(tar)));
+    let mut res = docker.build_image(build_options, None, Some(Body::wrap_stream(tar)));
 
     while let Some(Some(info)) = res.next().with_cancel(opt.cancellation.cancelled()).await {
         match info {

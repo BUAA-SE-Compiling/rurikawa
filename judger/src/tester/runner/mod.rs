@@ -1,2 +1,3 @@
-mod image;
-mod model;
+pub mod image;
+pub mod model;
+pub mod exec;
