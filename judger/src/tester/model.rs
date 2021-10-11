@@ -59,10 +59,6 @@ pub enum Image {
     Prebuilt { tag: String },
     /// An image to be built with a Dockerfile.
     Dockerfile {
-        /// Name to be assigned to the image.
-        /// If no `tag` is given, a placeholder will be generated automatically.
-        #[serde(default = "random_tag")]
-        tag: String,
         /// Path of the context directory, must be relative to the current directory.
         path: PathBuf,
         /// Path of the dockerfile itself, relative to the context directory.
@@ -71,7 +67,29 @@ pub enum Image {
     },
 }
 
-fn random_tag() -> String {
+impl<'js, 'a> rquickjs::IntoJs<'js> for &'a Image {
+    fn into_js(self, ctx: rquickjs::Ctx<'js>) -> rquickjs::Result<rquickjs::Value<'js>> {
+        Ok(match self {
+            Image::Prebuilt { tag } => {
+                let mut obj = rquickjs::Object::new(ctx)?;
+                obj.set("source", "image");
+                obj.set("tag", tag);
+                obj.into_value()
+            }
+            Image::Dockerfile { path, file } => {
+                let mut obj = rquickjs::Object::new(ctx)?;
+                obj.set("source", "dockerfile");
+                obj.set("path", path.display().to_string());
+                if let Some(file) = file {
+                    obj.set("file", file.display().to_string());
+                }
+                obj.into_value()
+            }
+        })
+    }
+}
+
+pub fn random_tag() -> String {
     Generator::with_naming(Name::Plain).next().unwrap()
 }
 
@@ -101,8 +119,7 @@ impl FromStr for TestCaseDefinition {
     }
 }
 
-/// Judger's public config, specific to a paticular repository,
-/// Maintained by the owner of the project to be tested.
+/// The contents of `testconf.json`.
 #[derive(Serialize, Deserialize, Debug, Clone, IntoJsByRef, Default)]
 #[serde(rename_all = "camelCase")]
 #[quickjs(rename_all = "camelCase")]
@@ -111,8 +128,6 @@ pub struct JudgerPublicConfig {
     pub memory_limit: Option<i32>,
     pub name: String,
     pub test_groups: HashMap<String, Vec<TestCaseDefinition>>,
-
-    pub exec_kind: JudgeExecKind,
 
     /// Variables and extensions of test files
     /// (`$src`, `$bin`, `$stdin`, `$stdout`, etc...).
@@ -146,6 +161,14 @@ pub struct JudgerPublicConfig {
     /// Network options applied to this config
     #[serde(default)]
     pub network: NetworkOptions,
+
+    /// Test suite execution kind. See [`JudgeExecKind`] for more information.
+    #[serde(default)]
+    pub exec_kind: JudgeExecKind,
+
+    /// Test suite execution environment.
+    #[serde(default)]
+    pub exec_environment: Option<Image>,
 }
 
 /// Judger execution kind of the specific test suite
@@ -159,6 +182,12 @@ enum JudgeExecKind {
     /// only sharing data specified by [`JudgerPublicConfig::binds`] and
     /// [`JudgerPublicConfig::mapped_dir`].
     Isolated,
+}
+
+impl Default for JudgeExecKind {
+    fn default() -> Self {
+        JudgeExecKind::Legacy
+    }
 }
 
 /// Network options for judge containers.

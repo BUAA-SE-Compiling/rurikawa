@@ -46,6 +46,11 @@ pub struct Job {
     pub results: HashMap<String, TestResult>,
 }
 
+/// Specification of a test suite, returned by the server.
+///
+/// This type is essentially the same as [`crate::tester::model::JudgerPublicConfig`],
+/// but that type is the raw value stored test suite itself, while this is what gets stored
+/// in the server's database.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct TestSuite {
