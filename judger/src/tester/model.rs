@@ -112,6 +112,8 @@ pub struct JudgerPublicConfig {
     pub name: String,
     pub test_groups: HashMap<String, Vec<TestCaseDefinition>>,
 
+    pub exec_kind: JudgeExecKind,
+
     /// Variables and extensions of test files
     /// (`$src`, `$bin`, `$stdin`, `$stdout`, etc...).
     /// For example: `"$src" => "go"`.
@@ -144,6 +146,19 @@ pub struct JudgerPublicConfig {
     /// Network options applied to this config
     #[serde(default)]
     pub network: NetworkOptions,
+}
+
+/// Judger execution kind of the specific test suite
+#[derive(Serialize, Deserialize, Debug, Clone, IntoJsByRef)]
+#[serde(rename_all = "camelCase")]
+#[quickjs(rename_all = "camelCase")]
+enum JudgeExecKind {
+    /// Legacy execution, i.e. execute everything in one single container
+    Legacy,
+    /// Isolated execution, i.e. execute user code and judger code in different containers,
+    /// only sharing data specified by [`JudgerPublicConfig::binds`] and
+    /// [`JudgerPublicConfig::mapped_dir`].
+    Isolated,
 }
 
 /// Network options for judge containers.
