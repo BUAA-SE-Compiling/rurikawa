@@ -452,8 +452,7 @@ namespace Karenia.Rurikawa.Coordinator.Services {
 
         static readonly TimeSpan DISPATH_TIMEOUT = TimeSpan.FromMinutes(30);
 
-        protected async Task<Job?> GetLastUndispatchedJobFromDatabase(RurikawaDb db, List<string>? tags, bool allowUntagged) {
-            IQueryable<Job> res = QueuedCriteria(db.Jobs);
+        protected IQueryable<Job> ApplyTagCriteria(IQueryable<Job> res, RurikawaDb db, List<string>? tags, bool allowUntagged) {
             if (tags != null) {
                 // join the test suites for suite tags
                 var query = res.Join(db.TestSuites, j => j.TestSuite, t => t.Id, (job, suite) => new { job, suite });
@@ -467,12 +466,12 @@ namespace Karenia.Rurikawa.Coordinator.Services {
                 // but still return a job
                 res = query.Select(x => x.job);
             }
-            return await res
-                .OrderBy(j => j.Id).FirstOrDefaultAsync();
+            return res
+                ;
         }
 
-        protected async Task<List<Job>> GetUndispatchedJobsFromDatabase(RurikawaDb db, int count) {
-            var res = await QueuedCriteria(db.Jobs)
+        protected async Task<List<Job>> GetUndispatchedJobsFromDatabase(RurikawaDb db, int count, List<string>? tags, bool allowUntagged) {
+            var res = await ApplyTagCriteria(QueuedCriteria(db.Jobs), db, tags, allowUntagged)
                 .OrderBy(j => j.Id)
                 .Take(count)
                 .ToListAsync();
@@ -500,30 +499,6 @@ namespace Karenia.Rurikawa.Coordinator.Services {
         }
 
         /// <summary>
-        /// Dispatch ONE job from database.
-        /// </summary>
-        /// <param name="judger">The judger to dispatch from</param>
-        /// <returns></returns>
-        protected async ValueTask<bool> TryDispatchJobFromDatabase(Judger judger) {
-            using var scope = scopeProvider.CreateScope();
-            var db = GetDb(scope);
-            using var tx = await db.Database.BeginTransactionAsync(System.Data.IsolationLevel.Serializable);
-            var job = await GetLastUndispatchedJobFromDatabase(
-                db, judger.DbJudgerEntry.Tags, judger.DbJudgerEntry.AcceptUntaggedJobs);
-            if (job == null) return false;
-
-            try {
-                var res = await DispatchJob(judger, job);
-                await db.SaveChangesAsync();
-                await tx.CommitAsync();
-                return res;
-            } catch {
-                await tx.RollbackAsync();
-                return false;
-            }
-        }
-
-        /// <summary>
         /// Dispatch MANY job from database. This method should be favored over
         /// <c>TryDispatchJobFromDatabase(Judger)</c>
         /// </summary>
@@ -538,7 +513,7 @@ namespace Karenia.Rurikawa.Coordinator.Services {
             using var scope = scopeProvider.CreateScope();
             var db = GetDb(scope);
             using var tx = await db.Database.BeginTransactionAsync(System.Data.IsolationLevel.Serializable);
-            var jobs = await GetUndispatchedJobsFromDatabase(db, count);
+            var jobs = await GetUndispatchedJobsFromDatabase(db, count, judger.DbJudgerEntry.Tags, judger.DbJudgerEntry.AcceptUntaggedJobs);
 
             try {
                 var res = await DispatchJobs(judger, jobs, replyTo);
