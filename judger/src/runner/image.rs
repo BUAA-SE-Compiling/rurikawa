@@ -11,7 +11,7 @@ use ignore::gitignore::Gitignore;
 use tokio::sync::mpsc::UnboundedSender;
 use tokio_stream::StreamExt;
 
-use super::super::{model::canonical_join, BuildError};
+use crate::tester::{model::canonical_join, BuildError};
 
 #[derive(Builder, Debug)]
 pub struct BuildImageOptions {
