@@ -2,6 +2,7 @@ use std::{collections::HashMap, path::PathBuf, sync::Arc};
 
 use crate::tester::ProcessInfo;
 use async_trait::async_trait;
+use derive_builder::Builder;
 
 #[derive(Debug, Clone)]
 pub enum OutputComparisonSource {
@@ -50,5 +51,15 @@ pub trait CommandRunner {
         &self,
         command: &str,
         env: &mut (dyn Iterator<Item = (&str, &str)> + Send),
+        opt: &CommandRunOptions,
     ) -> anyhow::Result<ProcessInfo>;
+}
+
+#[derive(Debug, Default, Builder)]
+pub struct CommandRunOptions {
+    #[builder(default = "100*1024")]
+    pub stdout_size_limit: usize,
+
+    #[builder(default = "100*1024")]
+    pub stderr_size_limit: usize,
 }

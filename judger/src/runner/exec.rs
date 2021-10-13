@@ -1,27 +1,23 @@
-use std::{
-    collections::HashMap,
-    path::{Path, PathBuf},
-};
+use std::{fmt::Write, path::Path};
 
 use async_trait::async_trait;
 use bollard::{
-    container::{Config, CreateContainerOptions, UploadToContainerOptions},
+    container::{Config, UploadToContainerOptions},
     exec::{CreateExecOptions, StartExecOptions},
-    models::{ContainerConfig, Mount},
+    models::Mount,
     Docker,
 };
+use bytes::BytesMut;
 use derive_builder::Builder;
 use ignore::gitignore::Gitignore;
 use tokio_stream::StreamExt;
 
 use crate::{
-    prelude::CancellationTokenHandle,
-    runner::util::is_recoverable_error,
-    tester::{model::Bind, ProcessInfo},
+    prelude::CancellationTokenHandle, runner::util::is_recoverable_error, tester::ProcessInfo,
     util::tar::pack_as_tar,
 };
 
-use super::model::CommandRunner;
+use super::model::{CommandRunOptions, CommandRunner};
 
 #[derive(Debug, Builder)]
 pub struct CreateContainerConfig {
@@ -60,7 +56,7 @@ struct ContainerId(String);
 #[derive(Debug)]
 pub struct Container {
     docker: Docker,
-    name: String,
+    id: String,
     tag: Option<String>,
     state: ContainerState,
 }
@@ -99,7 +95,7 @@ impl Container {
             .await?;
         Ok(Container {
             docker,
-            name: res.id,
+            id: res.id,
             tag: cfg.tag_name,
             state: ContainerState::Stopped,
         })
@@ -109,7 +105,7 @@ impl Container {
         let (tar, join) = pack_as_tar(file_path, Gitignore::empty())?;
         self.docker
             .upload_to_container(
-                &self.name,
+                &self.id,
                 Some(UploadToContainerOptions {
                     path: into_path,
                     no_overwrite_dir_non_dir: "false",
@@ -121,15 +117,17 @@ impl Container {
         Ok(())
     }
 
+    /// Execute a certain `command` in a certain `env`ironment
     pub async fn exec(
         &self,
         command: &str,
         env: &mut (dyn Iterator<Item = (&str, &str)> + Send),
+        opt: &CommandRunOptions,
     ) -> anyhow::Result<ProcessInfo> {
         let exec = self
             .docker
             .create_exec(
-                &self.name,
+                &self.id,
                 CreateExecOptions {
                     attach_stdin: Some(true),
                     attach_stdout: Some(true),
@@ -142,15 +140,19 @@ impl Container {
             )
             .await?;
 
+        let exec_id = &exec.id;
         let exec = self
             .docker
-            .start_exec(&exec.id, Some(StartExecOptions { detach: false }))
+            .start_exec(exec_id, Some(StartExecOptions { detach: false }))
             .await?;
 
         let mut output = match exec {
             bollard::exec::StartExecResults::Attached { output, input: _ } => output,
             bollard::exec::StartExecResults::Detached => unreachable!("All exec are attached"),
         };
+
+        let mut stdout = SizeConstraintBytesMut::new(opt.stdout_size_limit);
+        let mut stderr = SizeConstraintBytesMut::new(opt.stderr_size_limit);
 
         while let Some(v) = output.next().await {
             let out = match v {
@@ -165,14 +167,24 @@ impl Container {
             };
 
             match out {
-                bollard::container::LogOutput::StdErr { message } => todo!(),
-                bollard::container::LogOutput::StdOut { message } => todo!(),
-                bollard::container::LogOutput::StdIn { message } => todo!(),
-                bollard::container::LogOutput::Console { message } => todo!(),
+                bollard::container::LogOutput::StdErr { message } => stderr.append(&message),
+                bollard::container::LogOutput::StdOut { message } => stdout.append(&message),
+                bollard::container::LogOutput::StdIn { .. } => {}
+                bollard::container::LogOutput::Console { .. } => {}
             }
         }
 
-        todo!()
+        let results = self.docker.inspect_exec(exec_id).await?;
+        let ret_code = results.exit_code;
+
+        Ok(ProcessInfo {
+            ret_code: ret_code.map_or(-1, |x| x as i32),
+            command: command.to_string(),
+            stdout: stdout.into_string(),
+            stderr: stderr.into_string(),
+
+            runned_inside: self.name().into(),
+        })
     }
 }
 
@@ -182,12 +194,17 @@ impl CommandRunner for Container {
         &self,
         command: &str,
         env: &mut (dyn Iterator<Item = (&str, &str)> + Send),
+        opt: &CommandRunOptions,
     ) -> anyhow::Result<ProcessInfo> {
-        self.exec(command, env).await
+        self.exec(command, env, opt).await
     }
 
     fn name(&self) -> std::borrow::Cow<'static, str> {
-        format!("container {}", self.name).into()
+        if let Some(tag) = &self.tag {
+            format!("Container {} ({})", tag, self.id).into()
+        } else {
+            format!("Container {}", self.id).into()
+        }
     }
 }
 
@@ -198,5 +215,46 @@ pub enum ContainerState {
     Running,
 }
 
-#[derive(Debug, Builder, Default)]
-pub struct ExecOptions {}
+struct SizeConstraintBytesMut {
+    size_limit: usize,
+    bytes: BytesMut,
+}
+
+impl SizeConstraintBytesMut {
+    pub fn new(size_limit: usize) -> Self {
+        SizeConstraintBytesMut {
+            size_limit,
+            bytes: BytesMut::new(),
+        }
+    }
+
+    pub fn append(&mut self, bytes: &[u8]) {
+        if self.bytes.len() > self.size_limit {
+            // do nothing
+        } else if self.bytes.len() + bytes.len() > self.size_limit {
+            let cut_at = self.size_limit - self.bytes.len();
+            self.bytes.extend_from_slice(&bytes[0..cut_at]);
+        } else {
+            self.bytes.extend_from_slice(bytes);
+        }
+    }
+
+    pub fn is_oversized(&self) -> bool {
+        self.bytes.len() >= self.size_limit
+    }
+
+    pub fn into_string(self) -> String {
+        let oversized = self.is_oversized();
+        let mut s = String::from_utf8_lossy(&self.bytes).into_owned();
+        if oversized {
+            writeln!(s).unwrap();
+            writeln!(
+                s,
+                "--- output buffer capped out at {} bytes ---",
+                self.size_limit
+            )
+            .unwrap();
+        }
+        s
+    }
+}

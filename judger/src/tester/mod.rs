@@ -22,10 +22,11 @@ pub enum ExecErrorKind {
 #[derive(Debug, Clone, Serialize, Deserialize, Eq, PartialEq, IntoJsByRef)]
 pub struct ProcessInfo {
     pub ret_code: i32,
-    pub is_user_command: bool,
     pub command: String,
     pub stdout: String,
     pub stderr: String,
+
+    pub runned_inside: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Eq, PartialEq)]
