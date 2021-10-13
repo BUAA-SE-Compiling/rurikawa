@@ -1,6 +1,7 @@
 use std::path::{Path, PathBuf};
 
 use crate::prelude::CancelFutureExt;
+use crate::runner::util::is_recoverable_error;
 use crate::util::tar::pack_as_tar;
 use crate::{config::Image, prelude::CancellationTokenHandle};
 
@@ -135,14 +136,7 @@ async fn build_image_from_dockerfile(
                 opt.send_result(|| info);
             }
             Err(e) => {
-                let is_recoverable = matches!(
-                    &e,
-                    bollard::errors::Error::JsonDataError { .. }
-                        | bollard::errors::Error::JsonSerdeError { .. }
-                        | bollard::errors::Error::StrParseError { .. }
-                        | bollard::errors::Error::StrFmtError { .. }
-                        | bollard::errors::Error::URLEncodedError { .. }
-                );
+                let is_recoverable = is_recoverable_error(&e);
                 opt.send_result(|| {
                     let e = format!("*** Internal error when building image: {:?}", e);
                     BuildInfo {
@@ -169,3 +163,4 @@ async fn build_image_from_dockerfile(
 
     Ok(BuildImageResult {})
 }
+

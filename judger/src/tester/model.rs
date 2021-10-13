@@ -71,17 +71,17 @@ impl<'js, 'a> rquickjs::IntoJs<'js> for &'a Image {
     fn into_js(self, ctx: rquickjs::Ctx<'js>) -> rquickjs::Result<rquickjs::Value<'js>> {
         Ok(match self {
             Image::Prebuilt { tag } => {
-                let mut obj = rquickjs::Object::new(ctx)?;
-                obj.set("source", "image");
-                obj.set("tag", tag);
+                let obj = rquickjs::Object::new(ctx)?;
+                obj.set("source", "image")?;
+                obj.set("tag", tag)?;
                 obj.into_value()
             }
             Image::Dockerfile { path, file } => {
-                let mut obj = rquickjs::Object::new(ctx)?;
-                obj.set("source", "dockerfile");
-                obj.set("path", path.display().to_string());
+                let obj = rquickjs::Object::new(ctx)?;
+                obj.set("source", "dockerfile")?;
+                obj.set("path", path.display().to_string())?;
                 if let Some(file) = file {
-                    obj.set("file", file);
+                    obj.set("file", file)?;
                 }
                 obj.into_value()
             }
