@@ -1,4 +1,5 @@
 use std::path::{Path, PathBuf};
+use std::time::Duration;
 
 use crate::prelude::CancelFutureExt;
 use crate::runner::util::is_recoverable_error;
@@ -15,6 +16,7 @@ use tokio_stream::StreamExt;
 use crate::tester::{model::canonical_join, BuildError};
 
 #[derive(Builder, Debug)]
+#[builder(setter(into, strip_option))]
 pub struct BuildImageOptions {
     base_path: PathBuf,
 
@@ -34,6 +36,10 @@ pub struct BuildImageOptions {
 
     #[builder(default)]
     network_mode: Option<String>,
+
+    /// Build timeout, in milliseconds
+    #[builder(default)]
+    timeout: Option<Duration>,
 }
 
 impl BuildImageOptions {
@@ -54,11 +60,24 @@ pub async fn build_image(
     image: &Image,
     opt: BuildImageOptions,
 ) -> Result<BuildImageResult, BuildError> {
-    match image {
-        Image::Prebuilt { tag } => build_prebuilt_image(docker, tag, opt).await,
-        Image::Dockerfile { path, file } => {
-            build_image_from_dockerfile(docker, path, file.as_deref(), opt).await
+    let timeout = opt.timeout;
+
+    let build_job = async {
+        match image {
+            Image::Prebuilt { tag } => build_prebuilt_image(docker, tag, opt).await,
+            Image::Dockerfile { path, file } => {
+                build_image_from_dockerfile(docker, path, file.as_deref(), opt).await
+            }
         }
+    };
+
+    if let Some(timeout) = timeout {
+        tokio::time::timeout(timeout, build_job)
+            .await
+            .map_err(|_| BuildError::Timeout)
+            .and_then(|i| i)
+    } else {
+        build_job.await
     }
 }
 
@@ -163,4 +182,3 @@ async fn build_image_from_dockerfile(
 
     Ok(BuildImageResult {})
 }
-

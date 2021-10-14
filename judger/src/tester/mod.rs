@@ -70,6 +70,7 @@ pub enum BuildError {
     },
     Internal(String),
     Cancelled,
+    Timeout,
 }
 
 impl std::fmt::Display for BuildError {

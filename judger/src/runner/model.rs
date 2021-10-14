@@ -41,7 +41,7 @@ impl std::fmt::Debug for ExecGroup {
 
 #[derive(Debug, Clone)]
 pub struct TestCase {
-    pub commands: Vec<ExecStep>,
+    pub commands: Vec<ExecGroup>,
 }
 
 #[async_trait]
@@ -56,10 +56,15 @@ pub trait CommandRunner {
 }
 
 #[derive(Debug, Default, Builder)]
+#[builder(setter(into, strip_option))]
 pub struct CommandRunOptions {
     #[builder(default = "100*1024")]
     pub stdout_size_limit: usize,
 
     #[builder(default = "100*1024")]
     pub stderr_size_limit: usize,
+
+    /// Timeout in milliseconds
+    #[builder(default)]
+    pub timeout: Option<u64>,
 }
