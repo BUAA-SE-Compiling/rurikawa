@@ -5,7 +5,7 @@
 
 use tokio::sync::mpsc::Sender;
 
-use crate::tester::ProcessInfo;
+use self::model::ProcessOutput;
 
 pub mod exec;
 pub mod image;
@@ -15,7 +15,7 @@ mod util;
 pub async fn run_test_case(
     exec: &model::TestCase,
     opt: &model::CommandRunOptions,
-    sink: Sender<ProcessInfo>,
+    sink: Sender<ProcessOutput>,
 ) -> anyhow::Result<()> {
     for group in &exec.commands {
         run_exec_group(group, opt, sink.clone()).await?;
@@ -26,7 +26,7 @@ pub async fn run_test_case(
 pub async fn run_exec_group(
     group: &model::ExecGroup,
     opt: &model::CommandRunOptions,
-    sink: Sender<ProcessInfo>,
+    sink: Sender<ProcessOutput>,
 ) -> anyhow::Result<()> {
     for exec in &group.steps {
         let run_res = match group

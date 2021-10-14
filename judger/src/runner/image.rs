@@ -13,7 +13,7 @@ use ignore::gitignore::Gitignore;
 use tokio::sync::mpsc::UnboundedSender;
 use tokio_stream::StreamExt;
 
-use crate::tester::{model::canonical_join, BuildError};
+use crate::tester::{model::{BuildError, canonical_join}};
 
 #[derive(Builder, Debug)]
 #[builder(setter(into, strip_option))]

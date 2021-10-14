@@ -29,10 +29,10 @@ pub enum JobExecErr {
     TomlDes(#[error(source)] toml::de::Error),
 
     #[error(display = "Build error: {}", _0)]
-    Build(#[error(source)] crate::tester::BuildError),
+    Build(#[error(source)] crate::tester::model::BuildError),
 
     #[error(display = "Execution error: {}", _0)]
-    Exec(#[error(source)] crate::tester::ExecError),
+    Exec(#[error(source)] crate::tester::model::ExecError),
 
     /// This job was cancelled by the user
     #[error(display = "Job was cancelled")]
@@ -76,8 +76,8 @@ impl From<anyhow::Error> for JobExecErr {
         }
         anyhow_downcast_chain!(
             e,
-            crate::tester::BuildError,
-            crate::tester::ExecError,
+            crate::tester::model::BuildError,
+            crate::tester::model::ExecError,
             std::io::Error,
             toml::de::Error,
             reqwest::Error

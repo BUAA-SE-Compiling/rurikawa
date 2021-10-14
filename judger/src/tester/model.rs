@@ -1,5 +1,6 @@
 use anyhow::Result;
 use bollard::models::Mount;
+use err_derive::Error;
 use names::{Generator, Name};
 use path_absolutize::Absolutize;
 use rquickjs::{FromJs, IntoJsByRef};
@@ -10,6 +11,95 @@ use std::{
     str::FromStr,
     string::String,
 };
+
+use crate::runner::model::ProcessOutput;
+
+#[derive(Debug, Clone, Serialize, Deserialize, Eq, PartialEq)]
+pub enum ExecErrorKind {
+    RuntimeError(String),
+    ReturnCodeCheckFailed,
+    TimedOut,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Eq, PartialEq)]
+pub struct OutputMismatch {
+    pub diff: String,
+    pub output: Vec<ProcessOutput>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Eq, PartialEq)]
+pub struct SpjFailure {
+    pub reason: Option<String>,
+    pub diff: Option<String>,
+    pub output: Vec<ProcessOutput>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Eq, PartialEq, Error)]
+#[error(
+    display = "Execution error in stage {}: {:?};\noutputs: {:?}",
+    stage,
+    kind,
+    output
+)]
+pub struct ExecError {
+    pub stage: usize,
+    pub kind: ExecErrorKind,
+    pub output: Vec<ProcessOutput>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Eq, PartialEq)]
+pub struct ShouldFailFailure {
+    pub output: Vec<ProcessOutput>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub enum BuildError {
+    ImagePullFailure(String),
+    FileTransferError(String),
+    BuildError {
+        error: String,
+        detail: Option<bollard::models::ErrorDetail>,
+    },
+    Internal(String),
+    Cancelled,
+    Timeout,
+}
+
+impl std::fmt::Display for BuildError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{:?}", self)
+    }
+}
+
+impl std::error::Error for BuildError {}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Eq, PartialEq)]
+pub enum JobFailure {
+    OutputMismatch(OutputMismatch),
+    SpjWrongAnswer(SpjFailure),
+    ExecError(ExecError),
+    InternalError(String),
+    ShouldFail(ShouldFailFailure),
+    Cancelled,
+}
+
+impl std::fmt::Display for JobFailure {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{:?}", self)
+    }
+}
+
+impl std::error::Error for JobFailure {}
+
+impl JobFailure {
+    /// Make a new `InternalError`, the lazy way.
+    pub fn internal_err_from<D>(error: D) -> JobFailure
+    where
+        D: std::fmt::Display,
+    {
+        JobFailure::InternalError(format!("{}", error))
+    }
+}
 
 /// A Host-to-container volume binding for the container.
 #[derive(Serialize, Deserialize, Debug, Clone, Default)]

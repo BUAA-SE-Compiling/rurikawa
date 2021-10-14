@@ -1,6 +1,7 @@
 use crate::{
     prelude::FlowSnake,
-    tester::{ExecErrorKind, JobFailure, ProcessInfo},
+    runner::model::ProcessOutput,
+    tester::model::{ExecErrorKind, JobFailure},
 };
 use respector::prelude::*;
 use serde::{Deserialize, Serialize};
@@ -338,7 +339,7 @@ pub struct JobRequestMsg {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct FailedJobOutputCacheFile {
-    pub output: Vec<ProcessInfo>,
+    pub output: Vec<ProcessOutput>,
     pub stdout_diff: Option<String>,
     pub message: Option<String>,
 }

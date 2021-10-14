@@ -3,10 +3,8 @@
 //!
 //! Read more about SPJ in `/docs/dev-manual/special-judger.md`
 
-use super::{
-    model::{JudgerPublicConfig, RawStep, TestCase},
-    ProcessInfo,
-};
+use super::model::{JudgerPublicConfig, RawStep, TestCase};
+use crate::runner::model::ProcessOutput;
 use anyhow::Context as AnyhowCtx;
 use rquickjs::{Context, FromJs, Function, Promise, Runtime};
 use std::{
@@ -133,7 +131,7 @@ impl SpjEnvironment {
     }
 
     /// Callback for case judging
-    pub async fn spj_case_judge(&self, results: &[ProcessInfo]) -> anyhow::Result<SpjResult> {
+    pub async fn spj_case_judge(&self, results: &[ProcessOutput]) -> anyhow::Result<SpjResult> {
         run_promise_like!(self.ctx, SPJ_CASE_FN, (results,), |x| x).map_err(|e| e.into())
     }
 

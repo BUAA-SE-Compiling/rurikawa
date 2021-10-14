@@ -1,8 +1,19 @@
-use std::{collections::HashMap, path::PathBuf, sync::Arc};
-
-use crate::tester::ProcessInfo;
 use async_trait::async_trait;
 use derive_builder::Builder;
+use rquickjs::IntoJsByRef;
+use serde::{Deserialize, Serialize};
+use std::{collections::HashMap, path::PathBuf, sync::Arc};
+
+/// The result returned by running a subprocess.
+#[derive(Debug, Clone, Serialize, Deserialize, Eq, PartialEq, IntoJsByRef)]
+pub struct ProcessOutput {
+    pub ret_code: i32,
+    pub command: String,
+    pub stdout: String,
+    pub stderr: String,
+
+    pub runned_inside: String,
+}
 
 #[derive(Debug, Clone)]
 pub enum OutputComparisonSource {
@@ -52,7 +63,7 @@ pub trait CommandRunner {
         command: &str,
         env: &mut (dyn Iterator<Item = (&str, &str)> + Send),
         opt: &CommandRunOptions,
-    ) -> anyhow::Result<ProcessInfo>;
+    ) -> anyhow::Result<ProcessOutput>;
 }
 
 #[derive(Debug, Default, Builder)]

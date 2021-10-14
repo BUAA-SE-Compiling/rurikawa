@@ -13,8 +13,8 @@ use ignore::gitignore::Gitignore;
 use tokio_stream::StreamExt;
 
 use crate::{
-    prelude::CancellationTokenHandle, runner::util::is_recoverable_error, tester::ProcessInfo,
-    util::tar::pack_as_tar,
+    prelude::CancellationTokenHandle, runner::model::ProcessOutput,
+    runner::util::is_recoverable_error, util::tar::pack_as_tar,
 };
 
 use super::model::{CommandRunOptions, CommandRunner};
@@ -124,7 +124,7 @@ impl Container {
         command: &str,
         env: &mut (dyn Iterator<Item = (&str, &str)> + Send),
         opt: &CommandRunOptions,
-    ) -> anyhow::Result<ProcessInfo> {
+    ) -> anyhow::Result<ProcessOutput> {
         let exec = self
             .docker
             .create_exec(
@@ -178,7 +178,7 @@ impl Container {
         let results = self.docker.inspect_exec(exec_id).await?;
         let ret_code = results.exit_code;
 
-        Ok(ProcessInfo {
+        Ok(ProcessOutput {
             ret_code: ret_code.map_or(-1, |x| x as i32),
             command: command.to_string(),
             stdout: stdout.into_string(),
@@ -196,7 +196,7 @@ impl CommandRunner for Container {
         command: &str,
         env: &mut (dyn Iterator<Item = (&str, &str)> + Send),
         opt: &CommandRunOptions,
-    ) -> anyhow::Result<ProcessInfo> {
+    ) -> anyhow::Result<ProcessOutput> {
         self.exec(command, env, opt).await
     }
 
