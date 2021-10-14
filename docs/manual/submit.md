@@ -191,7 +191,7 @@ run = [
 Dockerfile: 
 
 ```dockerfile
-FROM gcc:10
+FROM gcc:10.2
 WORKDIR /app/
 COPY <你的代码文件> ./
 RUN gcc my-program.c -o program
@@ -215,7 +215,7 @@ run = [
 Dockerfile:
 
 ```dockerfile
-FROM frolvlad/alpine-gxx
+FROM gcc:10.2
 WORKDIR /app/
 COPY lexer.cpp ./
 RUN g++ lexer.cpp -o lexer
