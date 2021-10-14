@@ -10,6 +10,7 @@ use self::model::ProcessOutput;
 pub mod exec;
 pub mod image;
 pub mod model;
+pub mod volume;
 mod util;
 
 pub async fn run_test_case(

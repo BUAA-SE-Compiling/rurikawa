@@ -2,7 +2,7 @@ use std::{fmt::Write, path::Path};
 
 use async_trait::async_trait;
 use bollard::{
-    container::{Config, UploadToContainerOptions},
+    container::{Config, RemoveContainerOptions, StopContainerOptions, UploadToContainerOptions},
     exec::{CreateExecOptions, StartExecOptions},
     models::Mount,
     Docker,
@@ -60,6 +60,10 @@ pub struct Container {
     id: String,
     tag: Option<String>,
     state: ContainerState,
+
+    /// Make sure this container is fully stopped and teared down before losing
+    /// all reference of it.
+    _teardown_bomb: drop_bomb::DropBomb,
 }
 
 impl Container {
@@ -98,7 +102,11 @@ impl Container {
             docker,
             id: res.id,
             tag: cfg.tag_name,
-            state: ContainerState::Stopped,
+            state: ContainerState::Running,
+
+            _teardown_bomb: drop_bomb::DropBomb::new(
+                "`Container::teardown()` must be called before dropping!",
+            ),
         })
     }
 
@@ -186,6 +194,27 @@ impl Container {
 
             runned_inside: self.name().into(),
         })
+    }
+
+    pub async fn teardown(&mut self) -> anyhow::Result<()> {
+        // Defuse the teardown drop bomb.
+        // It's not our fault if Docker blows up after this point (*/ω＼*)
+        self._teardown_bomb.defuse();
+
+        self.docker
+            .stop_container(&self.id, Some(StopContainerOptions { t: 5 }))
+            .await?;
+        self.docker
+            .remove_container(
+                &self.id,
+                Some(RemoveContainerOptions {
+                    force: true,
+                    v: true,
+                    ..Default::default()
+                }),
+            )
+            .await?;
+        Ok(())
     }
 }
 

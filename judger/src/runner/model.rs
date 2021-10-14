@@ -50,6 +50,7 @@ impl std::fmt::Debug for ExecGroup {
     }
 }
 
+/// A whole test case, containing multiple [`ExecGroup`]s.
 #[derive(Debug, Clone)]
 pub struct TestCase {
     pub commands: Vec<ExecGroup>,
