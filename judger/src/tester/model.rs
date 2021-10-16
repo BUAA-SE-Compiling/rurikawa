@@ -228,9 +228,15 @@ pub struct JudgerPublicConfig {
     /// Sequence of commands necessary to perform an IO check.
     pub run: Vec<String>,
 
-    /// The path of test root directory to be mapped inside test container
+    /// The path of files to be **copied** into the container, like test cases
+    /// (because otherwise they cannot be mounted readonly)
     #[quickjs(skip)]
-    pub mapped_dir: Bind,
+    #[serde(
+        default,
+        deserialize_with = "crate::util::single_or_array",
+        alias = "mapped_dir"
+    )]
+    pub copies: Vec<Bind>,
 
     /// The glob pattern file for files to be ignored when sending to test root
     #[quickjs(skip)]
@@ -240,7 +246,8 @@ pub struct JudgerPublicConfig {
     /// always readonly for security reasons.**
     /// For details see [here](https://docs.rs/bollard/0.7.2/bollard/service/struct.HostConfig.html#structfield.binds).
     #[quickjs(skip)]
-    pub binds: Option<Vec<Bind>>,
+    #[serde(default, alias = "mounts", alias = "volumes")]
+    pub binds: Vec<Bind>,
 
     /// Path to the special judger script.
     ///
@@ -262,7 +269,7 @@ pub struct JudgerPublicConfig {
 }
 
 /// Judger execution kind of the specific test suite
-#[derive(Serialize, Deserialize, Debug, Clone, IntoJsByRef)]
+#[derive(Serialize, Deserialize, Debug, Clone, IntoJsByRef, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 #[quickjs(rename_all = "camelCase")]
 pub enum JudgeExecKind {
@@ -314,16 +321,6 @@ impl NetworkOptions {
 pub struct RawStep {
     pub command: String,
     pub is_user_command: bool,
-}
-
-/// Judger's private config, specific to a host machine.
-#[derive(Serialize, Deserialize, Debug, Clone)]
-pub struct JudgerPrivateConfig {
-    /// Directory of test sources files (including `stdin` and `stdout` files)
-    /// outside the container.
-    pub test_root_dir: PathBuf,
-    /// Directory of test sources files inside the container.
-    pub mapped_test_root_dir: PathBuf,
 }
 
 /// The public representation of a test.

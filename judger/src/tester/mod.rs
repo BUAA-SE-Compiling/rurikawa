@@ -3,6 +3,75 @@
 //! This module is not responsible for any concrete judging implementation. See
 //! [`crate::runner`] for detail on image builder and command runners.
 
+use bollard::Docker;
+
+use crate::prelude::{CancellationTokenHandle, FlowSnake};
+use crate::runner;
+use crate::runner::exec::{Container, CreateContainerConfig};
+use crate::runner::image::BuildImageResult;
+
+use self::model::{JudgeExecKind, JudgerPublicConfig};
+
+pub mod lowering;
 pub mod model;
 pub mod spj;
 pub mod utils;
+
+/// Build the container used in the public config
+pub async fn build_test_container(
+    docker: Docker,
+    pub_cfg: &JudgerPublicConfig,
+    guid: FlowSnake,
+    cfg: CreateContainerConfig,
+    cancel: CancellationTokenHandle,
+) -> anyhow::Result<Option<Container>> {
+    match pub_cfg.exec_kind {
+        JudgeExecKind::Legacy => Ok(None),
+        JudgeExecKind::Isolated => make_isolated_test_container(docker, pub_cfg, guid, cfg, cancel)
+            .await
+            .map(Some),
+    }
+}
+
+/// Build the container used in the public config, where it is guaranteed to be [`JudgeExecKind::Isolated`].
+///
+/// # Panics
+///
+/// This function asserts that `pub_cfg.exec_kind == JudgeExecKind::Isolated`.
+async fn make_isolated_test_container(
+    docker: Docker,
+    pub_cfg: &JudgerPublicConfig,
+    guid: FlowSnake,
+    cfg: CreateContainerConfig,
+    cancel: CancellationTokenHandle,
+) -> anyhow::Result<Container> {
+    debug_assert!(pub_cfg.exec_kind == JudgeExecKind::Isolated);
+    if pub_cfg.exec_environment.is_none() {
+        return Err(anyhow::Error::msg(
+            "When `execKind` == isolated, an `execEnvironment` must be present",
+        ));
+    }
+
+    let tag = format!("test-container-{}:{}", pub_cfg.name, guid);
+
+    let image = match docker.inspect_image(&tag).await {
+        Ok(image) => image,
+        Err(bollard::errors::Error::DockerResponseNotFoundError { .. }) => {
+            let exec_environment = pub_cfg.exec_environment.as_ref().unwrap();
+
+            let opt = crate::runner::image::BuildImageOptionsBuilder::default()
+                .tag_as(tag.clone())
+                .cancellation(cancel.clone())
+                .build()
+                .expect("Failed to build");
+            let BuildImageResult {} =
+                runner::image::build_image(docker.clone(), exec_environment, opt).await?;
+            docker.inspect_image(&tag).await?
+        }
+        Err(e) => return Err(e.into()),
+    };
+
+    Container::create(docker, image.id, cfg)
+        .await
+        .map_err(|e| e.into())
+}

@@ -40,7 +40,7 @@ impl Volume {
     }
 
     pub async fn copy_local_files_into(
-        &mut self,
+        &self,
         path: &Path,
         ignore: Gitignore,
     ) -> anyhow::Result<()> {

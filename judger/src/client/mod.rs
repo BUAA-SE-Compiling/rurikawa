@@ -14,7 +14,7 @@ use crate::{
     config::{JudgeToml, JudgerPublicConfig},
     fs::{self, JUDGE_FILE_NAME},
     prelude::*,
-    tester::model::{JudgerPrivateConfig, TestSuiteOptions},
+    tester::model::TestSuiteOptions,
 };
 use anyhow::{Context, Result};
 use futures::prelude::*;
@@ -407,14 +407,13 @@ pub async fn handle_job(
 
     tracing::info!("created");
 
-    let mut public_cfg = check_download_read_test_suite(job.test_suite, &*cfg)
+    let public_cfg = check_download_read_test_suite(job.test_suite, &*cfg)
         .with_cancel(cancel.cancelled())
         .instrument(info_span!("download_test_suites", %job.test_suite))
         .await
         .ok_or(JobExecErr::Cancelled)?
         .context("fetching public config")?;
 
-    public_cfg.binds.get_or_insert_with(Vec::new);
     tracing::info!("got test suite");
 
     send.send_msg(&ClientMsg::JobProgress(JobProgressMsg {
@@ -488,12 +487,6 @@ pub async fn handle_job(
     .await?;
 
     let suite_root_path = cfg.test_suite_folder(job.test_suite);
-    let mut tests_path = suite_root_path.clone();
-    tests_path.push(&public_cfg.mapped_dir.from);
-    let private_cfg = JudgerPrivateConfig {
-        test_root_dir: tests_path,
-        mapped_test_root_dir: public_cfg.mapped_dir.to.clone(),
-    };
 
     let options = TestSuiteOptions {
         tests: job.tests.clone(),

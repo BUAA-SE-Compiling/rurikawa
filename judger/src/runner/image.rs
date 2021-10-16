@@ -13,13 +13,16 @@ use ignore::gitignore::Gitignore;
 use tokio::sync::mpsc::UnboundedSender;
 use tokio_stream::StreamExt;
 
-use crate::tester::{model::{BuildError, canonical_join}};
+use crate::tester::model::{canonical_join, BuildError};
 
 #[derive(Builder, Debug)]
 #[builder(setter(into, strip_option))]
 pub struct BuildImageOptions {
+    /// The base path of
     base_path: PathBuf,
 
+    /// The tag of this image. Please select a tag that's unlikely to be used
+    /// by other processes, e.g. with namespace and a UUID
     tag_as: String,
 
     #[builder(default)]

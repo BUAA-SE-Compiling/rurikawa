@@ -1,3 +1,4 @@
+use arc_swap::ArcSwap;
 use async_trait::async_trait;
 use derive_builder::Builder;
 use rquickjs::IntoJsByRef;
@@ -24,7 +25,7 @@ pub enum OutputComparisonSource {
 /// One step in testing
 #[derive(Debug, Clone)]
 pub struct ExecStep {
-    /// Environment variables to set
+    /// Environment variables to set.
     pub env: Arc<HashMap<String, String>>,
     /// The command to run
     pub run: String,
