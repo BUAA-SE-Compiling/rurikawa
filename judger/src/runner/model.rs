@@ -1,19 +1,27 @@
-use arc_swap::ArcSwap;
 use async_trait::async_trait;
 use derive_builder::Builder;
 use rquickjs::IntoJsByRef;
 use serde::{Deserialize, Serialize};
-use std::{collections::HashMap, path::PathBuf, sync::Arc};
+use std::time::Duration;
+use std::{path::PathBuf, sync::Arc};
 
 /// The result returned by running a subprocess.
 #[derive(Debug, Clone, Serialize, Deserialize, Eq, PartialEq, IntoJsByRef)]
 pub struct ProcessOutput {
-    pub ret_code: i32,
+    pub ret_code: ExitStatus,
     pub command: String,
     pub stdout: String,
     pub stderr: String,
 
     pub runned_inside: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Eq, PartialEq, IntoJsByRef)]
+pub enum ExitStatus {
+    ReturnCode(i64),
+    Signal(u32),
+    Timeout,
+    Unknown,
 }
 
 #[derive(Debug, Clone)]
@@ -26,7 +34,7 @@ pub enum OutputComparisonSource {
 #[derive(Debug, Clone)]
 pub struct ExecStep {
     /// Environment variables to set.
-    pub env: Arc<HashMap<String, String>>,
+    pub env: Arc<Vec<(String, String)>>,
     /// The command to run
     pub run: String,
     /// The target to compare output with
@@ -69,7 +77,7 @@ pub trait CommandRunner {
 }
 
 #[derive(Debug, Default, Builder)]
-#[builder(setter(into, strip_option))]
+#[builder(setter(into,))]
 pub struct CommandRunOptions {
     #[builder(default = "100*1024")]
     pub stdout_size_limit: usize,
@@ -77,7 +85,6 @@ pub struct CommandRunOptions {
     #[builder(default = "100*1024")]
     pub stderr_size_limit: usize,
 
-    /// Timeout in milliseconds
     #[builder(default)]
-    pub timeout: Option<u64>,
+    pub timeout: Option<Duration>,
 }

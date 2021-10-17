@@ -22,12 +22,6 @@ pub enum ExecErrorKind {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Eq, PartialEq)]
-pub struct OutputMismatch {
-    pub diff: String,
-    pub output: Vec<ProcessOutput>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, Eq, PartialEq)]
 pub struct SpjFailure {
     pub reason: Option<String>,
     pub diff: Option<String>,
@@ -35,16 +29,10 @@ pub struct SpjFailure {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Eq, PartialEq, Error)]
-#[error(
-    display = "Execution error in stage {}: {:?};\noutputs: {:?}",
-    stage,
-    kind,
-    output
-)]
+#[error(display = "Execution error when running `{}`: {:?}", command, kind)]
 pub struct ExecError {
-    pub stage: usize,
+    pub command: String,
     pub kind: ExecErrorKind,
-    pub output: Vec<ProcessOutput>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Eq, PartialEq)]
@@ -75,7 +63,7 @@ impl std::error::Error for BuildError {}
 
 #[derive(Debug, Clone, Serialize, Deserialize, Eq, PartialEq)]
 pub enum JobFailure {
-    OutputMismatch(OutputMismatch),
+    OutputMismatch(String),
     SpjWrongAnswer(SpjFailure),
     ExecError(ExecError),
     InternalError(String),
@@ -214,7 +202,7 @@ impl FromStr for TestCaseDefinition {
 #[serde(rename_all = "camelCase")]
 #[quickjs(rename_all = "camelCase")]
 pub struct JudgerPublicConfig {
-    pub time_limit: Option<i32>,
+    pub time_limit: Option<f64>,
     pub memory_limit: Option<i32>,
     pub name: String,
     pub test_groups: HashMap<String, Vec<TestCaseDefinition>>,
@@ -228,14 +216,14 @@ pub struct JudgerPublicConfig {
     /// Sequence of commands necessary to perform an IO check.
     pub run: Vec<String>,
 
-    /// The path of files to be **copied** into the container, like test cases
+    /// The path of files to be **copied** into the container and mapped into test cases
+    #[quickjs(skip)]
+    pub mapped_dir: Bind,
+
+    /// The path of other files that should be copied into the container.
     /// (because otherwise they cannot be mounted readonly)
     #[quickjs(skip)]
-    #[serde(
-        default,
-        deserialize_with = "crate::util::single_or_array",
-        alias = "mapped_dir"
-    )]
+    #[serde(default, deserialize_with = "crate::util::single_or_array")]
     pub copies: Vec<Bind>,
 
     /// The glob pattern file for files to be ignored when sending to test root
@@ -321,26 +309,6 @@ impl NetworkOptions {
 pub struct RawStep {
     pub command: String,
     pub is_user_command: bool,
-}
-
-/// The public representation of a test.
-#[derive(Serialize, Deserialize, Debug, Clone, IntoJsByRef)]
-#[quickjs(rename_all = "camelCase")]
-pub struct TestCase {
-    /// File name of the test case.
-    pub name: String,
-    /// Expected `stdout` of the last command.
-    pub expected_out: Option<String>,
-    /// Should this test case fail
-    pub should_fail: bool,
-
-    /// Baseline score for this test case
-    #[serde(default = "default_base_score")]
-    pub base_score: f64,
-}
-
-fn default_base_score() -> f64 {
-    1.0
 }
 
 /// Initialization options for `Testsuite`.

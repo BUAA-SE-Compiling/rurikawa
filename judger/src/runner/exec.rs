@@ -1,4 +1,4 @@
-use std::{fmt::Write, path::Path};
+use std::{fmt::Write, path::Path, pin::Pin, time::Duration};
 
 use async_trait::async_trait;
 use bollard::{
@@ -9,12 +9,15 @@ use bollard::{
 };
 use bytes::BytesMut;
 use derive_builder::Builder;
+use futures::future;
 use ignore::gitignore::Gitignore;
 use tokio_stream::StreamExt;
 
 use crate::{
-    prelude::CancellationTokenHandle, runner::model::ProcessOutput,
-    runner::util::is_recoverable_error, util::tar::pack_as_tar,
+    prelude::CancellationTokenHandle,
+    runner::model::ProcessOutput,
+    runner::{model::ExitStatus, util::is_recoverable_error},
+    util::tar::pack_as_tar,
 };
 
 use super::model::{CommandRunOptions, CommandRunner};
@@ -163,7 +166,22 @@ impl Container {
         let mut stdout = SizeConstraintBytesMut::new(opt.stdout_size_limit);
         let mut stderr = SizeConstraintBytesMut::new(opt.stderr_size_limit);
 
-        while let Some(v) = output.next().await {
+        let timeout_timer = opt.timeout.map_or_else(
+            || futures::future::Either::Left(futures::future::pending::<()>()),
+            |timeout| futures::future::Either::Right(tokio::time::sleep(timeout)),
+        );
+        tokio::pin!(timeout_timer);
+
+        let timed_out = loop {
+            let v = match tokio::select! {
+                    out = output.next() => Some(out),
+                    timeout = timeout_timer.as_mut() => None
+            } {
+                Some(Some(v)) => v,
+                Some(None) => break false,
+                None => break true,
+            };
+
             let out = match v {
                 Ok(out) => out,
                 Err(e) => {
@@ -181,13 +199,19 @@ impl Container {
                 bollard::container::LogOutput::StdIn { .. } => {}
                 bollard::container::LogOutput::Console { .. } => {}
             }
-        }
+        };
 
         let results = self.docker.inspect_exec(exec_id).await?;
         let ret_code = results.exit_code;
 
         Ok(ProcessOutput {
-            ret_code: ret_code.map_or(-1, |x| x as i32),
+            ret_code: if timed_out {
+                ExitStatus::Timeout
+            } else if let Some(ret_code) = ret_code {
+                ExitStatus::ReturnCode(ret_code)
+            } else {
+                ExitStatus::Unknown
+            },
             command: command.to_string(),
             stdout: stdout.into_string(),
             stderr: stderr.into_string(),

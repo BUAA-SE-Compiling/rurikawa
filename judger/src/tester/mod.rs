@@ -12,8 +12,8 @@ use crate::runner::image::BuildImageResult;
 
 use self::model::{JudgeExecKind, JudgerPublicConfig};
 
-pub mod lowering;
 pub mod model;
+pub mod runner_plan;
 pub mod spj;
 pub mod utils;
 
