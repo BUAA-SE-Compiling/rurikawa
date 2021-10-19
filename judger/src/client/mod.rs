@@ -15,7 +15,8 @@ use crate::{
     fs::{self, JUDGE_FILE_NAME},
     prelude::*,
     runner::exec::CreateContainerConfigBuilder,
-    tester::{build_test_container, model::TestSuiteOptions},
+    runner::CommandRunner,
+    tester::{build_judge_container, build_user_code_container},
 };
 use anyhow::{Context, Result};
 use futures::prelude::*;
@@ -25,7 +26,7 @@ use serde_json::from_slice;
 use std::{collections::HashMap, path::PathBuf, sync::atomic::Ordering, sync::Arc};
 use tokio::sync::OwnedMutexGuard;
 use tokio_tungstenite::{connect_async, tungstenite::Message};
-use tracing::info_span;
+use tracing::{info_span, instrument};
 use tracing_futures::Instrument;
 
 /// Try to register at the coordinator if no access token was specified.
@@ -133,20 +134,22 @@ async fn fetch_test_suite_data(
     Ok(res)
 }
 
-/// Check for updates on this test suite and update if necessary.
+/// Check for updates on this test suite and update if necessary. Reads the test suite
+/// and returns.
 ///
 /// Returns the updated public config, its unique ID, and the lock guard for modification
 /// to the caller.
 ///
 /// The lock guard is returned in order to prevent modification between suite update
 /// and running.
+#[instrument(skip(cfg))]
 pub async fn check_download_read_test_suite(
     suite_id: FlowSnake,
     cfg: &SharedClientData,
 ) -> Result<(JudgerPublicConfig, String, OwnedMutexGuard<()>), JobExecErr> {
-    // let _might_modify_guard = cfg.before_suite_might_modify(suite_id).await;
+    let _might_modify_guard = cfg.before_suite_might_modify(suite_id).await;
 
-    tracing::info!("Checking test suite {}", suite_id);
+    tracing::info!("Checking test suite");
     let suite_folder_root = cfg.test_suite_folder_root();
     tokio::fs::create_dir_all(suite_folder_root).await?;
     let suite_folder = cfg.test_suite_folder(suite_id);
@@ -193,6 +196,7 @@ pub async fn check_download_read_test_suite(
 
     // download the test suite
     if !dir_exists || !lockfile_up_to_date {
+        tracing::info!("Test suite not up to date. Updating...");
         let _modify_guard = cfg.before_suite_modify(suite_id).await;
 
         let endpoint = cfg.test_suite_download_endpoint(suite_id);
@@ -215,15 +219,15 @@ pub async fn check_download_read_test_suite(
             &suite_folder,
         )
         .await?;
+        tracing::info!("Update completed");
     }
 
     // Rewrite lockfile AFTER all data are saved
     if !lockfile_up_to_date {
+        tracing::info!("Rewriting lockfile");
         let serialized = serde_json::to_string(&suite_data)?;
         tokio::fs::write(&lockfile, &serialized).await?;
     }
-
-    tracing::info!("Suite downloaded");
 
     // Note:
     // Lockfile is updated only AFTER test suite is fully downloaded, so an incomplete
@@ -255,7 +259,7 @@ pub async fn check_download_read_test_suite(
     };
     let judger_conf = serde_json::from_slice::<JudgerPublicConfig>(&judger_conf)?;
 
-    Ok((judger_conf, suite_data.package_file_id, todo!()))
+    Ok((judger_conf, suite_data.package_file_id, _might_modify_guard))
 }
 
 fn extract_job_err(job_id: FlowSnake, err: &JobExecErr) -> ClientMsg {
@@ -402,12 +406,15 @@ pub async fn handle_job(
     // INFO: See locking pattern in [`crate::client::config::TestSuiteStatus`].
     let _job_guard = cfg.clone().before_job_start(job.test_suite);
 
-    tracing::info!("created");
+    tracing::info!("Starting");
 
     let (public_cfg, suite_unique_name, might_modify_permit) =
         pull_public_cfg(&job, &cfg, &cancel).await?;
 
-    tracing::info!("got test suite");
+    // NOTE: We must acquire the read guard before dropping the modify guard.
+    // See locking pattern in [`crate::client::config::TestSuiteStatus`].
+    let _job_read_guard = cfg.on_suite_run(job.test_suite).await;
+    drop(might_modify_permit);
 
     send.send_msg(&ClientMsg::JobProgress(JobProgressMsg {
         job_id: job.id,
@@ -455,22 +462,17 @@ pub async fn handle_job(
         .build()
         .expect("Error when initiating suite container");
 
-    let test_container = build_test_container(
-        docker,
+    let judger_container = build_judge_container(
+        docker.clone(),
         &public_cfg,
+        &cfg.test_suite_folder(job.test_suite),
         &suite_unique_name,
         test_suite_container_cfg,
-    );
-
-    send.send_msg(&ClientMsg::JobProgress(JobProgressMsg {
-        job_id: job.id,
-        stage: JobStage::Running,
-    }))
+    )
     .await?;
+    let judger_container = judger_container.map(Arc::new);
 
     let suite_root_path = cfg.test_suite_folder(job.test_suite);
-
-    let mut suite: TestSuite = todo!("Build test suite");
 
     tracing::info!("options created");
     let (ch_send, ch_recv) = tokio::sync::mpsc::unbounded_channel();
@@ -514,6 +516,24 @@ pub async fn handle_job(
         }
     });
 
+    let user_container = build_user_code_container(
+        &job.id.to_string(),
+        docker,
+        &judge_job_cfg.image,
+        &cfg.job_folder(job.id),
+        &public_cfg,
+        cancel.clone(),
+        Some(build_ch_send),
+    )
+    .await?;
+    let user_container = Arc::new(user_container);
+
+    send.send_msg(&ClientMsg::JobProgress(JobProgressMsg {
+        job_id: job.id,
+        stage: JobStage::Running,
+    }))
+    .await?;
+
     tracing::info!("started.");
 
     let upload_info = Arc::new(ResultUploadConfig {
@@ -523,7 +543,14 @@ pub async fn handle_job(
         job_id: job.id,
     });
 
-    let result = todo!("Run test suite");
+    let result = crate::tester::runner_plan::run_job_test_cases(
+        &job,
+        &public_cfg,
+        &judge_job_cfg,
+        user_container,
+        judger_container.map(|container| container as _),
+    )
+    .await;
 
     tracing::info!("finished running");
 
@@ -532,13 +559,14 @@ pub async fn handle_job(
 
     tracing::info!("finished");
 
-    let job_result = JobResultMsg {
-        job_id: job.id,
-        results: result,
-        job_result: JobResultKind::Accepted,
-        message: None,
-    };
-    Ok(job_result)
+    // let job_result = JobResultMsg {
+    //     job_id: job.id,
+    //     results: result,
+    //     job_result: JobResultKind::Accepted,
+    //     message: None,
+    // };
+    // Ok(job_result)
+    todo!()
 }
 
 async fn pull_job(
@@ -588,6 +616,7 @@ async fn pull_public_cfg(
     cfg: &Arc<SharedClientData>,
     cancel: &tokio_util::sync::CancellationToken,
 ) -> Result<(JudgerPublicConfig, String, OwnedMutexGuard<()>), JobExecErr> {
+    tracing::info!("Checking updates on test suite config");
     let public_cfg = check_download_read_test_suite(job.test_suite, &**cfg)
         .with_cancel(cancel.cancelled())
         .instrument(info_span!("download_test_suites", %job.test_suite))

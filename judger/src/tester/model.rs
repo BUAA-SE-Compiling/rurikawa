@@ -40,7 +40,7 @@ pub struct ShouldFailFailure {
     pub output: Vec<ProcessOutput>,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug)]
 pub enum BuildError {
     ImagePullFailure(String),
     FileTransferError(String),
@@ -48,7 +48,7 @@ pub enum BuildError {
         error: String,
         detail: Option<bollard::models::ErrorDetail>,
     },
-    Internal(String),
+    Internal(anyhow::Error),
     Cancelled,
     Timeout,
 }
@@ -61,31 +61,29 @@ impl std::fmt::Display for BuildError {
 
 impl std::error::Error for BuildError {}
 
-#[derive(Debug, Clone, Serialize, Deserialize, Eq, PartialEq)]
+#[derive(Debug, Error)]
 pub enum JobFailure {
+    #[error(display = "Output mismatch")]
     OutputMismatch(String),
+    #[error(display = "Special judger determined that it's wrong: {:#?}", _0)]
     SpjWrongAnswer(SpjFailure),
+    #[error(display = "Execution error: {}", _0)]
     ExecError(ExecError),
-    InternalError(String),
+    #[error(display = "Internal error: {}", _0)]
+    InternalError(anyhow::Error),
+    #[error(display = "The test should fail but it didn't")]
     ShouldFail(ShouldFailFailure),
+    #[error(display = "Cancelled")]
     Cancelled,
 }
-
-impl std::fmt::Display for JobFailure {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{:?}", self)
-    }
-}
-
-impl std::error::Error for JobFailure {}
 
 impl JobFailure {
     /// Make a new `InternalError`, the lazy way.
     pub fn internal_err_from<D>(error: D) -> JobFailure
     where
-        D: std::fmt::Display,
+        D: Into<anyhow::Error>,
     {
-        JobFailure::InternalError(format!("{}", error))
+        JobFailure::InternalError(error.into())
     }
 }
 

@@ -16,7 +16,7 @@ use tokio_stream::StreamExt;
 use crate::tester::model::{canonical_join, BuildError};
 
 #[derive(Builder, Debug)]
-#[builder(setter(into, strip_option))]
+#[builder(setter(into))]
 pub struct BuildImageOptions {
     /// The base path of
     base_path: PathBuf,
@@ -168,7 +168,7 @@ async fn build_image_from_dockerfile(
                 });
 
                 if !is_recoverable {
-                    return Err(BuildError::Internal(format!("{:?}", e)));
+                    return Err(BuildError::Internal(e.into()));
                 }
             }
         }
@@ -176,8 +176,14 @@ async fn build_image_from_dockerfile(
 
     join_tar
         .await
-        .map_err(|e| BuildError::Internal(format!("Internal panic when archiving files: {}", e)))?
-        .map_err(|e| BuildError::Internal(format!("Failed to archive files: {}", e)))?;
+        .map_err(|e| {
+            BuildError::Internal(
+                anyhow::Error::new(e).context("Internal panic when archiving files"),
+            )
+        })?
+        .map_err(|e| {
+            BuildError::Internal(anyhow::Error::new(e).context("Failed to archive files"))
+        })?;
 
     if opt.cancellation.is_cancelled() {
         return Err(BuildError::Cancelled);

@@ -8,6 +8,8 @@ use std::{
     time::Duration,
 };
 
+use itertools::Itertools;
+
 use crate::runner::{
     model::{CommandRunOptionsBuilder, ProcessOutput},
     CommandRunner,
@@ -25,9 +27,11 @@ pub async fn run_job_test_cases<'a>(
     job: &'a Job,
     public_cfg: &'a JudgerPublicConfig,
     judge_toml: &'a JudgeTomlTestConfig,
-    user_container: Arc<dyn CommandRunner>,
-    judger_container: Option<Arc<dyn CommandRunner>>,
+    user_container: Arc<dyn CommandRunner + Send + Sync>,
+    judger_container: Option<Arc<dyn CommandRunner + Send + Sync>>,
 ) -> anyhow::Result<Vec<(String, Result<(), JobFailure>, Vec<ProcessOutput>)>> {
+    // This index ensures all test cases specified in `job` are present, and also
+    // provides a map between test names and cases.
     let public_cfg_verification_index = public_cfg
         .test_groups
         .iter()
@@ -46,6 +50,8 @@ pub async fn run_job_test_cases<'a>(
     for case in job
         .tests
         .iter()
+        .sorted()
+        .dedup()
         .filter_map(|case| public_cfg_verification_index.get(case.as_str()))
     {
         let runner_case = generate_test_case(
@@ -82,8 +88,8 @@ pub fn generate_test_case(
     test_case: &TestCaseDefinition,
     public_cfg: &JudgerPublicConfig,
     judge_toml: &JudgeTomlTestConfig,
-    user_container: Arc<dyn CommandRunner>,
-    judger_container: Option<Arc<dyn CommandRunner>>,
+    user_container: Arc<dyn CommandRunner + Send + Sync>,
+    judger_container: Option<Arc<dyn CommandRunner + Send + Sync>>,
 ) -> TestCase {
     debug_assert!(
         judger_container.is_some() == (public_cfg.exec_kind == JudgeExecKind::Isolated),

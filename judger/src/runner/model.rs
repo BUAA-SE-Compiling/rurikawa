@@ -45,7 +45,7 @@ pub struct ExecStep {
 #[derive(Clone)]
 pub struct ExecGroup {
     /// Container to run in
-    pub run_in: Arc<dyn CommandRunner>,
+    pub run_in: Arc<dyn CommandRunner + Send + Sync>,
     /// Run steps
     pub steps: Vec<ExecStep>,
 }

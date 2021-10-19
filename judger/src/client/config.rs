@@ -282,7 +282,7 @@ impl SharedClientData {
         arc.write_owned().await
     }
 
-    pub async fn suite_run(&self, id: FlowSnake) -> OwnedRwLockReadGuard<()> {
+    pub async fn on_suite_run(&self, id: FlowSnake) -> OwnedRwLockReadGuard<()> {
         let arc = {
             let mut suites_map = self
                 .test_suite_modify
