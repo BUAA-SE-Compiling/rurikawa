@@ -27,31 +27,31 @@ use super::model::{CommandRunOptions, CommandRunner};
 pub struct CreateContainerConfig {
     /// Mounting local folders into containers
     #[builder(default)]
-    mounts: Vec<Mount>,
+    pub mounts: Vec<Mount>,
 
     /// A tag for this container. Not used in any docker commands, purely for labelling & debugging use.
     #[builder(default)]
-    tag_name: Option<String>,
+    pub tag_name: Option<String>,
 
     /// The user to be used when running docker commands
     #[builder(default)]
-    docker_user: Option<String>,
+    pub docker_user: Option<String>,
 
     /// A handle to cancel this run
     #[builder(default)]
-    cancellation: CancellationTokenHandle,
+    pub cancellation: CancellationTokenHandle,
 
     /// The memory limit of this container
     #[builder(default)]
-    mem_limit: Option<i64>,
+    pub mem_limit: Option<i64>,
 
     /// The CPU fraction allowed to use
     #[builder(default)]
-    cpu_quota: Option<f64>,
+    pub cpu_quota: Option<f64>,
 
     /// Whether network is allowed in this container
     #[builder(default = "false")]
-    network_enabled: bool,
+    pub network_enabled: bool,
 }
 
 #[derive(Debug)]

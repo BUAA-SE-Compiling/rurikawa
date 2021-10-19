@@ -14,7 +14,8 @@ use crate::{
     config::{JudgeToml, JudgerPublicConfig},
     fs::{self, JUDGE_FILE_NAME},
     prelude::*,
-    tester::model::TestSuiteOptions,
+    runner::exec::CreateContainerConfigBuilder,
+    tester::{build_test_container, model::TestSuiteOptions},
 };
 use anyhow::{Context, Result};
 use futures::prelude::*;
@@ -22,6 +23,7 @@ use http::Method;
 use respector::prelude::*;
 use serde_json::from_slice;
 use std::{collections::HashMap, path::PathBuf, sync::atomic::Ordering, sync::Arc};
+use tokio::sync::OwnedMutexGuard;
 use tokio_tungstenite::{connect_async, tungstenite::Message};
 use tracing::info_span;
 use tracing_futures::Instrument;
@@ -131,36 +133,25 @@ async fn fetch_test_suite_data(
     Ok(res)
 }
 
+/// Check for updates on this test suite and update if necessary.
+///
+/// Returns the updated public config, its unique ID, and the lock guard for modification
+/// to the caller.
+///
+/// The lock guard is returned in order to prevent modification between suite update
+/// and running.
 pub async fn check_download_read_test_suite(
     suite_id: FlowSnake,
     cfg: &SharedClientData,
-) -> Result<JudgerPublicConfig, JobExecErr> {
+) -> Result<(JudgerPublicConfig, String, OwnedMutexGuard<()>), JobExecErr> {
+    // let _might_modify_guard = cfg.before_suite_might_modify(suite_id).await;
+
     tracing::info!("Checking test suite {}", suite_id);
     let suite_folder_root = cfg.test_suite_folder_root();
     tokio::fs::create_dir_all(suite_folder_root).await?;
     let suite_folder = cfg.test_suite_folder(suite_id);
 
-    // My fault - The cancellation token should automagically cancel itself when
-    // dropped in this case - If download fails then it won't cancel.
-
-    /// This struct automatically releases the test suite inside it if dropped.
-    ///
-    /// TODO: Move this struct inside `SharedClientData`.
-    struct AutoReleaseToken<'a>(CancellationTokenHandle, &'a SharedClientData, FlowSnake);
-    impl<'a> Drop for AutoReleaseToken<'a> {
-        fn drop(&mut self) {
-            let Self(canceller, client_data, suite_id) = self;
-            canceller.cancel();
-            client_data.suite_unlock(*suite_id);
-        }
-    }
-
     tracing::debug!("Folder created: {:?}", suite_folder);
-    let handle = cfg
-        .obtain_suite_lock(suite_id)
-        .instrument(info_span!("suite_lock", %suite_id))
-        .await
-        .map(|x| AutoReleaseToken(x, cfg, suite_id));
 
     // Lock this specific test suite and let all other concurrent tasks to wait
     // until downloading completes
@@ -178,6 +169,7 @@ pub async fn check_download_read_test_suite(
         }
     };
 
+    // check if test suite is up to date
     let lockfile = cfg.test_suite_folder_lockfile(suite_id);
 
     let lockfile_up_to_date = {
@@ -199,7 +191,10 @@ pub async fn check_download_read_test_suite(
             .unwrap_or(false)
     };
 
+    // download the test suite
     if !dir_exists || !lockfile_up_to_date {
+        let _modify_guard = cfg.before_suite_modify(suite_id).await;
+
         let endpoint = cfg.test_suite_download_endpoint(suite_id);
         let file_folder_root = cfg.temp_file_folder_root();
 
@@ -244,9 +239,6 @@ pub async fn check_download_read_test_suite(
     //   V
     // let _ = fs::ensure_removed_dir(&cfg.test_suite_folder(suite_id)).await;
 
-    // The handle should be dropped right here
-    drop(handle);
-
     let mut judger_conf_dir = suite_folder.clone();
     judger_conf_dir.push("testconf.json");
     tracing::debug!("Reading test config: {:?}", judger_conf_dir);
@@ -263,7 +255,7 @@ pub async fn check_download_read_test_suite(
     };
     let judger_conf = serde_json::from_slice::<JudgerPublicConfig>(&judger_conf)?;
 
-    Ok(judger_conf)
+    Ok((judger_conf, suite_data.package_file_id, todo!()))
 }
 
 fn extract_job_err(job_id: FlowSnake, err: &JobExecErr) -> ClientMsg {
@@ -403,16 +395,17 @@ pub async fn handle_job(
     cancel: CancellationTokenHandle,
     cfg: Arc<SharedClientData>,
 ) -> Result<JobResultMsg, JobExecErr> {
-    let client = reqwest::Client::new();
+    // TODO: Move this to program start
+    let docker =
+        bollard::Docker::connect_with_local_defaults().expect("Unable to connect to docker");
+
+    // INFO: See locking pattern in [`crate::client::config::TestSuiteStatus`].
+    let _job_guard = cfg.clone().before_job_start(job.test_suite);
 
     tracing::info!("created");
 
-    let public_cfg = check_download_read_test_suite(job.test_suite, &*cfg)
-        .with_cancel(cancel.cancelled())
-        .instrument(info_span!("download_test_suites", %job.test_suite))
-        .await
-        .ok_or(JobExecErr::Cancelled)?
-        .context("fetching public config")?;
+    let (public_cfg, suite_unique_name, might_modify_permit) =
+        pull_public_cfg(&job, &cfg, &cancel).await?;
 
     tracing::info!("got test suite");
 
@@ -423,37 +416,7 @@ pub async fn handle_job(
     .await?;
 
     // Clone the repo specified in job
-    let job_path = cfg.job_folder(job.id);
-    let _ = fs::ensure_removed_dir(&job_path).await;
-
-    fs::net::git_clone(
-        &job_path,
-        fs::net::GitCloneOptions {
-            repo: job.repo,
-            revision: job.revision,
-            depth: 3,
-        },
-    )
-    .with_cancel(cancel.cancelled())
-    .await
-    .ok_or(JobExecErr::Aborted)?
-    .map_err(JobExecErr::Git)
-    .context("cloning repo")?;
-
-    tracing::info!("fetched");
-
-    let job_path: PathBuf = fs::find_judge_root(&job_path)
-        .await
-        .context("finding judger root")?;
-    let mut judge_cfg = job_path.clone();
-    judge_cfg.push(JUDGE_FILE_NAME);
-
-    tracing::info!("found job description file at {:?}", &judge_cfg);
-
-    let judge_cfg = tokio::fs::read(judge_cfg)
-        .await
-        .context("reading config file")?;
-    let judge_cfg = toml::from_slice::<JudgeToml>(&judge_cfg).context("parsing judger config")?;
+    let judge_cfg = pull_job(&cfg, &job, cancel.clone()).await?;
 
     tracing::info!("read job description file");
 
@@ -482,19 +445,30 @@ pub async fn handle_job(
 
     send.send_msg(&ClientMsg::JobProgress(JobProgressMsg {
         job_id: job.id,
+        stage: JobStage::Compiling,
+    }))
+    .await?;
+
+    let test_suite_container_cfg = CreateContainerConfigBuilder::default()
+        .cancellation(cancel.clone())
+        .network_enabled(true)
+        .build()
+        .expect("Error when initiating suite container");
+
+    let test_container = build_test_container(
+        docker,
+        &public_cfg,
+        &suite_unique_name,
+        test_suite_container_cfg,
+    );
+
+    send.send_msg(&ClientMsg::JobProgress(JobProgressMsg {
+        job_id: job.id,
         stage: JobStage::Running,
     }))
     .await?;
 
     let suite_root_path = cfg.test_suite_folder(job.test_suite);
-
-    let options = TestSuiteOptions {
-        tests: job.tests.clone(),
-        time_limit: public_cfg.time_limit.map(|x| x as usize),
-        mem_limit: public_cfg.memory_limit.map(|x| x as usize),
-        build_image: true,
-        remove_image: true,
-    };
 
     let mut suite: TestSuite = todo!("Build test suite");
 
@@ -540,12 +514,10 @@ pub async fn handle_job(
         }
     });
 
-    let docker = bollard::Docker::connect_with_local_defaults().unwrap();
-
     tracing::info!("started.");
 
     let upload_info = Arc::new(ResultUploadConfig {
-        client,
+        client: cfg.client.clone(),
         endpoint: cfg.result_upload_endpoint(),
         access_token: cfg.cfg().access_token.clone(),
         job_id: job.id,
@@ -567,6 +539,62 @@ pub async fn handle_job(
         message: None,
     };
     Ok(job_result)
+}
+
+async fn pull_job(
+    cfg: &Arc<SharedClientData>,
+    job: &Job,
+    cancel: tokio_util::sync::CancellationToken,
+) -> Result<JudgeToml, JobExecErr> {
+    let job_path = cfg.job_folder(job.id);
+    let _ = fs::ensure_removed_dir(&job_path).await;
+    fs::net::git_clone(
+        &job_path,
+        fs::net::GitCloneOptions {
+            repo: job.repo.clone(),
+            revision: job.revision.clone(),
+            depth: 3,
+        },
+    )
+    .with_cancel(cancel.cancelled())
+    .await
+    .ok_or(JobExecErr::Aborted)?
+    .map_err(JobExecErr::Git)
+    .context("cloning repo")?;
+
+    tracing::info!("fetched");
+
+    let job_path: PathBuf = fs::find_judge_root(&job_path)
+        .await
+        .context("finding judger root")?;
+
+    let mut judge_cfg = job_path.clone();
+
+    judge_cfg.push(JUDGE_FILE_NAME);
+
+    tracing::info!("found job description file at {:?}", &judge_cfg);
+
+    let judge_cfg = tokio::fs::read(judge_cfg)
+        .await
+        .context("reading config file")?;
+
+    let judge_cfg = toml::from_slice::<JudgeToml>(&judge_cfg).context("parsing judger config")?;
+
+    Ok(judge_cfg)
+}
+
+async fn pull_public_cfg(
+    job: &Job,
+    cfg: &Arc<SharedClientData>,
+    cancel: &tokio_util::sync::CancellationToken,
+) -> Result<(JudgerPublicConfig, String, OwnedMutexGuard<()>), JobExecErr> {
+    let public_cfg = check_download_read_test_suite(job.test_suite, &**cfg)
+        .with_cancel(cancel.cancelled())
+        .instrument(info_span!("download_test_suites", %job.test_suite))
+        .await
+        .ok_or(JobExecErr::Cancelled)?
+        .context("fetching public config")?;
+    Ok(public_cfg)
 }
 
 pub async fn flag_new_job(_send: Arc<WsSink>, client_config: Arc<SharedClientData>) {

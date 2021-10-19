@@ -164,99 +164,8 @@ impl ToScore for () {
     }
 }
 
-impl TestResult {
-    /// Convert a job result into a protocol-compatible `TestResult`
-    pub fn from_result<S: ToScore>(
-        result: Result<S, JobFailure>,
-        base_score: f64,
-    ) -> (TestResult, Option<FailedJobOutputCacheFile>) {
-        match result {
-            Ok(s) => (
-                TestResult {
-                    kind: TestResultKind::Accepted,
-                    score: s.to_score().map(|x| x * base_score),
-                    result_file_id: None,
-                },
-                None,
-            ),
-            Err(e) => {
-                let (kind, cache) = match e {
-                    JobFailure::OutputMismatch(m) => (
-                        TestResultKind::WrongAnswer,
-                        Some(FailedJobOutputCacheFile {
-                            output: m.output,
-                            stdout_diff: Some(m.diff),
-                            message: None,
-                        }),
-                    ),
-
-                    JobFailure::ExecError(e) => {
-                        let (res, msg) = match e.kind {
-                            ExecErrorKind::RuntimeError(e) => {
-                                (TestResultKind::RuntimeError, Some(e))
-                            }
-                            ExecErrorKind::ReturnCodeCheckFailed => (
-                                TestResultKind::PipelineFailed,
-                                Some("Some command's return code is not 0".into()),
-                            ),
-                            ExecErrorKind::TimedOut => (TestResultKind::TimeLimitExceeded, None),
-                        };
-                        (
-                            res,
-                            Some(FailedJobOutputCacheFile {
-                                output: e.output,
-                                stdout_diff: None,
-                                message: msg,
-                            }),
-                        )
-                    }
-
-                    JobFailure::InternalError(e) => (
-                        TestResultKind::OtherError,
-                        Some(FailedJobOutputCacheFile {
-                            output: Vec::new(),
-                            stdout_diff: None,
-                            message: Some(e),
-                        }),
-                    ),
-
-                    JobFailure::ShouldFail(out) => (
-                        TestResultKind::ShouldFail,
-                        Some(FailedJobOutputCacheFile {
-                            output: out.output,
-                            stdout_diff: None,
-                            message: Some(
-                                "One of the commands should return a non-zero value".into(),
-                            ),
-                        }),
-                    ),
-
-                    JobFailure::Cancelled => (TestResultKind::NotRan, None),
-                    JobFailure::SpjWrongAnswer(out) => (
-                        TestResultKind::WrongAnswer,
-                        Some(FailedJobOutputCacheFile {
-                            output: out.output,
-                            stdout_diff: out.diff,
-                            message: out.reason,
-                        }),
-                    ),
-                };
-
-                (
-                    TestResult {
-                        kind,
-                        score: None,
-                        result_file_id: None,
-                    },
-                    cache,
-                )
-            }
-        }
-    }
-}
-
 pub async fn upload_test_result(
-    f: FailedJobOutputCacheFile,
+    f: JobOutputFile,
     upload_info: Arc<ResultUploadConfig>,
     test_id: &str,
 ) -> Option<String> {
@@ -338,7 +247,7 @@ pub struct JobRequestMsg {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct FailedJobOutputCacheFile {
+pub struct JobOutputFile {
     pub output: Vec<ProcessOutput>,
     pub stdout_diff: Option<String>,
     pub message: Option<String>,

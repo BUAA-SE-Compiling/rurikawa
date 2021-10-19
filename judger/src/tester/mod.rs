@@ -21,13 +21,12 @@ pub mod utils;
 pub async fn build_test_container(
     docker: Docker,
     pub_cfg: &JudgerPublicConfig,
-    guid: FlowSnake,
+    guid: &str,
     cfg: CreateContainerConfig,
-    cancel: CancellationTokenHandle,
 ) -> anyhow::Result<Option<Container>> {
     match pub_cfg.exec_kind {
         JudgeExecKind::Legacy => Ok(None),
-        JudgeExecKind::Isolated => make_isolated_test_container(docker, pub_cfg, guid, cfg, cancel)
+        JudgeExecKind::Isolated => make_isolated_test_container(docker, pub_cfg, guid, cfg)
             .await
             .map(Some),
     }
@@ -41,9 +40,8 @@ pub async fn build_test_container(
 async fn make_isolated_test_container(
     docker: Docker,
     pub_cfg: &JudgerPublicConfig,
-    guid: FlowSnake,
+    guid: &str,
     cfg: CreateContainerConfig,
-    cancel: CancellationTokenHandle,
 ) -> anyhow::Result<Container> {
     debug_assert!(pub_cfg.exec_kind == JudgeExecKind::Isolated);
     if pub_cfg.exec_environment.is_none() {
@@ -61,7 +59,7 @@ async fn make_isolated_test_container(
 
             let opt = crate::runner::image::BuildImageOptionsBuilder::default()
                 .tag_as(tag.clone())
-                .cancellation(cancel.clone())
+                .cancellation(cfg.cancellation.clone())
                 .build()
                 .expect("Failed to build");
             let BuildImageResult {} =
