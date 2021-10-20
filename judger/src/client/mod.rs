@@ -14,9 +14,8 @@ use crate::{
     config::{JudgeToml, JudgerPublicConfig},
     fs::{self, JUDGE_FILE_NAME},
     prelude::*,
-    runner::CommandRunner,
     runner::{exec::CreateContainerConfigBuilder, volume::Volume},
-    tester::{build_judge_container, build_user_code_container},
+    tester::{build_judger_container, build_user_code_container},
     util::AsyncTeardownCollector,
 };
 use anyhow::{Context, Result};
@@ -482,7 +481,7 @@ pub async fn handle_job(
         .build()
         .expect("Error when initiating suite container");
 
-    let judger_container = build_judge_container(
+    let judger_container = build_judger_container(
         docker.clone(),
         &public_cfg,
         &cfg.test_suite_folder(job.test_suite),
@@ -600,6 +599,9 @@ pub async fn handle_job(
         .await;
 
     tracing::info!("finished running");
+
+    // ch_send is not used for now
+    drop(ch_send);
 
     let _ = build_recv_handle.await;
     let _ = recv_handle.await;

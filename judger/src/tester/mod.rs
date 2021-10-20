@@ -23,17 +23,22 @@ pub mod spj;
 pub mod utils;
 
 /// Build the container used in the public config
-pub async fn build_judge_container(
+pub async fn build_judger_container(
     docker: Docker,
     pub_cfg: &JudgerPublicConfig,
     base_path: &Path,
     guid: &str,
     cfg: CreateContainerConfig,
 ) -> anyhow::Result<Option<Container>> {
+    tracing::info!(%guid, "Building judger container");
+
     match pub_cfg.exec_kind {
-        JudgeExecKind::Legacy => Ok(None),
+        JudgeExecKind::Legacy => {
+            tracing::info!("Legacy judging, no container");
+            Ok(None)
+        }
         JudgeExecKind::Isolated => {
-            make_isolated_test_container(docker, pub_cfg, base_path, guid, cfg)
+            make_isolated_judger_container(docker, pub_cfg, base_path, guid, cfg)
                 .await
                 .map(Some)
         }
@@ -45,7 +50,7 @@ pub async fn build_judge_container(
 /// # Panics
 ///
 /// This function asserts that `pub_cfg.exec_kind == JudgeExecKind::Isolated`.
-async fn make_isolated_test_container(
+async fn make_isolated_judger_container(
     docker: Docker,
     pub_cfg: &JudgerPublicConfig,
     base_path: &Path,
@@ -60,6 +65,8 @@ async fn make_isolated_test_container(
     }
 
     let tag = format!("test-container-{}:{}", pub_cfg.name, guid);
+
+    tracing::info!(%tag, "Looking for image for judger container");
 
     let image = match docker.inspect_image(&tag).await {
         Ok(image) => image,
@@ -79,6 +86,8 @@ async fn make_isolated_test_container(
         Err(e) => return Err(e.into()),
     };
 
+    tracing::info!(%tag, %image.id, "Creating container from image");
+
     Container::create(docker, image.id, cfg)
         .await
         .map_err(|e| e.into())
@@ -93,12 +102,15 @@ pub async fn build_user_code_container(
         CreateContainerConfigBuilder,
     ) -> CreateContainerConfigBuilder,
 ) -> Result<Container, BuildError> {
+    tracing::info!(%image_name, "Building user code image");
     let cfg = config_build_image_options(BuildImageOptionsBuilder::default())
         .tag_as(image_name)
         .build()
         .expect("Failed to generate build options");
 
     let _image = build_image(docker.clone(), image, cfg).await?;
+
+    tracing::info!(%image_name, "Creating container from user code image");
 
     let cfg = config_create_container_configs(CreateContainerConfigBuilder::default())
         .build()

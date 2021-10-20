@@ -114,6 +114,7 @@ impl Container {
     }
 
     pub async fn copy_local_files(&self, file_path: &Path, into_path: &str) -> anyhow::Result<()> {
+        tracing::trace!(name = %self.name(), ?file_path, ?into_path, "Copying local files into container");
         let (tar, join) = pack_as_tar(file_path, Gitignore::empty())?;
         self.docker
             .upload_to_container(
@@ -136,6 +137,7 @@ impl Container {
         env: &mut (dyn Iterator<Item = (&str, &str)> + Send),
         opt: &CommandRunOptions,
     ) -> anyhow::Result<ProcessOutput> {
+        tracing::trace!(name = %self.name(), %command, "Executing command in container");
         let exec = self
             .docker
             .create_exec(
@@ -175,7 +177,7 @@ impl Container {
         let timed_out = loop {
             let v = match tokio::select! {
                     out = output.next() => Some(out),
-                    timeout = timeout_timer.as_mut() => None
+                    _timeout = timeout_timer.as_mut() => None
             } {
                 Some(Some(v)) => v,
                 Some(None) => break false,
@@ -221,6 +223,7 @@ impl Container {
     }
 
     pub async fn remove(&mut self) -> anyhow::Result<()> {
+        tracing::trace!(name = %self.name(), "Removing container");
         // Defuse the teardown drop bomb.
         // It's not our fault if Docker blows up after this point (*/ω＼*)
         self._teardown_bomb.defuse();

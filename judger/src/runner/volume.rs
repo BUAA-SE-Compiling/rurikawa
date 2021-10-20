@@ -22,6 +22,7 @@ pub struct Volume {
 
 impl Volume {
     pub async fn create(docker: Docker, name: String) -> Result<Self, bollard::errors::Error> {
+        tracing::trace!(%name, "Creating volume");
         let vol_res = docker
             .create_volume(CreateVolumeOptions {
                 name: name.as_str(),
@@ -43,6 +44,8 @@ impl Volume {
         path: &Path,
         ignore: Gitignore,
     ) -> anyhow::Result<()> {
+        tracing::trace!(?path, %self.volume.name, "Copying local files into volume");
+
         let (stream, join) = pack_as_tar(path, ignore)?;
 
         let container = self
@@ -87,6 +90,8 @@ impl Volume {
     }
 
     pub async fn remove(&mut self) -> Result<(), bollard::errors::Error> {
+        tracing::trace!(%self.volume.name, "Removing volume");
+
         // Defuse the teardown drop bomb.
         // It's not our fault if Docker blows up at this point (*/ω＼*)
         self._drop_bomb.defuse();

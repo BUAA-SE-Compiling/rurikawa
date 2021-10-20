@@ -30,6 +30,8 @@ pub async fn run_job_test_cases<'a>(
     user_container: Arc<dyn CommandRunner + Send + Sync>,
     judger_container: Option<Arc<dyn CommandRunner + Send + Sync>>,
 ) -> anyhow::Result<Vec<(String, Result<(), JobFailure>, Vec<ProcessOutput>)>> {
+    tracing::info!(%job.id, "Planning to run job");
+
     // This index ensures all test cases specified in `job` are present, and also
     // provides a map between test names and cases.
     let public_cfg_verification_index = public_cfg
@@ -41,7 +43,7 @@ pub async fn run_job_test_cases<'a>(
         .collect::<HashMap<_, _>>();
 
     let run_option = CommandRunOptionsBuilder::default()
-        .timeout(public_cfg.time_limit.map(|t| Duration::from_secs_f64(t)))
+        .timeout(public_cfg.time_limit.map(Duration::from_secs_f64))
         .build()
         .expect("Failed to build command run options");
 
@@ -54,6 +56,7 @@ pub async fn run_job_test_cases<'a>(
         .dedup()
         .filter_map(|case| public_cfg_verification_index.get(case.as_str()))
     {
+        tracing::trace!(job = %job.id, case = %case.name, "Running test case in job");
         let runner_case = generate_test_case(
             case,
             public_cfg,
