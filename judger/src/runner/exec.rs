@@ -1,4 +1,4 @@
-use std::{fmt::Write, path::Path, pin::Pin, time::Duration};
+use std::{fmt::Write, path::Path};
 
 use async_trait::async_trait;
 use bollard::{
@@ -9,7 +9,6 @@ use bollard::{
 };
 use bytes::BytesMut;
 use derive_builder::Builder;
-use futures::future;
 use ignore::gitignore::Gitignore;
 use tokio_stream::StreamExt;
 

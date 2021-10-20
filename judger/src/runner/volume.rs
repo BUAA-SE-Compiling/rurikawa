@@ -2,7 +2,7 @@
 
 use std::{collections::HashMap, path::Path};
 
-use crate::{runner::exec::CreateContainerConfig, util::tar::pack_as_tar};
+use crate::util::tar::pack_as_tar;
 use async_trait::async_trait;
 use bollard::{
     container::{RemoveContainerOptions, UploadToContainerOptions},

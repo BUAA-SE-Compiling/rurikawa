@@ -1,9 +1,5 @@
-use std::{
-    ptr::NonNull,
-    sync::{Arc, Mutex},
-};
+use std::sync::{Arc, Mutex};
 
-use arc_swap::ArcSwapAny;
 use async_trait::async_trait;
 
 /// Data structure that needs to be teared down asynchronously.

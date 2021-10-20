@@ -170,7 +170,7 @@ pub async fn transform_and_upload_test_result(
     upload_info: Arc<ResultUploadConfig>,
     test_id: &str,
 ) -> TestResult {
-    let score = failure.as_ref().ok().map_or(None, ToScore::to_score);
+    let score = failure.as_ref().ok().and_then(ToScore::to_score);
     let (result_kind, message, stdout_diff) = match failure {
         Ok(_) => (TestResultKind::Accepted, "".to_string().into(), None),
         Err(e) => match e {
@@ -215,13 +215,11 @@ pub async fn transform_and_upload_test_result(
 
     let result_file_id = upload_test_result(output_file, upload_info, test_id).await;
 
-    let result = TestResult {
+    TestResult {
         kind: result_kind,
         score,
         result_file_id,
-    };
-
-    result
+    }
 }
 
 pub async fn upload_test_result(

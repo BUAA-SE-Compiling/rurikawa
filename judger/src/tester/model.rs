@@ -12,8 +12,6 @@ use std::{
     string::String,
 };
 
-use crate::runner::model::ProcessOutput;
-
 #[derive(Debug, Clone, Serialize, Deserialize, Eq, PartialEq)]
 pub enum ExecErrorKind {
     RuntimeError(String),

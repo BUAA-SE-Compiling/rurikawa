@@ -92,7 +92,7 @@ pub fn strsignal(signal: i32) -> Option<&'static str> {
 /// }
 /// ```
 #[cfg(not(unix))]
-pub fn strsignal(signal: i32) -> Option<&'static str> {
+pub fn strsignal(_signal: i32) -> Option<&'static str> {
     None
 }
 

@@ -1,7 +1,6 @@
 //! Helper functions to disallow absolute paths or relative paths that goes into
 //! parent paths.
 
-use fern::meta;
 use futures::StreamExt;
 use std::path::Path;
 use tracing::warn;

@@ -125,7 +125,7 @@ impl SpjEnvironment {
     pub async fn spj_case_init(
         &self,
         // case: &TestCase,
-        mappings: &HashMap<String, String>,
+        _mappings: &HashMap<String, String>,
     ) -> anyhow::Result<()> {
         // run_promise_like!(self.ctx, SPJ_CASE_INIT_FN, (case, mappings), |x| x).map_err(|e| e.into())
         todo!()

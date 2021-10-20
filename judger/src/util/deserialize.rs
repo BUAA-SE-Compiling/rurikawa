@@ -4,7 +4,7 @@ use serde::{
     de::{self, IntoDeserializer},
     Deserialize, Deserializer,
 };
-use std::{f64::consts::TAU, fmt, marker::PhantomData, str::FromStr};
+use std::{fmt, marker::PhantomData, str::FromStr};
 
 // Copied from
 // https://serde.rs/string-or-struct.html

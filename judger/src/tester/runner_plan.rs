@@ -1,12 +1,7 @@
 //! Code for transforming test suite configs into something that [`crate::runner`]
 //! can efficiently use.
 
-use std::{
-    collections::{HashMap, HashSet},
-    path::PathBuf,
-    sync::Arc,
-    time::Duration,
-};
+use std::{collections::HashMap, sync::Arc, time::Duration};
 
 use itertools::Itertools;
 

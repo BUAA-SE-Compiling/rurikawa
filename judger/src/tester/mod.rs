@@ -5,17 +5,14 @@
 
 use std::path::Path;
 
-use bollard::models::{BuildInfo, Mount};
 use bollard::Docker;
-use tokio::sync::mpsc::UnboundedSender;
 
-use crate::prelude::{CancellationTokenHandle, FlowSnake};
 use crate::runner;
 use crate::runner::exec::{Container, CreateContainerConfig, CreateContainerConfigBuilder};
 use crate::runner::image::{build_image, BuildImageOptionsBuilder, BuildImageResult};
 use crate::tester::model::BuildError;
 
-use self::model::{Image, JobFailure, JudgeExecKind, JudgerPublicConfig};
+use self::model::{Image, JudgeExecKind, JudgerPublicConfig};
 
 pub mod model;
 pub mod runner_plan;
