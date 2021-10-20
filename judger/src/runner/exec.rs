@@ -220,7 +220,7 @@ impl Container {
         })
     }
 
-    pub async fn teardown(&mut self) -> anyhow::Result<()> {
+    pub async fn remove(&mut self) -> anyhow::Result<()> {
         // Defuse the teardown drop bomb.
         // It's not our fault if Docker blows up after this point (*/ω＼*)
         self._teardown_bomb.defuse();
@@ -259,6 +259,13 @@ impl CommandRunner for Container {
         } else {
             format!("Container {}", self.id).into()
         }
+    }
+}
+
+#[async_trait]
+impl super::model::AsyncTeardown for Container {
+    async fn teardown(&mut self) {
+        let _ = self.remove().await;
     }
 }
 

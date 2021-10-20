@@ -5,8 +5,8 @@
 
 use std::path::Path;
 
+use bollard::models::{BuildInfo, Mount};
 use bollard::Docker;
-use bollard::models::BuildInfo;
 use tokio::sync::mpsc::UnboundedSender;
 
 use crate::prelude::{CancellationTokenHandle, FlowSnake};
@@ -91,7 +91,7 @@ pub async fn build_user_code_container(
     base_path: &Path,
     pub_cfg: &JudgerPublicConfig,
     cancel: CancellationTokenHandle,
-    build_stream: Option<UnboundedSender<BuildInfo>>
+    build_stream: Option<UnboundedSender<BuildInfo>>,
 ) -> Result<Container, BuildError> {
     let cfg = crate::runner::image::BuildImageOptionsBuilder::default()
         .base_path(base_path)
@@ -101,10 +101,11 @@ pub async fn build_user_code_container(
         .build()
         .expect("Failed to generate build options");
 
-    let image = build_image(docker.clone(), image, cfg).await?;
+    let _image = build_image(docker.clone(), image, cfg).await?;
 
     let cfg = CreateContainerConfigBuilder::default()
         .network_enabled(pub_cfg.network.enable_running)
+        .mounts(vec![])
         .build()
         .expect("Failed to generate CreateContainerConfig");
 

@@ -14,13 +14,14 @@ use crate::{
     config::{JudgeToml, JudgerPublicConfig},
     fs::{self, JUDGE_FILE_NAME},
     prelude::*,
-    runner::exec::CreateContainerConfigBuilder,
     runner::CommandRunner,
+    runner::{exec::CreateContainerConfigBuilder, volume::Volume},
     tester::{build_judge_container, build_user_code_container},
 };
 use anyhow::{Context, Result};
 use futures::prelude::*;
 use http::Method;
+use ignore::gitignore::Gitignore;
 use respector::prelude::*;
 use serde_json::from_slice;
 use std::{collections::HashMap, path::PathBuf, sync::atomic::Ordering, sync::Arc};
@@ -448,7 +449,7 @@ pub async fn handle_job(
             .context("testing if config has no symlink in path")?;
     }
 
-    tracing::info!("prepare to run");
+    tracing::info!("Compiling job image & building container");
 
     send.send_msg(&ClientMsg::JobProgress(JobProgressMsg {
         job_id: job.id,
@@ -456,9 +457,20 @@ pub async fn handle_job(
     }))
     .await?;
 
+    let data_volume_name = format!("rurikawa-judge-data-{}", &job.id);
+    let data_volume = populate_data_volume(&docker, &public_cfg, data_volume_name).await?;
+
     let test_suite_container_cfg = CreateContainerConfigBuilder::default()
         .cancellation(cancel.clone())
         .network_enabled(true)
+        .mounts(
+            public_cfg
+                .binds
+                .iter()
+                .map(|bind| bind.to_mount())
+                .chain([])
+                .collect::<Vec<_>>(),
+        )
         .build()
         .expect("Error when initiating suite container");
 
@@ -567,6 +579,19 @@ pub async fn handle_job(
     // };
     // Ok(job_result)
     todo!()
+}
+
+async fn populate_data_volume(
+    docker: &bollard::Docker,
+    public_cfg: &JudgerPublicConfig,
+    data_volume_name: String,
+) -> Result<Volume, JobExecErr> {
+    let data_volume = Volume::create(docker.clone(), data_volume_name.clone())
+        .await
+        .map_err(|e| JobExecErr::Build(crate::tester::model::BuildError::Internal(e.into())))?;
+
+    data_volume.copy_local_files_into(&public_cfg.mapped_dir.from, Gitignore::empty());
+    Ok(data_volume)
 }
 
 async fn pull_job(

@@ -2,17 +2,16 @@
 
 use std::{collections::HashMap, path::Path};
 
+use crate::{runner::exec::CreateContainerConfig, util::tar::pack_as_tar};
+use async_trait::async_trait;
 use bollard::{
     container::{RemoveContainerOptions, UploadToContainerOptions},
-    models::Mount,
+    models::{Mount, MountTypeEnum},
     volume::{CreateVolumeOptions, RemoveVolumeOptions},
     Docker,
 };
 use drop_bomb::DropBomb;
 use ignore::gitignore::Gitignore;
-use scopeguard::defer;
-
-use crate::{runner::exec::CreateContainerConfig, util::tar::pack_as_tar};
 
 pub struct Volume {
     docker: Docker,
@@ -87,7 +86,7 @@ impl Volume {
         res.map_err(|e| e.into())
     }
 
-    pub async fn teardown(&mut self) -> Result<(), bollard::errors::Error> {
+    pub async fn remove(&mut self) -> Result<(), bollard::errors::Error> {
         // Defuse the teardown drop bomb.
         // It's not our fault if Docker blows up at this point (*/ω＼*)
         self._drop_bomb.defuse();
@@ -97,5 +96,22 @@ impl Volume {
             .await?;
 
         Ok(())
+    }
+
+    pub async fn as_mount(&self, on_path: &str, readonly: bool) -> Mount {
+        Mount {
+            target: Some(on_path.to_string()),
+            source: Some(self.volume.name.to_string()),
+            typ: Some(MountTypeEnum::VOLUME),
+            read_only: Some(readonly),
+            ..Default::default()
+        }
+    }
+}
+
+#[async_trait]
+impl super::model::AsyncTeardown for Volume {
+    async fn teardown(&mut self) {
+        let _ = self.remove().await;
     }
 }
