@@ -25,7 +25,6 @@ pub enum ExecErrorKind {
 pub struct SpjFailure {
     pub reason: Option<String>,
     pub diff: Option<String>,
-    pub output: Vec<ProcessOutput>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Eq, PartialEq, Error)]
@@ -36,9 +35,7 @@ pub struct ExecError {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Eq, PartialEq)]
-pub struct ShouldFailFailure {
-    pub output: Vec<ProcessOutput>,
-}
+pub struct ShouldFailFailure;
 
 #[derive(Debug)]
 pub enum BuildError {

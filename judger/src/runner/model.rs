@@ -67,7 +67,7 @@ pub struct TestCase {
 
 /// Some kind of remote container that can run commands
 #[async_trait]
-pub trait CommandRunner {
+pub trait CommandRunner: Sync + Send {
     /// The name of this container, used in run results
     fn name(&self) -> std::borrow::Cow<'static, str>;
 
@@ -80,18 +80,6 @@ pub trait CommandRunner {
     ) -> anyhow::Result<ProcessOutput>;
 }
 
-/// Data structure that needs to be teared down asynchronously.
-///
-/// This trait is used in the place of `AsyncDrop`, which is unfortunately
-/// not available for now. Therefore, this trait is used to denote the need of
-/// explicit teardown and maybe transfer them into another task for error handling.
-///
-/// Types implementing `AsyncTeardown` usually also contains a `DropBomb` which
-/// prevents it from dropping without calling `teardown()`.
-#[async_trait]
-pub trait AsyncTeardown {
-    async fn teardown(&mut self);
-}
 
 #[derive(Debug, Default, Builder)]
 #[builder(setter(into,))]

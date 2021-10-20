@@ -1,7 +1,7 @@
 use crate::{
     prelude::FlowSnake,
     runner::model::ProcessOutput,
-    tester::model::{ExecErrorKind, JobFailure},
+    tester::model::{ExecErrorKind, JobFailure, SpjFailure},
 };
 use respector::prelude::*;
 use serde::{Deserialize, Serialize};
@@ -162,6 +162,66 @@ impl ToScore for () {
     fn to_score(&self) -> Score {
         None
     }
+}
+
+pub async fn transform_and_upload_test_result(
+    failure: Result<impl ToScore, JobFailure>,
+    output: Vec<ProcessOutput>,
+    upload_info: Arc<ResultUploadConfig>,
+    test_id: &str,
+) -> TestResult {
+    let score = failure.as_ref().ok().map_or(None, ToScore::to_score);
+    let (result_kind, message, stdout_diff) = match failure {
+        Ok(_) => (TestResultKind::Accepted, "".to_string().into(), None),
+        Err(e) => match e {
+            JobFailure::OutputMismatch(diff) => (
+                TestResultKind::WrongAnswer,
+                "The standard output of the program does not match the expected output."
+                    .to_string()
+                    .into(),
+                Some(diff),
+            ),
+            JobFailure::SpjWrongAnswer(SpjFailure { diff, reason }) => {
+                (TestResultKind::WrongAnswer, reason, diff)
+            }
+            JobFailure::ExecError(e) => match e.kind {
+                ExecErrorKind::RuntimeError(err) => (TestResultKind::RuntimeError, Some(err), None),
+                ExecErrorKind::ReturnCodeCheckFailed => (
+                    TestResultKind::PipelineFailed,
+                    Some("Some program's return code is not 0".into()),
+                    None,
+                ),
+                ExecErrorKind::TimedOut => (
+                    TestResultKind::TimeLimitExceeded,
+                    Some("The user's program has exceeded its maximum execution time.".into()),
+                    None,
+                ),
+            },
+            JobFailure::InternalError(e) => (TestResultKind::OtherError, Some(e.to_string()), None),
+            JobFailure::ShouldFail(_) => (
+                TestResultKind::ShouldFail,
+                Some("The tested program should return a non-zero number at some point".into()),
+                None,
+            ),
+            JobFailure::Cancelled => (TestResultKind::NotRan, None, None),
+        },
+    };
+
+    let output_file = JobOutputFile {
+        output,
+        stdout_diff,
+        message,
+    };
+
+    let result_file_id = upload_test_result(output_file, upload_info, test_id).await;
+
+    let result = TestResult {
+        kind: result_kind,
+        score,
+        result_file_id,
+    };
+
+    result
 }
 
 pub async fn upload_test_result(

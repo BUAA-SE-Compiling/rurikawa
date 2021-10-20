@@ -17,6 +17,7 @@ use crate::{
     runner::CommandRunner,
     runner::{exec::CreateContainerConfigBuilder, volume::Volume},
     tester::{build_judge_container, build_user_code_container},
+    util::AsyncTeardownCollector,
 };
 use anyhow::{Context, Result};
 use futures::prelude::*;
@@ -25,6 +26,7 @@ use ignore::gitignore::Gitignore;
 use respector::prelude::*;
 use serde_json::from_slice;
 use std::{collections::HashMap, path::PathBuf, sync::atomic::Ordering, sync::Arc};
+use stream::StreamExt;
 use tokio::sync::OwnedMutexGuard;
 use tokio_tungstenite::{connect_async, tungstenite::Message};
 use tracing::{info_span, instrument};
@@ -328,10 +330,13 @@ pub async fn handle_job_wrapper(
 ) {
     let job_id = job.id;
     flag_new_job(send.clone(), cfg.clone()).await;
+    let teardown_collector = AsyncTeardownCollector::new();
 
-    let res_handle = handle_job(job, send.clone(), cancel, cfg.clone())
+    let res_handle = handle_job(job, send.clone(), cancel, cfg.clone(), &teardown_collector)
         .instrument(tracing::info_span!("handle_job", %job_id))
         .await;
+
+    teardown_collector.teardown_all().await;
 
     let msg = match res_handle {
         Ok(_res) => ClientMsg::JobResult(_res),
@@ -399,6 +404,7 @@ pub async fn handle_job(
     send: Arc<WsSink>,
     cancel: CancellationTokenHandle,
     cfg: Arc<SharedClientData>,
+    teardown_collector: &AsyncTeardownCollector,
 ) -> Result<JobResultMsg, JobExecErr> {
     // TODO: Move this to program start
     let docker =
@@ -458,7 +464,8 @@ pub async fn handle_job(
     .await?;
 
     let data_volume_name = format!("rurikawa-judge-data-{}", &job.id);
-    let data_volume = populate_data_volume(&docker, &public_cfg, data_volume_name).await?;
+    let data_volume = Arc::new(populate_data_volume(&docker, &public_cfg, data_volume_name).await?);
+    teardown_collector.add(data_volume.clone());
 
     let test_suite_container_cfg = CreateContainerConfigBuilder::default()
         .cancellation(cancel.clone())
@@ -483,6 +490,9 @@ pub async fn handle_job(
     )
     .await?;
     let judger_container = judger_container.map(Arc::new);
+    if let Some(c) = judger_container.clone() {
+        teardown_collector.add(c)
+    }
 
     let suite_root_path = cfg.test_suite_folder(job.test_suite);
 
@@ -539,6 +549,7 @@ pub async fn handle_job(
     )
     .await?;
     let user_container = Arc::new(user_container);
+    teardown_collector.add(user_container.clone());
 
     send.send_msg(&ClientMsg::JobProgress(JobProgressMsg {
         job_id: job.id,
@@ -546,7 +557,7 @@ pub async fn handle_job(
     }))
     .await?;
 
-    tracing::info!("started.");
+    tracing::info!("started");
 
     let upload_info = Arc::new(ResultUploadConfig {
         client: cfg.client.clone(),
@@ -558,11 +569,24 @@ pub async fn handle_job(
     let result = crate::tester::runner_plan::run_job_test_cases(
         &job,
         &public_cfg,
-        &judge_job_cfg,
+        judge_job_cfg,
         user_container,
         judger_container.map(|container| container as _),
     )
-    .await;
+    .await?;
+
+    let result = stream::iter(result.into_iter())
+        .map(|(name, failure, output)| {
+            let upload_info = upload_info.clone();
+            async move {
+                let test_result =
+                    transform_and_upload_test_result(failure, output, upload_info, &name).await;
+                (name, test_result)
+            }
+        })
+        .buffer_unordered(16)
+        .collect::<HashMap<_, _>>()
+        .await;
 
     tracing::info!("finished running");
 
@@ -571,14 +595,13 @@ pub async fn handle_job(
 
     tracing::info!("finished");
 
-    // let job_result = JobResultMsg {
-    //     job_id: job.id,
-    //     results: result,
-    //     job_result: JobResultKind::Accepted,
-    //     message: None,
-    // };
-    // Ok(job_result)
-    todo!()
+    let job_result = JobResultMsg {
+        job_id: job.id,
+        results: result,
+        job_result: JobResultKind::Accepted,
+        message: None,
+    };
+    Ok(job_result)
 }
 
 async fn populate_data_volume(
@@ -590,7 +613,10 @@ async fn populate_data_volume(
         .await
         .map_err(|e| JobExecErr::Build(crate::tester::model::BuildError::Internal(e.into())))?;
 
-    data_volume.copy_local_files_into(&public_cfg.mapped_dir.from, Gitignore::empty());
+    data_volume
+        .copy_local_files_into(&public_cfg.mapped_dir.from, Gitignore::empty())
+        .await?;
+
     Ok(data_volume)
 }
 

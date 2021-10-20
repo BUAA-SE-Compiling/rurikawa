@@ -110,7 +110,7 @@ impl Volume {
 }
 
 #[async_trait]
-impl super::model::AsyncTeardown for Volume {
+impl crate::util::AsyncTeardown for Volume {
     async fn teardown(&mut self) {
         let _ = self.remove().await;
     }

@@ -263,7 +263,7 @@ impl CommandRunner for Container {
 }
 
 #[async_trait]
-impl super::model::AsyncTeardown for Container {
+impl crate::util::AsyncTeardown for Container {
     async fn teardown(&mut self) {
         let _ = self.remove().await;
     }
