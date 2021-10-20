@@ -467,17 +467,18 @@ pub async fn handle_job(
     let data_volume = Arc::new(populate_data_volume(&docker, &public_cfg, data_volume_name).await?);
     teardown_collector.add(data_volume.clone());
 
+    let mounts = public_cfg
+        .binds
+        .iter()
+        .map(|bind| bind.to_mount())
+        .chain([data_volume.as_mount(&public_cfg.mapped_dir.to, false).await])
+        .collect::<Vec<_>>();
+
     let test_suite_container_cfg = CreateContainerConfigBuilder::default()
         .cancellation(cancel.clone())
         .network_enabled(true)
-        .mounts(
-            public_cfg
-                .binds
-                .iter()
-                .map(|bind| bind.to_mount())
-                .chain([])
-                .collect::<Vec<_>>(),
-        )
+        .tag_name(format!("judger_container_{}", job.id))
+        .mounts(mounts.clone())
         .build()
         .expect("Error when initiating suite container");
 
@@ -493,8 +494,6 @@ pub async fn handle_job(
     if let Some(c) = judger_container.clone() {
         teardown_collector.add(c)
     }
-
-    let suite_root_path = cfg.test_suite_folder(job.test_suite);
 
     tracing::info!("options created");
     let (ch_send, ch_recv) = tokio::sync::mpsc::unbounded_channel();
@@ -539,13 +538,25 @@ pub async fn handle_job(
     });
 
     let user_container = build_user_code_container(
-        &job.id.to_string(),
         docker,
-        &judge_job_cfg.image,
-        &cfg.job_folder(job.id),
-        &public_cfg,
-        cancel.clone(),
-        Some(build_ch_send),
+        &job.id.to_string(),
+        &image,
+        |opt| {
+            opt.base_path(cfg.job_folder(job.id))
+                .cancellation(cancel.clone())
+                .build_result_channel(build_ch_send)
+                .network_mode(if public_cfg.network.enable_build {
+                    "network".to_string()
+                } else {
+                    "none".to_string()
+                })
+        },
+        |opt| {
+            opt.mounts(mounts)
+                .cancellation(cancel.clone())
+                .network_enabled(public_cfg.network.enable_running)
+                .tag_name(format!("user_code_container_{}", job.id))
+        },
     )
     .await?;
     let user_container = Arc::new(user_container);

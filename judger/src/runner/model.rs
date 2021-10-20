@@ -82,7 +82,7 @@ pub trait CommandRunner: Sync + Send {
 
 
 #[derive(Debug, Default, Builder)]
-#[builder(setter(into,))]
+#[builder(setter(into), pattern = "owned")]
 pub struct CommandRunOptions {
     #[builder(default = "100*1024")]
     pub stdout_size_limit: usize,

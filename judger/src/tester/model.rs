@@ -91,7 +91,7 @@ pub struct Bind {
     /// Absolute/Relative `from` path (in the host machine).
     pub from: PathBuf,
     /// Absolute `to` path (in the container).
-    pub to: PathBuf,
+    pub to: String,
     // Note: Removed readonly option here, since all binds should be readonly
     // for security reasons.
 }
@@ -103,7 +103,7 @@ impl Bind {
 
     pub fn to_mount(&self) -> Mount {
         Mount {
-            target: Some(self.to.display().to_string()),
+            target: Some(self.to.to_string()),
             source: Some(self.from.display().to_string()),
             typ: Some(bollard::models::MountTypeEnum::BIND),
             // all binds should be readonly for security reasons.

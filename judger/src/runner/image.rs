@@ -16,7 +16,7 @@ use tokio_stream::StreamExt;
 use crate::tester::model::{canonical_join, BuildError};
 
 #[derive(Builder, Debug)]
-#[builder(setter(into))]
+#[builder(setter(into), pattern = "owned")]
 pub struct BuildImageOptions {
     /// The base path of
     base_path: PathBuf,

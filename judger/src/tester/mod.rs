@@ -12,7 +12,7 @@ use tokio::sync::mpsc::UnboundedSender;
 use crate::prelude::{CancellationTokenHandle, FlowSnake};
 use crate::runner;
 use crate::runner::exec::{Container, CreateContainerConfig, CreateContainerConfigBuilder};
-use crate::runner::image::{build_image, BuildImageResult};
+use crate::runner::image::{build_image, BuildImageOptionsBuilder, BuildImageResult};
 use crate::tester::model::BuildError;
 
 use self::model::{Image, JobFailure, JudgeExecKind, JudgerPublicConfig};
@@ -66,7 +66,7 @@ async fn make_isolated_test_container(
         Err(bollard::errors::Error::DockerResponseNotFoundError { .. }) => {
             let exec_environment = pub_cfg.exec_environment.as_ref().unwrap();
 
-            let opt = crate::runner::image::BuildImageOptionsBuilder::default()
+            let opt = BuildImageOptionsBuilder::default()
                 .base_path(base_path)
                 .tag_as(tag.clone())
                 .cancellation(cfg.cancellation.clone())
@@ -85,27 +85,22 @@ async fn make_isolated_test_container(
 }
 
 pub async fn build_user_code_container(
-    image_name: &str,
     docker: Docker,
+    image_name: &str,
     image: &Image,
-    base_path: &Path,
-    pub_cfg: &JudgerPublicConfig,
-    cancel: CancellationTokenHandle,
-    build_stream: Option<UnboundedSender<BuildInfo>>,
+    config_build_image_options: impl FnOnce(BuildImageOptionsBuilder) -> BuildImageOptionsBuilder,
+    config_create_container_configs: impl FnOnce(
+        CreateContainerConfigBuilder,
+    ) -> CreateContainerConfigBuilder,
 ) -> Result<Container, BuildError> {
-    let cfg = crate::runner::image::BuildImageOptionsBuilder::default()
-        .base_path(base_path)
-        .cancellation(cancel)
-        .build_result_channel(build_stream)
+    let cfg = config_build_image_options(BuildImageOptionsBuilder::default())
         .tag_as(image_name)
         .build()
         .expect("Failed to generate build options");
 
     let _image = build_image(docker.clone(), image, cfg).await?;
 
-    let cfg = CreateContainerConfigBuilder::default()
-        .network_enabled(pub_cfg.network.enable_running)
-        .mounts(vec![])
+    let cfg = config_create_container_configs(CreateContainerConfigBuilder::default())
         .build()
         .expect("Failed to generate CreateContainerConfig");
 

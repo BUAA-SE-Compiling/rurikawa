@@ -23,7 +23,7 @@ use crate::{
 use super::model::{CommandRunOptions, CommandRunner};
 
 #[derive(Debug, Builder)]
-#[builder(setter(into, strip_option))]
+#[builder(setter(into), pattern = "owned")]
 pub struct CreateContainerConfig {
     /// Mounting local folders into containers
     #[builder(default)]
