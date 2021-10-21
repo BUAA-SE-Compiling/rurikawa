@@ -3,12 +3,9 @@ use std::collections::HashMap;
 
 use bytes::{Bytes, BytesMut};
 
-
-
-
 use tokio::task::JoinHandle;
 use tokio_stream::Stream;
-use tokio_tar::{Header};
+use tokio_tar::Header;
 
 use crate::runner::model::{CommandRunOptions, ExitStatus, ProcessOutput};
 use crate::runner::CommandRunner;
@@ -108,6 +105,7 @@ impl CommandRunner for MockRunner {
         env: &mut (dyn Iterator<Item = (&str, &str)> + Send),
         _opt: &CommandRunOptions,
     ) -> anyhow::Result<ProcessOutput> {
+        tracing::info!(%command, "Mock runner encountered command");
         let env = env.collect::<HashMap<_, _>>();
         let command = shellexpand::env_with_context_no_errors(command, |s| env.get(s));
         let cmd = self.input_output.get(command.as_ref());

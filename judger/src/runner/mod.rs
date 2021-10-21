@@ -9,7 +9,7 @@ use tokio::sync::mpsc::Sender;
 
 use crate::tester::{
     model::{ExecError, ExecErrorKind, JobFailure},
-    utils::diff,
+    utils::{diff, strsignal},
 };
 
 use self::model::{ExitStatus, OutputComparisonSource, ProcessOutput};
@@ -34,6 +34,7 @@ pub async fn run_test_case(
     opt: &model::CommandRunOptions,
     sink: Sender<ProcessOutput>,
 ) -> anyhow::Result<Result<(), JobFailure>> {
+    tracing::debug!("Starting new test case");
     for group in &exec.commands {
         match run_exec_group(group, opt, sink.clone()).await {
             Ok(Ok(_)) => {}
@@ -55,7 +56,9 @@ pub async fn run_exec_group(
     opt: &model::CommandRunOptions,
     sink: Sender<ProcessOutput>,
 ) -> anyhow::Result<Result<(), JobFailure>> {
+    tracing::debug!(run_in = %group.run_in.name(), "Starting exec group");
     for exec in &group.steps {
+        tracing::debug!(command = %exec.run, "Running command");
         let run_res = match group
             .run_in
             .run(
@@ -73,12 +76,18 @@ pub async fn run_exec_group(
 
         let ret_code = run_res.ret_code.clone();
         if ret_code != ExitStatus::ReturnCode(0) {
+            tracing::debug!(?ret_code, "Return code check failed");
             sink.send(run_res).await?;
 
             if ret_code == ExitStatus::Timeout {
                 return Ok(Err(JobFailure::ExecError(ExecError {
                     command: exec.run.clone(),
                     kind: ExecErrorKind::TimedOut,
+                })));
+            } else if let ExitStatus::Signal(sig) = ret_code {
+                return Ok(Err(JobFailure::ExecError(ExecError {
+                    command: exec.run.clone(),
+                    kind: ExecErrorKind::RuntimeError(strsignal(sig as i32).into_owned()),
                 })));
             } else {
                 return Ok(Err(JobFailure::ExecError(ExecError {
@@ -89,6 +98,7 @@ pub async fn run_exec_group(
         }
 
         if let Some(cmp_source) = &exec.compare_output_with {
+            tracing::debug!("Output comparison failed");
             let output_res = match verify_output(cmp_source, &run_res).await {
                 Ok(o) => o,
                 Err(e) => {

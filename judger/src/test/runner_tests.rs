@@ -3,15 +3,16 @@ use std::{sync::Arc, time::Duration};
 use crate::{
     runner::{
         model::{
-            CommandRunOptionsBuilder, CommandRunner, ExecGroup, ExecStep, OutputComparisonSource,
-            TestCase,
+            CommandRunOptionsBuilder, CommandRunner, ExecGroup, ExecStep, ExitStatus,
+            OutputComparisonSource, TestCase,
         },
         run_test_case,
     },
-    tester::model::JobFailure,
+    tester::model::{ExecError, ExecErrorKind, JobFailure},
 };
 
 use super::util::MockRunner;
+use test_env_log::test;
 
 fn make_env_and_test_case(
     container: Arc<dyn CommandRunner>,
@@ -41,7 +42,7 @@ fn make_env_and_test_case(
     (env, test_case)
 }
 
-#[tokio::test]
+#[test(tokio::test)]
 async fn test_exec() {
     let mut container = MockRunner::new();
     container
@@ -54,23 +55,23 @@ async fn test_exec() {
 
     let (_env, test_case) = make_env_and_test_case(container.clone());
 
-    let opt = CommandRunOptionsBuilder::default()
-        .timeout(Duration::from_secs(10))
-        .build()
-        .unwrap();
-
     // 20 is enough to buffer all messages
-    let (sink, mut iter) = tokio::sync::mpsc::channel(20);
+    let (sink, _ch) = tokio::sync::mpsc::channel(20);
 
-    run_test_case(&test_case, &opt, sink)
-        .await
-        .expect("Error running docker")
-        .expect("Job failed");
-
-    while let Some(_res) = iter.recv().await {}
+    run_test_case(
+        &test_case,
+        &CommandRunOptionsBuilder::default()
+            .timeout(Duration::from_secs(10))
+            .build()
+            .unwrap(),
+        sink,
+    )
+    .await
+    .expect("Error running docker")
+    .expect("Job failed");
 }
 
-#[tokio::test]
+#[test(tokio::test)]
 async fn test_exec_compare_error() {
     let mut container = MockRunner::new();
     container
@@ -83,27 +84,141 @@ async fn test_exec_compare_error() {
 
     let (_env, test_case) = make_env_and_test_case(container.clone());
 
-    let opt = CommandRunOptionsBuilder::default()
-        .timeout(Duration::from_secs(10))
-        .build()
-        .unwrap();
-
     // 20 is enough to buffer all messages
-    let (sink, mut iter) = tokio::sync::mpsc::channel(20);
+    let (sink, _ch) = tokio::sync::mpsc::channel(20);
 
-    match run_test_case(&test_case, &opt, sink)
-        .await
-        .expect("Error running docker")
+    match run_test_case(
+        &test_case,
+        &CommandRunOptionsBuilder::default()
+            .timeout(Duration::from_secs(10))
+            .build()
+            .unwrap(),
+        sink,
+    )
+    .await
+    .expect("Error running docker")
     {
         Ok(_) => panic!("The test should fail"),
         Err(JobFailure::OutputMismatch(_)) => {}
         Err(e) => panic!("The test should fail with output mismatch, got {:?}", e),
     };
-
-    while let Some(_res) = iter.recv().await {}
 }
 
-#[tokio::test]
+#[test(tokio::test)]
+async fn test_exec_pipeline_error() {
+    let mut container = MockRunner::new();
+    container
+        .when("python ./golemc.py /src/succ.py -o /src/succ.pyc")
+        .returns(123)
+        .stdout("bar")
+        .finish();
+
+    let container = Arc::new(container);
+
+    let (_env, test_case) = make_env_and_test_case(container.clone());
+
+    // 20 is enough to buffer all messages
+    let (sink, _ch) = tokio::sync::mpsc::channel(20);
+
+    match run_test_case(
+        &test_case,
+        &CommandRunOptionsBuilder::default()
+            .timeout(Duration::from_secs(10))
+            .build()
+            .unwrap(),
+        sink,
+    )
+    .await
+    .expect("Error running docker")
+    {
+        Ok(_) => panic!("The test should fail"),
+        Err(JobFailure::ExecError(ExecError {
+            kind: ExecErrorKind::ReturnCodeCheckFailed,
+            ..
+        })) => {}
+        Err(e) => panic!(
+            "The test should fail with return code mismatch, got {:?}",
+            e
+        ),
+    };
+}
+
+#[test(tokio::test)]
+async fn test_exec_runtime_error() {
+    let mut container = MockRunner::new();
+    container
+        .when("python ./golemc.py /src/succ.py -o /src/succ.pyc")
+        .returns(ExitStatus::Signal(11))
+        .stdout("bar")
+        .finish();
+
+    let container = Arc::new(container);
+
+    let (_env, test_case) = make_env_and_test_case(container.clone());
+
+    // 20 is enough to buffer all messages
+    let (sink, _ch) = tokio::sync::mpsc::channel(20);
+
+    match run_test_case(
+        &test_case,
+        &CommandRunOptionsBuilder::default()
+            .timeout(Duration::from_secs(10))
+            .build()
+            .unwrap(),
+        sink,
+    )
+    .await
+    .expect("Error running docker")
+    {
+        Ok(_) => panic!("The test should fail"),
+        Err(JobFailure::ExecError(ExecError {
+            kind: ExecErrorKind::RuntimeError(_),
+            ..
+        })) => {}
+        Err(e) => panic!(
+            "The test should fail with return code mismatch, got {:?}",
+            e
+        ),
+    };
+}
+
+#[test(tokio::test)]
+async fn test_exec_timeout_error() {
+    let mut container = MockRunner::new();
+    container
+        .when("python ./golemc.py /src/succ.py -o /src/succ.pyc")
+        .returns(ExitStatus::Timeout)
+        .stdout("bar")
+        .finish();
+
+    let container = Arc::new(container);
+
+    let (_env, test_case) = make_env_and_test_case(container.clone());
+
+    // 20 is enough to buffer all messages
+    let (sink, _ch) = tokio::sync::mpsc::channel(20);
+
+    match run_test_case(
+        &test_case,
+        &CommandRunOptionsBuilder::default()
+            .timeout(Duration::from_secs(10))
+            .build()
+            .unwrap(),
+        sink,
+    )
+    .await
+    .expect("Error running docker")
+    {
+        Ok(_) => panic!("The test should fail"),
+        Err(JobFailure::ExecError(ExecError {
+            kind: ExecErrorKind::TimedOut,
+            ..
+        })) => {}
+        Err(e) => panic!("The test should fail with timeout, got {:?}", e),
+    };
+}
+
+#[test(tokio::test)]
 #[ignore]
 async fn docker_integration_test() {
     // let docker = Docker::connect_with_local_defaults().expect("Failed to connect docker");

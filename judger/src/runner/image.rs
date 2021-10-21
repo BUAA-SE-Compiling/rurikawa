@@ -63,7 +63,7 @@ pub async fn build_image(
     image: &Image,
     opt: BuildImageOptions,
 ) -> Result<BuildImageResult, BuildError> {
-    tracing::trace!(?image, "Building image");
+    tracing::debug!(?image, "Building image");
     let timeout = opt.timeout;
 
     let build_job = async {
@@ -90,7 +90,7 @@ async fn build_prebuilt_image(
     tag: &str,
     opt: BuildImageOptions,
 ) -> Result<BuildImageResult, BuildError> {
-    tracing::trace!(%tag, "Fetching prebuilt image");
+    tracing::debug!(%tag, "Fetching prebuilt image");
     let mut create_img = docker.create_image(
         Some(CreateImageOptions {
             from_image: tag,
@@ -121,7 +121,7 @@ async fn build_image_from_dockerfile(
     file: Option<&str>,
     mut opt: BuildImageOptions,
 ) -> Result<BuildImageResult, BuildError> {
-    tracing::trace!(?path, ?file, "Building image from local folder");
+    tracing::debug!(?path, ?file, "Building image from local folder");
     let source_path = canonical_join(&opt.base_path, path);
     let cpu_quota = opt.cpu_quota.map(|x| (x * 100_000f64).floor() as u64);
     let cpu_period = cpu_quota.map(|_| 100_000);

@@ -51,7 +51,7 @@ pub async fn run_job_test_cases<'a>(
         .dedup()
         .filter_map(|case| public_cfg_verification_index.get(case.as_str()))
     {
-        tracing::trace!(job = %job.id, case = %case.name, "Running test case in job");
+        tracing::debug!(job = %job.id, case = %case.name, "Running test case in job");
         let runner_case = generate_test_case(
             case,
             public_cfg,

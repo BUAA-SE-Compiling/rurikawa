@@ -78,3 +78,6 @@ respector = "0.1.1"
 pretty_assertions = "1"
 shellexpand = "2.1"
 shell-words = "1"
+test-env-log = { version = "0.2", features = [
+    "trace",
+], default-features = false }
