@@ -22,8 +22,8 @@ pub async fn run_job_test_cases<'a>(
     job: &'a Job,
     public_cfg: &'a JudgerPublicConfig,
     judge_toml: &'a JudgeTomlTestConfig,
-    user_container: Arc<dyn CommandRunner + Send + Sync>,
-    judger_container: Option<Arc<dyn CommandRunner + Send + Sync>>,
+    user_container: Arc<dyn CommandRunner>,
+    judger_container: Option<Arc<dyn CommandRunner>>,
 ) -> anyhow::Result<Vec<(String, Result<(), JobFailure>, Vec<ProcessOutput>)>> {
     tracing::info!(%job.id, "Planning to run job");
 
@@ -86,8 +86,8 @@ pub fn generate_test_case(
     test_case: &TestCaseDefinition,
     public_cfg: &JudgerPublicConfig,
     judge_toml: &JudgeTomlTestConfig,
-    user_container: Arc<dyn CommandRunner + Send + Sync>,
-    judger_container: Option<Arc<dyn CommandRunner + Send + Sync>>,
+    user_container: Arc<dyn CommandRunner>,
+    judger_container: Option<Arc<dyn CommandRunner>>,
 ) -> TestCase {
     debug_assert!(
         judger_container.is_some() == (public_cfg.exec_kind == JudgeExecKind::Isolated),

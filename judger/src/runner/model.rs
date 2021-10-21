@@ -6,7 +6,7 @@ use std::time::Duration;
 use std::{path::PathBuf, sync::Arc};
 
 /// The result returned by running a subprocess.
-#[derive(Debug, Clone, Serialize, Deserialize, Eq, PartialEq, IntoJsByRef)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default, Eq, PartialEq, IntoJsByRef)]
 pub struct ProcessOutput {
     pub ret_code: ExitStatus,
     pub command: String,
@@ -22,6 +22,27 @@ pub enum ExitStatus {
     Signal(u32),
     Timeout,
     Unknown,
+}
+
+impl Default for ExitStatus {
+    fn default() -> Self {
+        ExitStatus::Unknown
+    }
+}
+
+impl From<i64> for ExitStatus {
+    fn from(i: i64) -> Self {
+        ExitStatus::ReturnCode(i)
+    }
+}
+
+impl From<Option<i64>> for ExitStatus {
+    fn from(i: Option<i64>) -> Self {
+        match i {
+            Some(i) => ExitStatus::ReturnCode(i),
+            None => ExitStatus::Unknown,
+        }
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -45,7 +66,7 @@ pub struct ExecStep {
 #[derive(Clone)]
 pub struct ExecGroup {
     /// Container to run in
-    pub run_in: Arc<dyn CommandRunner + Send + Sync>,
+    pub run_in: Arc<dyn CommandRunner>,
     /// Run steps
     pub steps: Vec<ExecStep>,
 }
@@ -79,7 +100,6 @@ pub trait CommandRunner: Sync + Send {
         opt: &CommandRunOptions,
     ) -> anyhow::Result<ProcessOutput>;
 }
-
 
 #[derive(Debug, Default, Builder)]
 #[builder(setter(into), pattern = "owned")]
