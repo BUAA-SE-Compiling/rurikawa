@@ -5,3 +5,6 @@ pub mod prelude;
 pub mod runner;
 pub mod tester;
 pub mod util;
+
+#[cfg(test)]
+mod test;
