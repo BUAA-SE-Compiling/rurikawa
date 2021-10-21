@@ -13,12 +13,21 @@ jobs:
         with:
           submodules: true
       - uses: dtolnay/rust-toolchain@stable
-      - name: Build judger
-        run: cargo build
-        working-directory: ./judger/
       - name: Run unit tests for judger
-        # Docker tests are ignored by default, so it should be included here
-        run: cargo test -- --include-ignored
+        # This run does not contain docker tests, and is run in parallel.
+        run: cargo test -- --ensure-time --report-time
+        working-directory: ./judger/
+
+      - name: Run docker tests for judger
+        # Docker tests are ignored by default, so they are included in this run.
+        # Also noted that Docker tests are mutating global docker state, 
+        # so they must not be run in parallel.
+        run: cargo test -- --ignored --ensure-time --report-time
         working-directory: ./judger/
         env:
-          RUST_LOG: info,rurikawa_judger=trace
+          RUST_TEST_THREADS: 1
+    env:
+      RUST_LOG: info,rurikawa_judger=trace
+      RUST_TEST_TIME_UNIT: 10s,60s
+      RUST_TEST_TIME_DOCTEST: 2s,10s
+      RUST_TEST_TIME_INTEGRATION: 10s,60s
