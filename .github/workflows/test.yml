@@ -13,16 +13,21 @@ jobs:
         with:
           submodules: true
       - uses: dtolnay/rust-toolchain@stable
+        
+      - uses: Swatinem/rust-cache@v1
+        with:
+          working-directory: ./judger/
+
       - name: Run unit tests for judger
         # This run does not contain docker tests, and is run in parallel.
-        run: cargo test -- --ensure-time --report-time
+        run: cargo test
         working-directory: ./judger/
 
       - name: Run docker tests for judger
         # Docker tests are ignored by default, so they are included in this run.
         # Also noted that Docker tests are mutating global docker state, 
         # so they must not be run in parallel.
-        run: cargo test -- --ignored --ensure-time --report-time
+        run: cargo test -- --ignored
         working-directory: ./judger/
         env:
           RUST_TEST_THREADS: 1
