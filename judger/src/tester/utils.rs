@@ -78,8 +78,8 @@ pub fn strsignal(signal: i32) -> Cow<'static, str> {
     use nix::sys::signal::Signal;
     use std::convert::TryFrom;
     Signal::try_from(signal).ok().map_or_else(
-        |sig| sig.as_str().into(),
         || format!("Signal {}", signal).into(),
+        |sig| sig.as_str().into(),
     )
 }
 
