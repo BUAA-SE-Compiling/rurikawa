@@ -14,8 +14,11 @@ jobs:
           submodules: true
       - uses: dtolnay/rust-toolchain@stable
       - name: Build judger
-        run: cargo build --verbose
+        run: cargo build
         working-directory: ./judger/
       - name: Run unit tests for judger
-        run: cargo test --verbose
+        # Docker tests are ignored by default, so it should be included here
+        run: cargo test -- --include-ignored
         working-directory: ./judger/
+        env:
+          RUST_LOG: info,rurikawa_judger=trace
