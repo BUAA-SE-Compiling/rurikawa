@@ -22,6 +22,8 @@ pub mod volume;
 
 pub use model::CommandRunner;
 
+type TestOutput = anyhow::Result<Result<(), JobFailure>>;
+
 /// Run a testcase.
 ///
 /// # Error Handling
@@ -33,7 +35,7 @@ pub async fn run_test_case(
     exec: &model::TestCase,
     opt: &model::CommandRunOptions,
     sink: Sender<ProcessOutput>,
-) -> anyhow::Result<Result<(), JobFailure>> {
+) -> TestOutput {
     tracing::debug!("Starting new test case");
     for group in &exec.commands {
         match run_exec_group(group, opt, sink.clone()).await {
@@ -55,7 +57,7 @@ pub async fn run_exec_group(
     group: &model::ExecGroup,
     opt: &model::CommandRunOptions,
     sink: Sender<ProcessOutput>,
-) -> anyhow::Result<Result<(), JobFailure>> {
+) -> TestOutput {
     tracing::debug!(run_in = %group.run_in.name(), "Starting exec group");
     for exec in &group.steps {
         tracing::debug!(command = %exec.run, "Running command");

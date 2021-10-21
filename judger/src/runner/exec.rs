@@ -53,6 +53,12 @@ pub struct CreateContainerConfig {
     pub network_enabled: bool,
 }
 
+impl CreateContainerConfig {
+    pub fn builder() -> CreateContainerConfigBuilder {
+        CreateContainerConfigBuilder::default()
+    }
+}
+
 #[derive(Debug)]
 struct ContainerId(String);
 
@@ -74,6 +80,7 @@ impl Container {
         image: String,
         cfg: CreateContainerConfig,
     ) -> Result<Self, bollard::errors::Error> {
+        tracing::debug!(%image, "Creating container from image");
         let res = docker
             .create_container::<String, _>(
                 None,
@@ -100,8 +107,9 @@ impl Container {
                 },
             )
             .await?;
-        Ok(Container {
-            docker,
+
+        let mut container = Container {
+            docker: docker.clone(),
             id: res.id,
             tag: cfg.tag_name,
             state: ContainerState::Running,
@@ -109,7 +117,17 @@ impl Container {
             _teardown_bomb: drop_bomb::DropBomb::new(
                 "`Container::teardown()` must be called before dropping!",
             ),
-        })
+        };
+
+        match docker.start_container::<String>(&container.id, None).await {
+            Ok(_) => {}
+            Err(e) => {
+                let _ = container.remove().await;
+                return Err(e);
+            }
+        };
+
+        Ok(container)
     }
 
     pub async fn copy_local_files(&self, file_path: &Path, into_path: &str) -> anyhow::Result<()> {
@@ -222,14 +240,23 @@ impl Container {
     }
 
     pub async fn remove(&mut self) -> anyhow::Result<()> {
-        tracing::debug!(name = %self.name(), "Removing container");
+        tracing::debug!(%self.id, "Removing container");
         // Defuse the teardown drop bomb.
         // It's not our fault if Docker blows up after this point (*/ω＼*)
         self._teardown_bomb.defuse();
 
-        self.docker
+        match self
+            .docker
             .stop_container(&self.id, Some(StopContainerOptions { t: 5 }))
-            .await?;
+            .await
+        {
+            Ok(_) => {}
+            Err(bollard::errors::Error::DockerResponseNotModifiedError { .. }) => {
+                tracing::warn!(%self.id, "The container is already stopped somehow")
+            }
+            Err(e) => return Err(e.into()),
+        };
+
         self.docker
             .remove_container(
                 &self.id,

@@ -121,10 +121,11 @@ async fn build_image_from_dockerfile(
     file: Option<&str>,
     mut opt: BuildImageOptions,
 ) -> Result<BuildImageResult, BuildError> {
-    tracing::debug!(?path, ?file, "Building image from local folder");
     let source_path = canonical_join(&opt.base_path, path);
     let cpu_quota = opt.cpu_quota.map(|x| (x * 100_000f64).floor() as u64);
     let cpu_period = cpu_quota.map(|_| 100_000);
+    
+    tracing::debug!(?source_path, ?file, "Building image from local folder");
 
     let build_options = bollard::image::BuildImageOptions {
         dockerfile: file.unwrap_or("Dockerfile"),

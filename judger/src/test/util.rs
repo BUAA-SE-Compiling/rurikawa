@@ -1,5 +1,8 @@
+#![allow(dead_code)]
+
 use std::borrow::Cow;
 use std::collections::HashMap;
+use std::path::PathBuf;
 
 use bytes::{Bytes, BytesMut};
 
@@ -10,7 +13,12 @@ use tokio_tar::Header;
 use crate::runner::model::{CommandRunOptions, ExitStatus, ProcessOutput};
 use crate::runner::CommandRunner;
 
-pub fn tar_with_files<'a>(
+/// The root directory of this project, where `Cargo.toml` lives in.
+pub fn project_root_dir() -> PathBuf {
+    PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+}
+
+pub fn tar_with_files(
     files: impl Iterator<Item = (String, Bytes)> + Send + 'static,
 ) -> (
     impl Stream<Item = Result<BytesMut, std::io::Error>> + 'static,
