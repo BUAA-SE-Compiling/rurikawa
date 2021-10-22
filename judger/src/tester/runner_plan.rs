@@ -1,8 +1,9 @@
 //! Code for transforming test suite configs into something that [`crate::runner`]
 //! can efficiently use.
 
-use std::{collections::HashMap, sync::Arc, time::Duration};
+use std::{collections::HashMap, pin::Pin, sync::Arc, time::Duration};
 
+use futures::{Sink, SinkExt};
 use itertools::Itertools;
 
 use crate::runner::{
@@ -17,6 +18,13 @@ use crate::{config::JudgeTomlTestConfig, tester::model::canonical_join};
 
 use super::model::{JobFailure, JudgeExecKind, JudgerPublicConfig, TestCaseDefinition};
 
+/// A raw result that's been generated from running a test case.
+pub struct RawTestCaseResult(
+    pub String,
+    pub Result<(), JobFailure>,
+    pub Vec<ProcessOutput>,
+);
+
 /// Run all test cases for a certain job, and collect their results.
 pub async fn run_job_test_cases<'a>(
     job: &'a Job,
@@ -24,7 +32,8 @@ pub async fn run_job_test_cases<'a>(
     judge_toml: &'a JudgeTomlTestConfig,
     user_container: Arc<dyn CommandRunner>,
     judger_container: Option<Arc<dyn CommandRunner>>,
-) -> anyhow::Result<Vec<(String, Result<(), JobFailure>, Vec<ProcessOutput>)>> {
+    mut raw_result_sink: Pin<Box<dyn Sink<RawTestCaseResult, Error = ()> + Send>>,
+) -> anyhow::Result<()> {
     tracing::info!(%job.id, "Planning to run job");
 
     // This index ensures all test cases specified in `job` are present, and also
@@ -41,8 +50,6 @@ pub async fn run_job_test_cases<'a>(
         .timeout(public_cfg.time_limit.map(Duration::from_secs_f64))
         .build()
         .expect("Failed to build command run options");
-
-    let mut run_result = vec![];
 
     for case in job
         .tests
@@ -74,11 +81,15 @@ pub async fn run_job_test_cases<'a>(
             .await
             .expect("Unable to join output collection task. Anything went wrong?");
 
-        run_result.push((case.name.clone(), case_res, output));
-        // TODO: do something with output
+        let res = RawTestCaseResult(case.name.clone(), case_res, output);
+
+        raw_result_sink
+            .send(res)
+            .await
+            .map_err(|_| anyhow::anyhow!("Failed to send result across sink"))?;
     }
 
-    Ok(run_result)
+    Ok(())
 }
 
 /// Generate a test case from its definition and other configs

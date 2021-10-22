@@ -15,7 +15,7 @@ use crate::{
     fs::{self, JUDGE_FILE_NAME},
     prelude::*,
     runner::{exec::CreateContainerConfigBuilder, volume::Volume},
-    tester::{build_judger_container, build_user_code_container},
+    tester::{build_judger_container, build_user_code_container, runner_plan::RawTestCaseResult},
     util::AsyncTeardownCollector,
 };
 use anyhow::{Context, Result};
@@ -495,26 +495,6 @@ pub async fn handle_job(
     }
 
     tracing::info!("options created");
-    let (ch_send, ch_recv) = tokio::sync::mpsc::unbounded_channel();
-
-    let recv_handle = tokio::spawn({
-        let mut recv = ch_recv;
-        let ws_send = send.clone();
-        let job_id = job.id;
-        async move {
-            while let Some((key, res)) = recv.recv().await {
-                tracing::info!("Job {}: recv message for key={}", job_id, key);
-                // Omit error; it doesn't matter
-                let _ = ws_send
-                    .send_msg(&ClientMsg::PartialResult(PartialResultMsg {
-                        job_id,
-                        test_id: key,
-                        test_result: res,
-                    }))
-                    .await;
-            }
-        }
-    });
 
     let (build_ch_send, build_ch_recv) =
         tokio::sync::mpsc::unbounded_channel::<bollard::models::BuildInfo>();
@@ -576,35 +556,61 @@ pub async fn handle_job(
         job_id: job.id,
     });
 
-    let result = crate::tester::runner_plan::run_job_test_cases(
+    // an arbitrary number is selected for this channel. 4 seems to be more than enough btw
+    let (ch_send, ch_recv) = tokio::sync::mpsc::channel(4);
+
+    let recv_handle = tokio::spawn({
+        let mut recv = ch_recv;
+        let ws_send = send.clone();
+        let job_id = job.id;
+        let upload_info = upload_info.clone();
+        async move {
+            let mut final_result = HashMap::new();
+            while let Some(RawTestCaseResult(test_case, failure, output)) = recv.recv().await {
+                tracing::info!(%job_id, %test_case, "Reporting case result");
+
+                let test_result = transform_and_upload_test_result(
+                    failure,
+                    output,
+                    upload_info.clone(),
+                    &test_case,
+                )
+                .await;
+
+                // Omit error; it doesn't matter
+                let _ = ws_send
+                    .send_msg(&ClientMsg::PartialResult(PartialResultMsg {
+                        job_id,
+                        test_id: test_case.clone(),
+                        test_result: test_result.clone(),
+                    }))
+                    .await;
+
+                final_result.insert(test_case, test_result);
+            }
+            final_result
+        }
+    });
+
+    let sink = tokio_util::sync::PollSender::new(ch_send).sink_map_err(|_e| ());
+    let sink = Box::pin(sink);
+
+    crate::tester::runner_plan::run_job_test_cases(
         &job,
         &public_cfg,
         judge_job_cfg,
         user_container,
         judger_container.map(|container| container as _),
+        sink,
     )
     .await?;
 
-    let result = stream::iter(result.into_iter())
-        .map(|(name, failure, output)| {
-            let upload_info = upload_info.clone();
-            async move {
-                let test_result =
-                    transform_and_upload_test_result(failure, output, upload_info, &name).await;
-                (name, test_result)
-            }
-        })
-        .buffer_unordered(16)
-        .collect::<HashMap<_, _>>()
-        .await;
-
     tracing::info!("finished running");
 
-    // ch_send is not used for now
-    drop(ch_send);
-
     let _ = build_recv_handle.await;
-    let _ = recv_handle.await;
+    let result = recv_handle
+        .await
+        .map_err(|e| anyhow::anyhow!("The result handling task encountered an error").context(e))?;
 
     tracing::info!("finished");
 
