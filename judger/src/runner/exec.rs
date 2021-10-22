@@ -9,6 +9,7 @@ use bollard::{
 };
 use bytes::BytesMut;
 use derive_builder::Builder;
+use futures::FutureExt;
 use ignore::gitignore::Gitignore;
 use tokio_stream::StreamExt;
 
@@ -186,8 +187,8 @@ impl Container {
         let mut stderr = SizeConstraintBytesMut::new(opt.stderr_size_limit);
 
         let timeout_timer = opt.timeout.map_or_else(
-            || futures::future::Either::Left(futures::future::pending::<()>()),
-            |timeout| futures::future::Either::Right(tokio::time::sleep(timeout)),
+            || futures::future::pending().left_future(),
+            |timeout| tokio::time::sleep(timeout).right_future(),
         );
         tokio::pin!(timeout_timer);
 

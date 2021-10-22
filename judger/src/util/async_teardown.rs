@@ -8,7 +8,7 @@ use async_trait::async_trait;
 /// not available for now. Therefore, this trait is used to denote the need of
 /// explicit teardown and maybe transfer them into another task for error handling.
 ///
-/// Types implementing `AsyncTeardown` usually also contains a `DropBomb` which
+/// Types implementing `AsyncTeardown` usually also contain a `DropBomb` which
 /// prevents it from dropping without calling `teardown()`.
 #[async_trait]
 pub trait AsyncTeardown: Sync + Send {

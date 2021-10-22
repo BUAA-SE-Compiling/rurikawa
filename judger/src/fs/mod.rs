@@ -9,7 +9,7 @@ pub mod net;
 pub const JUDGE_FILE_NAME: &str = "judge.toml";
 
 /// Remove a directory recursively.
-pub fn ensure_removed_dir(path: &Path) -> BoxFuture<Result<(), std::io::Error>> {
+pub fn ensure_removed_dir(path: &Path) -> BoxFuture<std::io::Result<()>> {
     async move {
         let entries = match read_dir(path).await {
             Ok(dir) => tokio_stream::wrappers::ReadDirStream::new(dir),
@@ -25,11 +25,7 @@ pub fn ensure_removed_dir(path: &Path) -> BoxFuture<Result<(), std::io::Error>> 
                 let mut permissions = metadata.permissions();
                 permissions.set_readonly(false);
                 let _ = tokio::fs::set_permissions(entry.path(), permissions).await;
-                if metadata.file_type().is_dir() {
-                    Some(entry.path())
-                } else {
-                    None
-                }
+                metadata.file_type().is_dir().then(|| entry.path())
             })
             .map(|dir| async move { ensure_removed_dir(&dir).await })
             .buffered(16usize)
@@ -45,7 +41,7 @@ pub fn ensure_removed_dir(path: &Path) -> BoxFuture<Result<(), std::io::Error>> 
     .boxed()
 }
 
-pub fn find_judge_root(path: &Path) -> BoxFuture<Result<PathBuf, std::io::Error>> {
+pub fn find_judge_root(path: &Path) -> BoxFuture<std::io::Result<PathBuf>> {
     async move {
         let mut dir = tokio_stream::wrappers::ReadDirStream::new(read_dir(path).await?);
         let mut dirs = vec![];

@@ -5,6 +5,7 @@
 
 use std::borrow::Cow;
 
+use futures::TryStreamExt;
 use once_cell::sync::Lazy;
 use tokio::sync::mpsc::Sender;
 
@@ -105,7 +106,7 @@ pub async fn run_exec_group(
             let output_res = match verify_output(cmp_source, &run_res).await {
                 Ok(o) => o,
                 Err(e) => {
-                    // workaround before async_drop stablizes
+                    // workaround before async_drop stabilizes
                     sink.send(run_res).await?;
                     return Err(e);
                 }

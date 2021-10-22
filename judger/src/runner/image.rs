@@ -1,10 +1,15 @@
-use std::path::{Path, PathBuf};
-use std::time::Duration;
+use std::{
+    path::{Path, PathBuf},
+    time::Duration,
+};
 
-use crate::prelude::CancelFutureExt;
-use crate::runner::util::is_recoverable_error;
-use crate::util::tar::pack_as_tar;
-use crate::{config::Image, prelude::CancellationTokenHandle};
+use crate::{
+    config::Image,
+    prelude::{CancelFutureExt, CancellationTokenHandle},
+    runner::util::is_recoverable_error,
+    tester::model::{canonical_join, BuildError},
+    util::tar::pack_as_tar,
+};
 
 use bollard::{image::CreateImageOptions, models::BuildInfo, Docker};
 use derive_builder::Builder;
@@ -12,8 +17,6 @@ use hyper::Body;
 use ignore::gitignore::Gitignore;
 use tokio::sync::mpsc::UnboundedSender;
 use tokio_stream::StreamExt;
-
-use crate::tester::model::{canonical_join, BuildError};
 
 #[derive(Builder, Debug)]
 #[builder(setter(into), pattern = "owned")]
@@ -79,6 +82,7 @@ pub async fn build_image(
         tokio::time::timeout(timeout, build_job)
             .await
             .map_err(|_| BuildError::Timeout)
+            // TODO: Replace with .flatten() when https://github.com/rust-lang/rust/issues/70142 is closed.
             .and_then(|i| i)
     } else {
         build_job.await
@@ -145,7 +149,7 @@ async fn build_image_from_dockerfile(
 
         rm: true,
 
-        buildargs: [("CI", "true")].iter().cloned().collect(),
+        buildargs: [("CI", "true")].into(),
 
         ..Default::default()
     };

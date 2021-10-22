@@ -1,4 +1,3 @@
-
 pub fn is_recoverable_error(e: &bollard::errors::Error) -> bool {
     matches!(
         &e,

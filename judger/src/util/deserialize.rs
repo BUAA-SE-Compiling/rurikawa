@@ -1,7 +1,5 @@
 use serde::{
-    de::MapAccess,
-    de::Visitor,
-    de::{self, IntoDeserializer},
+    de::{self, IntoDeserializer, MapAccess, Visitor},
     Deserialize, Deserializer,
 };
 use std::{fmt, marker::PhantomData, str::FromStr};

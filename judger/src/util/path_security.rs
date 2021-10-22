@@ -1,13 +1,13 @@
 //! Helper functions to disallow absolute paths or relative paths that goes into
 //! parent paths.
 
-use futures::StreamExt;
+use futures::prelude::*;
 use std::path::Path;
 use tracing::warn;
 
 /// Checks if a path is a relative path that does not navigate to its parent.
 /// Returns `Err` if it's not.
-pub fn assert_child_path(path: &Path) -> Result<(), std::io::Error> {
+pub fn assert_child_path(path: &Path) -> std::io::Result<()> {
     let mut depth = 0;
     for part in path.components() {
         match part {
@@ -45,16 +45,15 @@ pub fn assert_child_path(path: &Path) -> Result<(), std::io::Error> {
 
 /// Checks if any parent of the given path is a symbolic link, and returns `Err`
 /// if that's true.
-pub async fn assert_no_symlink_in_path(path: &Path) -> Result<(), std::io::Error> {
+pub async fn assert_no_symlink_in_path(path: &Path) -> std::io::Result<()> {
     // TODO: Add `.buffered(...)` when this compiler issue gets repaired:
     // https://github.com/rust-lang/rust/issues/64552
-    futures::stream::iter(path.ancestors())
-        .map(|x| assert_not_symlink(x))
-        .fold(Ok(()), |x, e| async move { x.and(e.await) })
+    futures::stream::iter(path.ancestors().map(Ok))
+        .try_for_each(assert_not_symlink)
         .await
 }
 
-async fn assert_not_symlink(path: &Path) -> Result<(), std::io::Error> {
+async fn assert_not_symlink(path: &Path) -> std::io::Result<()> {
     let metadata = tokio::fs::metadata(path).await;
     let metadata = match metadata {
         Err(e) => {
