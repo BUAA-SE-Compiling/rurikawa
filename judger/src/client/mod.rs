@@ -24,7 +24,12 @@ use http::Method;
 use ignore::gitignore::Gitignore;
 use respector::prelude::*;
 use serde_json::from_slice;
-use std::{collections::HashMap, path::PathBuf, sync::atomic::Ordering, sync::Arc};
+use std::{
+    collections::HashMap,
+    path::{Path, PathBuf},
+    sync::atomic::Ordering,
+    sync::Arc,
+};
 use stream::StreamExt;
 use tokio::sync::OwnedMutexGuard;
 use tokio_tungstenite::{connect_async, tungstenite::Message};
@@ -331,9 +336,15 @@ pub async fn handle_job_wrapper(
     flag_new_job(send.clone(), cfg.clone()).await;
     let teardown_collector = AsyncTeardownCollector::new();
 
-    let res_handle = handle_job(job, send.clone(), cancel, cfg.clone(), &teardown_collector)
-        .instrument(tracing::info_span!("handle_job", %job_id))
-        .await;
+    let res_handle = handle_job(
+        job,
+        send.clone(),
+        cancel.clone(),
+        cfg.clone(),
+        &teardown_collector,
+    )
+    .instrument(tracing::info_span!("handle_job", %job_id))
+    .await;
 
     teardown_collector.teardown_all().await;
 
@@ -462,15 +473,26 @@ pub async fn handle_job(
     }))
     .await?;
 
+    tracing::debug!("Creating data volume");
     let data_volume_name = format!("rurikawa-judge-data-{}", &job.id);
-    let data_volume = Arc::new(populate_data_volume(&docker, &public_cfg, data_volume_name).await?);
+    let data_volume = Arc::new(
+        populate_data_volume(
+            &docker,
+            &public_cfg,
+            &cfg.test_suite_folder(job.test_suite),
+            data_volume_name,
+        )
+        .await
+        .context("Error when populating data volume")?,
+    );
     teardown_collector.add(data_volume.clone());
 
+    tracing::debug!("Calculating mount metadata");
     let mounts = public_cfg
         .binds
         .iter()
         .map(|bind| bind.to_mount())
-        .chain([data_volume.as_mount(&public_cfg.mapped_dir.to, false).await])
+        .chain([data_volume.as_mount(&public_cfg.mapped_dir.to, false)])
         .collect::<Vec<_>>();
 
     let test_suite_container_cfg = CreateContainerConfigBuilder::default()
@@ -481,6 +503,7 @@ pub async fn handle_job(
         .build()
         .expect("Error when initiating suite container");
 
+    tracing::debug!("Creating judger container");
     let judger_container = build_judger_container(
         docker.clone(),
         &public_cfg,
@@ -494,7 +517,7 @@ pub async fn handle_job(
         teardown_collector.add(c)
     }
 
-    tracing::info!("options created");
+    tracing::info!("Building container");
 
     let (build_ch_send, build_ch_recv) =
         tokio::sync::mpsc::unbounded_channel::<bollard::models::BuildInfo>();
@@ -524,11 +547,7 @@ pub async fn handle_job(
             opt.base_path(cfg.job_folder(job.id))
                 .cancellation(cancel.clone())
                 .build_result_channel(build_ch_send)
-                .network_mode(if public_cfg.network.enable_build {
-                    "network".to_string()
-                } else {
-                    "none".to_string()
-                })
+                .network_enabled(public_cfg.network.enable_build)
         },
         |opt| {
             opt.mounts(mounts)
@@ -626,15 +645,28 @@ pub async fn handle_job(
 async fn populate_data_volume(
     docker: &bollard::Docker,
     public_cfg: &JudgerPublicConfig,
+    base_dir: &Path,
     data_volume_name: String,
 ) -> Result<Volume, JobExecErr> {
-    let data_volume = Volume::create(docker.clone(), data_volume_name.clone())
+    let mut data_volume = Volume::create(docker.clone(), data_volume_name.clone())
         .await
-        .map_err(|e| JobExecErr::Build(crate::tester::model::BuildError::Internal(e.into())))?;
+        .map_err(|e| {
+            JobExecErr::Build(crate::tester::model::BuildError::Internal(
+                anyhow::Error::new(e).context("When creating data volume"),
+            ))
+        })?;
 
-    data_volume
-        .copy_local_files_into(&public_cfg.mapped_dir.from, Gitignore::empty())
-        .await?;
+    if let Err(e) = data_volume
+        .copy_local_files_into(
+            &base_dir.join(&public_cfg.mapped_dir.from),
+            Gitignore::empty(),
+        )
+        .await
+        .context("When copying local files into target volume")
+    {
+        let _ = data_volume.remove().await;
+        return Err(e.into());
+    };
 
     Ok(data_volume)
 }

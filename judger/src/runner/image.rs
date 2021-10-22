@@ -37,8 +37,8 @@ pub struct BuildImageOptions {
     #[builder(default)]
     cpu_quota: Option<f64>,
 
-    #[builder(default)]
-    network_mode: Option<String>,
+    #[builder(default = "true")]
+    network_enabled: bool,
 
     /// Build timeout, in milliseconds
     #[builder(default)]
@@ -91,10 +91,13 @@ async fn build_prebuilt_image(
     opt: BuildImageOptions,
 ) -> Result<BuildImageResult, BuildError> {
     tracing::debug!(%tag, "Fetching prebuilt image");
+    let (name, tag) = tag
+        .split_once(":")
+        .map_or_else(|| (tag, None), |(name, tag)| (name, Some(tag)));
     let mut create_img = docker.create_image(
         Some(CreateImageOptions {
-            from_image: tag,
-            tag: &opt.tag_as,
+            from_image: name,
+            tag: tag.unwrap_or("latest"),
             ..Default::default()
         }),
         None,
@@ -121,10 +124,11 @@ async fn build_image_from_dockerfile(
     file: Option<&str>,
     mut opt: BuildImageOptions,
 ) -> Result<BuildImageResult, BuildError> {
+    tracing::debug!("Building image from dockerfile");
     let source_path = canonical_join(&opt.base_path, path);
     let cpu_quota = opt.cpu_quota.map(|x| (x * 100_000f64).floor() as u64);
     let cpu_period = cpu_quota.map(|_| 100_000);
-    
+
     tracing::debug!(?source_path, ?file, "Building image from local folder");
 
     let build_options = bollard::image::BuildImageOptions {
@@ -133,7 +137,11 @@ async fn build_image_from_dockerfile(
         cpuquota: cpu_quota,
         cpuperiod: cpu_period,
 
-        networkmode: opt.network_mode.as_deref().unwrap_or("network"),
+        networkmode: if opt.network_enabled {
+            "bridge"
+        } else {
+            "none"
+        },
 
         rm: true,
 
@@ -158,6 +166,9 @@ async fn build_image_from_dockerfile(
                         error: e,
                         detail: info.error_detail,
                     });
+                }
+                if let Some(stream) = &info.stream {
+                    tracing::debug!(stdout = %stream, "building");
                 }
                 opt.send_result(|| info);
             }

@@ -18,7 +18,7 @@ opt-level = "z"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 [dependencies]
-anyhow = "*"
+anyhow = { version = "*", features = ["backtrace"] }
 arc-swap = "1.0.0"
 async-compat = "0.2"
 async-pipe = "0.1"

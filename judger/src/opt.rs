@@ -45,9 +45,9 @@ pub struct ConnectSubCmd {
     #[clap(env = "RURIKAWA_HOST")]
     pub host: Option<String>,
 
-    /// Supply or override SSL settings
-    #[clap(long, short, env = "RURIKAWA_SSL")]
-    pub ssl: Option<bool>,
+    /// Supply or override TLS settings
+    #[clap(long, alias = "ssl", env = "RURIKAWA_SSL", env = "RURIKAWA_TLS")]
+    pub tls: Option<bool>,
 
     /// Max task count that can be runned concurrently.
     #[clap(long, short, env = "RURIKAWA_CONCURRENT_TASKS")]

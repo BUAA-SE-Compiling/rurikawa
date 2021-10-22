@@ -1,16 +1,18 @@
 //! Code for sharing files between different containers
 
-use std::{collections::HashMap, path::Path};
+use std::path::Path;
 
 use crate::util::tar::pack_as_tar;
 use async_trait::async_trait;
 use bollard::{
     container::{RemoveContainerOptions, UploadToContainerOptions},
+    image::CreateImageOptions,
     models::{Mount, MountTypeEnum},
     volume::{CreateVolumeOptions, RemoveVolumeOptions},
     Docker,
 };
 use drop_bomb::DropBomb;
+use futures::TryStreamExt;
 use ignore::gitignore::Gitignore;
 
 pub struct Volume {
@@ -48,16 +50,34 @@ impl Volume {
 
         let (stream, join) = pack_as_tar(path, ignore)?;
 
+        // Ensure the dummy image is present.
+        // We use busybox as the dummy image here.
+        self.docker
+            .create_image(
+                Some(CreateImageOptions {
+                    from_image: "busybox",
+                    tag: "latest",
+                    ..Default::default()
+                }),
+                None,
+                None,
+            )
+            .map_ok(|_| ())
+            .try_collect::<()>()
+            .await?;
+
+        let mount = self.as_mount("/files/", false);
         let container = self
             .docker
-            .create_container::<String, _>(
+            .create_container::<String, String>(
                 None,
                 bollard::container::Config {
-                    volumes: Some(
-                        Some((self.volume.name.clone(), HashMap::new()))
-                            .into_iter()
-                            .collect(),
-                    ),
+                    image: Some("busybox".into()),
+                    host_config: Some(bollard::service::HostConfig {
+                        mounts: Some(vec![mount]),
+                        ..Default::default()
+                    }),
+
                     ..Default::default()
                 },
             )
@@ -103,7 +123,7 @@ impl Volume {
         Ok(())
     }
 
-    pub async fn as_mount(&self, on_path: &str, readonly: bool) -> Mount {
+    pub fn as_mount(&self, on_path: &str, readonly: bool) -> Mount {
         Mount {
             target: Some(on_path.to_string()),
             source: Some(self.volume.name.to_string()),

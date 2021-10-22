@@ -1,5 +1,3 @@
-
-
 use clap::Clap;
 use dirs::home_dir;
 use once_cell::sync::OnceCell;
@@ -90,7 +88,7 @@ fn override_config_using_cmd(cmd: &opt::ConnectSubCmd, cfg: &mut ClientConfig) {
     if let Some(cnt) = cmd.concurrent_tasks {
         cfg.max_concurrent_tasks = cnt;
     }
-    if let Some(ssl) = cmd.ssl {
+    if let Some(ssl) = cmd.tls {
         cfg.ssl = ssl;
     }
     if let Some(host) = cmd.host.clone() {
