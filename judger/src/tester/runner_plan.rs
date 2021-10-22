@@ -1,10 +1,11 @@
 //! Code for transforming test suite configs into something that [`crate::runner`]
 //! can efficiently use.
 
-use std::{collections::HashMap, pin::Pin, sync::Arc, time::Duration};
+use std::{collections::HashMap, path::Path, pin::Pin, sync::Arc, time::Duration};
 
 use futures::{Sink, SinkExt};
 use itertools::Itertools;
+use path_slash::PathBufExt;
 
 use crate::runner::{
     model::{CommandRunOptionsBuilder, ProcessOutput},
@@ -33,6 +34,7 @@ pub async fn run_job_test_cases<'a>(
     user_container: Arc<dyn CommandRunner>,
     judger_container: Option<Arc<dyn CommandRunner>>,
     mut raw_result_sink: Pin<Box<dyn Sink<RawTestCaseResult, Error = ()> + Send>>,
+    test_suite_base_dir: &'a Path,
 ) -> anyhow::Result<()> {
     tracing::info!(%job.id, "Planning to run job");
 
@@ -65,6 +67,7 @@ pub async fn run_job_test_cases<'a>(
             judge_toml,
             user_container.clone(),
             judger_container.clone(),
+            test_suite_base_dir,
         );
 
         let (sink, mut recv) = tokio::sync::mpsc::channel(19);
@@ -99,6 +102,7 @@ pub fn generate_test_case(
     judge_toml: &JudgeTomlTestConfig,
     user_container: Arc<dyn CommandRunner>,
     judger_container: Option<Arc<dyn CommandRunner>>,
+    test_suite_base_dir: &Path,
 ) -> TestCase {
     debug_assert!(
         judger_container.is_some() == (public_cfg.exec_kind == JudgeExecKind::Isolated),
@@ -121,11 +125,10 @@ pub fn generate_test_case(
     let mut env = Vec::new();
     for (src, tgt) in &public_cfg.vars {
         let src = src.strip_prefix('$').unwrap_or(src);
-        let tgt = canonical_join(
-            &public_cfg.mapped_dir.to,
-            format!("{}.{}", test_case.name, tgt),
-        );
-        env.push((src.into(), tgt.display().to_string()));
+        let tgt = Path::new(&public_cfg.mapped_dir.to)
+            .join(format!("{}.{}", test_case.name, tgt))
+            .to_slash_lossy();
+        env.push((src.into(), tgt.to_string()));
     }
     env.push(("CI".into(), "1".into()));
     env.push(("JUDGE".into(), "1".into()));
@@ -164,13 +167,13 @@ pub fn generate_test_case(
             .or_else(|| run_in_user_container.steps.last_mut());
 
         if let Some(cmd) = last_command {
-            cmd.compare_output_with = Some(OutputComparisonSource::File(
+            cmd.compare_output_with = Some(OutputComparisonSource::File(test_suite_base_dir.join(
                 public_cfg.mapped_dir.from.join(format!(
                     "{}.{}",
                     test_case.name,
                     public_cfg.vars.get("$stdout").expect("$stdout must exist")
                 )),
-            ))
+            )))
         }
     }
 

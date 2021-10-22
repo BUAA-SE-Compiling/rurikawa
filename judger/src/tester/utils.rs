@@ -48,12 +48,16 @@ pub fn diff<'a>(got: &'a str, expected: &'a str) -> (bool, String) {
         match diff {
             Difference::Same(s) => add_diff_ln(' ', &s),
             Difference::Add(s) => {
-                add_diff_ln('+', &s);
-                different = true;
+                if !s.is_empty() {
+                    add_diff_ln('+', &s);
+                    different = true;
+                }
             }
             Difference::Rem(s) => {
-                add_diff_ln('-', &s);
-                different = true
+                if !s.is_empty() {
+                    add_diff_ln('-', &s);
+                    different = true;
+                }
             }
         }
     }

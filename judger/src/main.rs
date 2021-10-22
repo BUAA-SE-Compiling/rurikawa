@@ -16,7 +16,7 @@ use std::{
     },
     time::Duration,
 };
-use tracing_subscriber::FmtSubscriber;
+use tracing_subscriber::{filter::Directive, EnvFilter, FmtSubscriber};
 
 mod opt;
 
@@ -29,7 +29,9 @@ fn main() {
     tracing_log::LogTracer::builder().init().unwrap();
 
     let subscriber = FmtSubscriber::builder()
-        .with_max_level(opt.opt.log_level)
+        .with_env_filter(
+            EnvFilter::try_from_default_env().expect("RUST_LOG has invalid directives"),
+        )
         .finish();
 
     tracing::subscriber::set_global_default(subscriber).expect("setting default subscriber failed");

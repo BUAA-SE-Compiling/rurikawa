@@ -5,6 +5,7 @@
 
 use std::borrow::Cow;
 
+use once_cell::sync::Lazy;
 use tokio::sync::mpsc::Sender;
 
 use crate::tester::{
@@ -131,11 +132,15 @@ pub async fn verify_output(
         OutputComparisonSource::InMemory(s) => s.into(),
     };
 
-    let diff = if output.stdout != expected.as_ref() {
-        Some(diff(&output.stdout, &expected).1)
-    } else {
-        None
-    };
+    let expected = EOF_PATTERN.replace_all(expected.trim(), "\n");
+    let stdout = EOF_PATTERN.replace_all(output.stdout.trim(), "\n");
 
-    Ok(diff)
+    let diff = diff(&stdout, &expected);
+    if diff.0 {
+        Ok(Some(diff.1))
+    } else {
+        Ok(None)
+    }
 }
+
+static EOF_PATTERN: Lazy<regex::Regex> = Lazy::new(|| regex::Regex::new(r"\r?\n").unwrap());

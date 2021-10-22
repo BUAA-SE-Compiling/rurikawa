@@ -165,7 +165,7 @@ impl Container {
                     attach_stderr: Some(true),
                     tty: Some(true),
                     env: Some(env.map(|(k, v)| format!("{}={}", k, v)).collect()),
-                    cmd: Some(vec![command.into()]),
+                    cmd: Some(vec!["sh".into(), "-c".into(), command.into()]),
                     ..Default::default()
                 },
             )

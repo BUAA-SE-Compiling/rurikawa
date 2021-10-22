@@ -621,6 +621,7 @@ pub async fn handle_job(
         user_container,
         judger_container.map(|container| container as _),
         sink,
+        &cfg.test_suite_folder(job.test_suite),
     )
     .await?;
 
