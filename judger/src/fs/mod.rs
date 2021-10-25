@@ -1,6 +1,7 @@
 //! File-system-related stuff. Including manipulating test folders, performing git operations and so on.
 
 use futures::{future::BoxFuture, prelude::*};
+use respector::prelude::*;
 use std::path::{Path, PathBuf};
 use tokio::fs::read_dir;
 
@@ -31,12 +32,9 @@ pub fn ensure_removed_dir(path: &Path) -> BoxFuture<std::io::Result<()>> {
             .buffered(16usize)
             .for_each(|_| async {})
             .await;
-        let res = tokio::fs::remove_dir_all(path).await;
-        match &res {
-            Ok(_) => {}
-            Err(e) => log::error!("{:?}: {}", path, e),
-        };
-        res
+        tokio::fs::remove_dir_all(path)
+            .await
+            .inspect_err(|e| log::error!("{:?}: {}", path, e))
     }
     .boxed()
 }

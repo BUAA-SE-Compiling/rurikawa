@@ -58,9 +58,7 @@ impl WebsocketSink {
 
     pub async fn send_all<It>(&self, msg: &mut It) -> Result<(), tungstenite::Error>
     where
-        It: TryStream<Ok = Message, Error = tungstenite::Error>
-            + Stream<Item = Result<Message, tungstenite::Error>>
-            + Unpin,
+        It: Stream<Item = Result<Message, tungstenite::Error>> + Unpin,
     {
         self.send_all_conf(msg, false).await
     }
@@ -71,9 +69,7 @@ impl WebsocketSink {
         err_if_connection_fail: bool,
     ) -> Result<(), tungstenite::Error>
     where
-        It: TryStream<Ok = Message, Error = tungstenite::Error>
-            + Stream<Item = Result<Message, tungstenite::Error>>
-            + Unpin,
+        It: Stream<Item = Result<Message, tungstenite::Error>> + Unpin,
     {
         let mut sink = self.sink.load();
         if sink.is_none() && err_if_connection_fail {
@@ -105,7 +101,7 @@ impl WebsocketSink {
         self.sink.swap(None);
     }
 
-    pub async fn send_msg<M: Serialize + Sync>(&self, msg: &M) -> Result<(), tungstenite::Error> {
+    pub async fn send_msg(&self, msg: &(impl Serialize + Sync)) -> Result<(), tungstenite::Error> {
         let serialized = serde_json::to_string(msg).unwrap();
         let msg = Message::text(serialized);
         self.send(msg).await

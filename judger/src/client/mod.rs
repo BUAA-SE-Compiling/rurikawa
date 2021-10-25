@@ -357,16 +357,14 @@ pub async fn handle_job_wrapper(
         }),
         Err(JobExecErr::Cancelled) => ClientMsg::JobProgress(JobProgressMsg {
             job_id,
-            stage: {
-                if cfg
-                    .cancelling_job_info
-                    .get(&job_id)
-                    .map_or(true, |x| x.as_cancel)
-                {
-                    JobStage::Cancelled
-                } else {
-                    JobStage::Aborted
-                }
+            stage: if cfg
+                .cancelling_job_info
+                .get(&job_id)
+                .map_or(true, |x| x.as_cancel)
+            {
+                JobStage::Cancelled
+            } else {
+                JobStage::Aborted
             },
         }),
         Err(e) => extract_job_err(job_id, &e),
