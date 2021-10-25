@@ -385,7 +385,7 @@ pub struct TestSuiteStatus {
     ///
     /// This lock is wrapped inside an `Arc<T>` to allow owned access.
     update: Arc<tokio::sync::RwLock<()>>,
-    /// Lock to obtain when trying to test suite data.
+    /// Lock to obtain when trying to potentially modify test suite data.
     ///
     /// Every task should obtain a mutex before trying to check for test suite
     /// updates.

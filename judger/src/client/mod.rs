@@ -10,18 +10,21 @@ use self::{
     sink::*,
 };
 use crate::{
-    client::model::JobResultKind,
     config::{JudgeToml, JudgerPublicConfig},
     fs::{self, JUDGE_FILE_NAME},
     prelude::*,
     runner::{exec::CreateContainerConfigBuilder, volume::Volume},
-    tester::{build_judger_container, build_user_code_container, runner_plan::RawTestCaseResult},
+    tester::{
+        build_judger_container, build_user_code_container, model::Bind,
+        runner_plan::RawTestCaseResult,
+    },
     util::AsyncTeardownCollector,
 };
 use anyhow::{Context, Result};
 use futures::prelude::*;
 use http::Method;
 use ignore::gitignore::Gitignore;
+use itertools::Itertools;
 use respector::prelude::*;
 use serde_json::from_slice;
 use std::{
@@ -489,9 +492,9 @@ pub async fn handle_job(
     let mounts = public_cfg
         .binds
         .iter()
-        .map(|bind| bind.to_mount())
+        .map(Bind::to_mount)
         .chain([data_volume.as_mount(&public_cfg.mapped_dir.to, false)])
-        .collect::<Vec<_>>();
+        .collect_vec();
 
     let test_suite_container_cfg = CreateContainerConfigBuilder::default()
         .cancellation(cancel.clone())
@@ -509,8 +512,8 @@ pub async fn handle_job(
         &suite_unique_name,
         test_suite_container_cfg,
     )
-    .await?;
-    let judger_container = judger_container.map(Arc::new);
+    .await?
+    .map(Arc::new);
     if let Some(c) = judger_container.clone() {
         teardown_collector.add(c)
     }
