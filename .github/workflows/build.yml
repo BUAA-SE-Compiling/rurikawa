@@ -39,38 +39,6 @@ jobs:
           add_git_labels: true
           build-args: CI=true
 
-  build-judger-image:
-    runs-on: ubuntu-latest
-
-    steps:
-      - uses: actions/checkout@v2
-        with:
-          submodules: true
-      - name: Build and push Docker images
-        # You may pin to the exact commit or the version.
-        # uses: docker/build-push-action@92e71463491f2d026a477188b8ad3a0fdd9d672c
-        uses: docker/build-push-action@v1.1.0
-        with:
-          # Username used to log in to a Docker registry. If not set then no login will occur
-          username: ${{ secrets.DOCKER_USERNAME }}
-          # Password or personal access token used to log in to a Docker registry. If not set then no login will occur
-          password: ${{ secrets.DOCKER_PASSWORD }}
-          # Server address of Docker registry. If not set then will default to Docker Hub
-          registry: docker.pkg.github.com
-          # Docker repository to tag the image with
-          repository: buaa-se-compiling/rurikawa/rurikawa-judger-nightly
-          # Comma-delimited list of tags. These will be added to the registry/repository to form the image's tags
-          tags: dev,dev-latest
-          # Automatically tags the built image with the git reference as per the readme
-          tag_with_ref: true
-          # Automatically tags the built image with the git short SHA as per the readme
-          tag_with_sha: true
-          # Path to the build context
-          path: judger
-          # Adds labels with git repository information to the built image
-          add_git_labels: true
-          build-args: CI=true
-
   build-web-image:
     runs-on: ubuntu-latest
 

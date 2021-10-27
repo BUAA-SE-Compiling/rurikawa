@@ -11,11 +11,6 @@ version = "0.5.0-alpha.1"
 name = "rurikawa"
 path = "src/main.rs"
 
-[profile.release]
-debug = 0
-# lto = true
-opt-level = "z"
-
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 [dependencies]
 anyhow = { version = "*", features = ["backtrace"] }
@@ -26,7 +21,7 @@ async-trait = "0.1.42"
 bollard = "0.11"
 bytes = "1"
 chrono = "0.4.19"
-clap = "3.0.0-beta.4"
+clap = "3.0.0-beta.5"
 ctrlc = "3.1.7"
 dashmap = "4"
 derive_builder = "0.10.2"

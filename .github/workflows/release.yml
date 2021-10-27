@@ -99,10 +99,9 @@ jobs:
 
       - name: Build rust
         if: ${{ matrix.target_name == 0 }}
-        working-directory: judger
         run: |
           cargo fetch
-          cargo build --frozen --release
+          cargo build -p rurikawa-judger --frozen --release
 
       - name: install musl tools
         if: ${{ matrix.target_name == 'x86_64-unknown-linux-musl' }}
@@ -123,17 +122,16 @@ jobs:
 
       - name: Build rust (targeted)
         if: ${{ matrix.target_name != 0 }}
-        working-directory: judger
         run: |
           cargo fetch
-          cargo build --frozen --release --target ${{ matrix.target_name }}
+          cargo build -p rurikawa-judger --frozen --release --target ${{ matrix.target_name }}
 
       - uses: haya14busa/action-cond@v1
         id: condval
         with:
           cond: ${{ matrix.target_name != 0 }}
-          if_true: judger/target/${{matrix.target_name}}/release
-          if_false: judger/target/release
+          if_true: target/${{matrix.target_name}}/release
+          if_false: target/release
 
       - name: Upload binaries to release
         uses: svenstaro/upload-release-action@v1-release

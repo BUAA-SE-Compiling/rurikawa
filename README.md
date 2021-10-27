@@ -19,6 +19,22 @@ Rurikawa（琉璃川）是一个简易的自动评测系统，主要面向构建
 
 - I18n (Currently only supports Chinese)
 
+## Building 
+
+Building coordinator requires the following tools:
+
+- DotNet 5 SDK
+
+Building web requires the following tools:
+
+- NodeJS v12+
+- Yarn 1.22+
+
+Building judger requires the following tools:
+
+- Rust 1.56+
+- GCC or Clang that support C11
+
 ## Running
 
 ### Before running
@@ -35,7 +51,6 @@ You can refer to the development docker compose file (`dev.docker-compose.yml`) 
 You'll need these tools to run a Rurikawa judger:
 
 - A Unix-family operating system (Sadly, windows doesn't work for now).
-- ~~Any recent version of `openssl`.~~ Judger now uses Rustls for network connections.
 - Any recent version of `git`.
 - Any recent version of `docker`, with API exposed at the default path.
   - You might need to log into a paid account if your clients use many different kinds of build environments - Docker now limits access rates for unpaid accounts.

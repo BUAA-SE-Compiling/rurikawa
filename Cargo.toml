@@ -1,2 +1,7 @@
 [workspace]
 members = ["judger/"]
+
+[profile.release]
+debug = 0
+# lto = true
+opt-level = "z"
