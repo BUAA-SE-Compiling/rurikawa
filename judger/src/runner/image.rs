@@ -203,6 +203,14 @@ async fn build_image_from_dockerfile(
         }
     }
 
+    if timeout_future.is_terminated() {
+        return Err(BuildError::Timeout);
+    }
+    if opt.cancellation.is_cancelled() {
+        return Err(BuildError::Cancelled);
+    }
+
+
     join_tar
         .await
         .map_err(|e| {
@@ -213,13 +221,6 @@ async fn build_image_from_dockerfile(
         .map_err(|e| {
             BuildError::Internal(anyhow::Error::new(e).context("Failed to archive files"))
         })?;
-
-    if timeout_future.is_terminated() {
-        return Err(BuildError::Timeout);
-    }
-    if opt.cancellation.is_cancelled() {
-        return Err(BuildError::Cancelled);
-    }
 
     Ok(BuildImageResult {})
 }
