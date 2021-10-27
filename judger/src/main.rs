@@ -1,4 +1,4 @@
-use clap::Clap;
+use clap::Parser;
 use dirs::home_dir;
 use once_cell::sync::OnceCell;
 use rurikawa_judger::{
@@ -16,7 +16,7 @@ use std::{
     },
     time::Duration,
 };
-use tracing_subscriber::{filter::Directive, EnvFilter, FmtSubscriber};
+use tracing_subscriber::{EnvFilter, FmtSubscriber};
 
 mod opt;
 
