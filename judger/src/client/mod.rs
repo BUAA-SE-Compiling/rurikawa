@@ -268,8 +268,9 @@ pub async fn check_download_read_test_suite(
         },
     };
     let judger_conf = serde_json::from_slice::<JudgerPublicConfig>(&judger_conf)?;
+    let unique_id = crate::util::names::transform_string_as_docker_tag(&suite_data.package_file_id);
 
-    Ok((judger_conf, suite_data.package_file_id, _might_modify_guard))
+    Ok((judger_conf, unique_id.into_owned(), _might_modify_guard))
 }
 
 fn extract_job_err(job_id: FlowSnake, err: &JobExecErr) -> ClientMsg {
@@ -721,13 +722,13 @@ async fn pull_public_cfg(
     cancel: &tokio_util::sync::CancellationToken,
 ) -> Result<(JudgerPublicConfig, String, OwnedMutexGuard<()>), JobExecErr> {
     tracing::info!("Checking updates on test suite config");
-    let public_cfg = check_download_read_test_suite(job.test_suite, &**cfg)
+    let res = check_download_read_test_suite(job.test_suite, &**cfg)
         .with_cancel(cancel.cancelled())
         .instrument(info_span!("download_test_suites", %job.test_suite))
         .await
         .ok_or(JobExecErr::Cancelled)?
         .context("fetching public config")?;
-    Ok(public_cfg)
+    Ok(res)
 }
 
 pub async fn flag_new_job(_send: Arc<WsSink>, client_config: Arc<SharedClientData>) {
