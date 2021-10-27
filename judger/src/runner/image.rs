@@ -13,7 +13,7 @@ use crate::{
 
 use bollard::{image::CreateImageOptions, models::BuildInfo, Docker};
 use derive_builder::Builder;
-use futures::FutureExt;
+use futures::{future::FusedFuture, FutureExt};
 use hyper::Body;
 use ignore::gitignore::Gitignore;
 use tokio::sync::mpsc::UnboundedSender;
@@ -164,12 +164,13 @@ async fn build_image_from_dockerfile(
     let timeout_future = match opt.timeout {
         Some(duration) => tokio::time::sleep(duration).left_future(),
         None => futures::future::pending().right_future(),
-    };
+    }
+    .fuse();
     tokio::pin!(timeout_future);
     let mut res = docker.build_image(build_options, None, Some(Body::wrap_stream(tar)));
 
-    while let Some(Some(info)) = tokio::select! {
-        res = res.next().with_cancel(opt.cancellation.cancelled()) => res,
+    while let Some(info) = tokio::select! {
+        res = res.next().with_cancel(opt.cancellation.cancelled()).map(|f| f.flatten())=> res,
         _timeout = timeout_future.as_mut() => None
     } {
         match info {
@@ -213,6 +214,9 @@ async fn build_image_from_dockerfile(
             BuildError::Internal(anyhow::Error::new(e).context("Failed to archive files"))
         })?;
 
+    if timeout_future.is_terminated() {
+        return Err(BuildError::Timeout);
+    }
     if opt.cancellation.is_cancelled() {
         return Err(BuildError::Cancelled);
     }
