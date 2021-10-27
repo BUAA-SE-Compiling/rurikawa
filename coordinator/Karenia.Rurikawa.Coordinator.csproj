@@ -2,7 +2,7 @@
 
   <PropertyGroup>
     <Product>Karenia.Rurikawa.Coordinator</Product>
-    <Version>0.4.1</Version>
+    <Version>0.5.0</Version>
     <Authors>Rynco Maekawa; Rami3L Li</Authors>
 
     <TargetFramework>net5</TargetFramework>
