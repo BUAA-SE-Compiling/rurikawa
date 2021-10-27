@@ -97,6 +97,9 @@ jobs:
         with:
           submodules: true
 
+        # use latest stable toolchain
+      - uses: dtolnay/rust-toolchain@stable
+
       - name: Build rust
         if: ${{ matrix.target_name == 0 }}
         run: |
