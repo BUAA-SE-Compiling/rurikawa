@@ -35,26 +35,24 @@ pub struct ExecError {
 #[derive(Debug, Clone, Serialize, Deserialize, Eq, PartialEq)]
 pub struct ShouldFailFailure;
 
-#[derive(Debug)]
+#[derive(Debug, Error)]
 pub enum BuildError {
+    #[error(display = "Failed to pull image: {}", _0)]
     ImagePullFailure(String),
+    #[error(display = "Failed to transfer file into container: {}", _0)]
     FileTransferError(String),
+    #[error(display = "Failed to build image: {}; detail: {:?}", error, detail)]
     BuildError {
         error: String,
         detail: Option<bollard::models::ErrorDetail>,
     },
+    #[error(display = "Internal error: {}", _0)]
     Internal(anyhow::Error),
+    #[error(display = "The build was cancelled")]
     Cancelled,
+    #[error(display = "The build timed out")]
     Timeout,
 }
-
-impl std::fmt::Display for BuildError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{:?}", self)
-    }
-}
-
-impl std::error::Error for BuildError {}
 
 #[derive(Debug, Error)]
 pub enum JobFailure {

@@ -13,6 +13,7 @@ use crate::{
 
 use bollard::{image::CreateImageOptions, models::BuildInfo, Docker};
 use derive_builder::Builder;
+use futures::FutureExt;
 use hyper::Body;
 use ignore::gitignore::Gitignore;
 use tokio::sync::mpsc::UnboundedSender;
@@ -160,9 +161,17 @@ async fn build_image_from_dockerfile(
     )
     .map_err(|e| BuildError::FileTransferError(e.to_string()))?;
 
+    let timeout_future = match opt.timeout {
+        Some(duration) => tokio::time::sleep(duration).left_future(),
+        None => futures::future::pending().right_future(),
+    };
+    tokio::pin!(timeout_future);
     let mut res = docker.build_image(build_options, None, Some(Body::wrap_stream(tar)));
 
-    while let Some(Some(info)) = res.next().with_cancel(opt.cancellation.cancelled()).await {
+    while let Some(Some(info)) = tokio::select! {
+        res = res.next().with_cancel(opt.cancellation.cancelled()) => res,
+        _timeout = timeout_future.as_mut() => None
+    } {
         match info {
             Ok(info) => {
                 if let Some(e) = info.error {
