@@ -361,7 +361,9 @@ pub async fn handle_job_wrapper(
         }),
         Err(JobExecErr::Cancelled) => ClientMsg::JobProgress(JobProgressMsg {
             job_id,
-            stage: if cfg
+            stage: if cfg.abort_handle.is_cancelled() {
+                JobStage::Aborted
+            } else if cfg
                 .cancelling_job_info
                 .get(&job_id)
                 .map_or(true, |x| x.as_cancel)
@@ -484,7 +486,9 @@ pub async fn handle_job(
             &cfg.test_suite_folder(job.test_suite),
             data_volume_name,
         )
+        .with_cancel(cancel.cancelled())
         .await
+        .ok_or(JobExecErr::Cancelled)?
         .context("Error when populating data volume")?,
     );
     teardown_collector.add(data_volume.clone());
@@ -624,8 +628,16 @@ pub async fn handle_job(
         judger_container.map(|container| container as _),
         sink,
         &cfg.test_suite_folder(job.test_suite),
+        cancel.clone(),
     )
     .await?;
+
+    if cancel.is_cancelled() {
+        // the job is cancelled, but `run_job_test_cases` can't handle this
+        // issue since it only reports an untyped `anyhow::Error`, thus cannot
+        // report concrete cancellation types.
+        return Err(JobExecErr::Cancelled);
+    }
 
     tracing::info!("finished running");
 
@@ -742,7 +754,7 @@ pub async fn flag_finished_job(client_config: Arc<SharedClientData>) {
 pub async fn accept_job(job: Job, send: Arc<WsSink>, client_config: Arc<SharedClientData>) {
     tracing::info!("Received job {}", job.id);
     let job_id = job.id;
-    let cancel_handle = client_config.cancel_handle.child_token();
+    let cancel_handle = client_config.abort_handle.child_token();
     let cancel_token = cancel_handle.child_token();
 
     // Cancel job after timeout
@@ -810,7 +822,7 @@ async fn keepalive(
     interval: std::time::Duration,
 ) {
     while tokio::time::sleep(interval)
-        .with_cancel(client_config.cancel_handle.cancelled())
+        .with_cancel(client_config.abort_handle.cancelled())
         .await
         .is_some()
     {
@@ -908,7 +920,7 @@ pub async fn client_loop(
     ws_send: Arc<WsSink>,
     client_config: Arc<SharedClientData>,
 ) -> Arc<WsSink> {
-    let keepalive_token = client_config.cancel_handle.child_token();
+    let keepalive_token = client_config.abort_handle.child_token();
     let keepalive_cancel = keepalive_token.child_token();
 
     client_config.waiting_for_jobs.store(None);

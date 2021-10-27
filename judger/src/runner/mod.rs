@@ -5,10 +5,10 @@
 
 use std::borrow::Cow;
 
-use futures::TryStreamExt;
 use once_cell::sync::Lazy;
 use tokio::sync::mpsc::Sender;
 
+use crate::prelude::CancelFutureExt;
 use crate::tester::{
     model::{ExecError, ExecErrorKind, JobFailure},
     utils::{diff, strsignal},
@@ -70,10 +70,13 @@ pub async fn run_exec_group(
                 &mut exec.env.iter().map(|(k, v)| (k.as_ref(), v.as_ref())),
                 opt,
             )
+            .with_cancel(opt.cancel.cancelled())
             .await
         {
-            Ok(o) => o,
-            Err(e) => {
+            None => return Ok(Err(JobFailure::Cancelled)),
+
+            Some(Ok(o)) => o,
+            Some(Err(e)) => {
                 return Err(e);
             }
         };

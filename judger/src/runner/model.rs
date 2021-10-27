@@ -5,6 +5,8 @@ use serde::{Deserialize, Serialize};
 use std::time::Duration;
 use std::{path::PathBuf, sync::Arc};
 
+use crate::prelude::CancellationTokenHandle;
+
 /// The result returned by running a subprocess.
 #[derive(Debug, Clone, Serialize, Deserialize, Default, Eq, PartialEq, IntoJsByRef)]
 pub struct ProcessOutput {
@@ -114,4 +116,7 @@ pub struct CommandRunOptions {
 
     #[builder(default)]
     pub timeout: Option<Duration>,
+
+    #[builder(default)]
+    pub cancel: CancellationTokenHandle,
 }

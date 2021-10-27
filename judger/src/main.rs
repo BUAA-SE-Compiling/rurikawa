@@ -169,7 +169,7 @@ async fn client(cmd: opt::ConnectSubCmd) {
     }
 
     let client_config = Arc::new(cfg);
-    let handle = client_config.cancel_handle.clone();
+    let handle = client_config.abort_handle.clone();
     ABORT_HANDLE.set(handle).unwrap();
 
     const START_WAIT_TIME: Duration = Duration::from_millis(250);
@@ -194,7 +194,7 @@ async fn client(cmd: opt::ConnectSubCmd) {
         client_sink.load_socket(sink);
 
         client_loop(stream, client_sink.clone(), client_config.clone()).await;
-        if client_config.cancel_handle.is_cancelled() {
+        if client_config.abort_handle.is_cancelled() {
             break;
         }
     }

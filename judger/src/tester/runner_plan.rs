@@ -8,6 +8,7 @@ use itertools::Itertools;
 use path_slash::PathBufExt;
 
 use crate::config::JudgeTomlTestConfig;
+use crate::prelude::CancellationTokenHandle;
 use crate::runner::{
     model::{CommandRunOptionsBuilder, ProcessOutput},
     CommandRunner,
@@ -38,6 +39,7 @@ pub async fn run_job_test_cases<'a>(
     judger_container: Option<Arc<dyn CommandRunner>>,
     mut raw_result_sink: Pin<Box<dyn Sink<RawTestCaseResult, Error = ()> + Send>>,
     test_suite_base_dir: &'a Path,
+    cancel: CancellationTokenHandle,
 ) -> anyhow::Result<()> {
     tracing::info!(%job.id, "Planning to run job");
 
@@ -52,6 +54,7 @@ pub async fn run_job_test_cases<'a>(
         .collect::<HashMap<_, _>>();
 
     let run_option = CommandRunOptionsBuilder::default()
+        .cancel(cancel.clone())
         .timeout(public_cfg.time_limit.map(Duration::from_secs_f64))
         .build()
         .expect("Failed to build command run options");
