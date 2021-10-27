@@ -44,7 +44,7 @@
   >
     <h2>过程输出</h2>
     <div class="step" *ngFor="let step of output?.output">
-      <div class="container" *ngIf="step.runned_inside">
+      <div class="run-inside" *ngIf="step.runned_inside">
         in {{ step.runned_inside }}
       </div>
       <pre class="command">{{ stripSh(step.command) }}</pre>
