@@ -44,17 +44,23 @@
   >
     <h2>过程输出</h2>
     <div class="step" *ngFor="let step of output?.output">
-      <code class="command"> {{ stripSh(step.command) }} </code>
+      <div class="run-inside" *ngIf="step.runned_inside">
+        in {{ step.runned_inside }}
+      </div>
+      <pre class="command">{{ stripSh(step.command) }}</pre>
       <div class="output stdout" *ngIf="step.stdout && step.stdout !== ''">
         <div class="title">--- stdout ---</div>
-        <pre>{{ step.stdout }}</pre>
+        <pre [innerHtml]="formatStdoutOrStderr(step.stdout)"></pre>
       </div>
       <div class="output stderr" *ngIf="step.stderr && step.stderr !== ''">
         <div class="title">--- stderr ---</div>
-        <pre>{{ step.stderr }}</pre>
+        <pre [innerHtml]="formatStdoutOrStderr(step.stderr)"></pre>
       </div>
-      <div class="ret-code" [class.ret-check]="step.ret_code !== 0">
-        [ {{ step.ret_code }} ]
+      <div
+        class="ret-code"
+        [class.ret-check]="!isExitStatusZero(step.ret_code)"
+      >
+        [ {{ formatExitStatus(step.ret_code) }} ]
       </div>
     </div>
   </div>

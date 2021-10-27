@@ -25,6 +25,7 @@
     "@types/lodash": "^4.14.161",
     "@types/lru-cache": "^5.1.0",
     "@visurel/iconify-angular": "^11.0.0",
+    "ansi-to-html": "^0.7.2",
     "compression-webpack-plugin": "^5.0.2",
     "dayjs": "^1.8.36",
     "filesize": "^6.1.0",

@@ -131,10 +131,49 @@ export interface Job {
 }
 
 export interface ProcessInfo {
-  ret_code: number;
+  ret_code: ExitStatus;
   command: string;
   stdout: string;
   stderr: string;
+  runned_inside?: string;
+}
+
+export interface ReturnCodeExitStatus {
+  returnCode: number;
+}
+
+export interface SignalExitStatus {
+  signal: number;
+}
+
+export type TimeoutExitStatus = 'timeout';
+
+export type UnknownExitStatus = 'unknown';
+
+export type ExitStatus =
+  | ReturnCodeExitStatus
+  | SignalExitStatus
+  | TimeoutExitStatus
+  | UnknownExitStatus
+  | number;
+
+export function isExitStatusZero(exitStatus: ExitStatus): boolean {
+  return (
+    exitStatus == 0 ||
+    (typeof exitStatus == 'object' &&
+      'returnCode' in exitStatus &&
+      exitStatus.returnCode == 0)
+  );
+}
+
+export function formatExistStatus(exitStatus: ExitStatus): string {
+  if (typeof exitStatus == 'string') return exitStatus;
+  else if (typeof exitStatus == 'number') return exitStatus.toString();
+  else if (typeof exitStatus == 'object') {
+    if ('returnCode' in exitStatus) return exitStatus.returnCode.toString();
+    else if ('signal' in exitStatus) return `Signal ${exitStatus.signal}`;
+    else return JSON.stringify(exitStatus);
+  } else return exitStatus;
 }
 
 export interface FailedTestcaseOutput {
@@ -166,13 +205,11 @@ export function unDiff(input: string): Diff[] {
 export function getStatus(job: Job): JobStatus[] {
   if (job === undefined) {
     return [{ status: 'Waiting', cnt: 1 }];
-    // } else if (job.stage !== 'Finished') {
-    //   return [{ status: 'Waiting', cnt: 1 }];
-  } else if (job.stage !== 'Finished') {
-    return [{ status: 'Waiting', cnt: 1 }];
-  } else if (job.resultKind !== 'Accepted') {
+  }
+  if (job.stage == 'Finished' && job.resultKind !== 'Accepted') {
     return [{ status: 'OtherError', cnt: 1 }];
   }
+  let jobResultCount = Object.keys(job.results).length;
   let res = toPairs(
     mapValues(
       groupBy(job.results, (result) => dashboardTypeToSlider(result.kind)),
@@ -183,15 +220,17 @@ export function getStatus(job: Job): JobStatus[] {
       return { status: x as TestResultKind, cnt: y };
     })
     .sort((x, y) => {
-      if (x.status == 'Accepted') return -1;
-      else if (y.status == 'Accepted') return 1;
+      if (x.status == 'Accepted') {
+        if (y.status == 'Accepted') return 0;
+        else return -1;
+      } else if (y.status == 'Accepted') return 1;
       return x.status.localeCompare(y.status);
     });
-  if (res.length === 0) {
-    return [{ status: 'Waiting', cnt: job.tests.length }];
-  } else {
-    return res;
+
+  if (jobResultCount < job.tests.length) {
+    res.push({ status: 'Waiting', cnt: job.tests.length - jobResultCount });
   }
+  return res;
 }
 
 const numberFormatter = Intl.NumberFormat('native', {

@@ -9,7 +9,10 @@ use std::{
     sync::atomic::AtomicBool,
     sync::{atomic::AtomicUsize, Arc},
 };
-use tokio::{sync::Mutex, task::JoinHandle};
+use tokio::{
+    sync::{Mutex, OwnedMutexGuard, OwnedRwLockReadGuard, OwnedRwLockWriteGuard},
+    task::JoinHandle,
+};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ClientConfig {
@@ -82,8 +85,10 @@ pub struct SharedClientData {
     pub aborting: AtomicBool,
     /// HTTP client
     pub client: reqwest::Client,
-    /// All test suites whose folder is being edited.
-    pub locked_test_suite: dashmap::DashMap<FlowSnake, (u64, CancellationTokenHandle)>,
+
+    /// All test suites whose folder is being edited. The lock MUST be used internally.
+    test_suite_modify: std::sync::Mutex<HashMap<FlowSnake, TestSuiteStatus>>,
+
     /// Handle for all jobs currently running
     pub running_job_handles: Mutex<HashMap<FlowSnake, (JoinHandle<()>, CancellationTokenHandle)>>,
     /// Handle for all jobs currently cancelling
@@ -91,7 +96,7 @@ pub struct SharedClientData {
     /// Information for currently-cancelling jobs.
     pub cancelling_job_info: dashmap::DashMap<FlowSnake, AbortJob>,
     /// Global cancellation token handle
-    pub cancel_handle: CancellationTokenHandle,
+    pub abort_handle: CancellationTokenHandle,
     // /// The docker instance we're connecting
     // pub docker: Docker
 }
@@ -111,11 +116,11 @@ impl SharedClientData {
             aborting: AtomicBool::new(false),
             waiting_for_jobs: ArcSwapOption::new(None),
             running_tests: AtomicUsize::new(0),
-            locked_test_suite: dashmap::DashMap::new(),
+            test_suite_modify: std::sync::Mutex::new(HashMap::new()),
             running_job_handles: Mutex::new(HashMap::new()),
             cancelling_job_handles: Mutex::new(HashMap::new()),
             cancelling_job_info: DashMap::new(),
-            cancel_handle: CancellationTokenHandle::new(),
+            abort_handle: CancellationTokenHandle::new(),
         }
     }
 
@@ -247,29 +252,82 @@ impl SharedClientData {
             .join(FlowSnake::generate().to_string())
     }
 
-    pub async fn obtain_suite_lock(&self, suite_id: FlowSnake) -> Option<CancellationTokenHandle> {
-        let state = rand::random();
-        let handle = CancellationTokenHandle::new();
-        let entry = self
-            .locked_test_suite
-            .entry(suite_id)
-            .or_insert_with(|| (state, handle.child_token()))
-            .clone();
-        tracing::debug!("Trying to obtain suite lock for {}", suite_id);
-        if entry.0 == state {
-            tracing::debug!("Lock obtained");
-            Some(entry.1)
-        } else {
-            tracing::debug!("Already locked");
-            (entry.1).cancelled().await;
-            tracing::debug!("Lock cleared");
-            None
+    pub async fn before_suite_might_modify(&self, id: FlowSnake) -> OwnedMutexGuard<()> {
+        let arc = {
+            let suites_map = self
+                .test_suite_modify
+                .lock()
+                .expect("something panicked when locking this lock. Panic!");
+            let suite = suites_map
+                .get(&id)
+                .expect("Test suite must be present before modifying");
+            suite.modify.clone()
+        };
+
+        arc.lock_owned().await
+    }
+
+    pub async fn before_suite_modify(&self, id: FlowSnake) -> OwnedRwLockWriteGuard<()> {
+        let arc = {
+            let suites_map = self
+                .test_suite_modify
+                .lock()
+                .expect("something panicked when locking this lock. Panic!");
+            let suite = suites_map
+                .get(&id)
+                .expect("Test suite must be present before modifying");
+            suite.update.clone()
+        };
+
+        arc.write_owned().await
+    }
+
+    pub async fn on_suite_run(&self, id: FlowSnake) -> OwnedRwLockReadGuard<()> {
+        let arc = {
+            let mut suites_map = self
+                .test_suite_modify
+                .lock()
+                .expect("something panicked when locking this lock. Panic!");
+            let suite = suites_map.entry(id).or_default();
+            suite.update.clone()
+        };
+
+        arc.read_owned().await
+    }
+
+    /// Function to call before the job starts. Creates data for the corresponding test suites.
+    #[must_use]
+    pub fn before_job_start(self: Arc<Self>, id: FlowSnake) -> TestSuiteRunningGuard {
+        let mut suites_map = self
+            .test_suite_modify
+            .lock()
+            .expect("something panicked when locking this lock. Panic!");
+        let suite = suites_map.entry(id).or_default();
+        suite.rc.fetch_add(1, std::sync::atomic::Ordering::AcqRel);
+
+        drop(suites_map);
+        TestSuiteRunningGuard {
+            client_data: self,
+            suite_id: id,
         }
     }
 
-    pub fn suite_unlock(&self, suite_id: FlowSnake) {
-        self.locked_test_suite.remove(&suite_id);
-        log::info!("Unlocked {}", suite_id);
+    fn suite_drop(&self, id: FlowSnake) {
+        let mut suites_map = self
+            .test_suite_modify
+            .lock()
+            .expect("something panicked when locking this lock. Panic!");
+        let suite = match suites_map.get(&id) {
+            Some(suite) => suite,
+            None => {
+                tracing::error!("Failed to access test suite {} while still holding a guard to it. Maybe a bug?",id);
+                return;
+            }
+        };
+        let remaining = suite.rc.fetch_sub(1, std::sync::atomic::Ordering::AcqRel);
+        if remaining == 0 {
+            suites_map.remove(&id);
+        }
     }
 
     pub fn new_job(&self) -> usize {
@@ -282,5 +340,67 @@ impl SharedClientData {
             .running_tests
             .fetch_sub(1, std::sync::atomic::Ordering::SeqCst);
         res - 1
+    }
+}
+
+/// Data structure to ensure that test suites are safe to modify.
+///
+/// The overall locking pattern looks like this:
+///
+/// ```plaintext
+/// JobCreated
+/// |                              rc += 1
+/// CheckForTestSuiteUpdate -----> lock(modify) <- Other modifying tasks will
+/// | |                                    |       wait here
+/// | [UpdateSuite?]                       |
+/// |   |                                  |
+/// |   Yes              write_lock(update)| <- If any other task is running
+/// |   | |                   |            |    they will wait here
+/// |   | ...update...        v            |
+/// |   |                unlock(update)    |
+/// |   No                                 |
+/// |                                      |
+/// RunTestSuite ------> read_lock(update) |  <- Tasks should not wait here
+/// |                          |           |
+/// | <------------------------+---unlock(modify)
+/// | |                        |
+/// | ...run...                |
+/// | ...run...                |
+/// | |                        v
+/// FinishRunning <----- unlock(update)
+///                      rc -= 1
+/// ```
+#[derive(Debug, Default)]
+pub struct TestSuiteStatus {
+    /// Reference count of this test suite. If this reaches zero, the
+    /// corresponding map entry should be deallocated.
+    rc: AtomicUsize,
+    /// Lock to obtain when trying to read or update test suite data.
+    ///
+    /// A read lock should be obtained for every job that has reached or passed
+    /// `Compiling` phase and before `Finished`.
+    ///
+    /// A write lock should be obtained for every job that is trying to update
+    /// the test suite data.
+    ///
+    /// This lock is wrapped inside an `Arc<T>` to allow owned access.
+    update: Arc<tokio::sync::RwLock<()>>,
+    /// Lock to obtain when trying to potentially modify test suite data.
+    ///
+    /// Every task should obtain a mutex before trying to check for test suite
+    /// updates.
+    ///
+    /// This lock is wrapped inside an `Arc<T>` to allow owned access.
+    modify: Arc<tokio::sync::Mutex<()>>,
+}
+
+pub struct TestSuiteRunningGuard {
+    client_data: Arc<SharedClientData>,
+    suite_id: FlowSnake,
+}
+
+impl Drop for TestSuiteRunningGuard {
+    fn drop(&mut self) {
+        self.client_data.suite_drop(self.suite_id);
     }
 }

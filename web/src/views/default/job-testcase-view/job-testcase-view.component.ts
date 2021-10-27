@@ -6,12 +6,21 @@ import {
   TestResult,
   FailedTestcaseOutput,
   unDiff,
+  formatExistStatus,
+  isExitStatusZero,
 } from 'src/models/job-items';
 
 import JobIcon from '@iconify/icons-carbon/list-checked';
 import ReportIcon from '@iconify/icons-carbon/report';
 import { TitleService } from 'src/services/title_service';
 import { ApiService } from 'src/services/api_service';
+import Convert from 'ansi-to-html';
+
+const converter = new Convert({
+  fg: 'var(--alt-primary)',
+  bg: 'var(--background-color)',
+  newline: true,
+});
 
 @Component({
   selector: 'app-job-testcase-view',
@@ -68,6 +77,13 @@ export class JobTestcaseViewComponent implements OnInit, OnDestroy {
       },
       error: () => {},
     });
+  }
+
+  formatExitStatus = formatExistStatus;
+  isExitStatusZero = isExitStatusZero;
+
+  formatStdoutOrStderr(s: string): string {
+    return converter.toHtml(s);
   }
 
   fetchTestCaseOutput() {

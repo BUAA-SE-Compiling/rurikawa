@@ -1,15 +1,14 @@
-use clap::Clap;
+use clap::Parser;
 use clap::{crate_authors, crate_license, crate_version};
 use std::path::PathBuf;
 
 /// The judger client of the online judging platform Rurikawa OJ.
-#[derive(Clap, Debug, Clone)]
+#[derive(Parser, Debug, Clone)]
 #[clap(
     version = crate_version!(),
     author = crate_authors!(),
     license = crate_license!(),
     after_help = "Visit https://github.com/BUAA-SE-Compiling/rurikawa for source.",
-    setting = clap::AppSettings::ColoredHelp
 )]
 pub struct Opts {
     #[clap(subcommand)]
@@ -19,18 +18,18 @@ pub struct Opts {
     pub opt: GlobalOpts,
 }
 
-#[derive(Clap, Debug, Clone)]
+#[derive(Parser, Debug, Clone)]
 pub struct GlobalOpts {
-    #[clap(long, short = 'l', default_value = "info", env = "LOG_LEVEL")]
-    pub log_level: tracing::level_filters::LevelFilter,
+    #[clap(long, short = 'l')]
+    pub log_level: Option<tracing::level_filters::LevelFilter>,
     // #[clap(long = "docker")]
     // pub docker_path: String,
 }
 
-#[derive(Clap, Debug, Clone)]
+#[derive(Parser, Debug, Clone)]
 pub enum SubCmd {
     /// Run as a long-running runner instance (which is the only available way to run)
-    #[clap(name = "connect", setting = clap::AppSettings::ColoredHelp)]
+    #[clap(name = "connect")]
     Connect(ConnectSubCmd),
 
     /// Run a single test job in local environment
@@ -38,16 +37,16 @@ pub enum SubCmd {
     Run(RunSubCmd),
 }
 
-#[derive(Clap, Debug, Clone)]
+#[derive(Parser, Debug, Clone)]
 pub struct ConnectSubCmd {
     /// The coordinator's address (include port if needed).
     /// The previous host will be used if not supplied.
     #[clap(env = "RURIKAWA_HOST")]
     pub host: Option<String>,
 
-    /// Supply or override SSL settings
-    #[clap(long, short, env = "RURIKAWA_SSL")]
-    pub ssl: Option<bool>,
+    /// Supply or override TLS settings
+    #[clap(long, alias = "ssl", env = "RURIKAWA_SSL", env = "RURIKAWA_TLS")]
+    pub tls: Option<bool>,
 
     /// Max task count that can be runned concurrently.
     #[clap(long, short, env = "RURIKAWA_CONCURRENT_TASKS")]
@@ -88,7 +87,7 @@ pub struct ConnectSubCmd {
     pub no_save: bool,
 }
 
-#[derive(Clap, Debug, Clone)]
+#[derive(Parser, Debug, Clone)]
 pub struct RunSubCmd {
     /// The job to run. Either specify a folder where `judge.toml` can be found
     /// in it or its subfolders, or specify a file to be used as `judge.toml`.

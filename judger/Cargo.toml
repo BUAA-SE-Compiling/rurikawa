@@ -5,31 +5,26 @@ authors = [
 ]
 edition = "2018"
 name = "rurikawa-judger"
-version = "0.4.1"
+version = "0.5.0-alpha.1"
 
 [[bin]]
 name = "rurikawa"
 path = "src/main.rs"
 
-[profile.release]
-debug = 0
-# lto = true
-opt-level = "z"
-
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 [dependencies]
-anyhow = "*"
+anyhow = { version = "*", features = ["backtrace"] }
 arc-swap = "1.0.0"
 async-compat = "0.2"
 async-pipe = "0.1"
 async-trait = "0.1.42"
 bollard = "0.11"
-broadcaster = { version = "1.0.0", features = ["default-channels"] }
 bytes = "1"
 chrono = "0.4.19"
-clap = "3.0.0-beta.4"
+clap = "3.0.0-beta.5"
 ctrlc = "3.1.7"
 dashmap = "4"
+derive_builder = "0.10.2"
 difference = "2.0.0"
 dirs = "4"
 drop_bomb = "0.1.5"
@@ -59,10 +54,9 @@ rquickjs = { version = "0.1.1", features = [
     "futures",
     "macro",
 ] }
+scopeguard = "1.1"
 serde = { version = "1.0.118", features = ["derive", "rc"] }
 serde_json = "1.0.60"
-shell-words = "1"
-tar = "0.4.30"
 tokio = { version = "1", features = ["full"] }
 tokio-tar = "0.3.0"
 tokio-stream = { version = "0.1", features = ["fs", "io-util"] }
@@ -77,4 +71,8 @@ respector = "0.1.1"
 
 [dev-dependencies]
 pretty_assertions = "1"
-tokio-test = "0.4"
+shellexpand = "2.1"
+shell-words = "1"
+test-env-log = { version = "0.2", features = [
+    "trace",
+], default-features = false }

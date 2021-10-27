@@ -3,11 +3,13 @@
 //!
 
 use bytes::BytesMut;
-use futures::{Future, FutureExt};
+use futures::{future::BoxFuture, FutureExt};
 use ignore::gitignore::{Gitignore, GitignoreBuilder};
-use std::{path::Path, pin::Pin};
-use tokio::io::AsyncWrite;
-use tokio::task::JoinHandle;
+use std::path::Path;
+use tokio::{
+    io::{self, AsyncWrite},
+    task::JoinHandle,
+};
 use tokio_stream::Stream;
 use tokio_tar::{Builder, Header};
 
@@ -18,10 +20,9 @@ pub fn ignore_from_string_list<'a>(
 ) -> std::io::Result<Gitignore> {
     input
         .fold(GitignoreBuilder::new(&root), |mut builder, x| {
-            match builder.add_line(None, x) {
-                Ok(_) => (),
-                Err(e) => tracing::error!("Invalid ignore pattern: {}", e),
-            };
+            let _ = builder
+                .add_line(None, x)
+                .map_err(|e| tracing::error!("Invalid ignore pattern: {}", e));
             builder
         })
         .build()
@@ -36,13 +37,10 @@ pub fn ignore_from_string_list<'a>(
 pub fn pack_as_tar(
     path: &Path,
     ignore: Gitignore,
-) -> Result<
-    (
-        impl Stream<Item = Result<BytesMut, std::io::Error>> + 'static,
-        JoinHandle<Result<(), std::io::Error>>,
-    ),
-    std::io::Error,
-> {
+) -> io::Result<(
+    impl Stream<Item = io::Result<BytesMut>> + 'static,
+    JoinHandle<io::Result<()>>,
+)> {
     let (pipe_recv, pipe_send) = tokio::io::duplex(8192);
     let read_codec = tokio_util::codec::BytesCodec::new();
     let frame = tokio_util::codec::FramedRead::new(pipe_send, read_codec);
@@ -67,7 +65,7 @@ fn add_dir_glob<'a, W: AsyncWrite + Send + Sync + Unpin>(
     dir: &'a Path,
     glob: &'a Gitignore,
     tar: &'a mut Builder<W>,
-) -> Pin<Box<dyn Future<Output = Result<(), std::io::Error>> + Send + 'a>> {
+) -> BoxFuture<'a, std::io::Result<()>> {
     async move {
         let mut read_dir = tokio::fs::read_dir(dir).await?;
         while let Some(next) = read_dir.next_entry().await? {

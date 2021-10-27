@@ -3,10 +3,8 @@
 //!
 //! Read more about SPJ in `/docs/dev-manual/special-judger.md`
 
-use super::{
-    model::{JudgerPublicConfig, RawStep, TestCase},
-    ProcessInfo,
-};
+use super::model::{JudgerPublicConfig, RawStep};
+use crate::runner::model::ProcessOutput;
 use anyhow::Context as AnyhowCtx;
 use rquickjs::{Context, FromJs, Function, Promise, Runtime};
 use std::{
@@ -126,14 +124,15 @@ impl SpjEnvironment {
     /// Callback for case init
     pub async fn spj_case_init(
         &self,
-        case: &TestCase,
-        mappings: &HashMap<String, String>,
+        // case: &TestCase,
+        _mappings: &HashMap<String, String>,
     ) -> anyhow::Result<()> {
-        run_promise_like!(self.ctx, SPJ_CASE_INIT_FN, (case, mappings), |x| x).map_err(|e| e.into())
+        // run_promise_like!(self.ctx, SPJ_CASE_INIT_FN, (case, mappings), |x| x).map_err(|e| e.into())
+        todo!()
     }
 
     /// Callback for case judging
-    pub async fn spj_case_judge(&self, results: &[ProcessInfo]) -> anyhow::Result<SpjResult> {
+    pub async fn spj_case_judge(&self, results: &[ProcessOutput]) -> anyhow::Result<SpjResult> {
         run_promise_like!(self.ctx, SPJ_CASE_FN, (results,), |x| x).map_err(|e| e.into())
     }
 
@@ -363,51 +362,5 @@ mod binding {
         use crate::tester::utils::diff;
         let (eq, diff) = diff(&src, &dst);
         DiffResult { eq, diff }
-    }
-}
-
-#[cfg(test)]
-mod test {
-    use crate::tester::model::{Bind, JudgerPublicConfig};
-    use std::{collections::HashMap, path::PathBuf};
-
-    #[tokio::test]
-    async fn test_spj_async() {
-        let script = r"
-        function specialJudgeInit(config){
-            return new Promise((res, rej)=>{
-                console.log('hi')
-                console.log('hi there')
-                res()
-            })
-        }
-        ";
-        let mut spj = super::SpjEnvironment::new().unwrap();
-        let config = JudgerPublicConfig {
-            time_limit: None,
-            memory_limit: None,
-            name: "golem".into(),
-            test_groups: HashMap::new(),
-            vars: HashMap::new(),
-            run: vec![],
-            test_ignore: None,
-            mapped_dir: Bind {
-                from: PathBuf::from(r"../golem/src"),
-                to: PathBuf::from(r"/golem/src"),
-            },
-            binds: Some(vec![]),
-            special_judge_script: None,
-            network: super::super::model::NetworkOptions {
-                enable_running: true,
-                enable_build: true,
-            },
-        };
-
-        spj.load_script(script).unwrap();
-        spj.with_console_env("SPJ".into()).unwrap();
-        spj.spawn_futures().await;
-        eprintln!("start");
-        spj.spj_global_init(&config).await.unwrap();
-        eprintln!("end");
     }
 }

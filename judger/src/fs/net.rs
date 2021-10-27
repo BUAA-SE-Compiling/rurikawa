@@ -1,10 +1,9 @@
 //! Functions to download stuff into destinations
 
-use anyhow::Context;
 use async_compat::CompatExt;
 use futures::TryStreamExt;
 use std::{fmt::Write, path::Path};
-use tokio::{io::AsyncWriteExt, process::Command};
+use tokio::process::Command;
 use tokio_tar::Archive;
 
 #[derive(Debug)]

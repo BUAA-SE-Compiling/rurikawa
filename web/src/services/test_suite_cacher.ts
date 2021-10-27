@@ -115,6 +115,10 @@ export class TestSuiteAndJobCache {
       if (msg.buildOutputFile !== undefined) {
         job.buildOutputFile = msg.buildOutputFile;
       }
+      if (job.stage == 'Finished') {
+        this.getJob(msg.jobId, true, false);
+        this.stopTrackingJob(msg.jobId);
+      }
     }
   }
 

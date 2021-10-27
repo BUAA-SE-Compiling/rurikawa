@@ -2,3 +2,4 @@
 docker-compose.yml
 redis.conf
 *.Caddyfile
+/target

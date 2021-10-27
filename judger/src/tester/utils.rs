@@ -1,4 +1,5 @@
 use difference::{Changeset, Difference};
+use std::borrow::Cow;
 
 /// Returns if the two `&str`s are **different**, along with a diff String of the two.
 ///
@@ -47,12 +48,16 @@ pub fn diff<'a>(got: &'a str, expected: &'a str) -> (bool, String) {
         match diff {
             Difference::Same(s) => add_diff_ln(' ', &s),
             Difference::Add(s) => {
-                add_diff_ln('+', &s);
-                different = true;
+                if !s.is_empty() {
+                    add_diff_ln('+', &s);
+                    different = true;
+                }
             }
             Difference::Rem(s) => {
-                add_diff_ln('-', &s);
-                different = true
+                if !s.is_empty() {
+                    add_diff_ln('-', &s);
+                    different = true;
+                }
             }
         }
     }
@@ -60,26 +65,29 @@ pub fn diff<'a>(got: &'a str, expected: &'a str) -> (bool, String) {
     (different, changes)
 }
 
-/// Describes a signal code (>=0) in `unix`. Returns [`None`] otherwise.
+/// Describes a signal code (>=0) in `unix`. Returns signal number otherwise.
 ///
 /// # Examples
 /// ```rust
-/// #[cfg(unix)]
+/// #[cfg(linux)]
 /// {
 ///     use rurikawa_judger::tester::utils::strsignal;
 ///
 ///     let sig = strsignal(1);
-///     assert_eq!(dbg!(sig), Some("SIGHUP"));
+///     assert_eq!(sig.as_ref(), "SIGHUP");
 /// }
 /// ```
 #[cfg(unix)]
-pub fn strsignal(signal: i32) -> Option<&'static str> {
+pub fn strsignal(signal: i32) -> Cow<'static, str> {
     use nix::sys::signal::Signal;
     use std::convert::TryFrom;
-    Signal::try_from(signal).ok().map(|sig| sig.as_str())
+    Signal::try_from(signal).ok().map_or_else(
+        || format!("Signal {}", signal).into(),
+        |sig| sig.as_str().into(),
+    )
 }
 
-/// Describes a signal code (>=0) in `unix`. Returns [`None`] otherwise.
+/// Describes a signal code (>=0) in `unix`. Returns signal number otherwise.
 ///
 /// # Examples
 /// ```rust
@@ -88,12 +96,12 @@ pub fn strsignal(signal: i32) -> Option<&'static str> {
 ///     use rurikawa_judger::tester::utils::strsignal;
 ///
 ///     let sig = strsignal(1);
-///     assert_eq!(dbg!(sig), None);
+///     assert_eq!(sig.as_ref(), "Signal 1");
 /// }
 /// ```
 #[cfg(not(unix))]
-pub fn strsignal(signal: i32) -> Option<&'static str> {
-    None
+pub fn strsignal(_signal: i32) -> Cow<'static, str> {
+    format!("Signal {}", _signal).into()
 }
 
 /// Convert a signal (128-254) to a minus error code, retain the others.

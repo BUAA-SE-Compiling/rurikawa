@@ -1,5 +1,6 @@
 use anyhow::Result;
 use bollard::models::Mount;
+use err_derive::Error;
 use names::{Generator, Name};
 use path_absolutize::Absolutize;
 use rquickjs::{FromJs, IntoJsByRef};
@@ -11,6 +12,74 @@ use std::{
     string::String,
 };
 
+#[derive(Debug, Clone, Serialize, Deserialize, Eq, PartialEq)]
+pub enum ExecErrorKind {
+    RuntimeError(String),
+    ReturnCodeCheckFailed,
+    TimedOut,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Eq, PartialEq)]
+pub struct SpjFailure {
+    pub reason: Option<String>,
+    pub diff: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Eq, PartialEq, Error)]
+#[error(display = "Execution error when running `{}`: {:?}", command, kind)]
+pub struct ExecError {
+    pub command: String,
+    pub kind: ExecErrorKind,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Eq, PartialEq)]
+pub struct ShouldFailFailure;
+
+#[derive(Debug, Error)]
+pub enum BuildError {
+    #[error(display = "Failed to pull image: {}", _0)]
+    ImagePullFailure(String),
+    #[error(display = "Failed to transfer file into container: {}", _0)]
+    FileTransferError(String),
+    #[error(display = "Failed to build image: {}; detail: {:?}", error, detail)]
+    BuildError {
+        error: String,
+        detail: Option<bollard::models::ErrorDetail>,
+    },
+    #[error(display = "Internal error: {}", _0)]
+    Internal(anyhow::Error),
+    #[error(display = "The build was cancelled")]
+    Cancelled,
+    #[error(display = "The build timed out")]
+    Timeout,
+}
+
+#[derive(Debug, Error)]
+pub enum JobFailure {
+    #[error(display = "Output mismatch")]
+    OutputMismatch(String),
+    #[error(display = "Special judger determined that it's wrong: {:#?}", _0)]
+    SpjWrongAnswer(SpjFailure),
+    #[error(display = "Execution error: {}", _0)]
+    ExecError(ExecError),
+    #[error(display = "Internal error: {}", _0)]
+    InternalError(anyhow::Error),
+    #[error(display = "The test should fail but it didn't")]
+    ShouldFail(ShouldFailFailure),
+    #[error(display = "Cancelled")]
+    Cancelled,
+}
+
+impl JobFailure {
+    /// Make a new `InternalError`, the lazy way.
+    pub fn internal_err_from<D>(error: D) -> JobFailure
+    where
+        D: Into<anyhow::Error>,
+    {
+        JobFailure::InternalError(error.into())
+    }
+}
+
 /// A Host-to-container volume binding for the container.
 #[derive(Serialize, Deserialize, Debug, Clone, Default)]
 #[serde(rename_all = "camelCase")]
@@ -18,7 +87,7 @@ pub struct Bind {
     /// Absolute/Relative `from` path (in the host machine).
     pub from: PathBuf,
     /// Absolute `to` path (in the container).
-    pub to: PathBuf,
+    pub to: String,
     // Note: Removed readonly option here, since all binds should be readonly
     // for security reasons.
 }
@@ -30,7 +99,7 @@ impl Bind {
 
     pub fn to_mount(&self) -> Mount {
         Mount {
-            target: Some(self.to.display().to_string()),
+            target: Some(self.to.to_string()),
             source: Some(self.from.display().to_string()),
             typ: Some(bollard::models::MountTypeEnum::BIND),
             // all binds should be readonly for security reasons.
@@ -59,19 +128,37 @@ pub enum Image {
     Prebuilt { tag: String },
     /// An image to be built with a Dockerfile.
     Dockerfile {
-        /// Name to be assigned to the image.
-        /// If no `tag` is given, a placeholder will be generated automatically.
-        #[serde(default = "random_tag")]
-        tag: String,
         /// Path of the context directory, must be relative to the current directory.
         path: PathBuf,
         /// Path of the dockerfile itself, relative to the context directory.
         /// Leaving this value to None means using the default dockerfile: `path/Dockerfile`.
-        file: Option<PathBuf>,
+        file: Option<String>,
     },
 }
 
-fn random_tag() -> String {
+impl<'js, 'a> rquickjs::IntoJs<'js> for &'a Image {
+    fn into_js(self, ctx: rquickjs::Ctx<'js>) -> rquickjs::Result<rquickjs::Value<'js>> {
+        Ok(match self {
+            Image::Prebuilt { tag } => {
+                let obj = rquickjs::Object::new(ctx)?;
+                obj.set("source", "image")?;
+                obj.set("tag", tag)?;
+                obj.into_value()
+            }
+            Image::Dockerfile { path, file } => {
+                let obj = rquickjs::Object::new(ctx)?;
+                obj.set("source", "dockerfile")?;
+                obj.set("path", path.display().to_string())?;
+                if let Some(file) = file {
+                    obj.set("file", file)?;
+                }
+                obj.into_value()
+            }
+        })
+    }
+}
+
+pub fn random_tag() -> String {
     Generator::with_naming(Name::Plain).next().unwrap()
 }
 
@@ -101,13 +188,12 @@ impl FromStr for TestCaseDefinition {
     }
 }
 
-/// Judger's public config, specific to a paticular repository,
-/// Maintained by the owner of the project to be tested.
+/// The contents of `testconf.json`.
 #[derive(Serialize, Deserialize, Debug, Clone, IntoJsByRef, Default)]
 #[serde(rename_all = "camelCase")]
 #[quickjs(rename_all = "camelCase")]
 pub struct JudgerPublicConfig {
-    pub time_limit: Option<i32>,
+    pub time_limit: Option<f64>,
     pub memory_limit: Option<i32>,
     pub name: String,
     pub test_groups: HashMap<String, Vec<TestCaseDefinition>>,
@@ -121,9 +207,15 @@ pub struct JudgerPublicConfig {
     /// Sequence of commands necessary to perform an IO check.
     pub run: Vec<String>,
 
-    /// The path of test root directory to be mapped inside test container
+    /// The path of files to be **copied** into the container and mapped into test cases
     #[quickjs(skip)]
     pub mapped_dir: Bind,
+
+    /// The path of other files that should be copied into the container.
+    /// (because otherwise they cannot be mounted readonly)
+    #[quickjs(skip)]
+    #[serde(default, deserialize_with = "crate::util::single_or_array")]
+    pub copies: Vec<Bind>,
 
     /// The glob pattern file for files to be ignored when sending to test root
     #[quickjs(skip)]
@@ -133,7 +225,8 @@ pub struct JudgerPublicConfig {
     /// always readonly for security reasons.**
     /// For details see [here](https://docs.rs/bollard/0.7.2/bollard/service/struct.HostConfig.html#structfield.binds).
     #[quickjs(skip)]
-    pub binds: Option<Vec<Bind>>,
+    #[serde(default, alias = "mounts", alias = "volumes")]
+    pub binds: Vec<Bind>,
 
     /// Path to the special judger script.
     ///
@@ -144,6 +237,33 @@ pub struct JudgerPublicConfig {
     /// Network options applied to this config
     #[serde(default)]
     pub network: NetworkOptions,
+
+    /// Test suite execution kind. See [`JudgeExecKind`] for more information.
+    #[serde(default)]
+    pub exec_kind: JudgeExecKind,
+
+    /// Test suite execution environment.
+    #[serde(default)]
+    pub exec_environment: Option<Image>,
+}
+
+/// Judger execution kind of the specific test suite
+#[derive(Serialize, Deserialize, Debug, Clone, IntoJsByRef, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+#[quickjs(rename_all = "camelCase")]
+pub enum JudgeExecKind {
+    /// Legacy execution, i.e. execute everything in one single container
+    Legacy,
+    /// Isolated execution, i.e. execute user code and judger code in different containers,
+    /// only sharing data specified by [`JudgerPublicConfig::binds`] and
+    /// [`JudgerPublicConfig::mapped_dir`].
+    Isolated,
+}
+
+impl Default for JudgeExecKind {
+    fn default() -> Self {
+        JudgeExecKind::Legacy
+    }
 }
 
 /// Network options for judge containers.
@@ -180,36 +300,6 @@ impl NetworkOptions {
 pub struct RawStep {
     pub command: String,
     pub is_user_command: bool,
-}
-
-/// Judger's private config, specific to a host machine.
-#[derive(Serialize, Deserialize, Debug, Clone)]
-pub struct JudgerPrivateConfig {
-    /// Directory of test sources files (including `stdin` and `stdout` files)
-    /// outside the container.
-    pub test_root_dir: PathBuf,
-    /// Directory of test sources files inside the container.
-    pub mapped_test_root_dir: PathBuf,
-}
-
-/// The public representation of a test.
-#[derive(Serialize, Deserialize, Debug, Clone, IntoJsByRef)]
-#[quickjs(rename_all = "camelCase")]
-pub struct TestCase {
-    /// File name of the test case.
-    pub name: String,
-    /// Expected `stdout` of the last command.
-    pub expected_out: Option<String>,
-    /// Should this test case fail
-    pub should_fail: bool,
-
-    /// Baseline score for this test case
-    #[serde(default = "default_base_score")]
-    pub base_score: f64,
-}
-
-fn default_base_score() -> f64 {
-    1.0
 }
 
 /// Initialization options for `Testsuite`.

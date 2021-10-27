@@ -1,6 +1,7 @@
 use crate::{
     prelude::FlowSnake,
-    tester::{ExecErrorKind, JobFailure, ProcessInfo},
+    runner::model::ProcessOutput,
+    tester::model::{ExecErrorKind, JobFailure, SpjFailure},
 };
 use respector::prelude::*;
 use serde::{Deserialize, Serialize};
@@ -46,6 +47,11 @@ pub struct Job {
     pub results: HashMap<String, TestResult>,
 }
 
+/// Specification of a test suite, returned by the server.
+///
+/// This type is essentially the same as [`crate::tester::model::JudgerPublicConfig`],
+/// but that type is the raw value stored test suite itself, while this is what gets stored
+/// in the server's database.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct TestSuite {
@@ -158,99 +164,66 @@ impl ToScore for () {
     }
 }
 
-impl TestResult {
-    /// Convert a job result into a protocol-compatible `TestResult`
-    pub fn from_result<S: ToScore>(
-        result: Result<S, JobFailure>,
-        base_score: f64,
-    ) -> (TestResult, Option<FailedJobOutputCacheFile>) {
-        match result {
-            Ok(s) => (
-                TestResult {
-                    kind: TestResultKind::Accepted,
-                    score: s.to_score().map(|x| x * base_score),
-                    result_file_id: None,
-                },
+pub async fn transform_and_upload_test_result(
+    failure: Result<impl ToScore, JobFailure>,
+    output: Vec<ProcessOutput>,
+    upload_info: Arc<ResultUploadConfig>,
+    test_id: &str,
+) -> TestResult {
+    let score = failure.as_ref().ok().and_then(ToScore::to_score);
+    let (result_kind, message, stdout_diff) = match failure {
+        Ok(_) => (TestResultKind::Accepted, "".to_string().into(), None),
+        Err(e) => match e {
+            JobFailure::OutputMismatch(diff) => (
+                TestResultKind::WrongAnswer,
+                "The standard output of the program does not match the expected output."
+                    .to_string()
+                    .into(),
+                Some(diff),
+            ),
+            JobFailure::SpjWrongAnswer(SpjFailure { diff, reason }) => {
+                (TestResultKind::WrongAnswer, reason, diff)
+            }
+            JobFailure::ExecError(e) => match e.kind {
+                ExecErrorKind::RuntimeError(err) => (TestResultKind::RuntimeError, Some(err), None),
+                ExecErrorKind::ReturnCodeCheckFailed => (
+                    TestResultKind::PipelineFailed,
+                    Some("Some program's return code is not 0".into()),
+                    None,
+                ),
+                ExecErrorKind::TimedOut => (
+                    TestResultKind::TimeLimitExceeded,
+                    Some("The user's program has exceeded its maximum execution time.".into()),
+                    None,
+                ),
+            },
+            JobFailure::InternalError(e) => (TestResultKind::OtherError, Some(e.to_string()), None),
+            JobFailure::ShouldFail(_) => (
+                TestResultKind::ShouldFail,
+                Some("The tested program should return a non-zero number at some point".into()),
                 None,
             ),
-            Err(e) => {
-                let (kind, cache) = match e {
-                    JobFailure::OutputMismatch(m) => (
-                        TestResultKind::WrongAnswer,
-                        Some(FailedJobOutputCacheFile {
-                            output: m.output,
-                            stdout_diff: Some(m.diff),
-                            message: None,
-                        }),
-                    ),
+            JobFailure::Cancelled => (TestResultKind::NotRan, None, None),
+        },
+    };
 
-                    JobFailure::ExecError(e) => {
-                        let (res, msg) = match e.kind {
-                            ExecErrorKind::RuntimeError(e) => {
-                                (TestResultKind::RuntimeError, Some(e))
-                            }
-                            ExecErrorKind::ReturnCodeCheckFailed => (
-                                TestResultKind::PipelineFailed,
-                                Some("Some command's return code is not 0".into()),
-                            ),
-                            ExecErrorKind::TimedOut => (TestResultKind::TimeLimitExceeded, None),
-                        };
-                        (
-                            res,
-                            Some(FailedJobOutputCacheFile {
-                                output: e.output,
-                                stdout_diff: None,
-                                message: msg,
-                            }),
-                        )
-                    }
+    let output_file = JobOutputFile {
+        output,
+        stdout_diff,
+        message,
+    };
 
-                    JobFailure::InternalError(e) => (
-                        TestResultKind::OtherError,
-                        Some(FailedJobOutputCacheFile {
-                            output: Vec::new(),
-                            stdout_diff: None,
-                            message: Some(e),
-                        }),
-                    ),
+    let result_file_id = upload_test_result(output_file, upload_info, test_id).await;
 
-                    JobFailure::ShouldFail(out) => (
-                        TestResultKind::ShouldFail,
-                        Some(FailedJobOutputCacheFile {
-                            output: out.output,
-                            stdout_diff: None,
-                            message: Some(
-                                "One of the commands should return a non-zero value".into(),
-                            ),
-                        }),
-                    ),
-
-                    JobFailure::Cancelled => (TestResultKind::NotRan, None),
-                    JobFailure::SpjWrongAnswer(out) => (
-                        TestResultKind::WrongAnswer,
-                        Some(FailedJobOutputCacheFile {
-                            output: out.output,
-                            stdout_diff: out.diff,
-                            message: out.reason,
-                        }),
-                    ),
-                };
-
-                (
-                    TestResult {
-                        kind,
-                        score: None,
-                        result_file_id: None,
-                    },
-                    cache,
-                )
-            }
-        }
+    TestResult {
+        kind: result_kind,
+        score,
+        result_file_id,
     }
 }
 
 pub async fn upload_test_result(
-    f: FailedJobOutputCacheFile,
+    f: JobOutputFile,
     upload_info: Arc<ResultUploadConfig>,
     test_id: &str,
 ) -> Option<String> {
@@ -332,8 +305,8 @@ pub struct JobRequestMsg {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct FailedJobOutputCacheFile {
-    pub output: Vec<ProcessInfo>,
+pub struct JobOutputFile {
+    pub output: Vec<ProcessOutput>,
     pub stdout_diff: Option<String>,
     pub message: Option<String>,
 }

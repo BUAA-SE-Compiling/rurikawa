@@ -1,4 +1,4 @@
-use clap::Clap;
+use clap::Parser;
 use dirs::home_dir;
 use once_cell::sync::OnceCell;
 use rurikawa_judger::{
@@ -16,7 +16,8 @@ use std::{
     },
     time::Duration,
 };
-use tracing_subscriber::FmtSubscriber;
+use tracing::metadata::LevelFilter;
+use tracing_subscriber::{EnvFilter, FmtSubscriber};
 
 mod opt;
 
@@ -28,11 +29,7 @@ fn main() {
     let opt = opt::Opts::parse();
     tracing_log::LogTracer::builder().init().unwrap();
 
-    let subscriber = FmtSubscriber::builder()
-        .with_max_level(opt.opt.log_level)
-        .finish();
-
-    tracing::subscriber::set_global_default(subscriber).expect("setting default subscriber failed");
+    configure_logger(&opt);
 
     ctrlc::set_handler(handle_ctrl_c).expect("Failed to set termination handler!");
 
@@ -41,6 +38,31 @@ fn main() {
         .build()
         .expect("Failed to initialize runtime");
     rt.block_on(async_main(opt));
+}
+
+fn configure_logger(opt: &opt::Opts) {
+    let subscriber_builder = FmtSubscriber::builder();
+    let subscriber;
+    if let Some(level) = opt.opt.log_level {
+        subscriber = subscriber_builder
+            .with_env_filter(EnvFilter::new(level.to_string()))
+            .finish();
+    } else {
+        let filter = EnvFilter::try_from_default_env();
+        match filter {
+            Ok(filter) => subscriber = subscriber_builder.with_env_filter(filter).finish(),
+            Err(e) => {
+                eprintln!(
+                    "No valid loglevel specified. Resorting to RUST_LOG=info.\nError: {}",
+                    e,
+                );
+                subscriber = subscriber_builder
+                    .with_env_filter(EnvFilter::new("info"))
+                    .finish();
+            }
+        }
+    }
+    tracing::subscriber::set_global_default(subscriber).expect("setting default subscriber failed");
 }
 
 async fn async_main(opt: opt::Opts) {
@@ -88,7 +110,7 @@ fn override_config_using_cmd(cmd: &opt::ConnectSubCmd, cfg: &mut ClientConfig) {
     if let Some(cnt) = cmd.concurrent_tasks {
         cfg.max_concurrent_tasks = cnt;
     }
-    if let Some(ssl) = cmd.ssl {
+    if let Some(ssl) = cmd.tls {
         cfg.ssl = ssl;
     }
     if let Some(host) = cmd.host.clone() {
@@ -147,7 +169,7 @@ async fn client(cmd: opt::ConnectSubCmd) {
     }
 
     let client_config = Arc::new(cfg);
-    let handle = client_config.cancel_handle.clone();
+    let handle = client_config.abort_handle.clone();
     ABORT_HANDLE.set(handle).unwrap();
 
     const START_WAIT_TIME: Duration = Duration::from_millis(250);
@@ -172,7 +194,7 @@ async fn client(cmd: opt::ConnectSubCmd) {
         client_sink.load_socket(sink);
 
         client_loop(stream, client_sink.clone(), client_config.clone()).await;
-        if client_config.cancel_handle.is_cancelled() {
+        if client_config.abort_handle.is_cancelled() {
             break;
         }
     }

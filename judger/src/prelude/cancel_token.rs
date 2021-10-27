@@ -13,7 +13,7 @@ pub trait CancelFutureExt {
 
     /// Execute this task with the given cancellation token, returning `None`
     /// if the task is being cancelled and `Some(output)` otherwise.
-    async fn with_cancel(self, mut cancel: CancellationTokenHandle) -> Option<Self::Output>;
+    async fn with_cancel(self, mut cancel: CancellationToken<'_>) -> Option<Self::Output>;
 }
 
 #[async_trait]
@@ -23,12 +23,12 @@ where
 {
     type Output = T::Output;
 
-    async fn with_cancel(self, cancel: CancellationTokenHandle) -> Option<T::Output> {
+    async fn with_cancel(self, cancel: CancellationToken<'_>) -> Option<T::Output> {
         let self_ = self.fuse();
         pin_mut!(self_);
 
         tokio::select! {
-            _abort = cancel.cancelled() => None,
+            _abort = cancel => None,
             fut = self_ => Some(fut)
         }
     }
