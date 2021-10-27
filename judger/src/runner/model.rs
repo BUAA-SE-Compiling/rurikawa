@@ -17,6 +17,7 @@ pub struct ProcessOutput {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Eq, PartialEq, IntoJsByRef)]
+#[serde(rename_all = "camelCase")]
 pub enum ExitStatus {
     ReturnCode(i64),
     Signal(u32),

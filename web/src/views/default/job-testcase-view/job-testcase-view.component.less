@@ -89,6 +89,19 @@
   align-items: stretch;
   margin-bottom: var(--space-4);
 
+  .container {
+    font-family: var(--font-family-mono);
+    font-size: var(--font-size-smaller);
+    font-style: italic;
+    color: var(--secondary-color);
+
+    white-space: nowrap;
+    text-overflow: ellipsis;
+    overflow: hidden;
+    max-lines: 1;
+    max-height: 1.2em;
+  }
+
   .command {
     font-family: var(--font-family-mono);
     font-size: var(--font-size-smaller);
@@ -113,6 +126,7 @@
 
     pre {
       .margin-y(0);
+      overflow-x: auto;
     }
   }
 

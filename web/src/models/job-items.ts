@@ -131,10 +131,49 @@ export interface Job {
 }
 
 export interface ProcessInfo {
-  ret_code: number;
+  ret_code: ExitStatus;
   command: string;
   stdout: string;
   stderr: string;
+  runned_inside?: string;
+}
+
+export interface ReturnCodeExitStatus {
+  returnCode: number;
+}
+
+export interface SignalExitStatus {
+  signal: number;
+}
+
+export type TimeoutExitStatus = 'timeout';
+
+export type UnknownExitStatus = 'unknown';
+
+export type ExitStatus =
+  | ReturnCodeExitStatus
+  | SignalExitStatus
+  | TimeoutExitStatus
+  | UnknownExitStatus
+  | number;
+
+export function isExitStatusZero(exitStatus: ExitStatus): boolean {
+  return (
+    exitStatus == 0 ||
+    (typeof exitStatus == 'object' &&
+      'returnCode' in exitStatus &&
+      exitStatus.returnCode == 0)
+  );
+}
+
+export function formatExistStatus(exitStatus: ExitStatus): string {
+  if (typeof exitStatus == 'string') return exitStatus;
+  else if (typeof exitStatus == 'number') return exitStatus.toString();
+  else if (typeof exitStatus == 'object') {
+    if ('returnCode' in exitStatus) return exitStatus.returnCode.toString();
+    else if ('signal' in exitStatus) return `Signal ${exitStatus.signal}`;
+    else return JSON.stringify(exitStatus);
+  } else return exitStatus;
 }
 
 export interface FailedTestcaseOutput {
