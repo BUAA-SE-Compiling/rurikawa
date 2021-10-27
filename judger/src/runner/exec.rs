@@ -228,7 +228,11 @@ impl Container {
             ret_code: if timed_out {
                 ExitStatus::Timeout
             } else if let Some(ret_code) = ret_code {
-                ExitStatus::ReturnCode(ret_code)
+                if ret_code >= 0 {
+                    ExitStatus::ReturnCode(ret_code)
+                } else {
+                    ExitStatus::Signal(-ret_code as u32)
+                }
             } else {
                 ExitStatus::Unknown
             },

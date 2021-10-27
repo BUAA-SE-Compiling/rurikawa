@@ -81,8 +81,9 @@ impl std::fmt::Debug for ExecGroup {
 }
 
 /// A whole test case, containing multiple [`ExecGroup`]s.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct TestCase {
+    /// The commands to executed in this test case, grouped by the runner they use.
     pub commands: Vec<ExecGroup>,
 }
 

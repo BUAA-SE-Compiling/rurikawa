@@ -7,6 +7,7 @@ use futures::{Sink, SinkExt};
 use itertools::Itertools;
 use path_slash::PathBufExt;
 
+use crate::config::JudgeTomlTestConfig;
 use crate::runner::{
     model::{CommandRunOptionsBuilder, ProcessOutput},
     CommandRunner,
@@ -15,9 +16,11 @@ use crate::{
     client::model::Job,
     runner::model::{ExecGroup, ExecStep, OutputComparisonSource, TestCase},
 };
-use crate::{config::JudgeTomlTestConfig, tester::model::canonical_join};
 
-use super::model::{JobFailure, JudgeExecKind, JudgerPublicConfig, TestCaseDefinition};
+use super::model::{
+    ExecError, ExecErrorKind, JobFailure, JudgeExecKind, JudgerPublicConfig, ShouldFailFailure,
+    TestCaseDefinition,
+};
 
 /// A raw result that's been generated from running a test case.
 pub struct RawTestCaseResult(
@@ -61,7 +64,7 @@ pub async fn run_job_test_cases<'a>(
         .filter_map(|case| public_cfg_verification_index.get(case.as_str()))
     {
         tracing::debug!(job = %job.id, case = %case.name, "Running test case in job");
-        let runner_case = generate_test_case(
+        let (runner_case, additional_flags) = generate_test_case(
             case,
             public_cfg,
             judge_toml,
@@ -80,6 +83,7 @@ pub async fn run_job_test_cases<'a>(
         });
 
         let case_res = crate::runner::run_test_case(&runner_case, &run_option, sink).await?;
+        let case_res = apply_additional_run_flags(case_res, additional_flags);
         let output = output_collector
             .await
             .expect("Unable to join output collection task. Anything went wrong?");
@@ -95,6 +99,25 @@ pub async fn run_job_test_cases<'a>(
     Ok(())
 }
 
+pub fn apply_additional_run_flags(
+    mut result: Result<(), JobFailure>,
+    additional: AdditionalRunFlags,
+) -> Result<(), JobFailure> {
+    // apply `should_fail` flag, which transforms ReturnCodeCheckFailed into Ok
+    if additional.should_fail {
+        result = match result {
+            Ok(()) => Err(JobFailure::ShouldFail(ShouldFailFailure)),
+            Err(JobFailure::ExecError(ExecError {
+                kind: ExecErrorKind::ReturnCodeCheckFailed,
+                ..
+            })) => Ok(()),
+            other => other,
+        }
+    }
+
+    result
+}
+
 /// Generate a test case from its definition and other configs
 pub fn generate_test_case(
     test_case: &TestCaseDefinition,
@@ -103,13 +126,19 @@ pub fn generate_test_case(
     user_container: Arc<dyn CommandRunner>,
     judger_container: Option<Arc<dyn CommandRunner>>,
     test_suite_base_dir: &Path,
-) -> TestCase {
+) -> (TestCase, AdditionalRunFlags) {
     debug_assert!(
         judger_container.is_some() == (public_cfg.exec_kind == JudgeExecKind::Isolated),
         "should be verified in previous steps"
     );
 
     let has_judger_container = public_cfg.exec_kind == JudgeExecKind::Isolated;
+    // whether this test case should fail. Nah, `should_fail` flags are not
+    // processed in the `runner` module anyway.
+    let should_fail = test_case.should_fail;
+    // whether this test case has output checking.
+    // NOTE: `should_fail` implies `!has_out`.
+    let has_out = test_case.has_out && !should_fail;
 
     let mut run_in_user_container: ExecGroup = ExecGroup {
         run_in: user_container,
@@ -159,7 +188,7 @@ pub fn generate_test_case(
         }
     }
 
-    if test_case.has_out && public_cfg.vars.contains_key("$stdout") {
+    if has_out && public_cfg.vars.contains_key("$stdout") {
         // enable output comparison
         let last_command = run_in_judger_container
             .as_mut()
@@ -184,5 +213,16 @@ pub fn generate_test_case(
         test_case.commands.push(judger_container);
     }
 
-    test_case
+    let additional_run_flags = AdditionalRunFlags { should_fail };
+
+    (test_case, additional_run_flags)
+}
+
+#[derive(Debug)]
+pub struct AdditionalRunFlags {
+    /// Should this test case fail by design?
+    ///
+    /// It will be a failure if this field is `true` and all commands
+    /// in this test case have a `0` exit value.
+    pub should_fail: bool,
 }
