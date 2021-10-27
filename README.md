@@ -12,7 +12,7 @@ Rurikawa（琉璃川）是一个简易的自动评测系统，主要面向构建
 - Git repository submission (plus, it's the only way to submit, so you always have your submission versioned)
 - Customize assignment building scripts using Dockerfile
 - Standalone judgers (judger tags coming soon™)
-- "Special judge" scripts for complex judging dynamic scoring
+- ~~"Special judge" scripts for complex judging dynamic scoring~~ Not yet available in v0.5.0
 - Horizontally-scalable backend design
 
 ### Not-yet implemented
