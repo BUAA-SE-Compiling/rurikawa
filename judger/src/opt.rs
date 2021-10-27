@@ -20,8 +20,8 @@ pub struct Opts {
 
 #[derive(Parser, Debug, Clone)]
 pub struct GlobalOpts {
-    #[clap(long, short = 'l', default_value = "info", env = "LOG_LEVEL")]
-    pub log_level: tracing::level_filters::LevelFilter,
+    #[clap(long, short = 'l')]
+    pub log_level: Option<tracing::level_filters::LevelFilter>,
     // #[clap(long = "docker")]
     // pub docker_path: String,
 }

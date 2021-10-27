@@ -16,6 +16,7 @@ use std::{
     },
     time::Duration,
 };
+use tracing::metadata::LevelFilter;
 use tracing_subscriber::{EnvFilter, FmtSubscriber};
 
 mod opt;
@@ -28,13 +29,7 @@ fn main() {
     let opt = opt::Opts::parse();
     tracing_log::LogTracer::builder().init().unwrap();
 
-    let subscriber = FmtSubscriber::builder()
-        .with_env_filter(
-            EnvFilter::try_from_default_env().expect("RUST_LOG has invalid directives"),
-        )
-        .finish();
-
-    tracing::subscriber::set_global_default(subscriber).expect("setting default subscriber failed");
+    configure_logger(&opt);
 
     ctrlc::set_handler(handle_ctrl_c).expect("Failed to set termination handler!");
 
@@ -43,6 +38,31 @@ fn main() {
         .build()
         .expect("Failed to initialize runtime");
     rt.block_on(async_main(opt));
+}
+
+fn configure_logger(opt: &opt::Opts) {
+    let subscriber_builder = FmtSubscriber::builder();
+    let subscriber;
+    if let Some(level) = opt.opt.log_level {
+        subscriber = subscriber_builder
+            .with_env_filter(EnvFilter::new(level.to_string()))
+            .finish();
+    } else {
+        let filter = EnvFilter::try_from_default_env();
+        match filter {
+            Ok(filter) => subscriber = subscriber_builder.with_env_filter(filter).finish(),
+            Err(e) => {
+                eprintln!(
+                    "No valid loglevel specified. Resorting to RUST_LOG=info.\nError: {}",
+                    e,
+                );
+                subscriber = subscriber_builder
+                    .with_env_filter(EnvFilter::new("info"))
+                    .finish();
+            }
+        }
+    }
+    tracing::subscriber::set_global_default(subscriber).expect("setting default subscriber failed");
 }
 
 async fn async_main(opt: opt::Opts) {
