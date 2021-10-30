@@ -100,7 +100,7 @@ pub enum TestResultKind {
     TimeLimitExceeded = 4,
     MemoryLimitExceeded = 5,
     ShouldFail = 6,
-    NotRan = -1,
+    NotRun = -1,
     Waiting = -2,
     Running = -3,
     OtherError = -100,
@@ -203,7 +203,7 @@ pub async fn transform_and_upload_test_result(
                 Some("The tested program should return a non-zero number at some point".into()),
                 None,
             ),
-            JobFailure::Cancelled => (TestResultKind::NotRan, None, None),
+            JobFailure::Cancelled => (TestResultKind::NotRun, None, None),
         },
     };
 
