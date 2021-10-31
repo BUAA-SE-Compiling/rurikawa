@@ -20,17 +20,11 @@ namespace Karenia.Rurikawa.Coordinator.Controllers {
         [HttpGet("{username}")]
         public async Task<ActionResult<Profile>> GetProfile([FromRoute] string username) {
             var res = await service.GetProfile(username);
-            if (res != null) {
-                return res;
-            } else {
-                return NotFound();
-            }
+            return res ?? (ActionResult<Profile>)NotFound();
         }
 
         [HttpPut("{username}")]
-        public async Task<ActionResult> UpsertProfile(
-            [FromRoute] string username,
-            [FromBody] Profile profile) {
+        public async Task<ActionResult> UpsertProfile([FromRoute] string username, [FromBody] Profile profile) {
             var username_ = AuthHelper.ExtractUsername(HttpContext.User);
             if (username_ != username) {
                 return Unauthorized(new ErrorResponse(ErrorCodes.NOT_OWNER));
@@ -40,8 +34,7 @@ namespace Karenia.Rurikawa.Coordinator.Controllers {
         }
 
         [HttpPost("{username}/init")]
-        public async Task<ActionResult> InitProfile(
-            [FromRoute] string username) {
+        public async Task<ActionResult> InitProfile([FromRoute] string username) {
             var username_ = AuthHelper.ExtractUsername(HttpContext.User);
             if (username_ != username) {
                 return Unauthorized(new ErrorResponse(ErrorCodes.NOT_OWNER));

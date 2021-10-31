@@ -1,11 +1,7 @@
-﻿using System;
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using System.IO;
 using System.Linq;
-using System.Net.Mime;
 using System.Text.Json;
-using System.Text.Unicode;
-using System.Threading;
 using System.Threading.Tasks;
 using Karenia.Rurikawa.Coordinator.Services;
 using Karenia.Rurikawa.Helpers;
@@ -16,7 +12,6 @@ using MicroKnights.IO.Streams;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.AspNetCore.WebUtilities;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using SharpCompress.Readers;
@@ -39,7 +34,8 @@ namespace Karenia.Rurikawa.Coordinator.Controllers {
             DbService dbService,
             SingleBucketFileStorageService fs,
             JsonSerializerOptions? jsonOptions,
-            RurikawaCacheService cacheService) {
+            RurikawaCacheService cacheService
+        ) {
             this.logger = logger;
             this.db = db;
             this.dbService = dbService;
@@ -59,7 +55,9 @@ namespace Karenia.Rurikawa.Coordinator.Controllers {
             [FromQuery] bool asc = false
         ) {
             FlowSnake? startId_ = startId;
-            if (startId == FlowSnake.MinValue) startId_ = null;
+            if (startId == FlowSnake.MinValue) {
+                startId_ = null;
+            }
             return await dbService.GetTestSuites(startId_, take, asc);
         }
 
@@ -67,12 +65,14 @@ namespace Karenia.Rurikawa.Coordinator.Controllers {
         /// Gets a test suite by its id
         /// </summary>
         /// <param name="id"></param>
+        /// <param name="bypassCache"></param>
         /// <returns>the test suite</returns>
         [HttpGet("{id}")]
         [ProducesErrorResponseType(typeof(void))]
         public async Task<ActionResult<TestSuite>> GetTestSuite(
             [FromRoute] FlowSnake id,
-            [FromQuery] bool bypassCache = false) {
+            [FromQuery] bool bypassCache = false
+        ) {
             if (!bypassCache) {
                 var cached = await cacheService.GetCachedTestSuiteString(id);
                 if (cached != null) {
@@ -84,13 +84,21 @@ namespace Karenia.Rurikawa.Coordinator.Controllers {
                 }
             }
             var res = await db.TestSuites.Where(t => t.Id == id).SingleOrDefaultAsync();
-            if (res == null) return NotFound();
-            else {
-                await cacheService.SetTestSuite(res);
-                return res;
+            if (res == null) {
+                return NotFound();
             }
+            await cacheService.SetTestSuite(res);
+            return res;
         }
 
+        /// <summary>
+        /// Gets a list of jobs from a suiteId.
+        /// </summary>
+        /// <param name="suiteId"></param>
+        /// <param name="startId"></param>
+        /// <param name="take"></param>
+        /// <param name="asc"></param>
+        /// <returns></returns>
         [HttpGet]
         [Route("{suiteId}/jobs")]
         [Authorize("user")]
@@ -98,16 +106,17 @@ namespace Karenia.Rurikawa.Coordinator.Controllers {
             [FromRoute] FlowSnake suiteId,
             [FromQuery] FlowSnake startId = new FlowSnake(),
             [FromQuery] int take = 20,
-            [FromQuery] bool asc = false) {
-            FlowSnake? startId_ = startId;
-            if (startId == FlowSnake.MinValue) startId_ = null;
+            [FromQuery] bool asc = false
+        ) {
+            FlowSnake? startId_ = startId == FlowSnake.MinValue ? null : startId;
             var username = AuthHelper.ExtractUsername(HttpContext.User);
             return await dbService.GetJobs(
                 startId: startId_,
                 take: take,
                 asc: asc,
                 bySuite: suiteId,
-                byUsername: username);
+                byUsername: username
+            );
         }
 
         [HttpPost("{suiteId}/visibility")]
@@ -116,13 +125,12 @@ namespace Karenia.Rurikawa.Coordinator.Controllers {
             [FromQuery] bool visible
         ) {
             var original = await db.TestSuites.Where(t => t.Id == suiteId).SingleOrDefaultAsync();
-            if (original == null) { return NotFound(new ErrorResponse(ErrorCodes.NO_SUCH_SUITE)); }
-
+            if (original == null) {
+                return NotFound(new ErrorResponse(ErrorCodes.NO_SUCH_SUITE));
+            }
             original.IsPublic = visible;
             await db.SaveChangesAsync();
-
             await cacheService.PurgeSuite(suiteId);
-
             return NoContent();
         }
 
@@ -132,13 +140,12 @@ namespace Karenia.Rurikawa.Coordinator.Controllers {
             [FromQuery] TestSuite.TestSuitePatch patch
         ) {
             var original = await db.TestSuites.Where(t => t.Id == suiteId).SingleOrDefaultAsync();
-            if (original == null) { return NotFound(new ErrorResponse(ErrorCodes.NO_SUCH_SUITE)); }
-
+            if (original == null) {
+                return NotFound(new ErrorResponse(ErrorCodes.NO_SUCH_SUITE));
+            }
             original.Patch(patch);
             await db.SaveChangesAsync();
-
             await cacheService.PurgeSuite(suiteId);
-
             return NoContent();
         }
 
@@ -174,11 +181,7 @@ namespace Karenia.Rurikawa.Coordinator.Controllers {
             TestSuite newSuite;
             logger.LogInformation("Begin uploading");
             try {
-                newSuite = await UploadAndParseTestSuite(
-                    Request.Body,
-                    contentLength,
-                    id,
-                    newFilename);
+                newSuite = await UploadAndParseTestSuite(Request.Body, contentLength, id, newFilename);
                 newSuite.Id = id;
             } catch (EndOfStreamException e) {
                 return BadRequest(e.Message);
@@ -257,32 +260,31 @@ namespace Karenia.Rurikawa.Coordinator.Controllers {
             long len,
             FlowSnake id, string filename) {
             var baseStream = new ReadableSplitStream(fileStream);
-            using (var split1 = baseStream.GetForwardReadOnlyStream())
-            using (var split2 = baseStream.GetForwardReadOnlyStream()) {
-                logger.LogInformation("Splitting streams");
-                await baseStream.StartReadAhead();
+            using var split1 = baseStream.GetForwardReadOnlyStream();
+            using var split2 = baseStream.GetForwardReadOnlyStream();
+            logger.LogInformation("Splitting streams");
+            await baseStream.StartReadAhead();
 
-                var res = await Task.WhenAll(
-                    UploadTestSuiteWrapped(split1, filename, len),
-                    Task.Run(() => ParseTestSuiteWrapped(split2, id))
-                );
+            var res = await Task.WhenAll(
+                UploadTestSuiteWrapped(split1, filename, len),
+                Task.Run(() => ParseTestSuiteWrapped(split2, id))
+            );
 
-                logger.LogInformation("Finished");
-                var addr = (string)res[0];
-                var suite = (TestSuite)res[1];
+            logger.LogInformation("Finished");
+            var addr = (string)res[0];
+            var suite = (TestSuite)res[1];
 
-                suite.PackageFileId = addr;
-                return suite;
-            }
+            suite.PackageFileId = addr;
+            return suite;
         }
 
-        async Task<object> UploadTestSuiteWrapped(
+        private async Task<object> UploadTestSuiteWrapped(
             Stream fileStream,
             string filename,
-            long len)
-            => await UploadTestSuite(fileStream, filename, len);
+            long len
+        ) => await UploadTestSuite(fileStream, filename, len);
 
-        async Task<string> UploadTestSuite(Stream fileStream, string filename, long len) {
+        private async Task<string> UploadTestSuite(Stream fileStream, string filename, long len) {
             await fs.UploadFile(TestSuiteBaseDir + filename, fileStream, len);
             return TestSuiteBaseDir + filename;
         }
@@ -290,7 +292,7 @@ namespace Karenia.Rurikawa.Coordinator.Controllers {
         async Task<object> ParseTestSuiteWrapped(Stream fileStream, FlowSnake id)
             => await ParseTestSuite(fileStream, id);
 
-        async Task<TestSuite> ParseTestSuite(Stream fileStream, FlowSnake id) {
+        private async Task<TestSuite> ParseTestSuite(Stream fileStream, FlowSnake id) {
             logger.LogInformation("Parse started");
             var opt = new ReaderOptions {
                 LeaveStreamOpen = true,
@@ -305,12 +307,10 @@ namespace Karenia.Rurikawa.Coordinator.Controllers {
                     // if (entry.IsDirectory) continue;
                     using var file = reader.OpenEntryStream();
                     switch (entry.Key.ToLower()) {
-                        case "testconf.json":
-                        case "./testconf.json":
+                        case "testconf.json" or "./testconf.json":
                             suite = await ParseTestSuiteJson(file);
                             break;
-                        case "readme.md":
-                        case "./readme.md":
+                        case "readme.md" or "./readme.md":
                             desc = await ParseTestSuiteDesc(file);
                             break;
                         default:
@@ -327,11 +327,11 @@ namespace Karenia.Rurikawa.Coordinator.Controllers {
             return suite;
         }
 
-        async Task<TestSuite> ParseTestSuiteJson(Stream file) {
+        private async Task<TestSuite?> ParseTestSuiteJson(Stream file) {
             return await JsonSerializer.DeserializeAsync<TestSuite>(file, jsonOptions);
         }
 
-        async Task<string> ParseTestSuiteDesc(Stream file) {
+        private static async Task<string> ParseTestSuiteDesc(Stream file) {
             var reader = new StreamReader(file);
             return await reader.ReadToEndAsync();
         }

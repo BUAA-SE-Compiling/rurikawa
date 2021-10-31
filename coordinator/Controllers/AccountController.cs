@@ -1,16 +1,11 @@
 using System;
-using System.Buffers.Text;
 using System.Collections.Generic;
 using System.Linq;
-using System.Runtime.InteropServices.ComTypes;
-using System.Security.Claims;
-using System.Text;
 using System.Text.Json;
 using System.Threading.Tasks;
 using Karenia.Rurikawa.Coordinator.Services;
 using Karenia.Rurikawa.Helpers;
 using Karenia.Rurikawa.Models;
-using Karenia.Rurikawa.Models.Account;
 using Karenia.Rurikawa.Models.Auth;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -34,7 +29,8 @@ namespace Karenia.Rurikawa.Coordinator.Controllers {
             this.accountService = accountService;
         }
 
-#pragma warning disable CS8618  
+        // Disable "Consider declaring the property as nullable" warning.
+#pragma warning disable CS8618
         public class AccountInfo {
             public string Username { get; set; }
             public string Password { get; set; }
@@ -59,7 +55,8 @@ namespace Karenia.Rurikawa.Coordinator.Controllers {
             } catch (AccountService.UsernameNotUniqueException e) {
                 return BadRequest(new ErrorResponse(
                     ErrorCodes.USERNAME_NOT_UNIQUE,
-                    $"Username '{e.Username}' is not unique inside database"));
+                    $"Username '{e.Username}' is not unique inside database"
+                ));
             } catch (AccountService.InvalidUsernameException e) {
                 return BadRequest(new ErrorResponse(
                     ErrorCodes.INVALID_USERNAME,
@@ -68,14 +65,14 @@ namespace Karenia.Rurikawa.Coordinator.Controllers {
             }
         }
 
-        private List<string> ParseScope(string scope) {
-            return scope.Split(",").Select(x => x.Trim()).ToList();
+        private static List<string> ParseScope(string scope) {
+            return scope.Split(",").Select(s => s.Trim()).ToList();
         }
 
-        internal class InvalidLoginInformationException : System.Exception {
+        internal class InvalidLoginInformationException : Exception {
             public InvalidLoginInformationException(string message) : base(message) { }
         }
-        internal class NotEnoughInformationException : System.Exception {
+        internal class NotEnoughInformationException : Exception {
             public NotEnoughInformationException(string message) : base(message) { }
         }
 
@@ -90,14 +87,11 @@ namespace Karenia.Rurikawa.Coordinator.Controllers {
         [ProducesResponseType(typeof(ErrorResponse), 400)]
         public async Task<IActionResult> LoginUser([FromBody] OAuth2Request msg) {
             try {
-                switch (msg.GrantType) {
-                    case "password":
-                        return Ok(await LoginUsingPassword(msg));
-                    case "refresh_token":
-                        return Ok(await LoginUsingRefreshToken(msg));
-                    default:
-                        return BadRequest(new ErrorResponse(ErrorCodes.INVALID_GRANT_TYPE));
-                }
+                return msg.GrantType switch {
+                    "password" => Ok(await LoginUsingPassword(msg)),
+                    "refresh_token" => Ok(await LoginUsingRefreshToken(msg)),
+                    _ => BadRequest(new ErrorResponse(ErrorCodes.INVALID_GRANT_TYPE)),
+                };
             } catch (InvalidLoginInformationException e) {
                 return BadRequest(new ErrorResponse(ErrorCodes.INVALID_LOGIN_INFO, e.Message));
             } catch (NotEnoughInformationException e) {
@@ -105,37 +99,41 @@ namespace Karenia.Rurikawa.Coordinator.Controllers {
             }
         }
 
-        static readonly TimeSpan JwtAccessTokenLifespan = TimeSpan.FromHours(1);
-        static readonly TimeSpan RefreshTokenLifespan = TimeSpan.FromDays(30);
+        private static readonly TimeSpan JwtAccessTokenLifespan = TimeSpan.FromHours(1);
+        private static readonly TimeSpan RefreshTokenLifespan = TimeSpan.FromDays(30);
 
         private async Task<OAuth2Response> LoginUsingPassword(OAuth2Request msg) {
             var username = ((JsonElement?)msg.ExtraInfo.GetValueOrDefault("username"))?.GetString();
             var password = ((JsonElement?)msg.ExtraInfo.GetValueOrDefault("password"))?.GetString();
-            if (username == null || password == null)
+            if (username == null || password == null) {
                 throw new NotEnoughInformationException("Please provide both username and password!");
+            }
             var account = await accountService.GetAccount(username);
-            if (account == null)
+            if (account == null) {
                 throw new InvalidLoginInformationException("Username or password is wrong");
-            var result = accountService.VerifyPassword(password, account.HashedPassword);
-            if (!result)
+            }
+            var combinationVerified = accountService.VerifyPassword(password, account.HashedPassword);
+            if (!combinationVerified) {
                 throw new InvalidLoginInformationException("Username or password is wrong");
-
+            }
             return await GenerateOAuth2Response(msg.Scope, account);
         }
 
         private async Task<OAuth2Response> GenerateOAuth2Response(string strScope, Models.Account.UserAccount account) {
             var scope = ParseScope(strScope);
-            DateTimeOffset accessTokenExpireTime = DateTimeOffset.Now.Add(JwtAccessTokenLifespan);
+            var accessTokenExpireTime = DateTimeOffset.Now.Add(JwtAccessTokenLifespan);
             var accessToken = accountService.CreateNewJwtAccessToken(
                 account,
                 scope,
-                accessTokenExpireTime);
+                accessTokenExpireTime
+            );
             var refreshToken = await accountService.CreateNewRefreshToken(
                 account.Username,
                 accessToken,
                 scope,
                 DateTimeOffset.Now.Add(RefreshTokenLifespan),
-                true);
+                true
+            );
 
             return new OAuth2Response {
                 AccessToken = accessToken,
@@ -153,35 +151,36 @@ namespace Karenia.Rurikawa.Coordinator.Controllers {
             } catch (InvalidOperationException) {
                 throw new NotEnoughInformationException("Please provide refreshToken!");
             }
-            if (refreshToken == null)
+            if (refreshToken == null) {
                 throw new NotEnoughInformationException("Please provide refreshToken!");
+            }
             var tokenEntry = await accountService.GetRefreshToken(refreshToken);
-            if (tokenEntry == null)
+            if (tokenEntry == null) {
                 throw new InvalidLoginInformationException("Invalid refresh token");
+            }
             var account = await accountService.GetAccount(tokenEntry.Username)!;
             return await GenerateOAuth2Response(msg.Scope, account);
         }
 
+        // Disable "Consider declaring the property as nullable" warning.
+#pragma warning disable CS8618
         public class EditPasswordMessage {
             public string Original { get; set; }
             public string New { get; set; }
         }
+#pragma warning disable CS8618
 
         [HttpPost("edit/password")]
         [HttpPut("edit/password")]
         [Authorize()]
-        public async Task<IActionResult> EditPassword(
-            [FromBody] EditPasswordMessage msg) {
+        public async Task<IActionResult> EditPassword([FromBody] EditPasswordMessage msg) {
             var username = AuthHelper.ExtractUsername(User)!;
-            switch (await accountService.EditPassword(username, msg.Original, msg.New)) {
-                case AccountService.EditPasswordResult.Success:
-                    return NoContent();
-                case AccountService.EditPasswordResult.Failure:
-                    return BadRequest();
-                case AccountService.EditPasswordResult.AccountNotFound:
-                    return NotFound();
-                default: throw new System.Exception("Unreachable!");
-            }
+            return await accountService.EditPassword(username, msg.Original, msg.New) switch {
+                AccountService.EditPasswordResult.Success => NoContent(),
+                AccountService.EditPasswordResult.Failure => BadRequest(),
+                AccountService.EditPasswordResult.AccountNotFound => NotFound(),
+                _ => throw new NotImplementedException("Unreachable!"),
+            };
         }
 
         [HttpGet("ws-token")]
@@ -194,8 +193,7 @@ namespace Karenia.Rurikawa.Coordinator.Controllers {
         [HttpPost("ws-token")]
         public ActionResult<string?> VerifyWebsocketToken([FromQuery] string token) {
             var res = accountService.VerifyShortLivingToken(token);
-            if (res != null) return res;
-            else return BadRequest();
+            return res ?? (ActionResult<string?>)BadRequest();
         }
 
         [HttpPost("test")]
@@ -204,7 +202,6 @@ namespace Karenia.Rurikawa.Coordinator.Controllers {
                 Console.WriteLine($"{claim.Type},{claim.Value}");
             }
             Console.WriteLine(User.Identity.Name);
-
         }
     }
 }

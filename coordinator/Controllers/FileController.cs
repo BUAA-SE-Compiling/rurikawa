@@ -1,7 +1,3 @@
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Threading.Tasks;
 using Karenia.Rurikawa.Coordinator.Services;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Logging;
@@ -15,7 +11,8 @@ namespace Karenia.Rurikawa.Coordinator.Controllers {
 
         public GetFileController(
             ILogger<JudgerApiController> logger,
-            SingleBucketFileStorageService fs) {
+            SingleBucketFileStorageService fs
+        ) {
             _logger = logger;
             this.fs = fs;
         }

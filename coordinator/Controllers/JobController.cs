@@ -1,10 +1,6 @@
 using System;
 using System.Collections.Generic;
-using System.IO;
-using System.Linq;
 using System.Security.Claims;
-using System.Text;
-using System.Text.Unicode;
 using System.Threading;
 using System.Threading.Tasks;
 using CliWrap;
@@ -43,27 +39,30 @@ namespace Karenia.Rurikawa.Coordinator.Controllers {
             var res = await dbsvc.GetJob(id);
             if (res == null) {
                 return NotFound();
-            } else {
-                {
-                    // authorize
-                    var role = HttpContext.User.FindFirst(ClaimTypes.Role)?.Value;
-                    if (role != "Admin" && role != "Root") {
-                        var account = AuthHelper.ExtractUsername(HttpContext.User);
-                        if (res.Account != account) return NotFound();
+            }
+            {
+                // authorize
+                var role = HttpContext.User.FindFirst(ClaimTypes.Role)?.Value;
+                if (role is not "Admin" and not "Root") {
+                    var account = AuthHelper.ExtractUsername(HttpContext.User);
+                    if (res.Account != account) {
+                        return NotFound();
                     }
                 }
-                return res;
             }
+            return res;
+
         }
 
-#pragma warning disable 
+        // Disable "Consider declaring the property as nullable" warning.
+#pragma warning disable CS8618
         public class NewJobMessage {
             public string Repo { get; set; }
             public string? Ref { get; set; }
             public FlowSnake TestSuite { get; set; }
             public List<string> Tests { get; set; }
         }
-#pragma warning restore
+#pragma warning disable CS8618
 
         /// <summary>
         /// PUTs a new job
@@ -71,7 +70,9 @@ namespace Karenia.Rurikawa.Coordinator.Controllers {
         [HttpPost("")]
         public async Task<ActionResult<string>> NewJob([FromBody] NewJobMessage m) {
             var account = HttpContext.User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
-            if (account == null) return BadRequest();
+            if (account == null) {
+                return BadRequest();
+            }
 
             FlowSnake id = FlowSnake.Generate();
             var job = new Job {
@@ -111,10 +112,12 @@ namespace Karenia.Rurikawa.Coordinator.Controllers {
         /// <param name="id"></param>
         /// <returns></returns>
         [HttpPost("respawn/{id}")]
-        public async Task<ActionResult<String>> RespawnJob([FromRoute] FlowSnake id) {
+        public async Task<ActionResult<string>> RespawnJob([FromRoute] FlowSnake id) {
             // the returned job is non-tracking, so we can safely modify its data
             var job = await dbsvc.GetJob(id);
-            if (job == null) return NotFound();
+            if (job == null) {
+                return NotFound();
+            }
 
             // clear job stats, reset id
             job.ClearStats();
@@ -139,7 +142,7 @@ namespace Karenia.Rurikawa.Coordinator.Controllers {
             var res = await Cli.Wrap("git").WithArguments(new List<string>(){
                 "ls-remote",
                 job.Repo,
-                job.Branch??"HEAD",
+                job.Branch ?? "HEAD",
                 "-q",
                 "--exit-code"
             })

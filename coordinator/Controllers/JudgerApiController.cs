@@ -23,12 +23,14 @@ namespace Karenia.Rurikawa.Coordinator.Controllers {
         public JudgerApiController(
             ILogger<JudgerApiController> logger,
             JudgerService judgerService,
-            SingleBucketFileStorageService fs) {
+            SingleBucketFileStorageService fs
+        ) {
             _logger = logger;
             this.judgerService = judgerService;
             this.fs = fs;
         }
 
+        // Disable "Consider declaring the property as nullable" warning.
 #pragma warning disable CS8618
         public class JudgerRegisterMessage {
             public string Token { get; set; }
@@ -56,11 +58,13 @@ namespace Karenia.Rurikawa.Coordinator.Controllers {
         [HttpPost("upload")]
         public async Task<IActionResult> UploadJudgerResult(
             [FromQuery] FlowSnake jobId,
-            [FromQuery] string testId) {
-            if (Request.ContentLength == null)
+            [FromQuery] string testId
+        ) {
+            if (Request.ContentLength == null) {
                 return BadRequest(new ErrorResponse(
                     ErrorCodes.UNSPECIFIED_CONTENT_LENGTH,
                     "ContentLength must be specified!"));
+            }
 
             var filename = $"results/{jobId}/{testId}.json";
             await fs.UploadFile(filename, Request.Body, Request.ContentLength.Value, true);
@@ -75,7 +79,8 @@ namespace Karenia.Rurikawa.Coordinator.Controllers {
         [HttpPost("result")]
         public ActionResult SendJobResult(
             [FromBody] IClientResultMsg resultMsg,
-            [FromServices] JudgerCoordinatorService coordinator) {
+            [FromServices] JudgerCoordinatorService coordinator
+        ) {
             var judger = AuthHelper.ExtractUsername(HttpContext.User);
             switch (resultMsg) {
                 case JobResultMsg msg:
@@ -93,7 +98,8 @@ namespace Karenia.Rurikawa.Coordinator.Controllers {
         [HttpGet("download-suite/{suite}")]
         public async Task<IActionResult> DownloadSuite(
             [FromRoute] FlowSnake suite,
-            [FromServices] RurikawaDb db) {
+            [FromServices] RurikawaDb db
+        ) {
             var test_suite = await db.TestSuites.SingleOrDefaultAsync(s => s.Id == suite);
             return Redirect($"/api/v1/file/{test_suite.PackageFileId}");
         }

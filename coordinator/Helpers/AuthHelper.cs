@@ -3,11 +3,7 @@ using System.Security.Claims;
 
 namespace Karenia.Rurikawa.Helpers {
     public static class AuthHelper {
-        public static string? ExtractUsername(ClaimsPrincipal user) {
-            var username = user.Claims
-                .Where(c => c.Type == ClaimTypes.NameIdentifier)
-                .SingleOrDefault()?.Value;
-            return username;
-        }
+        public static string? ExtractUsername(ClaimsPrincipal user)
+            => user.Claims.SingleOrDefault(c => c.Type == ClaimTypes.NameIdentifier)?.Value;
     }
 }

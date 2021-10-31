@@ -9,8 +9,11 @@ namespace Karenia.Rurikawa.Helpers {
             return new LockHandle(sem);
         }
 
+        /// <summary>
+        /// A lock handle for an asynchronously locked SemaphoreSlim.
+        /// </summary>
         public class LockHandle : IDisposable {
-            private SemaphoreSlim sem;
+            private readonly SemaphoreSlim sem;
             private bool isDisposed;
             public LockHandle(SemaphoreSlim sem) {
                 this.sem = sem;
@@ -21,11 +24,21 @@ namespace Karenia.Rurikawa.Helpers {
                 Dispose(true);
             }
 
+            // For the whole Disposable pattern, see here:
+            // https://docs.microsoft.com/en-us/dotnet/standard/garbage-collection/implementing-dispose
             private void Dispose(bool disposing) {
-                if (!this.isDisposed) {
-                    this.isDisposed = true;
-                    sem.Release();
+                if (isDisposed) {
+                    return;
                 }
+
+                if (disposing) {
+                    // Dispose managed state (managed objects).
+                }
+
+                // Free unmanaged resources (unmanaged objects) and override a finalizer below.
+                // And set large fields to null.
+                _ = sem.Release();
+                isDisposed = true;
             }
 
             ~LockHandle() {

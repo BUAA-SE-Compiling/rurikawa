@@ -18,7 +18,7 @@ namespace Karenia.Rurikawa.Coordinator.Controllers {
         /// Always return 204.
         /// </summary>
         [HttpGet("ping")]
-        public ActionResult Pong() { return NoContent(); }
+        public ActionResult Pong() => NoContent();
 
         /// <summary>
         /// Get the name and version of the running assembly.
@@ -32,8 +32,7 @@ namespace Karenia.Rurikawa.Coordinator.Controllers {
         [HttpGet("assembly")]
         public string? GetAssembly() {
             AssemblyName? assemblyName = Assembly.GetEntryAssembly()?.GetName();
-            if (assemblyName == null) return null;
-            else return $"{assemblyName.Name} v{assemblyName.Version}";
+            return assemblyName == null ? null : $"{assemblyName.Name} v{assemblyName.Version}";
         }
 
         public class JudgerStat {
@@ -51,12 +50,13 @@ namespace Karenia.Rurikawa.Coordinator.Controllers {
             [FromServices] JudgerCoordinatorService coordinatorService,
             [FromServices] RurikawaDb db,
             [FromServices] RedisService redis,
-            [FromServices] JsonSerializerOptions jsonSerializerOptions) {
+            [FromServices] JsonSerializerOptions jsonSerializerOptions
+        ) {
             var red = await redis.GetDatabase();
             var judgerStat = await red.StringGetAsync(JUDGER_STAT_CACHE_KEY);
             if (!judgerStat.IsNullOrEmpty) {
                 return new ContentResult() {
-                    Content = (string)judgerStat,
+                    Content = judgerStat,
                     StatusCode = 200,
                     ContentType = "application/json"
                 };
@@ -70,10 +70,11 @@ namespace Karenia.Rurikawa.Coordinator.Controllers {
                 Running = runningCount
             };
 
-            await red.StringSetAsync(
+            _ = await red.StringSetAsync(
                 JUDGER_STAT_CACHE_KEY,
                 JsonSerializer.Serialize(stat, jsonSerializerOptions),
-                expiry: TimeSpan.FromSeconds(10));
+                expiry: TimeSpan.FromSeconds(10)
+            );
 
             return stat;
         }
@@ -96,7 +97,7 @@ namespace Karenia.Rurikawa.Coordinator.Controllers {
             var judgerStat = await red.StringGetAsync(QUEUE_STAT_CACHE_KEY);
             if (!judgerStat.IsNullOrEmpty) {
                 return new ContentResult() {
-                    Content = (string)judgerStat,
+                    Content = judgerStat,
                     StatusCode = 200,
                     ContentType = "application/json"
                 };
@@ -104,14 +105,13 @@ namespace Karenia.Rurikawa.Coordinator.Controllers {
 
             // TODO: Use redis to track jobs count?
             var jobCount = await JudgerCoordinatorService.QueuedCriteria(db.Jobs).CountAsync();
-            var stat = new QueueStat {
-                QueuedJobs = jobCount
-            };
+            var stat = new QueueStat { QueuedJobs = jobCount };
 
-            await red.StringSetAsync(
+            _ = await red.StringSetAsync(
                 QUEUE_STAT_CACHE_KEY,
                 JsonSerializer.Serialize(stat, jsonSerializerOptions),
-                expiry: TimeSpan.FromSeconds(20));
+                expiry: TimeSpan.FromSeconds(20)
+            );
 
             return stat;
         }

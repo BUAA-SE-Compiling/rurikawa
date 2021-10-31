@@ -1,23 +1,17 @@
 using System;
 using System.Collections.Generic;
-using System.IO;
 using System.Linq;
 using System.Text.Json;
-using System.Text.Unicode;
-using System.Threading;
 using System.Threading.Tasks;
 using Karenia.Rurikawa.Coordinator.Services;
 using Karenia.Rurikawa.Helpers;
 using Karenia.Rurikawa.Models;
 using Karenia.Rurikawa.Models.Judger;
-using Karenia.Rurikawa.Models.Test;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.AspNetCore.WebUtilities;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
-using SharpCompress.Readers;
 
 namespace Karenia.Rurikawa.Coordinator.Controllers {
     [ApiController]
@@ -31,12 +25,15 @@ namespace Karenia.Rurikawa.Coordinator.Controllers {
             ILogger<JudgerApiController> logger,
             RurikawaDb db,
             SingleBucketFileStorageService fs,
-            JsonSerializerOptions? jsonOptions) {
+            JsonSerializerOptions? jsonOptions
+        ) {
             this.logger = logger;
             this.db = db;
             this.jsonOptions = jsonOptions;
         }
 
+        // Disable "Consider declaring the property as nullable" warning.
+#pragma warning disable CS8618
         public class Dashboard {
             public PartialTestSuite Suite { get; set; }
             public Job? Job { get; set; }
@@ -46,15 +43,18 @@ namespace Karenia.Rurikawa.Coordinator.Controllers {
             public FlowSnake Id { get; set; }
             public string Title { get; set; }
         }
+#pragma warning restore CS8618
 
         [HttpGet]
         [Authorize("user")]
         public async Task<IList<Dashboard>> GetDashboard(
             [FromQuery] int limit = 10,
-            [FromQuery] FlowSnake startId = new FlowSnake()) {
+            [FromQuery] FlowSnake startId = new FlowSnake()
+        ) {
             var username = AuthHelper.ExtractUsername(HttpContext.User);
-            if (startId == FlowSnake.MinValue) startId = FlowSnake.MaxValue;
-
+            if (startId == FlowSnake.MinValue) {
+                startId = FlowSnake.MaxValue;
+            }
             var now = DateTimeOffset.Now;
             var suites = await db.TestSuites.AsQueryable()
                 .Where(suite => (suite.StartTime == null || suite.StartTime <= now) && suite.IsPublic)
@@ -88,7 +88,8 @@ namespace Karenia.Rurikawa.Coordinator.Controllers {
                     jobs,
                     s => s.Id,
                     j => j.TestSuite,
-                    (s, j) => new Dashboard { Suite = s, Job = j.FirstOrDefault() })
+                    (s, j) => new Dashboard { Suite = s, Job = j.FirstOrDefault() }
+                )
                 .ToList();
 
             return dashboard;

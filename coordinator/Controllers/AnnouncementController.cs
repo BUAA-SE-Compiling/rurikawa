@@ -25,8 +25,7 @@ namespace Karenia.Rurikawa.Coordinator.Controllers {
         [HttpGet("{id}")]
         public async Task<ActionResult<Announcement>> GetAnnouncement([FromRoute] FlowSnake id) {
             var res = await dbService.GetAnnouncement(id);
-            if (res != null) return res;
-            else return NotFound();
+            return res ?? (ActionResult<Announcement>)NotFound();
         }
 
         [HttpPut("{id}")]

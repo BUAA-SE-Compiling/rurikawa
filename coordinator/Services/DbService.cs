@@ -78,7 +78,7 @@ namespace Karenia.Rurikawa.Coordinator.Services {
             bool asc = false,
             FlowSnake? bySuite = null,
             string? byUsername = null
-            ) {
+        ) {
             var query = db.Jobs.AsQueryable();
 
             if (bySuite != null)
@@ -104,7 +104,8 @@ namespace Karenia.Rurikawa.Coordinator.Services {
         public async Task<List<TestSuite>> GetTestSuites(
             FlowSnake? startId = null,
             int take = 20,
-            bool asc = false) {
+            bool asc = false
+        ) {
             var query = db.TestSuites.AsQueryable();
             if (asc) {
                 if (startId == null) startId = FlowSnake.MinValue;

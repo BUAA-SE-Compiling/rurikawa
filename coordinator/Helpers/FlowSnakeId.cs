@@ -18,11 +18,10 @@ namespace Karenia.Rurikawa.Helpers {
         const int WORKER_ID_BITS = 12;
         const int SEQUENCE_BITS = 18;
 
-        public static readonly FlowSnake MaxValue = new FlowSnake(long.MaxValue);
-        public static readonly FlowSnake MinValue = new FlowSnake(0);
-
-        static readonly char[] alphabet = "0123456789abcdefghjkmnpqrstvwxyz".ToCharArray();
-        static readonly byte[] charToBase32 = new byte[] {
+        public static readonly FlowSnake MaxValue = new(long.MaxValue);
+        public static readonly FlowSnake MinValue = new(0);
+        private static readonly char[] alphabet = "0123456789abcdefghjkmnpqrstvwxyz".ToCharArray();
+        private static readonly byte[] charToBase32 = {
             255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255,
             255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255,
             255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9,
@@ -32,25 +31,20 @@ namespace Karenia.Rurikawa.Helpers {
             30, 31
         };
 
-        static readonly ThreadLocal<int> workerId = new ThreadLocal<int>(() =>
+        private static readonly ThreadLocal<int> workerId = new(() =>
             // some kind of hash result of process and thread ids
-            (System.Diagnostics.Process.GetCurrentProcess().Id * 19260817)
-            + Thread.CurrentThread.ManagedThreadId
+            (Environment.ProcessId * 19260817) + Thread.CurrentThread.ManagedThreadId
         );
-
-        static readonly ThreadLocal<long> lastGeneration = new ThreadLocal<long>(() => 0);
-        static readonly ThreadLocal<int> sequenceNumber = new ThreadLocal<int>(() => 0);
-        static Random prng = new Random();
-        static readonly DateTimeOffset UnixEpoch =
-            new DateTime(1970, 1, 1, 0, 0, 0, DateTimeKind.Utc);
+        private static readonly ThreadLocal<long> lastGeneration = new(() => 0);
+        private static readonly ThreadLocal<int> sequenceNumber = new(() => 0);
+        private static readonly Random prng = new();
 
         public FlowSnake(long num) => Num = num;
 
-        public FlowSnake(long time, int worker, int seq) {
-            Num = ((time) << (WORKER_ID_BITS + SEQUENCE_BITS))
+        public FlowSnake(long time, int worker, int seq)
+            => Num = ((time) << (WORKER_ID_BITS + SEQUENCE_BITS))
                 | (((long)worker & ((1 << WORKER_ID_BITS) - 1)) << SEQUENCE_BITS)
                 | ((long)seq & ((1 << SEQUENCE_BITS) - 1));
-        }
 
         public long Num { get; }
 
@@ -73,30 +67,30 @@ namespace Karenia.Rurikawa.Helpers {
             lastGeneration.Value = time;
 
             var worker = workerId.Value;
-
             return new FlowSnake(time, worker, seq);
         }
 
-        public FlowSnake(string val, bool parseEmptyAsZero = false) {
-            if (parseEmptyAsZero && (val == null || val == "")) {
+        public FlowSnake(string? val, bool parseEmptyAsZero = false) {
+            var length = val?.Length ?? 0;
+            if (parseEmptyAsZero && length == 0) {
                 Num = 0;
                 return;
-            }
-            if (val.Length < 13) {
+            } else if (length < 13) {
                 throw new ArgumentException(
-                    $"Expected string length: at least 13, got: {val.Length}"
+                    $"Expected string length: at least 13, got: {length}"
                 );
             }
             long num = 0;
             int i = 0;
             int j = 0;
-            while (j < 13 && i < val.Length) {
-                if (val[i] == '-') {
+            while (j < 13 && i < length) {
+                if (val![i] == '-') {
                     i++; continue;
                 }
                 byte ch = charToBase32[val[i]];
-                if (ch == 255)
+                if (ch == 255) {
                     throw new ArgumentException($"Unknown character when parsing FlowSnake");
+                }
                 num <<= 5;
                 num |= ch;
                 i++;
@@ -118,21 +112,16 @@ namespace Karenia.Rurikawa.Helpers {
             return sb.ToString();
         }
 
-        public override string ToString() {
-            return this.ToString(true);
-        }
+        public override string ToString() => ToString(true);
 
-        public DateTimeOffset ExtractTime() =>
-            DateTimeOffset.FromUnixTimeSeconds(
-                Num >> (SEQUENCE_BITS + WORKER_ID_BITS)
-            );
+        public DateTimeOffset ExtractTime() => DateTimeOffset.FromUnixTimeSeconds(
+            Num >> (SEQUENCE_BITS + WORKER_ID_BITS)
+        );
 
         public static implicit operator long(FlowSnake i) => i.Num;
 
-
         #region Comparisons
-        public override bool Equals(object? obj) =>
-            obj is FlowSnake snake && Equals(snake);
+        public override bool Equals(object? obj) => obj is FlowSnake snake && Equals(snake);
 
         public bool Equals(FlowSnake other) => Num == other.Num;
 
@@ -190,27 +179,15 @@ namespace Karenia.Rurikawa.Helpers {
     public class FlowSnakeJsonConverter : JsonConverter<FlowSnake> {
         private readonly bool writeAsString;
 
-        public FlowSnakeJsonConverter(bool writeAsString = true) {
-            this.writeAsString = writeAsString;
-        }
+        public FlowSnakeJsonConverter(bool writeAsString = true) => this.writeAsString = writeAsString;
 
-        public override bool CanConvert(Type typeToConvert) =>
-            typeToConvert == typeof(FlowSnake);
+        public override bool CanConvert(Type typeToConvert) => typeToConvert == typeof(FlowSnake);
 
         public override FlowSnake Read(
             ref Utf8JsonReader reader,
             Type typeToConvert,
             JsonSerializerOptions options
-        ) {
-            if (reader.TokenType == JsonTokenType.Number) {
-                var i = reader.GetInt64();
-                return new FlowSnake(i);
-            } else {
-                var s = reader.GetString();
-                return new FlowSnake(s, true);
-            }
-
-        }
+        ) => (reader.TokenType == JsonTokenType.Number) ? new(reader.GetInt64()) : new(reader.GetString(), true);
 
         public override void Write(
             Utf8JsonWriter writer,
