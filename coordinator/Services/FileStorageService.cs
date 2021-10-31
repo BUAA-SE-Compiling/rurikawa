@@ -4,7 +4,6 @@ using System.IO;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
-using Karenia.Rurikawa.Helpers;
 using Microsoft.Extensions.Logging;
 using Minio;
 using Minio.DataModel.Tracing;
@@ -49,26 +48,25 @@ namespace Karenia.Rurikawa.Coordinator.Services {
             ILogger<SingleBucketFileStorageService> logger,
             MinioRequestLogger? minioRequestLogger
         ) {
-            client = new Minio.MinioClient(endpoint, accessKey, secretKey);
+            client = new(endpoint, accessKey, secretKey);
             client.SetTraceOn(minioRequestLogger);
             if (hasSsl) client = client.WithSSL();
             this.bucket = bucket;
             this.endpoint = endpoint;
             this.publicEndpoint = publicEndpoint;
             var endpointUri = new UriBuilder(publicEndpoint ?? this.endpoint);
-            if (endpointUri.Host == null || endpointUri.Host == "" || endpointUri.Scheme != null || endpointUri.Scheme != "") {
-            } else {
+            if (endpointUri.Host is not "" && endpointUri.Scheme is "") {
                 endpointUri.Scheme = hasPublicSsl ? "https" : "http";
             }
-            this.publicEndpointUri = new Uri(endpointUri.Uri, bucket + "/");
+            publicEndpointUri = new Uri(endpointUri.Uri, bucket + "/");
             logger.LogInformation("Set up public endpoint as {0}", publicEndpointUri.ToString());
             this.hasSsl = hasSsl;
             this.logger = logger;
         }
 
-        private ILogger<SingleBucketFileStorageService> logger;
+        private readonly ILogger<SingleBucketFileStorageService> logger;
 
-        private Minio.MinioClient client;
+        private readonly Minio.MinioClient client;
         private readonly string bucket;
         private readonly string endpoint;
         private readonly string? publicEndpoint;
@@ -117,7 +115,8 @@ namespace Karenia.Rurikawa.Coordinator.Services {
                 file,
                 length,
                 metaData: metadata,
-                cancellationToken: c);
+                cancellationToken: c
+            );
             logger.LogInformation("Upload end.");
         }
 
@@ -166,7 +165,6 @@ namespace Karenia.Rurikawa.Coordinator.Services {
                 } else {
                     msg.Append(responseToLog.content);
                 }
-
 
                 this.logger.LogTrace(msg.ToString());
             }

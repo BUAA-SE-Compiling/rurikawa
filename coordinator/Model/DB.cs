@@ -1,16 +1,9 @@
-using System;
-using System.Collections.Generic;
-using System.Threading;
-using System.Threading.Tasks;
 using Karenia.Rurikawa.Helpers;
 using Karenia.Rurikawa.Models.Account;
 using Karenia.Rurikawa.Models.Judger;
 using Karenia.Rurikawa.Models.Test;
 using Marques.EFCore.SnakeCase;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.EntityFrameworkCore.ChangeTracking;
-using Microsoft.EntityFrameworkCore.Infrastructure;
-using Microsoft.EntityFrameworkCore.Metadata;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
@@ -21,9 +14,7 @@ namespace Karenia.Rurikawa.Models {
     }
 
     public class RurikawaDb : DbContext {
-        public RurikawaDb(DbContextOptions ctx) : base(ctx) {
-        }
-
+        public RurikawaDb(DbContextOptions ctx) : base(ctx) { }
 
         /// <summary>
         /// All jobs added to this judging system
@@ -52,11 +43,9 @@ namespace Karenia.Rurikawa.Models {
         public DbSet<Announcement> Announcements { get; set; }
 
 
-        protected override void OnConfiguring(DbContextOptionsBuilder opt) {
+        protected override void OnConfiguring(DbContextOptionsBuilder opt) { }
 
-        }
-
-        static protected void AssignEntityTokenEntry<T>(ModelBuilder modelBuilder) where T : TokenBase {
+        protected static void AssignEntityTokenEntry<T>(ModelBuilder modelBuilder) where T : TokenBase {
             modelBuilder.Entity<T>().HasKey(x => x.Token);
             modelBuilder.Entity<T>().HasIndex(x => x.Token).IsUnique();
             modelBuilder.Entity<T>().HasIndex(x => x.Expires);
@@ -65,7 +54,8 @@ namespace Karenia.Rurikawa.Models {
         protected override void OnModelCreating(ModelBuilder modelBuilder) {
             var flowSnakeConverter = new ValueConverter<FlowSnake, long>(
                 x => x,
-                x => new FlowSnake(x));
+                x => new FlowSnake(x)
+            );
 
             base.OnModelCreating(modelBuilder);
             modelBuilder.Entity<Job>().HasKey(x => x.Id);

@@ -52,15 +52,14 @@ namespace Karenia.Rurikawa.Models.Account {
 
         public bool IsExpired() {
             DateTimeOffset now = DateTimeOffset.Now;
-            if (Expires <= now) return true;
-            if (IsSingleUse
-                && LastUseTime.HasValue
-                && LastUseTime.Value.Add(SingleUseTokenGracePeriod) <= now) return true;
-            return false;
+            return Expires <= now || (
+                IsSingleUse
+                    && LastUseTime.HasValue
+                    && LastUseTime.Value.Add(SingleUseTokenGracePeriod) <= now
+            );
         }
 
-        public static readonly TimeSpan SingleUseTokenGracePeriod
-            = TimeSpan.FromMinutes(5);
+        public static readonly TimeSpan SingleUseTokenGracePeriod = TimeSpan.FromMinutes(5);
     }
 
     /// <summary>

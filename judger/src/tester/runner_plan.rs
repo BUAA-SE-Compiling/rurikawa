@@ -30,6 +30,8 @@ pub struct RawTestCaseResult(
     pub Vec<ProcessOutput>,
 );
 
+type BoxSink<R, E> = Pin<Box<dyn Sink<R, Error = E> + Send>>;
+
 /// Run all test cases for a certain job, and collect their results.
 pub async fn run_job_test_cases<'a>(
     job: &'a Job,
@@ -37,7 +39,7 @@ pub async fn run_job_test_cases<'a>(
     judge_toml: &'a JudgeTomlTestConfig,
     user_container: Arc<dyn CommandRunner>,
     judger_container: Option<Arc<dyn CommandRunner>>,
-    mut raw_result_sink: Pin<Box<dyn Sink<RawTestCaseResult, Error = ()> + Send>>,
+    mut raw_result_sink: BoxSink<RawTestCaseResult, ()>,
     test_suite_base_dir: &'a Path,
     cancel: CancellationTokenHandle,
 ) -> anyhow::Result<()> {

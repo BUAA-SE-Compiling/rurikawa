@@ -45,8 +45,7 @@ namespace Karenia.Rurikawa.Coordinator.Controllers.Admin {
                 // write to body of response
                 using var sw = new StreamWriter(new StreamAsyncAdaptor(Response.Body));
                 await using var swGuard = sw.ConfigureAwait(false);
-                var csvWriter = new CsvWriter(sw);
-                csvWriter.QuoteAllFields = true;
+                var csvWriter = new CsvWriter(sw) { QuoteAllFields = true };
 
                 csvWriter.WriteField("username");
                 csvWriter.WriteField("studentId");
@@ -236,7 +235,7 @@ namespace Karenia.Rurikawa.Coordinator.Controllers.Admin {
         /// <param name="csvWriter"></param>
         /// <param name="columns"></param>
         /// <returns></returns>
-        private async Task WriteJobHeaders(
+        private static async Task WriteJobHeaders(
             CsvWriter csvWriter,
             List<string> columns
         ) {
@@ -262,7 +261,7 @@ namespace Karenia.Rurikawa.Coordinator.Controllers.Admin {
             public Job Job { get; set; }
         }
 
-        private void WriteJobInfo(CsvWriter csv, JobDumpEntry jobEntry, IList<string> columns) {
+        private static void WriteJobInfo(CsvWriter csv, JobDumpEntry jobEntry, IList<string> columns) {
             var job = jobEntry.Job;
             csv.WriteField(job.Id.ToString());
             csv.WriteField(job.Account);
@@ -359,15 +358,12 @@ namespace Karenia.Rurikawa.Coordinator.Controllers.Admin {
         /// <returns></returns>
         /// <exception cref="System.Exception"></exception>
         [HttpPost("edit-password")]
-        public async Task<ActionResult> ChangePassword([FromBody] AdminEditPasswordMessage msg) {
-            switch (await accountService.ForceEditPassword(msg.Username, msg.Password)) {
-                case AccountService.EditPasswordResult.Success:
-                    return NoContent();
-                case AccountService.EditPasswordResult.AccountNotFound:
-                    return NotFound();
-                default: throw new System.Exception("Unreachable!");
-            }
-        }
+        public async Task<ActionResult> ChangePassword([FromBody] AdminEditPasswordMessage msg)
+            => await accountService.ForceEditPassword(msg.Username, msg.Password) switch {
+                AccountService.EditPasswordResult.Success => NoContent(),
+                AccountService.EditPasswordResult.AccountNotFound => NotFound(),
+                _ => throw new NotImplementedException("Unreachable!"),
+            };
 
         /// <summary>
         /// Get the basic information of the specific user.

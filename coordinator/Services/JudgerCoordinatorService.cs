@@ -35,7 +35,8 @@ namespace Karenia.Rurikawa.Coordinator.Services {
             FrontendUpdateService frontendService,
             RedisService redis,
             ILogger<JudgerCoordinatorService> logger,
-            ILogger<JudgerWebsocketWrapperTy> wsLogger) {
+            ILogger<JudgerWebsocketWrapperTy> wsLogger
+        ) {
             this.jsonSerializerOptions = jsonSerializerOptions;
             this.scopeProvider = serviceProvider;
             this.frontendService = frontendService;
@@ -48,14 +49,14 @@ namespace Karenia.Rurikawa.Coordinator.Services {
         /// <summary>
         /// The collection of runners, with tokens as keys.
         /// </summary>
-        readonly Dictionary<string, Judger> connections = new Dictionary<string, Judger>();
+        private readonly Dictionary<string, Judger> connections = new();
 
         /// <summary>
         /// A mutex lock on connections and the status of connections inside it.
         /// Any changes on `Judger.ActiveTaskCount` and `Judger.CanAcceptNewTask`
         /// requires this lock to be acquired.
         /// </summary>
-        readonly SemaphoreSlim connectionLock = new SemaphoreSlim(1);
+        private readonly SemaphoreSlim connectionLock = new(1);
         private readonly JsonSerializerOptions jsonSerializerOptions;
         private readonly IServiceScopeFactory scopeProvider;
         private readonly FrontendUpdateService frontendService;
@@ -67,14 +68,13 @@ namespace Karenia.Rurikawa.Coordinator.Services {
         /// Get database inside a scoped connection.
         /// </summary>
         /// <param name="scope">The scope requested</param>
-        private RurikawaDb GetDb(IServiceScope scope) =>
-            scope.ServiceProvider.GetRequiredService<RurikawaDb>();
+        private static RurikawaDb GetDb(IServiceScope scope) => scope.ServiceProvider.GetRequiredService<RurikawaDb>();
 
         /// <summary>
         /// A mutex lock on judger queue.
         /// </summary>
         /// <returns></returns>
-        readonly SemaphoreSlim queueLock = new SemaphoreSlim(1);
+        readonly SemaphoreSlim queueLock = new(1);
 
 
         /// <summary>
@@ -110,7 +110,7 @@ namespace Karenia.Rurikawa.Coordinator.Services {
                             if (lastConn.ConnectionId != null && connId != null && lastConn.ConnectionId == connId) {
                                 // replace this session
                                 await lastConn.Socket.Close(System.Net.WebSockets.WebSocketCloseStatus.PolicyViolation, "Duplicate connection", CancellationToken.None);
-                                connections.Remove(auth);
+                                _ = connections.Remove(auth);
                             } else {
                                 ctx.Response.StatusCode = StatusCodes.Status409Conflict;
                                 return false;
@@ -127,7 +127,7 @@ namespace Karenia.Rurikawa.Coordinator.Services {
 
                     var judger = new Judger(auth, tokenEntry, wrapper, connId);
                     {
-                        using var _ = await connectionLock.LockAsync();
+                        _ = await connectionLock.LockAsync();
                         connections.Add(auth, judger);
                     }
                     await wrapper.SendMessage(new ServerHelloMsg());
@@ -142,7 +142,7 @@ namespace Karenia.Rurikawa.Coordinator.Services {
 
                     logger.LogInformation($"Disconnected from judger {auth}");
                     {
-                        using var _ = await connectionLock.LockAsync();
+                        _ = await connectionLock.LockAsync();
                         connections.Remove(auth);
                     }
                     return true;

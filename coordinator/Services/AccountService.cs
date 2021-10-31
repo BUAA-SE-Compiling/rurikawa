@@ -1,5 +1,4 @@
 using System;
-using System.Buffers.Text;
 using System.Collections.Generic;
 using System.IdentityModel.Tokens.Jwt;
 using System.IO;
@@ -10,15 +9,12 @@ using System.Text.Json;
 using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 using AsyncPrimitives;
-using BCrypt.Net;
-using Karenia.Rurikawa.Coordinator.Services;
 using Karenia.Rurikawa.Models;
 using Karenia.Rurikawa.Models.Account;
 using Karenia.Rurikawa.Models.Auth;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
-using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
@@ -44,14 +40,15 @@ namespace Karenia.Rurikawa.Coordinator.Services {
             this.logger = logger;
         }
 
-        private static readonly Regex usernameRestriction = new Regex("^[-_0-9a-zA-Z]{1,64}$");
+        private static readonly Regex usernameRestriction = new("^[-_0-9a-zA-Z]{1,64}$");
 
         public async Task CreateAccount(
             string username,
             string password,
             AccountKind kind = AccountKind.User) {
-            if (!usernameRestriction.IsMatch(username))
+            if (!usernameRestriction.IsMatch(username)) {
                 throw new InvalidUsernameException(username);
+            }
 
             var hashedPassword = HashPasswordWithGeneratedSalt(password);
             var account = new UserAccount {
@@ -75,25 +72,13 @@ namespace Karenia.Rurikawa.Coordinator.Services {
             return;
         }
 
-        public async ValueTask<bool> VerifyUser(
-            string username,
-            string password
-        ) {
-            var account = await db.Accounts.AsQueryable()
-                .Where(a => a.Username == username)
-                .SingleOrDefaultAsync();
-            if (account == null) return false;
-            return VerifyPassword(password, account.HashedPassword);
+        public async ValueTask<bool> VerifyUser(string username, string password) {
+            var account = await GetAccount(username);
+            return account is not null && VerifyPassword(password, account.HashedPassword);
         }
 
-        public async ValueTask<UserAccount> GetAccount(
-            string username
-        ) {
-            var account = await db.Accounts.AsQueryable()
-                .Where(a => a.Username == username)
-                .SingleOrDefaultAsync();
-            return account;
-        }
+        public async ValueTask<UserAccount?> GetAccount(string username)
+            => await db.Accounts.AsQueryable().Where(a => a.Username == username).SingleOrDefaultAsync();
 
         public enum EditPasswordResult { AccountNotFound, Success, Failure }
 
@@ -109,10 +94,9 @@ namespace Karenia.Rurikawa.Coordinator.Services {
         public async ValueTask<EditPasswordResult> EditPassword(
             string username,
             string originalPassword,
-            string newPassword) {
-            var account = await db.Accounts.AsQueryable()
-                .Where(a => a.Username == username)
-                .SingleOrDefaultAsync();
+            string newPassword
+        ) {
+            var account = await GetAccount(username);
             if (account == null) return EditPasswordResult.AccountNotFound;
 
             var verifyResult = VerifyPassword(originalPassword, account.HashedPassword);
@@ -133,10 +117,9 @@ namespace Karenia.Rurikawa.Coordinator.Services {
         /// <returns>Whether the edit is successful</returns>
         public async ValueTask<EditPasswordResult> ForceEditPassword(
             string username,
-            string newPassword) {
-            var account = await db.Accounts.AsQueryable()
-                .Where(a => a.Username == username)
-                .SingleOrDefaultAsync();
+            string newPassword
+        ) {
+            var account = await GetAccount(username);
             if (account == null) return EditPasswordResult.AccountNotFound;
 
             var newHashedPassword = HashPasswordWithGeneratedSalt(newPassword);
@@ -162,11 +145,11 @@ namespace Karenia.Rurikawa.Coordinator.Services {
             var tokenHandler = new JwtSecurityTokenHandler();
             var key = authInfo.SigningKey;
             var tokenDescriptor = new SecurityTokenDescriptor() {
-                Claims = new Dictionary<string, object>(){
+                Claims = new Dictionary<string, object>() {
                     {"sub", user.Username},
                     {"role", user.Kind.ToString()},
                     {"scope", scope}
-            },
+                },
                 IssuedAt = DateTime.UtcNow,
                 Expires = expireTime.UtcDateTime,
                 SigningCredentials = new SigningCredentials(key, SecurityAlgorithms.EcdsaSha256)
@@ -199,17 +182,16 @@ namespace Karenia.Rurikawa.Coordinator.Services {
         public async Task<string> GenerateAndSaveJudgerToken(
             DateTimeOffset? expireAt,
             bool isSingleUse,
-            List<string> tags) {
+            List<string> tags
+        ) {
             var token = GenerateToken();
-            db.JudgerRegisterTokens.Add(
-                new JudgerTokenEntry {
-                    Token = token,
-                    IssuedTime = DateTimeOffset.Now,
-                    IsSingleUse = isSingleUse,
-                    Expires = expireAt,
-                    Tags = tags
-                }
-            );
+            db.JudgerRegisterTokens.Add(new JudgerTokenEntry {
+                Token = token,
+                IssuedTime = DateTimeOffset.Now,
+                IsSingleUse = isSingleUse,
+                Expires = expireAt,
+                Tags = tags
+            });
             await db.SaveChangesAsync();
             return token;
         }
@@ -242,7 +224,8 @@ namespace Karenia.Rurikawa.Coordinator.Services {
             string username,
             string? alternativeName,
             List<string> scope,
-            DateTimeOffset? expireTime) {
+            DateTimeOffset? expireTime
+        ) {
             var accessToken = GenerateToken();
             db.AccessTokens.Add(new AccessTokenEntry {
                 Username = username,

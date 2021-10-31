@@ -1,5 +1,3 @@
-
-
 using System;
 using System.Reactive.Disposables;
 using System.Threading;
@@ -11,7 +9,7 @@ namespace Karenia.Rurikawa.Helpers {
         private long observerCount = 0;
         private bool started = false;
 
-        public long ObserverCount { get => Interlocked.Read(ref observerCount); }
+        public long ObserverCount => Interlocked.Read(ref observerCount);
 
         public RefCountFusedObservable(IObservable<T> inner, Action onRefcountZero) {
             this.inner = inner;
@@ -24,14 +22,16 @@ namespace Karenia.Rurikawa.Helpers {
                 return Disposable.Empty;
             }
             started = true;
-            Interlocked.Increment(ref observerCount);
+            _ = Interlocked.Increment(ref observerCount);
             var sub = inner.Subscribe(observer);
             return new Subscription(sub, OnChildUnsubscribe);
         }
 
         private void OnChildUnsubscribe() {
             var obs = Interlocked.Decrement(ref observerCount);
-            if (obs == 0) onRefcountZero();
+            if (obs == 0) {
+                onRefcountZero();
+            }
         }
 
         private class Subscription : IDisposable {

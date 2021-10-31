@@ -162,7 +162,7 @@ namespace Karenia.Rurikawa.Coordinator {
             app.UseRouting();
 
             // TODO: Add websocket options
-            WebSocketOptions ws_opt = new WebSocketOptions();
+            WebSocketOptions ws_opt = new();
             ws_opt.AllowedOrigins.Add("*");
             ws_opt.AllowedOrigins.Add("localhost");
             ws_opt.KeepAliveInterval = new System.TimeSpan(0, 0, 20);

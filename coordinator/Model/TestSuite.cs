@@ -62,9 +62,7 @@ namespace Karenia.Rurikawa.Models.Test {
         /// Name of the default group in test groups
         /// </summary>
         public static readonly string DEFAULT_GROUP_NAME = "default";
-
-        static readonly Regex extRegex =
-            new Regex(@"^(?:(?<filename>.+?)\.)?(?<ext>(?:tar.)?[^.]+)$");
+        private static readonly Regex extRegex = new(@"^(?:(?<filename>.+?)\.)?(?<ext>(?:tar.)?[^.]+)$");
 
         public static string FormatFileName(string orig, FlowSnake id) {
             var match = extRegex.Match(orig);
@@ -211,9 +209,10 @@ namespace Karenia.Rurikawa.Models.Test {
                 }
             }
 
-            private TestCaseDefinition DeserializeFromMap(
+            private static TestCaseDefinition DeserializeFromMap(
                 ref Utf8JsonReader reader,
-                JsonSerializerOptions options) {
+                JsonSerializerOptions options
+            ) {
                 string propName_name = options.PropertyNamingPolicy?.ConvertName(nameof(TestCaseDefinition.Name)) ?? nameof(TestCaseDefinition.Name);
                 string propName_hasOut = options.PropertyNamingPolicy?.ConvertName(nameof(TestCaseDefinition.HasOut)) ?? nameof(TestCaseDefinition.HasOut);
                 string propName_shouldFail = options.PropertyNamingPolicy?.ConvertName(nameof(TestCaseDefinition.ShouldFail)) ?? nameof(TestCaseDefinition.ShouldFail);

@@ -183,11 +183,8 @@ namespace Karenia.Rurikawa.Helpers {
 
         public override bool CanConvert(Type typeToConvert) => typeToConvert == typeof(FlowSnake);
 
-        public override FlowSnake Read(
-            ref Utf8JsonReader reader,
-            Type typeToConvert,
-            JsonSerializerOptions options
-        ) => (reader.TokenType == JsonTokenType.Number) ? new(reader.GetInt64()) : new(reader.GetString(), true);
+        public override FlowSnake Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+            => reader.TokenType == JsonTokenType.Number ? new(reader.GetInt64()) : new(reader.GetString(), true);
 
         public override void Write(
             Utf8JsonWriter writer,

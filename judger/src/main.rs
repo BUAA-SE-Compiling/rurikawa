@@ -16,7 +16,6 @@ use std::{
     },
     time::Duration,
 };
-use tracing::metadata::LevelFilter;
 use tracing_subscriber::{EnvFilter, FmtSubscriber};
 
 mod opt;
