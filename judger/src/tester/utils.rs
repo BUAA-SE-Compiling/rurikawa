@@ -65,43 +65,29 @@ pub fn diff<'a>(got: &'a str, expected: &'a str) -> (bool, String) {
     (different, changes)
 }
 
-/// Describes a signal code (>=0) in `unix`. Returns signal number otherwise.
+/// Return the description of a signal code (>=0) in Linux. If such description
+/// was not found, return a string like `Signal XXX` instead.
 ///
-/// # Examples
-/// ```rust
-/// #[cfg(linux)]
-/// {
-///     use rurikawa_judger::tester::utils::strsignal;
+/// This function uses the common part of the Linux signal table among various
+/// architectures.
 ///
-///     let sig = strsignal(1);
-///     assert_eq!(sig.as_ref(), "SIGHUP");
-/// }
-/// ```
-#[cfg(unix)]
+/// See: https://www.man7.org/linux/man-pages/man7/signal.7.html
 pub fn strsignal(signal: i32) -> Cow<'static, str> {
-    use nix::sys::signal::Signal;
-    use std::convert::TryFrom;
-    Signal::try_from(signal).ok().map_or_else(
-        || format!("Signal {}", signal).into(),
-        |sig| sig.as_str().into(),
-    )
-}
-
-/// Describes a signal code (>=0) in `unix`. Returns signal number otherwise.
-///
-/// # Examples
-/// ```rust
-/// #[cfg(not(unix))]
-/// {
-///     use rurikawa_judger::tester::utils::strsignal;
-///
-///     let sig = strsignal(1);
-///     assert_eq!(sig.as_ref(), "Signal 1");
-/// }
-/// ```
-#[cfg(not(unix))]
-pub fn strsignal(_signal: i32) -> Cow<'static, str> {
-    format!("Signal {}", _signal).into()
+    match signal {
+        0 => "No error".into(),
+        1 => "SIGHUP (Hangup)".into(),
+        2 => "SIGINT (Interrupt)".into(),
+        3 => "SIGQUIT (Quit)".into(),
+        4 => "SIGILL (Illegal Instruction)".into(),
+        5 => "SIGTRAP (Trap/Breakpoint Trap)".into(),
+        6 => "SIGABRT (Abort)".into(),
+        8 => "SIGFPE (Floating-point Exception)".into(),
+        9 => "SIGKILL (Kill)".into(),
+        11 => "SIGSEGV (Segmentation Fault)".into(),
+        14 => "SIGALRM (Alarm)".into(),
+        15 => "SIGTERM (Termination)".into(),
+        _ => format!("Signal {}", signal).into(),
+    }
 }
 
 /// Convert a signal (128-254) to a minus error code, retain the others.
