@@ -337,7 +337,7 @@ pub async fn handle_job_wrapper(
     cfg: Arc<SharedClientData>,
 ) {
     let job_id = job.id;
-    flag_new_job(send.clone(), cfg.clone()).await;
+    flag_new_job(cfg.clone());
     let teardown_collector = AsyncTeardownCollector::new();
 
     let res_handle = handle_job(
@@ -351,6 +351,9 @@ pub async fn handle_job_wrapper(
     .await;
 
     teardown_collector.teardown_all().await;
+
+    // the loop after this might loop forever, so this call should be placed before it
+    flag_finished_job(cfg.clone());
 
     let msg = match res_handle {
         Ok(_res) => ClientMsg::JobResult(_res),
@@ -399,17 +402,15 @@ pub async fn handle_job_wrapper(
         }
     }
 
-    flag_finished_job(cfg.clone()).await;
-
     tracing::info!("{}: Result message sent", job_id);
-
-    {
-        cfg.running_job_handles.lock().await.remove(&job_id);
-    }
 
     let _ = fs::ensure_removed_dir(&cfg.job_folder(job_id))
         .await
         .inspect_err(|e| tracing::error!("Failed to remove directory for job {}: {}", job_id, e));
+
+    {
+        cfg.running_job_handles.lock().await.remove(&job_id);
+    }
     tracing::info!("{}: cleanup complete", job_id);
 }
 
@@ -743,11 +744,11 @@ async fn pull_public_cfg(
     Ok(res)
 }
 
-pub async fn flag_new_job(_send: Arc<WsSink>, client_config: Arc<SharedClientData>) {
+pub fn flag_new_job(client_config: Arc<SharedClientData>) {
     client_config.new_job();
 }
 
-pub async fn flag_finished_job(client_config: Arc<SharedClientData>) {
+pub fn flag_finished_job(client_config: Arc<SharedClientData>) {
     client_config.finish_job();
 }
 
