@@ -16,7 +16,6 @@ use std::{
     },
     time::Duration,
 };
-use tracing::metadata::LevelFilter;
 use tracing_subscriber::{EnvFilter, FmtSubscriber};
 
 mod opt;
@@ -27,7 +26,6 @@ static ABORT_HANDLE: OnceCell<CancellationTokenHandle> = OnceCell::new();
 
 fn main() {
     let opt = opt::Opts::parse();
-    tracing_log::LogTracer::builder().init().unwrap();
 
     configure_logger(&opt);
 
