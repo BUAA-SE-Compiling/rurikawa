@@ -66,6 +66,9 @@ tracing-log = "0.1.1"
 tracing-subscriber = { version = "0.3.1", features = ["env-filter"] }
 respector = "0.1.1"
 
+# Optional: Metrics collector
+prometheus = { version = "0.13", optional = true }
+
 [dev-dependencies]
 pretty_assertions = "1"
 shellexpand = "2.1"
@@ -73,3 +76,6 @@ shell-words = "1"
 test-env-log = { version = "0.2", features = [
     "trace",
 ], default-features = false }
+
+[features]
+metrics = ["prometheus"]
