@@ -340,6 +340,16 @@ pub async fn handle_job_wrapper(
     flag_new_job(cfg.clone());
     let teardown_collector = AsyncTeardownCollector::new();
 
+    let cancel = cancel.child_token();
+    let timeout_fut = tokio::spawn({
+        let cancel = cancel.clone();
+        async move {
+            // TODO: hardcoded run time limit 30min
+            tokio::time::sleep(std::time::Duration::from_secs(30 * 60)).await;
+            cancel.cancel();
+        }
+    });
+
     let res_handle = handle_job(
         job,
         send.clone(),
@@ -410,6 +420,7 @@ pub async fn handle_job_wrapper(
 
     {
         cfg.running_job_handles.lock().await.remove(&job_id);
+        timeout_fut.abort();
     }
     tracing::info!("{}: cleanup complete", job_id);
 }
@@ -486,6 +497,7 @@ pub async fn handle_job(
             &public_cfg,
             &cfg.test_suite_folder(job.test_suite),
             data_volume_name,
+            Some(std::time::Duration::from_secs(600)), // hardcoded timeout 10min
         )
         .with_cancel(cancel.cancelled())
         .await
@@ -663,6 +675,7 @@ async fn populate_data_volume(
     public_cfg: &JudgerPublicConfig,
     base_dir: &Path,
     data_volume_name: String,
+    timeout: Option<std::time::Duration>,
 ) -> Result<Volume, JobExecErr> {
     let mut data_volume = Volume::create(docker.clone(), data_volume_name.clone())
         .await
@@ -672,13 +685,21 @@ async fn populate_data_volume(
             ))
         })?;
 
-    if let Err(e) = data_volume
-        .copy_local_files_into(
+    let timeout = timeout.unwrap_or(std::time::Duration::MAX);
+    if let Err(e) = tokio::time::timeout(
+        timeout,
+        data_volume.copy_local_files_into(
             &base_dir.join(&public_cfg.mapped_dir.from),
             Gitignore::empty(),
-        )
-        .await
-        .context("When copying local files into target volume")
+        ),
+    )
+    .await
+    .context(format!(
+        "Reached timeout limit at {} seconds",
+        timeout.as_secs_f64()
+    ))
+    .and_then(|r| r)
+    .context("When copying local files into target volume")
     {
         let _ = data_volume.remove().await;
         return Err(e.into());
