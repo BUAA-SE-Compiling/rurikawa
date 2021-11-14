@@ -50,7 +50,7 @@ async fn run_simple_test_with_mock_runner(runner: MockRunner) -> Result<(), JobF
     let (_env, test_case) = make_env_and_test_case(runner.clone());
 
     // 20 is enough to buffer all messages
-    let (sink, _ch) = tokio::sync::mpsc::channel(20);
+    let (sink, _ch) = tokio::sync::mpsc::unbounded_channel();
 
     run_test_case(
         &test_case,

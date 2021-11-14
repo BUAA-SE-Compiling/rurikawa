@@ -6,7 +6,7 @@
 use std::borrow::Cow;
 
 use once_cell::sync::Lazy;
-use tokio::sync::mpsc::Sender;
+use tokio::sync::mpsc::UnboundedSender;
 
 use crate::prelude::CancelFutureExt;
 use crate::tester::{
@@ -36,7 +36,7 @@ type TestOutput = anyhow::Result<Result<(), JobFailure>>;
 pub async fn run_test_case(
     exec: &model::TestCase,
     opt: &model::CommandRunOptions,
-    sink: Sender<ProcessOutput>,
+    sink: UnboundedSender<ProcessOutput>,
 ) -> TestOutput {
     tracing::debug!("Starting new test case");
     for group in &exec.commands {
@@ -58,7 +58,7 @@ pub async fn run_test_case(
 pub async fn run_exec_group(
     group: &model::ExecGroup,
     opt: &model::CommandRunOptions,
-    sink: Sender<ProcessOutput>,
+    sink: UnboundedSender<ProcessOutput>,
 ) -> TestOutput {
     tracing::debug!(run_in = %group.run_in.name(), "Starting exec group");
     for exec in &group.steps {
@@ -84,7 +84,7 @@ pub async fn run_exec_group(
         let ret_code = run_res.ret_code.clone();
         if ret_code != ExitStatus::ReturnCode(0) {
             tracing::debug!(?ret_code, "Return code check failed");
-            sink.send(run_res).await?;
+            sink.send(run_res)?;
 
             if ret_code == ExitStatus::Timeout {
                 return Ok(Err(JobFailure::ExecError(ExecError {
@@ -110,17 +110,17 @@ pub async fn run_exec_group(
                 Ok(o) => o,
                 Err(e) => {
                     // workaround before async_drop stabilizes
-                    sink.send(run_res).await?;
+                    sink.send(run_res)?;
                     return Err(e);
                 }
             };
             if let Some(diff) = output_res {
-                sink.send(run_res).await?;
+                sink.send(run_res)?;
                 return Ok(Err(JobFailure::OutputMismatch(diff)));
             }
         }
 
-        sink.send(run_res).await?;
+        sink.send(run_res)?;
     }
     Ok(Ok(()))
 }

@@ -76,7 +76,7 @@ pub async fn run_job_test_cases<'a>(
             test_suite_base_dir,
         );
 
-        let (sink, mut recv) = tokio::sync::mpsc::channel(19);
+        let (sink, mut recv) = tokio::sync::mpsc::unbounded_channel();
         let output_collector = tokio::spawn(async move {
             let mut res = vec![];
             while let Some(v) = recv.recv().await {
