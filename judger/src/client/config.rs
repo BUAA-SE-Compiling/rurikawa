@@ -264,7 +264,10 @@ impl SharedClientData {
             suite.modify.clone()
         };
 
-        arc.lock_owned().await
+        tracing::debug!(suite=%id, "TRY_ACQ suite_modify_permit");
+        let lock = arc.lock_owned().await;
+        tracing::debug!(suite=%id, "ACQ suite_modify_permit");
+        lock
     }
 
     pub async fn before_suite_modify(&self, id: FlowSnake) -> OwnedRwLockWriteGuard<()> {
@@ -279,7 +282,10 @@ impl SharedClientData {
             suite.update.clone()
         };
 
-        arc.write_owned().await
+        tracing::debug!(suite=%id, "TRY_ACQ suite_write_guard");
+        let lock = arc.write_owned().await;
+        tracing::debug!(suite=%id, "ACQ suite_write_guard");
+        lock
     }
 
     pub async fn on_suite_run(&self, id: FlowSnake) -> OwnedRwLockReadGuard<()> {
@@ -292,7 +298,10 @@ impl SharedClientData {
             suite.update.clone()
         };
 
-        arc.read_owned().await
+        tracing::debug!(suite=%id, "TRY_ACQ suite_read_guard");
+        let lock = arc.read_owned().await;
+        tracing::debug!(suite=%id, "ACQ suite_read_guard");
+        lock
     }
 
     /// Function to call before the job starts. Creates data for the corresponding test suites.
@@ -303,7 +312,8 @@ impl SharedClientData {
             .lock()
             .expect("something panicked when locking this lock. Panic!");
         let suite = suites_map.entry(id).or_default();
-        suite.rc.fetch_add(1, std::sync::atomic::Ordering::AcqRel);
+        let running = suite.rc.fetch_add(1, std::sync::atomic::Ordering::AcqRel);
+        tracing::debug!(suite=%id, "ACQ suite_guard; remaining_jobs={}", running);
 
         drop(suites_map);
         TestSuiteRunningGuard {
@@ -325,6 +335,7 @@ impl SharedClientData {
             }
         };
         let remaining = suite.rc.fetch_sub(1, std::sync::atomic::Ordering::AcqRel);
+        tracing::debug!(suite=%id, "REL suite_guard; remaining_jobs={}", remaining);
         if remaining == 0 {
             suites_map.remove(&id);
         }

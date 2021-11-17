@@ -158,6 +158,9 @@ pub async fn check_download_read_test_suite(
     cfg: &SharedClientData,
 ) -> Result<(JudgerPublicConfig, String, OwnedMutexGuard<()>), JobExecErr> {
     let _might_modify_guard = cfg.before_suite_might_modify(suite_id).await;
+    scopeguard::defer! {
+        tracing::debug!("REL suite_modify_permit");
+    }
 
     tracing::info!("Checking test suite");
     let suite_folder_root = cfg.test_suite_folder_root();
@@ -208,6 +211,9 @@ pub async fn check_download_read_test_suite(
     if !dir_exists || !lockfile_up_to_date {
         tracing::info!("Test suite not up to date. Updating...");
         let _modify_guard = cfg.before_suite_modify(suite_id).await;
+        scopeguard::defer! {
+            tracing::debug!("REL suite_write_guard");
+        }
 
         let endpoint = cfg.test_suite_download_endpoint(suite_id);
         let file_folder_root = cfg.temp_file_folder_root();
@@ -447,6 +453,12 @@ pub async fn handle_job(
     // NOTE: We must acquire the read guard before dropping the modify guard.
     // See locking pattern in [`crate::client::config::TestSuiteStatus`].
     let _job_read_guard = cfg.on_suite_run(job.test_suite).await;
+
+    scopeguard::defer! {
+        tracing::debug!("REL suite_read_guard");
+    }
+
+    tracing::debug!("REL suite_modify_permit");
     drop(might_modify_permit);
 
     send.send_msg(&ClientMsg::JobProgress(JobProgressMsg {
