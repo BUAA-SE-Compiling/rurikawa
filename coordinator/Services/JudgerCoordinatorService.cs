@@ -324,7 +324,7 @@ namespace Karenia.Rurikawa.Coordinator.Services {
                 return;
             }
 
-            job.Results.Add(msg.TestId, msg.TestResult);
+            job.Results[msg.TestId] = msg.TestResult;
             await db.SaveChangesAsync();
             await tx.CommitAsync();
 
