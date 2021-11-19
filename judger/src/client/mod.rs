@@ -899,47 +899,54 @@ async fn poll_jobs(
             .store(Some(curr_poll.clone()));
 
         let active_task_count = client_config.running_tests.load(Ordering::SeqCst) as u32;
-        let request_for_new_task =
-            client_config.cfg().max_concurrent_tasks as u32 - active_task_count;
+        let max_concurrent_tasks = client_config.cfg().max_concurrent_tasks as u32;
+        if active_task_count <= max_concurrent_tasks {
+            let request_for_new_task = max_concurrent_tasks - active_task_count;
 
-        tracing::debug!(
-            "Polling jobs from server. Asking for {} new jobs.",
-            request_for_new_task
-        );
+            tracing::debug!(
+                "Polling jobs from server. Asking for {} new jobs.",
+                request_for_new_task
+            );
 
-        let msg = ClientMsg::JobRequest(JobRequestMsg {
-            active_task_count,
-            request_for_new_task,
-            message_id: Some(message_id),
-        });
-        if let Some(Ok(_)) = ws
-            .send_msg(&msg)
-            .with_cancel(keepalive_token.cancelled())
-            .await
-        {
-            // wtf here
-        } else {
-            break 'outer;
-        }
+            let msg = ClientMsg::JobRequest(JobRequestMsg {
+                active_task_count,
+                request_for_new_task,
+                message_id: Some(message_id),
+            });
+            if let Some(Ok(_)) = ws
+                .send_msg(&msg)
+                .with_cancel(keepalive_token.cancelled())
+                .await
+            {
+                // wtf here
+            } else {
+                break 'outer;
+            }
 
-        tokio::spawn({
-            // auto-resetting
-            let client_config = client_config.clone();
-            let guard = arc_swap::Guard::from(curr_poll);
-            async move {
-                tokio::time::sleep(poll_timeout).await;
-                let old_val = client_config.waiting_for_jobs.compare_and_swap(guard, None);
+            tokio::spawn({
+                // auto-resetting
+                let client_config = client_config.clone();
+                let guard = arc_swap::Guard::from(curr_poll);
+                async move {
+                    tokio::time::sleep(poll_timeout).await;
+                    let old_val = client_config.waiting_for_jobs.compare_and_swap(guard, None);
 
-                if old_val.as_ref().map_or(false, |x| **x == message_id) {
-                    tracing::warn!(
+                    if old_val.as_ref().map_or(false, |x| **x == message_id) {
+                        tracing::warn!(
                         "Job polling timed out at {}s for poll message {}. Please check server!",
                         poll_timeout.as_secs_f32(),
                         old_val.as_ref().unwrap()
                     );
+                    }
                 }
-            }
-        });
-
+            });
+        } else if active_task_count > max_concurrent_tasks {
+            tracing::error!(
+                "Max concurrent task count configured as {}, but active task count is {}",
+                max_concurrent_tasks,
+                active_task_count
+            );
+        }
         if tokio::time::sleep(poll_interval)
             .with_cancel(keepalive_token.cancelled())
             .await
@@ -999,7 +1006,17 @@ pub async fn client_loop(
                                     .swap(None)
                                     .map_or(false, |x| id != *x)
                                 {
+                                    tracing::warn!(
+                                        "Message is not replying to our request. Not proceeding."
+                                    );
                                     proceed = false;
+                                } else if msg.jobs.len()
+                                    + client_config.running_tests.load(Ordering::Acquire)
+                                    > client_config.cfg().max_concurrent_tasks
+                                {
+                                    tracing::warn!(
+                                        "Received more tasks than we can handle. Not proceeding."
+                                    );
                                 }
                             };
 
