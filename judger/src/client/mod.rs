@@ -376,12 +376,12 @@ pub async fn handle_job_wrapper(
         // These two types need explicit handling, since they are not finished
         Err(JobExecErr::Aborted) => ClientMsg::JobProgress(JobProgressMsg {
             job_id,
-            stage: JobStage::Aborted,
+            stage: JobStage::Queued,
         }),
         Err(JobExecErr::Cancelled) => ClientMsg::JobProgress(JobProgressMsg {
             job_id,
             stage: if cfg.abort_handle.is_cancelled() {
-                JobStage::Aborted
+                JobStage::Queued
             } else if cfg
                 .cancelling_job_info
                 .get(&job_id)
@@ -389,7 +389,7 @@ pub async fn handle_job_wrapper(
             {
                 JobStage::Cancelled
             } else {
-                JobStage::Aborted
+                JobStage::Queued
             },
         }),
         Err(e) => extract_job_err(job_id, &e),
@@ -893,9 +893,10 @@ async fn poll_jobs(
 
         let message_id = FlowSnake::generate();
 
+        let curr_poll = Arc::new(message_id);
         client_config
             .waiting_for_jobs
-            .store(Some(Arc::new(message_id)));
+            .store(Some(curr_poll.clone()));
 
         let active_task_count = client_config.running_tests.load(Ordering::SeqCst) as u32;
         let request_for_new_task =
@@ -924,14 +925,16 @@ async fn poll_jobs(
         tokio::spawn({
             // auto-resetting
             let client_config = client_config.clone();
+            let guard = arc_swap::Guard::from(curr_poll);
             async move {
                 tokio::time::sleep(poll_timeout).await;
-                let old_val = client_config.waiting_for_jobs.swap(None);
+                let old_val = client_config.waiting_for_jobs.compare_and_swap(guard, None);
+
                 if old_val.as_ref().map_or(false, |x| **x == message_id) {
                     tracing::warn!(
                         "Job polling timed out at {}s for poll message {}. Please check server!",
                         poll_timeout.as_secs_f32(),
-                        old_val.unwrap()
+                        old_val.as_ref().unwrap()
                     );
                 }
             }
@@ -987,7 +990,6 @@ pub async fn client_loop(
                 if let Ok(msg) = msg.inspect_err(|e| {
                     tracing::warn!("Unable to deserialize mesage: {}\nError: {:?}", &payload, e);
                 }) {
-                    tracing::debug!("Received message: {:?}", msg);
                     match msg {
                         ServerMsg::MultiNewJob(msg) => {
                             let mut proceed = true;
@@ -1005,6 +1007,20 @@ pub async fn client_loop(
                                 for job in msg.jobs {
                                     accept_job(job, ws_send.clone(), client_config.clone()).await
                                 }
+                            } else {
+                                let job_name_list = msg.jobs.iter().map(|j| j.id).collect_vec();
+                                tracing::debug!("Aborted jobs in message: {:?}", job_name_list);
+                                let ws_send = ws_send.clone();
+                                tokio::spawn(async move {
+                                    let r = ws_send
+                                        .send_msg(&ClientMsg::RevertJob(RevertJobMsg {
+                                            jobs: job_name_list,
+                                        }))
+                                        .await;
+                                    if let Err(e) = r {
+                                        tracing::error!("Error when aborting job: {}", e);
+                                    }
+                                });
                             }
                         }
                         ServerMsg::AbortJob(job) => {

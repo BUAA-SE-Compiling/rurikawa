@@ -171,6 +171,8 @@ namespace Karenia.Rurikawa.Coordinator.Services {
                         OnJobRequestMessage(clientId, msg1); break;
                     case JobOutputMsg msg1:
                         OnJobOutputMessage(clientId, msg1); break;
+                    case RevertJobMsg msg1:
+                        OnRevertJobMessage(clientId, msg1); break;
                     default:
                         logger.LogCritical("Unable to handle message type {0}", msg.GetType().Name);
                         break;
@@ -370,6 +372,22 @@ namespace Karenia.Rurikawa.Coordinator.Services {
             //     values.ToArray(),
             //     maxLength: 2000,
             //     flags: StackExchange.Redis.CommandFlags.FireAndForget);
+        }
+
+        async void OnRevertJobMessage(string clientId, RevertJobMsg msg) {
+            using var scope = scopeProvider.CreateScope();
+            var db = GetDb(scope);
+            var jobs = await db.Jobs
+                .Where(j => msg.Jobs.Contains(j.Id)
+                    && j.Stage != JobStage.Aborted
+                    && j.Stage != JobStage.Cancelled
+                    && j.Stage != JobStage.Finished
+                    && j.Judger == clientId)
+                .ToListAsync();
+            foreach (var job in jobs) {
+                job.Stage = JobStage.Queued;
+            }
+            await db.SaveChangesAsync();
         }
 
         public static string FormatJobError(FlowSnake id) => $"job:{id}:error";

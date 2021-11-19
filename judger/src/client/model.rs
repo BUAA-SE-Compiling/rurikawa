@@ -89,6 +89,9 @@ pub enum ClientMsg {
     /// Requests some job from coordinator
     #[serde(rename = "job_request")]
     JobRequest(JobRequestMsg),
+
+    #[serde(rename = "revert_job")]
+    RevertJob(RevertJobMsg),
 }
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize)]
@@ -301,6 +304,12 @@ pub struct JobRequestMsg {
     pub active_task_count: u32,
     pub request_for_new_task: u32,
     pub message_id: Option<FlowSnake>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RevertJobMsg {
+    pub jobs: Vec<FlowSnake>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

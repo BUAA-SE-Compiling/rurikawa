@@ -189,5 +189,13 @@ namespace Karenia.Rurikawa.Models.Judger {
         /// </summary>
         public FlowSnake? MessageId { get; set; }
     }
+
+    [JsonDiscriminator("revert_job")]
+    public class RevertJobMsg : ClientMsg {
+        /// <summary>
+        /// Jobs to revert to queued state
+        /// </summary>
+        public List<FlowSnake> Jobs { get; set; }
+    }
 }
 
