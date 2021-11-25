@@ -119,6 +119,12 @@ In subsequent runs, only `rurikawa connect` is needed if the configuration stays
 
 Data created by the judger will be stored at `~/.rurikawa`.
 
+## Contributing
+
+Any kind of contribution is welcomed! New features, bug fixing, _MOAR_ tests... you name it. There's so much more we want to add into this project, but not having time to do so! Checkout the [issues list](https://github.com/BUAA-SE-Compiling/rurikawa/issues) for things we would like to fix or implement.
+
+This project is mainly maintained by [Rynco Maekawa](https://github.com/lynzrand), who is currently busy with his schoolwork. If you like this project and wants him to devote more time into it, maybe consider hitting the donate button on his profile page!
+
 ## License
 
 MIT.
