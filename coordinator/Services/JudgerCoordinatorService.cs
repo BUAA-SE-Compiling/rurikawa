@@ -157,25 +157,29 @@ namespace Karenia.Rurikawa.Coordinator.Services {
 
         IDisposable AssignObservables(string clientId, JudgerWebsocketWrapperTy client) {
             return client.Messages.Subscribe((msg) => {
-                logger.LogTrace($"Judger {clientId} sent message of type {msg.GetType().Name}");
-                switch (msg) {
-                    case JobResultMsg msg1:
-                        OnJobResultMessage(clientId, msg1); break;
-                    case JobProgressMsg msg1:
-                        OnJobProgressMessage(clientId, msg1); break;
-                    case PartialResultMsg msg1:
-                        OnPartialResultMessage(clientId, msg1); break;
-                    case ClientStatusMsg msg1:
-                        OnJudgerStatusUpdateMessage(clientId, msg1); break;
-                    case JobRequestMsg msg1:
-                        OnJobRequestMessage(clientId, msg1); break;
-                    case JobOutputMsg msg1:
-                        OnJobOutputMessage(clientId, msg1); break;
-                    case RevertJobMsg msg1:
-                        OnRevertJobMessage(clientId, msg1); break;
-                    default:
-                        logger.LogCritical("Unable to handle message type {0}", msg.GetType().Name);
-                        break;
+                try {
+                    logger.LogTrace($"Judger {clientId} sent message of type {msg.GetType().Name}");
+                    switch (msg) {
+                        case JobResultMsg msg1:
+                            OnJobResultMessage(clientId, msg1); break;
+                        case JobProgressMsg msg1:
+                            OnJobProgressMessage(clientId, msg1); break;
+                        case PartialResultMsg msg1:
+                            OnPartialResultMessage(clientId, msg1); break;
+                        case ClientStatusMsg msg1:
+                            OnJudgerStatusUpdateMessage(clientId, msg1); break;
+                        case JobRequestMsg msg1:
+                            OnJobRequestMessage(clientId, msg1); break;
+                        case JobOutputMsg msg1:
+                            OnJobOutputMessage(clientId, msg1); break;
+                        case RevertJobMsg msg1:
+                            OnRevertJobMessage(clientId, msg1); break;
+                        default:
+                            logger.LogCritical("Unable to handle message type {0}", msg.GetType().Name);
+                            break;
+                    }
+                } catch (Exception e) {
+                    logger.LogError(e.ToString());
                 }
             }, _ => { }, () => {
                 logger.LogInformation($"Judger {clientId} finished connection");
