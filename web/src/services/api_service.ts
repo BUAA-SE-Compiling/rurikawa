@@ -294,9 +294,14 @@ export class ApiService {
   };
 
   dashboard = {
-    get: () => {
+    get: (limit: number = 10, startId?: string) => {
+      let params: any = { limit };
+      if (startId) {
+        params.startId = startId;
+      }
       return this.httpClient.get<DashboardItem[]>(
-        endpointBase + endpoints.dashboard.get
+        endpointBase + endpoints.dashboard.get,
+        { params }
       );
     },
   };

@@ -29,7 +29,8 @@ export class DashboardComponent implements OnInit {
   }
 
   fetchTestSuites() {
-    this.api.testSuite.query({ take: 20 }).subscribe({
+    // TODO: add LoadMore button. We just make this value large enough for now.
+    this.api.testSuite.query({ take: 100 }).subscribe({
       next: (v) => (this.suite = v),
     });
   }

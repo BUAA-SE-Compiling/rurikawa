@@ -41,6 +41,13 @@
           [item]="i"
           (click)="gotoJudgeSuite(i.suite.id)"
         ></app-dashboard-item-component>
+        <button
+          class="btn info"
+          (click)="loadmore()"
+          *ngIf="!error && !isLoading && hasMore"
+        >
+          加载更多
+        </button>
       </ng-template>
     </div>
   </div>

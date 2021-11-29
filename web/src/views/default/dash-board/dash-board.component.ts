@@ -19,6 +19,8 @@ import {
   NAVBAR_DEFAULT_STYLE,
 } from 'src/services/navbar_service';
 
+const DEFAULT_NUM_ITEMS = 20;
+
 @Component({
   selector: 'app-dash-board',
   templateUrl: './dash-board.component.html',
@@ -37,6 +39,8 @@ export class DashBoardComponent implements OnInit, OnDestroy {
   }
   loading = true;
   items: DashboardItem[] | undefined = undefined;
+  itemsCount: number = 0;
+  hasMore = true;
 
   announcements: Announcement[] | undefined = undefined;
 
@@ -64,14 +68,39 @@ export class DashBoardComponent implements OnInit, OnDestroy {
 
   intervalId: any;
 
+  loadmore(): void {
+    this.loading = true;
+    this.api.dashboard
+      .get(DEFAULT_NUM_ITEMS, this.items[this.items.length - 1].job.id)
+      .subscribe({
+        next: (items) => {
+          this.items.push(...items);
+          this.loading = false;
+          if (items.length < DEFAULT_NUM_ITEMS) this.hasMore = false;
+        },
+        error: (e) => {
+          if (e instanceof HttpErrorResponse) {
+            this.errorMessage = e.message;
+          } else {
+            this.errorMessage = JSON.stringify(e);
+          }
+          console.warn(e);
+          this.error = true;
+          this.loading = false;
+          this.hasMore = false;
+        },
+      });
+  }
+
   ngOnInit(): void {
     this.title.setTitle('Rurikawa', 'dashboard');
     this.error = false;
     this.errorMessage = undefined;
-    this.api.dashboard.get().subscribe({
+    this.api.dashboard.get(DEFAULT_NUM_ITEMS).subscribe({
       next: (items) => {
         this.items = items;
         this.loading = false;
+        if (items.length < DEFAULT_NUM_ITEMS) this.hasMore = false;
       },
       error: (e) => {
         if (e instanceof HttpErrorResponse) {
