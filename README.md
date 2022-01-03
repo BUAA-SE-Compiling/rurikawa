@@ -4,7 +4,7 @@
 
 Rurikawa is a simple Docker-based online judge system for complex multi-file projects with changing building scripts and multi-stage assignments.
 
-Rurikawa（琉璃川）是一个简易的自动评测系统，主要面向构建流程多变、复杂的多文件项目，以及多阶段的作业。
+Rurikawa（~~琉璃河~~琉璃川）是一个简易的自动评测系统，主要面向构建流程多变、复杂的多文件项目，以及多阶段的作业。
 
 ## Features
 
@@ -131,10 +131,3 @@ MIT.
 
 Copyright (c) 2020--2021, Karenia Works (Rynco Maekawa & Rami3L Li).
 
-## Naming
-
-Rurikawa is the name of a fictional high school (_Rurikawa High School_ or _Liulichuan High School_, 琉璃川高等学校), in [volvacea][]'s doujin novel series [_Two Centimeters Above The Clouds_][2cm], inside the world of the web novel series [_Illumine Lingao_][lgqm]. A rough guess of this high school's position in real world is near Toupu Village, Longhua District, Haikou, Hainan.
-
-[volvacea]: https://lgqm.gq/space-uid-2378.html
-[2cm]: https://lgqm.gq/thread-4190-1-1.html
-[lgqm]: https://en.wikipedia.org/wiki/Illumine_Lingao
