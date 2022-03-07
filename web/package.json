@@ -30,7 +30,7 @@
     "dayjs": "^1.8.36",
     "filesize": "^6.1.0",
     "lodash": "^4.17.20",
-    "marked": "^2.0.0",
+    "marked": "^4.0.10",
     "ngx-build-plus": "^12.2.0",
     "ngx-markdown": "^12.0.0",
     "quick-lru": "^5.1.1",
