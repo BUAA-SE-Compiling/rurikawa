@@ -107,6 +107,36 @@ pub async fn git_clone(dir: &Path, options: GitCloneOptions) -> std::io::Result<
 
     tokio::fs::create_dir_all(dir).await?;
 
+    if &options.revision == "bhpan" {
+        let bytes =  &options.repo.as_bytes();
+
+        // cut 'https://bhpan.buaa.edu.cn/link/'
+        let mut fid = &options.repo[35..];
+
+        for (i, &item) in bytes.iter().enumerate() {
+            if item == b'#'{
+                // cut 'https://bhpan.buaa.edu.cn/#/link/', if so
+                fid = &options.repo[37..];
+                break;
+            }
+        }
+
+        if cfg!(windows) {
+            // TODO: write command for windows
+        }
+        else if cfg!(macos) {
+            // TODO: write command for macos
+        }
+        else {
+            do_command!(dir, ["sh", &("x=`curl --location --request POST 'https://bhpan.buaa.edu.cn/api/v1/link/osdownload' --header 'Content-Type: application/json' --data-raw '{\"link\":\"".to_string()
+            + fid 
+            + "\",\"reqhost\":\"bhpan.buaa.edu.cn\",\"usehttps\": true}'`&&x=`echo ${x%\\\"]*}`&&x=`echo ${x#*,\\\"}`&&curl --location --request GET $x --output code.zip"
+            )]);
+            do_command!(dir, ["unzip", "code.zip"]);
+        }
+        Ok(())
+    }
+
     do_command!(dir, ["git", "init"]);
     do_command!(dir, ["git", "remote", "add", "origin", &options.repo]);
     do_command!(
